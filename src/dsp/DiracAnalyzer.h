@@ -12,8 +12,7 @@
 // order - see AmbisonicEncoding.h) and, per one of 8 log-spaced frequency
 // bands, estimates the arriving sound's direction (azimuth/elevation) and
 // diffuseness (0 = a single coherent point source, 1 = fully diffuse/
-// uncorrelated field) - see plans/dirac-heatmap-scope.md for the design
-// this implements (particularly SS1/4/5/6 for the parameters/math below).
+// uncorrelated field).
 //
 // Internally runs its own 50%-overlap, Hann-windowed STFT (N=1024,
 // hop=512) - independent of dsp/SpectrumAnalyzer.h's single ~10Hz
@@ -32,7 +31,7 @@ class DiracAnalyzer {
   // (kHeatmapWidth*2 = 62, UI.cpp) regardless of terminal size, and 36
   // source bins upsampled to 62 destination columns hit a real,
   // confirmed asymmetric-rounding bug in that resampling (see
-  // TerminalUI.cpp's axisRange()) - widening the source grid past the
+  // InteractiveUI.cpp's axisRange()) - widening the source grid past the
   // display's own resolution avoids upsampling altogether, the more
   // robust fix (axisRange() still handles upsampling correctly too, but
   // not needing to is simpler and matches elevation's own comfortably-
@@ -65,8 +64,8 @@ class DiracAnalyzer {
 
   // Monotonically increments once per internal analysis frame (i.e. once
   // per kHopSize new samples consumed, ~86Hz) - callers that only want a
-  // fraction of that rate (e.g. VisualizationThread's own render-throttle,
-  // plans/dirac-heatmap-scope.md SS1) diff this against a saved value
+  // fraction of that rate (e.g. VisualizationThread's own render-throttle)
+  // diff this against a saved value
   // rather than this class trying to guess an unrelated caller's own
   // desired output rate.
   int getAnalysisFrameCount() const { return analysis_frame_count_; }

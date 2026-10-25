@@ -63,12 +63,11 @@ static inline const std::string to_string(HazePreset preset) {
 }
 
 // "Haze" - the ambisonic bus saturator, named for what it returns: a fully
-// diffuse, tempo-delayed bed rather than a localized source - see
-// plans/drum-bus-saturator.md for the full design. Unlike FDNReverb/
+// diffuse, tempo-delayed bed rather than a localized source. Unlike FDNReverb/
 // MultiTapDelay/GranularCloud (point-source tap producers), it reports
 // zero taps and instead uses BusEffect's direct-channel path
 // (encodeDirect()) via a private AmbisonicDiffuseEncoder instance (wired
-// in a later milestone - see the plan).
+// in a later milestone).
 //
 // DSP chain (process()): drive gain -> pre-distortion bandpass (HPF+LPF
 // biquads) -> oversample (HalfbandFilter cascade, 4x for tanh/asym/
@@ -129,6 +128,9 @@ class Haze : public BusEffect {
 
   // No point-source taps - see the class comment above.
   int getNumTaps() const override { return 0; }
+  // The pre-delay, then the diffuse encoder's allpass chains ringing down
+  // (unseen behind a muted return).
+  float idleAfterSeconds() const override { return kMaxPredelaySeconds + 1.5f; }
   const float * getTap(int) const override { return nullptr; } // never called: getNumTaps() == 0
   SphericalPosition getTapDirection(int) const override { return SphericalPosition{}; } // never called
 

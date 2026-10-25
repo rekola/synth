@@ -12,6 +12,12 @@ signal that changes while the note sounds (a pattern row of it carries the
 pressure as its velocity). Not the aftersound: that is a property of the
 sound of a piano note, aftertouch is something the player does.
 
+**Chord**
+Three or more notes sounding together, such as a triad (a root with its third
+and fifth, like C E G). Not to be confused with a keyboard
+*shortcut* (a key with its modifiers, `KeyStroke` in the code) or a *key
+sequence* (several shortcuts in a row, such as `C-x C-s`).
+
 **Clip launcher**
 The grid of clips inside Live View: one column per track, one row per scene,
 each slot triggered on the next bar. On a Launchpad it is the pad grid in the
@@ -98,6 +104,11 @@ of the note a fifth below it. Partch's otonalities and utonalities are
 six-note chords over the odd numbers 1, 3, 5, 7, 9 and 11; these scales use 15
 and 21 as well, and are the application's own. Their chords are tabled in
 [otonal-and-utonal.md](otonal-and-utonal.md).
+
+**Performance effect**
+An effect held on a track from the Launchpad's Custom grid (stutter,
+shuffle, erode, shatter, gate, crush, duck, a send throw, orbit): it lasts while the pad is held and never changes the song. See
+launchpad.md.
 
 **Rhythm**
 A pre-written drum pattern in the Library, such as Waltz, Funk or Bossa

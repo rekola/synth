@@ -37,7 +37,7 @@ TEST(inlineeditor_enter_commits_and_ctrl_g_cancels) {
   InlineEditor editor(root);
   int commits = 0;
   editor.open({}, [&](std::string) { commits++; });
-  CHECK(editor.offerInput(key(NCKEY_ENTER)));
+  CHECK(editor.offerInput(key(cellui::Key::Enter)));
   CHECK(commits == 1);
   CHECK(!editor.isOpen());
   editor.open({}, [&](std::string) { commits++; });
@@ -57,4 +57,19 @@ TEST(inlineeditor_other_keys_are_taken_while_open) {
   editor.cancel();
   CHECK(!editor.isOpen());
   editor.cancel();  // a no-op when closed
+}
+
+TEST(inlineeditor_ignores_the_release_of_the_key_that_opened_it) {
+  StyleProvider styles;
+  CellBuffer b(1, 12);
+  BufferPlane root(b, styles);
+  InlineEditor editor(root);
+  int commits = 0;
+  editor.open({}, [&](std::string) { commits++; });
+  Input release(cellui::Key::Enter, 0, 0, false, false, false, false, Input::Kind::RELEASE);
+  CHECK(editor.offerInput(release));
+  CHECK(editor.isOpen());
+  CHECK(commits == 0);
+  CHECK(editor.offerInput(key(cellui::Key::Enter)));
+  CHECK(commits == 1);
 }

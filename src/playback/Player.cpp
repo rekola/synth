@@ -12,6 +12,7 @@
 #include "ThresholdRecordingTriggeredEvent.h"
 #include "PlaybackControlEvent.h"
 #include "AudioBlockEvent.h"
+#include "VisualizationThread.h"
 
 #include "../ambisonic/MixerFactory.h"
 #include "../state/LeafTrackState.h"
@@ -38,14 +39,14 @@ float dbToLinear(float db) { return db > -100.0f ? powf(10.0f, db * 0.05f) : 0.0
 
 class EventLogger : public Logger {
  public:
-  EventLogger(EventQueue * _event_queue) : event_queue(_event_queue) { }
+  EventLogger(Controller * _controller) : controller(_controller) {}
 
   void log(std::string s) override {
-    event_queue->push(make_unique<LogEvent>(std::move(s)));
+    controller->postToUI(LogEvent(std::move(s)));
   }
 
 private:
-  EventQueue * event_queue;
+ Controller * controller;
 };
 
 SongState &
@@ -141,7 +142,7 @@ Player::handlePlaybackControlEvent(PlaybackControlEvent & ev) {
   case PlaybackControlEvent::SET_CAPTURE_DEVICE:
   case PlaybackControlEvent::SET_PLAYBACK_DEVICE: {
     if (!audio_) return;
-    EventLogger logger(&controller_->getUIEventQueue());
+    EventLogger logger(controller_);
     bool capture = ev.getType() == PlaybackControlEvent::SET_CAPTURE_DEVICE;
     // Controller refuses this up front, but a take can begin between that
     // check and this event; the stream in use must not be swapped.
@@ -403,6 +404,10 @@ Player::handlePlaybackControlEvent(PlaybackControlEvent & ev) {
 
   case PlaybackControlEvent::QUEUE_SCENE_CHANGE:
     state.queueSceneChange(ev.getParameter1(), {ev.getParameter2() / 100, ev.getParameter2() % 100}, (ev.getParameter3() & 1) != 0, (ev.getParameter3() & 2) != 0, ev.getParameter4());
+    break;
+
+  case PlaybackControlEvent::SET_PERFORMANCE:
+    state.setPerformance(ev.getParameter1(), static_cast<PerformanceEffect>(ev.getParameter2()), ev.getParameter3());
     break;
 
   case PlaybackControlEvent::SHIFT_LIVE_POSITION:
@@ -751,7 +756,7 @@ void Player::handleQueuedEvent(std::unique_ptr<Event> event) {
 
 void
 Player::play(AudioAPI & audio) {
-  EventLogger logger(&(controller_->getUIEventQueue()));
+  EventLogger logger(controller_);
 
   auto & event_queue = controller_->getPlaybackEventQueue();
 
@@ -781,7 +786,7 @@ Player::play(AudioAPI & audio) {
       auto & last = last_snapshot_signature_[name];
       if (last.second && last.first == signature) continue;
       last = { signature, true };
-      controller_->getUIEventQueue().push(std::move(event));
+      controller_->postToUI(std::move(*event));
     }
   };
 
@@ -817,7 +822,7 @@ Player::play(AudioAPI & audio) {
       auto active_it = live_states_.find(controller_->getActiveBufferNameThreadSafe());
       if (active_it != live_states_.end() && active_it->second->isPlaying()) {
 	auto latency_frames = audio.getPlaybackDelayFrames() + audio.getCaptureDelayFrames();
-	controller_->getUIEventQueue().push(make_unique<RecordingLatencyEvent>(latency_frames));
+        controller_->postToUI(RecordingLatencyEvent(latency_frames));
       }
     }
     was_recording_ = recording;
@@ -961,19 +966,25 @@ Player::play(AudioAPI & audio) {
 
 	    pushSnapshots();
 
-	    // Hand off to VisualizationThread - its own dedicated thread,
-	    // decoupled from both this real-time audio thread and the UI
-	    // thread (see VisualizationThread.h and AudioBlockEvent.h for
-	    // what each field means and why). master is moved, not copied
-	    // (it's already this block's own independently-owned AudioBuffer,
-	    // straight from mixer->encode() above, and VisualizationThread
-	    // only reads it as the empty-buffer shutdown sentinel now, not
-	    // for any real analysis); active_raw_bus/active_aux_a/
-	    // active_aux_b are moved too - each already an independently-
-	    // owned local computed fresh above, not a reference into any
-	    // mixer's or SongState's own persistent state.
-	    controller_->getVisualizationQueue().push(make_unique<AudioBlockEvent>(
-	      move(master), move(active_raw_bus), move(active_aux_a), move(active_aux_b)));
+            // Hand off to VisualizationThread - its own dedicated thread,
+            // decoupled from both this real-time audio thread and the UI
+            // thread (see VisualizationThread.h and AudioBlockEvent.h for
+            // what each field means and why). master is moved, not copied
+            // (it's already this block's own independently-owned AudioBuffer,
+            // straight from mixer->encode() above, and VisualizationThread
+            // only reads it as the empty-buffer shutdown sentinel now, not
+            // for any real analysis); active_raw_bus/active_aux_a/
+            // active_aux_b are moved too - each already an independently-
+            // owned local computed fresh above, not a reference into any
+            // mixer's or SongState's own persistent state.
+            // Silent blocks only until the scopes have settled: after that they
+            // would wake the visualization thread for nothing.
+            bool silent = !active_raw_bus.hasChannel(Channel::Main) && !active_aux_a.hasChannel(Channel::Main) && !active_aux_b.hasChannel(Channel::Main);
+            silent_frames_ = silent ? silent_frames_ + static_cast<long>(audio.getFrameCount()) : 0;
+            if (silent_frames_ <= static_cast<long>(VisualizationThread::kSettleSeconds + 1) * channel_config_.getAudioOutSampleRate()) {
+              controller_->getVisualizationQueue().push(make_unique<AudioBlockEvent>(
+                  move(master), move(active_raw_bus), move(active_aux_a), move(active_aux_b)));
+            }
           }
           if (ready.capture) {
             // Only reported while capture is wanted - checking again anyway
@@ -996,8 +1007,8 @@ Player::play(AudioAPI & audio) {
 	    if (monitoring) pushMonitoredInput(data, audio.getFrameCount());
 	    if (recording) {
 	      updateInputLoudness(data);
-	      controller_->getUIEventQueue().push(make_unique<RecordEvent>(data));
-	    } else if (threshold_armed) {
+              controller_->postToUI(RecordEvent(data));
+            } else if (threshold_armed) {
 	      updateInputLoudness(data);
 	      threshold_ring_buffer_.push(data);
 	      if (!threshold_triggered_this_arm_cycle_ && dbToLinear(kThresholdRecordTriggerDB) <= data.calculateMainRMS()) {
@@ -1024,9 +1035,9 @@ Player::play(AudioAPI & audio) {
 		  auto preroll_rows = channel_config_.framesToRows(preroll.numberOfFrames(), state.getTempo());
 		  row = std::max(0, state.getAbsolutePosition() - preroll_rows);
 		}
-		controller_->getUIEventQueue().push(make_unique<ThresholdRecordingTriggeredEvent>(
-		  controller_->getRecordingTrackId(), std::move(preroll), row));
-	      }
+                controller_->postToUI(ThresholdRecordingTriggeredEvent(
+                    controller_->getRecordingTrackId(), std::move(preroll), row));
+              }
 	    }
           }
   }

@@ -1,13 +1,14 @@
 #pragma once
 
-#include <cellui/Element.h>
+#include <cellui/Widget.h>
+#include <cellui/StyleProvider.h>
 
 #include <string>
 #include <vector>
 
 namespace cellui {
 
-class UIMenu : public Element {
+class UIMenu : public Widget {
  public:
   UIMenu() { }
 
@@ -20,6 +21,9 @@ class UIMenu : public Element {
   // active buffer changes; every other section is fixed at compile time.
   virtual void refreshBuffers(const std::vector<std::string> & names, const std::vector<std::string> & display_names,
 			       const std::string & active_name) = 0;
+
+  // Takes the menu bar's and its sections' colours from the theme.
+  virtual void applyStyles(const StyleProvider & /*styles*/) { }
 
   // The menu bar's own plane is created before the widgets below it, so
   // without this those later, higher planes paint over an unrolled section's

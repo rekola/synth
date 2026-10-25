@@ -11,8 +11,7 @@
 
 // Fixed-coefficient, linear-phase halfband FIR lowpass, used in cascade
 // (two instances for 4x, three for 8x) to build the oversampling stages
-// the bus saturator's waveshaper needs (see
-// plans/drum-bus-saturator.md) - a halfband filter's cutoff sits exactly
+// the bus saturator's waveshaper needs - a halfband filter's cutoff sits exactly
 // at 1/4 of the *upsampled* rate (i.e. Nyquist of the lower rate), the
 // standard, cheapest design point for a 2x resampler: every even-indexed
 // coefficient (relative to the center tap) works out to exactly zero,

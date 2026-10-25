@@ -2,7 +2,7 @@
 
 /* LICENSE (MIT)
 
-   Copyright (C) 2021, Mikael Rekola
+   Copyright (C) 2021-2026, Mikael Rekola
    Based on TinySoundFont, Copyright (C) 2017, 2018 Bernhard Schelling
    Based on SFZero, Copyright (C) 2012 Steve Folta (https://github.com/stevefolta/SFZero)
 
@@ -167,7 +167,8 @@ class EnvelopeState : public State {
       if (segmentIsExponential) level *= powf(slope, (float)numSamples);
       else level += (slope * numSamples);
     }
-    if ((samplesUntilNextSegment -= numSamples) <= 0) {
+    samplesUntilNextSegment -= numSamples;
+    if (samplesUntilNextSegment <= 0) {
       nextSegment(segment);
     }
   }

@@ -1,74 +1,116 @@
 #pragma once
 
 #include <cellui/CommandRegistry.h>
+#include <cellui/KeymapProfile.h>
 
 #include <cstdint>
 #include <string>
 #include <unordered_map>
 #include <utility>
+#include <vector>
 
 namespace cellui {
 
-// Maps key chords (see KeyChord.h) to command names, not directly to
+// Maps key shortcuts (see KeyStroke.h) to command names, not directly to
 // callables - this indirection is what lets a bound command also be invoked
-// by name (e.g. from an M-x-style minibuffer), mirroring how Emacs keymaps
+// by name (e.g. from an command palette), mirroring how terminal keymaps
 // bind keys to command symbols rather than to functions directly.
 //
 // Also supports two-key Emacs-style prefix sequences (C-x C-s, C-x C-c, ...)
 // via bindPrefixed()/isPrefix()/lookupPrefixed() - a second, nested table
-// rather than folding the prefix into the plain chord space, since a prefix
-// chord (C-x) and a plain binding can coexist independently (nothing here
+// rather than folding the prefix into the plain shortcut space, since a prefix
+// shortcut (C-x) and a plain binding can coexist independently (nothing here
 // stops some other widget from binding plain C-x to something outright) and
-// because UIElement::dispatchCommand() needs to distinguish "this chord
-// starts a sequence" from "this chord is itself a complete command" before
+// because UIElement::dispatchCommand() needs to distinguish "this shortcut
+// starts a sequence" from "this shortcut is itself a complete command" before
 // it knows whether to wait for a second key at all.
 class Keymap {
  public:
-  void bind(uint64_t chord, std::string command_name) {
-    bindings_[chord] = std::move(command_name);
+  // A binding made without a profile works in every profile; one made for a
+  // profile only there, and wins over a shared binding of the same shortcut.
+  void bind(uint64_t stroke, std::string command_name) {
+    shared_.bindings[stroke] = std::move(command_name);
+  }
+  void bind(KeymapProfile profile, uint64_t stroke, std::string command_name) {
+    table(profile).bindings[stroke] = std::move(command_name);
   }
 
-  const std::string * lookup(uint64_t chord) const {
-    auto it = bindings_.find(chord);
-    return it != bindings_.end() ? &it->second : nullptr;
+  const std::string * lookup(uint64_t stroke, KeymapProfile profile) const {
+    if (auto name = find(table(profile).bindings, stroke)) return name;
+    return find(shared_.bindings, stroke);
   }
 
-  // `prefix` (e.g. C-x) then `chord` (e.g. C-s) - see dispatchCommand()'s
-  // own two-step state machine for how the prefix key is recognized and
-  // held between keystrokes.
-  void bindPrefixed(uint64_t prefix, uint64_t chord, std::string command_name) {
-    prefixed_bindings_[prefix][chord] = std::move(command_name);
+  void bindPrefixed(uint64_t prefix, uint64_t stroke, std::string command_name) {
+    shared_.prefixed[prefix][stroke] = std::move(command_name);
+  }
+  void bindPrefixed(KeymapProfile profile, uint64_t prefix, uint64_t stroke, std::string command_name) {
+    table(profile).prefixed[prefix][stroke] = std::move(command_name);
   }
 
-  bool isPrefix(uint64_t chord) const {
-    return prefixed_bindings_.count(chord) > 0;
+  bool isPrefix(uint64_t stroke, KeymapProfile profile) const {
+    return table(profile).prefixed.count(stroke) > 0 || shared_.prefixed.count(stroke) > 0;
   }
 
-  const std::string * lookupPrefixed(uint64_t prefix, uint64_t chord) const {
-    auto prefix_it = prefixed_bindings_.find(prefix);
-    if (prefix_it == prefixed_bindings_.end()) return nullptr;
-    auto it = prefix_it->second.find(chord);
-    return it != prefix_it->second.end() ? &it->second : nullptr;
+  // `prefix` (e.g. C-x) then `shortcut` (e.g. C-s), as dispatchCommand() tracks them.
+  const std::string * lookupPrefixed(uint64_t prefix, uint64_t stroke, KeymapProfile profile) const {
+    if (auto name = findPrefixed(table(profile), prefix, stroke)) return name;
+    return findPrefixed(shared_, prefix, stroke);
   }
 
-  // Startup-time safety net: catch a typo'd command name (bound to a chord
-  // but never registered in the paired registry) as an immediate assertion
-  // failure instead of a silently dead keybinding.
+  // Startup-time safety net: a typo'd command name is an assertion failure
+  // instead of a silently dead keybinding.
+  // Every key sequence (one shortcut, or a prefix and a shortcut) that runs
+  // `command_name` in `profile`, in no particular order.
+  std::vector<std::vector<uint64_t>> sequencesFor(const std::string & command_name, KeymapProfile profile) const {
+    std::vector<std::vector<uint64_t>> result;
+    for (const Table * t : {&shared_, &table(profile)}) {
+      for (auto & [stroke, name] : t->bindings) {
+	if (name == command_name && lookup(stroke, profile) == &name) result.push_back({stroke});
+      }
+      for (auto & [prefix, strokes] : t->prefixed) {
+	for (auto & [stroke, name] : strokes) {
+	  if (name == command_name && lookupPrefixed(prefix, stroke, profile) == &name) result.push_back({prefix, stroke});
+	}
+      }
+    }
+    return result;
+  }
+
   bool allBoundIn(const CommandRegistry & registry) const {
-    for (auto & [chord, name] : bindings_) {
+    return allBound(shared_, registry) && allBound(emacs_, registry) && allBound(desktop_, registry);
+  }
+
+ private:
+  using Strokes = std::unordered_map<uint64_t, std::string>;
+  struct Table {
+    Strokes bindings;
+    std::unordered_map<uint64_t, Strokes> prefixed;
+  };
+
+  Table & table(KeymapProfile profile) { return profile == KeymapProfile::TERMINAL ? emacs_ : desktop_; }
+  const Table & table(KeymapProfile profile) const { return profile == KeymapProfile::TERMINAL ? emacs_ : desktop_; }
+
+  static const std::string * find(const Strokes & strokes, uint64_t stroke) {
+    auto it = strokes.find(stroke);
+    return it != strokes.end() ? &it->second : nullptr;
+  }
+  static const std::string * findPrefixed(const Table & t, uint64_t prefix, uint64_t stroke) {
+    auto it = t.prefixed.find(prefix);
+    return it == t.prefixed.end() ? nullptr : find(it->second, stroke);
+  }
+  static bool allBound(const Table & t, const CommandRegistry & registry) {
+    for (auto & [stroke, name] : t.bindings) {
       if (!registry.has(name)) return false;
     }
-    for (auto & [prefix, chords] : prefixed_bindings_) {
-      for (auto & [chord, name] : chords) {
+    for (auto & [prefix, strokes] : t.prefixed) {
+      for (auto & [stroke, name] : strokes) {
 	if (!registry.has(name)) return false;
       }
     }
     return true;
   }
 
- private:
-  std::unordered_map<uint64_t, std::string> bindings_;
-  std::unordered_map<uint64_t, std::unordered_map<uint64_t, std::string>> prefixed_bindings_;
+  Table shared_, emacs_, desktop_;
 };
 
 }  // namespace cellui

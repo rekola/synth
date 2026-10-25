@@ -42,7 +42,7 @@ class PlaybackControlEvent : public Event {
   // PREVIEW_NOTE/PREVIEW_POOL_NOTE/PREVIEW_RHYTHM/PREVIEW_STOP:
   // OutlineView's own instrument/rhythm audition path, before anything is
   // ever committed to a song (see Song::addInstrument()/OutlineView.cpp's
-  // own NCKEY_ENTER handling for that separate, actually-persisted
+  // own Key::Enter handling for that separate, actually-persisted
   // action). Buffer-agnostic like TERMINATE/MIXER_CHANGED below (there is
   // no owning Track, let alone buffer - nothing being previewed is part
   // of any song yet, PREVIEW_POOL_NOTE included: it addresses a slot in
@@ -85,6 +85,9 @@ class PlaybackControlEvent : public Event {
   // SET_TRACK_MONITORING: parameter1 = a SampleTrack's id, parameter2 = 1
   // while its live audio input should be heard (Controller::
   // isMonitoring()), 0 once it shouldn't.
+  // SET_PERFORMANCE: a performance effect held on a track
+  // (SongState::setPerformance()) - parameter1 = track_id, parameter2 = the
+  // PerformanceEffect, parameter3 = pressure 0-127, or performance::kRelease.
   // SET_METRONOME: parameter1 = 1 to click on every beat while the
   // transport plays, 0 to stop. buffer_name is unused.
   // SET_CAPTURE_DEVICE/SET_PLAYBACK_DEVICE: switch the audio input/output
@@ -130,7 +133,8 @@ class PlaybackControlEvent : public Event {
               BATCH_BEGIN,
               BATCH_END,
               SET_CAPTURE_DEVICE,
-              SET_PLAYBACK_DEVICE };
+              SET_PLAYBACK_DEVICE,
+              SET_PERFORMANCE };
 
   // buffer_name says which open buffer this event targets - required for
   // every type except the genuinely buffer-agnostic ones (TERMINATE,

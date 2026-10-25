@@ -1,6 +1,6 @@
 #include <cellui/SpectrumMeter.h>
 
-#include <cellui/UIPlane.h>
+#include <cellui/Plane.h>
 #include <cellui/StyleProvider.h>
 
 #include <algorithm>

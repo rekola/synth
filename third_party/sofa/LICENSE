@@ -1,0 +1,13 @@
+MIT_KEMAR_normal_pinna.sofa - head-related transfer functions of the KEMAR
+dummy head with the normal pinna, converted to the SOFA format.
+
+Copyright 1994 Bill Gardner <billg@media.mit.edu>, Keith Martin
+<kdm@media.mit.edu>, MIT Media Lab Machine Listening Group.
+
+This data is Copyright 1994 by the MIT Media Laboratory. It is provided free
+with no restrictions on use, provided the authors are cited when the data is
+used in any research or commercial application.
+
+The SOFA conversion is the one that ships with libmysofa
+(https://github.com/hoene/libmysofa, share/MIT_KEMAR_normal_pinna.sofa);
+SHA-256 2768ac841213a7ae11d1ea7fd0f25a69b39216102dc5dd913ea6ba0f0dc57e28.

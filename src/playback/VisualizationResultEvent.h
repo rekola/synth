@@ -1,8 +1,6 @@
 #ifndef _VISUALIZATIONRESULTEVENT_H_
 #define _VISUALIZATIONRESULTEVENT_H_
 
-#include "Event.h"
-#include "EventHandler.h"
 #include "../dsp/DiracAnalyzer.h"
 
 #include <array>
@@ -11,9 +9,7 @@
 
 // VisualizationThread -> UI thread: analysis results computed off both the
 // real-time audio thread and the UI thread (see VisualizationThread.h).
-// Pushed onto the same ui_event_queue PlaybackEvent/RecordEvent already
-// share - EventQueue/EventHandler's dispatch-by-dynamic-type already means
-// mixing producers onto one queue is the existing pattern, not a new one.
+// Posted with Controller::postToUI(), like PlaybackEvent/RecordEvent.
 // The FFT vector and DirAC grid are independently optional - one event may
 // carry either, both, or (rarely) neither, since they update at different
 // rates (see VisualizationThread.h); hasDiracGrid()/getFFT().empty() are
@@ -22,10 +18,8 @@
 // every real event (VisualizationThread::handleAudioBlockEvent() sets
 // them unconditionally, every audio block - see that method) - there is
 // no equivalent "has" check for them.
-class VisualizationResultEvent : public Event {
-public:
-  void dispatch(EventHandler & evh) override { evh.handleVisualizationResultEvent(*this); }
-
+class VisualizationResultEvent {
+ public:
   // FFT magnitude-dB vector for the live spectrum chart, computed by
   // VisualizationThread (see VisualizationThread.h) - never by the audio
   // thread, which must stay free of FFT-sized work.
@@ -54,9 +48,7 @@ public:
   const std::string & getMeterLabel() const { return meter_label_; }
 
   // The DirAC directional heatmap's smoothed grid and per-band diffuse-haze
-  // scalars (DiracAnalyzer::getGrid()/getDiffuseEnergy() - see that class
-  // and plans/dirac-heatmap-scope.md SS6 for the rendering formula that
-  // combines them). Not yet consumed by anything (the heatmap widget
+  // scalars (DiracAnalyzer::getGrid()/getDiffuseEnergy()). Not yet consumed by anything (the heatmap widget
   // itself doesn't exist yet) - transmitted regardless, since
   // VisualizationThread's own throttling/computation is already complete
   // and tested independently of the widget that will eventually read it.

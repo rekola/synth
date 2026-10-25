@@ -18,7 +18,7 @@ namespace {
 
 class Page {
  public:
-  Page(UIPlane & plane, const Theme & theme) : plane_(plane), theme_(theme) { }
+  Page(Plane & plane, const Theme & theme) : plane_(plane), theme_(theme) { }
 
   int row() const { return row_; }
   void skip(int rows = 1) { row_ += rows; }
@@ -35,8 +35,8 @@ class Page {
   }
 
   void colors(const Color & fg, const Color & bg) {
-    plane_.setFgColor(fg.getRed(), fg.getGreen(), fg.getBlue());
-    plane_.setBgColor(bg.getRed(), bg.getGreen(), bg.getBlue());
+    plane_.setFgColor(fg);
+    plane_.setBgColor(bg);
   }
 
   void text(int col, const std::string & s) { plane_.putstr(row_, col, s); }
@@ -51,31 +51,31 @@ class Page {
   }
 
   void fillRow(const Color & bg) {
-    plane_.setBgColor(bg.getRed(), bg.getGreen(), bg.getBlue());
+    plane_.setBgColor(bg);
     text(0, std::string(static_cast<size_t>(plane_.getDim().second), ' '));
   }
 
  private:
-  UIPlane & plane_;
+  Plane & plane_;
   const Theme & theme_;
   int row_ = 0;
 };
 
 std::string hex(const Color & c) {
   char buf[8];
-  std::snprintf(buf, sizeof buf, "#%02x%02x%02x", c.getRed(), c.getGreen(), c.getBlue());
+  auto rgb = c.toSrgb8();
+  std::snprintf(buf, sizeof buf, "#%02x%02x%02x", rgb[0], rgb[1], rgb[2]);
   return buf;
 }
 
 // Black or white, whichever reads better on `bg`.
 Color readableOn(const Color & bg) {
-  int luma = (299 * bg.getRed() + 587 * bg.getGreen() + 114 * bg.getBlue()) / 1000;
-  return luma > 140 ? Color(0, 0, 0) : Color(255, 255, 255);
+  return bg.luminance() > 0.26f ? Color(0, 0, 0) : Color(255, 255, 255);
 }
 
 }  // namespace
 
-Gallery::Gallery(UIPlane & plane, const Theme & theme) {
+Gallery::Gallery(Plane & plane, const Theme & theme) {
   const StyleProvider & styles = plane.getStyles();
   int width = plane.getDim().second;
 
@@ -89,7 +89,7 @@ Gallery::Gallery(UIPlane & plane, const Theme & theme) {
     }
   }
   Page page(plane, theme);
-  page.heading("Cell UI gallery");
+  page.heading("cellui gallery");
   page.skip();
 
   page.heading("Text styles");
@@ -136,6 +136,28 @@ Gallery::Gallery(UIPlane & plane, const Theme & theme) {
     page.text(0, utf8::padToWidth(std::string(" ") + name, 24));
     page.colors(theme.text_primary, theme.surface_base);
     page.text(25, hex(*color));
+    page.skip();
+  }
+  page.plain();
+  page.skip();
+
+  // A colour and what a display that only shows sRGB makes of it: the hue is
+  // kept, a colour above SDR white is scaled down.
+  page.heading("Wide colours and their clip");
+  const std::pair<const char *, Color> wide[] = {
+    {"srgb green", Color(0, 255, 0)},
+    {"display-p3 green", Color("color(display-p3 0 1 0)")},
+    {"rec2020 green", Color("color(rec2020 0 1 0)")},
+    {"red LED, 6x", Color("oklch(0.7 0.2 25)") * 6.0f},
+    {"white, 3x", Color(255, 255, 255) * 3.0f},
+  };
+  for (auto & [name, color] : wide) {
+    page.colors(readableOn(color), color);
+    page.text(0, utf8::padToWidth(std::string(" ") + name, 24));
+    page.colors(theme.text_primary, theme.surface_base);
+    char y[16];
+    std::snprintf(y, sizeof y, "Y %.2f", static_cast<double>(color.luminance()));
+    page.text(25, hex(color) + "  " + y);
     page.skip();
   }
   page.plain();
@@ -203,7 +225,7 @@ Gallery::Gallery(UIPlane & plane, const Theme & theme) {
 
   page.skip();
   page.heading("Info dialog");
-  dialog_.show(plane, "About", "# Cell UI\n\nA small *toolkit* for **text** interfaces, drawn here from Markdown.", 44, 10);
+  dialog_.show(plane, "About", "# cellui\n\nA small *toolkit* for **text** interfaces, drawn here from Markdown.", 44, 10);
   dialog_.move(page.row(), 0);
   page.skip(dialog_.rows());
 
@@ -247,6 +269,34 @@ Gallery::Gallery(UIPlane & plane, const Theme & theme) {
   cover_->move(page.row(), 30);
   cover_->render(plane.getStyles(), true);
   page.skip(5);
+
+  page.skip();
+  page.heading("Dials");
+  {
+    // Each in a look of its own: idle, under the cursor, pressed, and below its lowest step.
+    struct Sample { const char * name; const char * letter; float value; float selected; bool pressed; };
+    const Sample dial_samples[] = {
+      {"idle", "A", -20.0f, 0.0f, false}, {"selected", "B", -10.5f, 1.0f, false},
+      {"pressed", "M", -6.0f, 0.0f, true}, {"off", "A", -100.0f, 0.0f, false},
+    };
+    int col = 0;
+    for (auto & sample : dial_samples) {
+      page.plain();
+      page.text(col, sample.name);
+      DialSpec spec;
+      spec.letter = sample.letter;
+      auto dial = std::make_unique<Dial>(plane, spec);
+      dial->setPosition(page.row() + 1, col);
+      dial->setLook(theme.text_primary, theme.surface_base);
+      dial->setValue(sample.value);
+      dial->setSelected(sample.selected);
+      dial->setPressed(sample.pressed);
+      dial->draw();
+      dials_.push_back(std::move(dial));
+      col += 10;
+    }
+    page.skip(1 + Dial::kRows);
+  }
 
   rows_ = page.row();
 }

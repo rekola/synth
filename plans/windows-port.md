@@ -5,10 +5,10 @@ own, without deciding the graphical UI yet. Step 0 gets a CI-built
 command-line binary that renders songs. Steps 1-5 make the platform layer
 (audio, MIDI, Launchpad, OS utilities) backend-neutral and add Windows
 backends, ending with `--headless` (playback + Launchpad performance) working
-on Windows; step 6 packages it. This runs alongside phase 1 of the Cell UI
-(`plans/cell-ui-terminal.md`), which replaces notcurses: once both are far
-enough, the terminal UI runs in a Windows console too. The graphical UI is
-phase 2 (`plans/cell-ui-window.md`) and not part of this plan.
+on Windows; step 6 packages it. This runs alongside phase 1 of the cellui
+(the terminal backend, built), which replaced notcurses. Windows gets no
+terminal UI: its interactive UI is the graphical one, phase 2
+(`plans/cellui-window.md`), which is not part of this plan.
 
 ## Decisions
 
@@ -214,15 +214,14 @@ Verify by hand with a Launchpad on Windows; document in `docs/headless.md`.
 ## Step 6 - Installer (built on CI, not yet run by a person)
 
 Done: `release-windows.yml`, `tools/windows/` (see `docs/building.md`). Left:
-the SoundFont (needs a pinned URL and checksum), a SOFA file, Start menu
-entries for the terminal UI, signing, MSIX/winget.
+the SoundFont (needs a pinned URL and checksum), a SOFA file, signing,
+MSIX/winget.
 
 - **Inno Setup**, built on CI from tags.
   - It bundles the MSYS2 runtime DLLs the binary needs (collected with
     `ntldd`), the default song, a General MIDI SoundFont (FluidR3_GM, MIT),
     a SOFA file if its licence allows, and the licence texts.
-  - Start menu entries for the terminal UI (once it runs on Windows) and
-    `--headless`; the window gets one in phase 2.
+  - A Start menu entry for `--headless`; the window gets one in phase 2.
   - Later: an MSIX or winget manifest.
 - **Code signing:** an unsigned installer triggers SmartScreen warnings. A
   signing service (Azure Trusted Signing or similar) runs in the release
@@ -231,7 +230,7 @@ entries for the terminal UI, signing, MSIX/winget.
 
 ## After this plan
 
-The graphical UI: `plans/cell-ui-window.md`, once the Cell UI's terminal
+The graphical UI: `plans/cellui-window.md`, once the cellui's terminal
 phase has separated the UI.
 
 Step 4 notes: the backends are in `synth_engine` on Windows (`WasapiAudio`,

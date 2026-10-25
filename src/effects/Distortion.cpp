@@ -8,8 +8,7 @@ using namespace std;
 namespace {
 
 // Actual DSP, shared by DistortionTrackState and DistortionVoiceState -
-// see EffectTrackState.h/EffectVoiceState.h and
-// plans/trackstate-voicestate-split.md.
+// see EffectTrackState.h/EffectVoiceState.h.
 class DistortionDsp {
 public:
   DistortionDsp(DistortionType type, float param, float drymix, float drive)

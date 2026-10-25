@@ -8,12 +8,16 @@
 #include "instruments/InstrumentProvider.h"
 #include "playback/EventQueue.h"
 #include "playback/ClipPlayer.h"
+#include "playback/PerformanceEffect.h"
 #include "state/PlaybackInfo.h"
 #include "ambisonic/ChannelConfiguration.h"
 #include "ambisonic/MixerType.h"
 #include "bus/BusEffectRegistry.h"
 #include "ui/CommandRegistry.h"
 #include "util/constants.h"
+
+#include <cellui/Signal.h>
+#include <cellui/ThreadPosts.h>
 
 #include <algorithm>
 #include <functional>
@@ -136,7 +140,7 @@ class Controller {
   // (which would silently discard any in-memory edits the open copy has
   // that the file itself doesn't).
   bool openSong(const std::string & filename);
-  // "Save As": like sendCommand("save-song") (saves the current song, and
+  // "Save As": like sendCommand("save-buffer") (saves the current song, and
   // resets hasUnsavedChanges()'s baseline the same way), but to `filename`
   // rather than whatever filename the song was opened/created with - and,
   // standard Save As semantics, subsequent plain saves target `filename`
@@ -195,8 +199,8 @@ class Controller {
 
   // Read-only counterpart to sendCommand()'s fallback chain: every known
   // command name starting with `prefix`, from commands_ below plus
-  // whatever setCommandCompleter() reaches - the M-x minibuffer
-  // (StatusLine) uses this for autocomplete, never to execute anything. A
+  // whatever setCommandCompleter() reaches - the command palette
+  // uses this for its list, never to execute anything. A
   // set, not a list: Controller's own names and whatever the fallback
   // reaches are two independent sources that could in principle name the
   // same command, and ordered so a later phase can show the candidates
@@ -206,35 +210,43 @@ class Controller {
     command_completer_ = std::move(fn);
   }
 
-  // Same IoC shape as the fallback/completer above: lets the UI layer
-  // learn whenever songs_/active_buffer_name_ changes (addBuffer()/
+  // What the UI layer learns of without Controller knowing it exists: a
+  // widget connects and keeps the Connection for as long as it wants to hear.
+
+  // The active buffer or a buffer's name changed (addBuffer()/
   // renameActiveBuffer()/switchToBuffer()/killActiveBuffer(), every path
-  // that can move which buffer is active or rename one - not just the
-  // ones UI.cpp itself calls directly, but also e.g. a Buffers-menu click
-  // straight on a buffer's own row, which resolves entirely inside
-  // Controller's own commands_ via refreshBufferCommands()'s
-  // "switch-to-buffer:<name>" entries and so never otherwise reaches UI).
-  // A single listener call site here beats one refreshBuffers() call
-  // scattered at every UI-side buffer command - the exact kind of call
-  // site that's easy to add a new path without remembering.
-  void setBufferChangeListener(std::function<void()> fn) { buffer_change_listener_ = std::move(fn); }
+  // that can move which buffer is active or rename one, including a
+  // Buffers-menu click on a buffer's own row, which resolves entirely inside
+  // Controller's commands_ and never otherwise reaches UI). One emit site
+  // beats a refresh call scattered at every UI-side buffer command.
+  cellui::Signal<> buffers_changed;
 
-  // Opening a clip for step editing on a Launchpad (toggleDrumClipFocus())
-  // calls this right after focusing the clip (setFocusedClip()) - `opened`
-  // true - or right after clearing it again (a second press on the clip
-  // already open for editing toggles it back off - clearFocusedClip()) - `opened`
-  // false. Lets UI move the shared track cursor and every connected
-  // Launchpad's own display to actually show that clip's own step grid
-  // (or hand it back to Live View once editing ends), the same
-  // callback-not-reaching-into-UI pattern setBufferChangeListener() above
-  // already uses (Controller has no idea PatternEditor/LaunchpadManager
-  // exist either). Wired in UI::start().
-  void setDrumEditRequestListener(std::function<void(int track_id, bool opened)> fn) { drum_edit_requested_ = std::move(fn); }
+  // A message for the status line, from UI-thread code (a command, a widget,
+  // the Launchpad). The audio thread's own messages cross over in the UI
+  // event queue instead (LogEvent), as nothing off the UI thread may emit.
+  cellui::Signal<const std::string &> status_message;
+  void log(const std::string & text) { status_message.emit(text); }
 
-  // Selecting a clip slot (a Launchpad's shift + pad) without launching it:
-  // the UI moves the shared track cursor and its clip cursor there, empty
-  // slots included, so the slot is where the next recording or paste lands.
-  void setClipSelectListener(std::function<void(int track_id, int clip_index)> fn) { clip_select_requested_ = std::move(fn); }
+  // A clip was opened for step editing on a Launchpad (toggleDrumClipFocus(),
+  // right after setFocusedClip(); `opened` true) or closed again (a second
+  // press on the clip already open, clearFocusedClip(); `opened` false). The
+  // UI moves the shared track cursor and every connected Launchpad's display
+  // to show that clip's step grid, or hands them back to Live View.
+  cellui::Signal<int, bool> drum_edit_requested; // track_id, opened
+
+  // A clip slot was selected without launching it (a Launchpad's shift +
+  // pad): the UI moves the shared track cursor and its clip cursor there,
+  // empty slots included, so the slot is where the next recording or paste
+  // lands.
+  cellui::Signal<int, int> clip_selected; // track_id, clip_index
+
+  // After an undo or redo changed a clip: the UI shows that clip's row (the
+  // clip grid's cursor and, in Live View, the pattern editor's position).
+  cellui::Signal<int, int, int> undo_clip_focused; // track_id, clip_index, row
+
+  // The cell an undo or redo changed: the pattern editor puts its cursor there.
+  cellui::Signal<const Song::EditPlace &> undo_cell_focused;
+
   // A note key (or pad) is down: the notes of one chord land in one undo step,
   // so a group stays open from the first key down to the last one up.
   void setNoteHeld(bool held) {
@@ -242,19 +254,14 @@ class Controller {
     note_held_ = held;
     updateUndoGroup();
   }
-  // After an undo or redo changed a clip: the UI shows that clip's row (the
-  // clip grid's cursor and, in Live View, the pattern editor's position).
-  void setUndoFocusListener(std::function<void(int track_id, int clip_index, int row)> fn) { undo_focus_requested_ = std::move(fn); }
-  // The cell an undo or redo changed: the pattern editor puts its cursor there.
-  void setUndoCellListener(std::function<void(const Song::EditPlace &)> fn) { undo_cell_requested_ = std::move(fn); }
   void focusUndoneCell(const Song::EditPlace & place) {
-    if (undo_cell_requested_) undo_cell_requested_(place);
+    undo_cell_focused.emit(place);
   }
   void focusUndoneClip(int track_id, int clip_index, int row) {
-    if (undo_focus_requested_) undo_focus_requested_(track_id, clip_index, row);
+    undo_clip_focused.emit(track_id, clip_index, row);
   }
   void selectClipSlot(int track_id, int clip_index) {
-    if (clip_select_requested_) clip_select_requested_(track_id, clip_index);
+    clip_selected.emit(track_id, clip_index);
   }
 
   std::shared_ptr<AudioBuffer> startRecording() {
@@ -354,9 +361,8 @@ class Controller {
   // separate flag that could disagree with the set. Toggled per-track by
   // both the Live-View-focused branch of "toggle-record-arm" (the
   // currently-selected track) and, eventually, the Launchpad track-picker's
-  // own RECORD_ARM purpose (any track, not just the selected one) - see
-  // plans/launchpad-novation-unification.md for the full design, including
-  // why arming itself starts nothing (ClipPlayer::triggerClip()
+  // own RECORD_ARM purpose (any track, not just the selected one). Arming
+  // itself starts nothing (ClipPlayer::triggerClip()
   // queues the actual record-start, the same way it already queues a plain
   // clip launch).
   void armTrack(int track_id) { armed_track_ids_.insert(track_id); }
@@ -397,8 +403,7 @@ class Controller {
   // Starts (or retargets) `track_id`'s own clip take, at clip slot
   // `clip_index` - several tracks can each have their own in-flight take
   // at once, unlike the SampleTrack-recording family above (still a
-  // single "what's currently being captured" concept - see
-  // plans/launchpad-novation-unification.md for why that's not unified
+  // single "what's currently being captured" concept, not unified
   // with this yet). `clip_ready`/`origin_step` start false/-1, the same
   // "not derived yet" state a fresh take always begins in -
   // ensureClipRecordingClip() below is what actually resolves them,
@@ -521,7 +526,21 @@ class Controller {
   // accidentally inherit this one's position.
   void finishSampleCapture();
 
-  EventQueue & getUIEventQueue() { return ui_event_queue; }
+  // The UI's end of the other threads' posts, set by the UI while it runs
+  // (UI::start()) and null before and after. The UI thread only.
+  void setUIInbox(cellui::ThreadInbox * inbox) {
+    std::lock_guard<std::mutex> lock(ui_inbox_mutex_);
+    ui_inbox_ = inbox;
+  }
+  // Sends `event` to the UI, handled on the UI thread by the handler the UI
+  // installed for E (a snapshot, a log message, a recorded block). Any
+  // thread. Dropped while no UI is running (a test with no UI).
+  template <class E>
+  void postToUI(E event) {
+    std::lock_guard<std::mutex> lock(ui_inbox_mutex_);
+    if (ui_inbox_) ui_inbox_->post(std::move(event));
+  }
+
   EventQueue & getPlaybackEventQueue() { return playback_event_queue; }
 
   // Live View clip launching and its clock - see ClipPlayer.h.
@@ -530,7 +549,7 @@ class Controller {
 
   // Audio thread -> VisualizationThread only (see VisualizationThread.h) -
   // carries raw AudioBlockEvents, never anything UI-facing; results come
-  // back the other way via ui_event_queue (VisualizationResultEvent).
+  // back the other way via postToUI() (VisualizationResultEvent).
   EventQueue & getVisualizationQueue() { return visualization_queue; }
 
   // Plain overwrite - used by togglePlaying()/moveEditPosition()/
@@ -657,7 +676,7 @@ class Controller {
   // spot) goes through here rather than pushing MOVE_POSITION/SET_POSITION
   // directly, for the same reason togglePlaying() above updates its own
   // mirror synchronously instead of only pushing an event: the UI thread's
-  // own main loop (TerminalUI::readInput()) drains every currently-buffered
+  // own main loop (InteractiveUI::readInput()) drains every currently-buffered
   // terminal keystroke in one tight loop before ever returning to poll()
   // and giving the Player thread's PlaybackEvent round-trip a chance to be
   // read back - so a burst of terminal-generated key auto-repeat (holding
@@ -745,7 +764,7 @@ class Controller {
     if (focused_clip_track_id_ < 0) return;
     auto track_id = focused_clip_track_id_;
     clearFocusedClip();
-    if (drum_edit_requested_) drum_edit_requested_(track_id, false);
+    drum_edit_requested.emit(track_id, false);
   }
 
   // Single, shared home for "mutate this track's mute/solo/send and keep
@@ -799,6 +818,10 @@ class Controller {
   void setTrackSendB(int track_id, float value);
   void setTrackSendMain(int track_id, float value);
   void setTrackAzimuth(int track_id, float value);
+  // Holds a performance effect on a track, at `pressure` (0-127), or
+  // releases it (performance::kRelease). Only the audio thread's playback
+  // changes; the song is untouched.
+  void setPerformanceEffect(int track_id, PerformanceEffect effect, int pressure);
 
   // The server-side-glide counterpart of the three instant setters above -
   // value/duration_seconds in the same dB/wall-clock-seconds units
@@ -1267,7 +1290,9 @@ class Controller {
   std::set<std::string> registered_buffer_commands_;
   std::shared_ptr<AudioBuffer> current_sample;
   InstrumentProvider instrument_provider;
-  EventQueue ui_event_queue, playback_event_queue, visualization_queue;
+  EventQueue playback_event_queue, visualization_queue;
+  std::mutex ui_inbox_mutex_;
+  cellui::ThreadInbox * ui_inbox_ = nullptr;
   // playback_info/recording_track_id/local_position_edit_seq_/
   // focused_clip_id_ below are each a live mirror of whichever buffer is
   // currently active; these maps
@@ -1350,8 +1375,7 @@ class Controller {
   ClipPlayer clip_player_{*this};
   // armClipTrackRecording()/isClipRecording()/
   // getClipRecordingClipIndex()'s own backing state - one entry per
-  // track currently mid-take, so several can be in flight at once (see
-  // plans/launchpad-novation-unification.md for why this replaced a
+  // track currently mid-take, so several can be in flight at once (replacing a
   // single-take set of fields). `clip_ready` is
   // ensureClipRecordingClip()'s own "have I already created/reset this
   // take's own clip" latch - the *first* call for a given take creates a
@@ -1382,17 +1406,12 @@ class Controller {
   // See getGlobalOctave()'s own comment - deliberately global, unlike the
   // per-buffer state above.
   int global_octave_ = 4;
-  // Controller's own named commands ("save-song", ...) - sendCommand()
+  // Controller's own named commands ("save-buffer", ...) - sendCommand()
   // tries this first, then command_fallback_; commandCompletions() reads
   // its prefix index the same way.
   CommandRegistry commands_;
   std::function<bool(std::string_view)> command_fallback_;
   std::function<std::set<std::string>(std::string_view)> command_completer_;
-  std::function<void()> buffer_change_listener_;
-  std::function<void(int track_id, bool opened)> drum_edit_requested_;
-  std::function<void(int track_id, int clip_index)> clip_select_requested_;
-  std::function<void(int track_id, int clip_index, int row)> undo_focus_requested_;
-  std::function<void(const Song::EditPlace &)> undo_cell_requested_;
   int pending_command_track_ = -1;
   // Live mirror of the active buffer's own focused_clip_ids_/
   // focused_clip_track_ids_ slots - see getFocusedClip()'s own comment.

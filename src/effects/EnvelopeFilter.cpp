@@ -16,8 +16,7 @@ namespace {
 constexpr int kNeutralKey = 60;
 
 // Actual DSP, shared by EnvelopeFilterTrackState and
-// EnvelopeFilterVoiceState - see EffectTrackState.h/EffectVoiceState.h and
-// plans/trackstate-voicestate-split.md. The note-lifecycle forwarders
+// EnvelopeFilterVoiceState - see EffectTrackState.h/EffectVoiceState.h. The note-lifecycle forwarders
 // below (stopNote()/fastRelease()/kill()) only matter for the voice role
 // (nothing ever calls stopNote()/fastRelease()/killNote() on a
 // persistent track-tree node - see InstrumentTrackState::stopVoices()/

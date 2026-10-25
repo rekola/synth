@@ -19,6 +19,9 @@ setCurrentThreadName(const char * name) {
   std::wstring wide;
   for (const char * c = name; *c; c++) wide.push_back(static_cast<wchar_t>(static_cast<unsigned char>(*c)));
   set(GetCurrentThread(), wide.c_str());
+#elif defined(__APPLE__)
+  // Names the calling thread only.
+  pthread_setname_np(name);
 #else
   pthread_setname_np(pthread_self(), name);
 #endif

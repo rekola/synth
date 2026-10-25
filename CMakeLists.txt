@@ -3,23 +3,18 @@ cmake_minimum_required(VERSION 3.10)
 # set the project name
 project(synth VERSION 0.1)
 
-set(CMAKE_CXX_STANDARD 17)
+set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED True)
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
 include(GNUInstallDirs)
 
-# The full `synth` (--headless, the Launchpad, live MIDI and audio) builds
+# The full `synth` (--ui headless, the Launchpad, live MIDI and audio) builds
 # everywhere; OFF gives the engine, the tests and a render-only `synth`
-# (src/main_render.cpp). The terminal UI (notcurses) exists only for Linux
-# today, so Windows gets the full program without it.
+# (src/main_render.cpp). The terminal backend of lib/cellui is POSIX only;
+# on Windows the same UI (InteractiveUI) runs in cellui's Win32 window.
 option(SYNTH_BUILD_INTERACTIVE "Build the full synth (headless mode, Launchpad, live audio/MIDI)" ON)
-if(WIN32)
-  set(SYNTH_BUILD_TERMINAL_UI_DEFAULT OFF)
-else()
-  set(SYNTH_BUILD_TERMINAL_UI_DEFAULT ON)
-endif()
-option(SYNTH_BUILD_TERMINAL_UI "Build the notcurses terminal UI" ${SYNTH_BUILD_TERMINAL_UI_DEFAULT})
+option(SYNTH_BUILD_TERMINAL_UI "Build the interactive UI (InteractiveUI: in the terminal, or on Windows in the window)" ON)
 
 # Default to an optimized build when the generator supports build types (a
 # plain `cmake -B build` with no CMAKE_BUILD_TYPE otherwise applies no -O
@@ -45,6 +40,11 @@ set(SYNTH_MARCH "native" CACHE STRING "Value passed to -march (e.g. native, x86-
 option(SYNTH_FAST_MATH "Compile with -ffast-math (reassociation, finite-math-only, flush-to-zero at startup). Off keeps only -fno-math-errno." ON)
 if(SYNTH_FAST_MATH)
   set(SYNTH_FP_FLAGS "-ffast-math -fno-math-errno")
+  if(CMAKE_CXX_COMPILER_ID MATCHES "Clang")
+    # Clang optimizes on -ffinite-math-only much harder than GCC does, and
+    # code here uses infinity (e.g. BusEffect::idleAfterSeconds()).
+    string(APPEND SYNTH_FP_FLAGS " -fno-finite-math-only")
+  endif()
 else()
   set(SYNTH_FP_FLAGS "-fno-math-errno")
 endif()
@@ -79,7 +79,7 @@ if(SYNTH_ENABLE_SANITIZERS)
 endif()
 
 # Engine library: song model, playback, instruments and effects. Has no
-# dependency on the terminal UI (notcurses) or audio device (ALSA), so it can
+# dependency on the terminal UI or audio device (ALSA), so it can
 # be linked into the test suite and any future offline tooling.
 add_library(synth_engine STATIC
 	src/doc/Document.cpp
@@ -96,7 +96,7 @@ add_library(synth_engine STATIC
 	src/instruments/PadSynthTable.cpp
 	src/instruments/InstrumentLibrary.cpp
 	src/Controller.cpp
-	src/ui/tui/InstrumentList.cpp
+	src/ui/InstrumentList.cpp
 	src/instruments/SoundFont.cpp
 	src/instruments/SF2Modulator.cpp
 	src/model/Song.cpp
@@ -153,7 +153,7 @@ add_library(synth_engine STATIC
 	src/model/JustIntonation.cpp
 	src/model/PatternGrid.cpp
 	src/model/ArrangementOps.cpp
-	src/ui/tui/PatternScroll.cpp
+	src/ui/PatternScroll.cpp
 	src/ui/ArrangementPatternSource.cpp
 	src/ui/ScenePatternSource.cpp
 	src/launchpad/LaunchpadLayout.cpp
@@ -194,33 +194,35 @@ if(WIN32)
     src/midi/WinMmMidiPorts.cpp)
 endif()
 
-# canvas (2D drawing for the scopes and meters). Its warnings are its own, so
-# it is built from a plain checkout outside this project's flag set.
-include(FetchContent)
-FetchContent_Declare(canvas
-  GIT_REPOSITORY https://github.com/rekola/canvas
-  GIT_TAG bbe8228a9c04be1ad677bf5c0486ec8ed1a72564)
-FetchContent_GetProperties(canvas)
-if(NOT canvas_POPULATED)
-  FetchContent_Populate(canvas)
-endif()
-set(CANVAS_CXX_FLAGS_SAVED "${CMAKE_CXX_FLAGS}")
-set(CMAKE_CXX_FLAGS "${SYNTH_CANVAS_BASE_FLAGS}")
-set(CANVAS_BUILD_TESTS OFF CACHE BOOL "" FORCE)
-if(WIN32)
-  set(CANVAS_BACKEND_CAIRO OFF CACHE BOOL "" FORCE)
-  set(CANVAS_BACKEND_GDIPLUS ON CACHE BOOL "" FORCE)
-endif()
-add_subdirectory(${canvas_SOURCE_DIR} ${canvas_BINARY_DIR} EXCLUDE_FROM_ALL)
-set(CMAKE_CXX_FLAGS "${CANVAS_CXX_FLAGS_SAVED}")
-# Its headers are reached as SYSTEM includes, like third_party/.
-target_include_directories(synth_engine SYSTEM PUBLIC ${canvas_SOURCE_DIR}/include)
-target_link_libraries(synth_engine PUBLIC canvas)
 target_include_directories(synth_engine PRIVATE ${CMAKE_CURRENT_BINARY_DIR})
 
 # Cell UI (lib/cellui): the UI library, which also owns the libunistring
 # dependency (grapheme-aware text width). Built with these same flags.
 enable_testing()  # before the subdirectory, so its tests register here too
+# It also brings canvas (2D drawing for the scopes' pixel versions), built
+# without our warning flags.
+set(CELLUI_CANVAS_CXX_FLAGS "${SYNTH_CANVAS_BASE_FLAGS}")
+# The window backend (cellui/gtk/, --ui window) is optional: GTK 4.10 or later,
+# Linux only, found with pkg-config, and without it the terminal is the only
+# UI (cmake says so).
+set(SYNTH_ENABLE_GTK_DEFAULT OFF)
+if(NOT WIN32 AND NOT APPLE)
+  find_package(PkgConfig QUIET)
+  if(PkgConfig_FOUND)
+    pkg_check_modules(SYNTH_GTK4 QUIET gtk4>=4.10)
+  endif()
+  if(SYNTH_GTK4_FOUND)
+    set(SYNTH_ENABLE_GTK_DEFAULT ON)
+  endif()
+endif()
+option(SYNTH_ENABLE_GTK "Build the GTK 4 window UI (--ui window)" ${SYNTH_ENABLE_GTK_DEFAULT})
+if(SYNTH_ENABLE_GTK AND NOT SYNTH_GTK4_FOUND)
+  message(FATAL_ERROR "SYNTH_ENABLE_GTK requested but GTK 4.10 or later was not found (install libgtk-4-dev)")
+endif()
+if(NOT SYNTH_ENABLE_GTK)
+  message(STATUS "Window UI: not built (GTK 4.10 or later not enabled or not found; --ui window unavailable)")
+endif()
+set(CELLUI_ENABLE_GTK ${SYNTH_ENABLE_GTK})
 add_subdirectory(lib/cellui)
 target_link_libraries(synth_engine PUBLIC cellui)
 
@@ -246,7 +248,7 @@ target_link_libraries(synth_engine PUBLIC ${SOUNDTOUCH_LIBRARY})
 # (SoundFont.cpp - injects a vibrato/filter-cutoff modulator for presets
 # that never authored their own channel-pressure connection). Off by
 # default: doesn't feel good to play without a pressure-floor fix that
-# hasn't landed yet (see plans/launchpad-pressure-floor.md), and isn't
+# hasn't landed yet, and isn't
 # part of the SF2 spec - real, file-authored channel-pressure modulators
 # (SF2Modulator.cpp) always work regardless of this setting. PUBLIC so
 # the same macro is visible to tests/SF2ModulatorTests.cpp too (linked
@@ -301,38 +303,51 @@ configure_file(
 )
 
 if(SYNTH_BUILD_INTERACTIVE)
-  # add the executable
-  add_executable(synth src/main.cpp
+  # The UI layer (the app-level UI, the Launchpad logic, the headless
+  # backend and, if built, the terminal UI) is a library of its own so the
+  # tests can drive the terminal UI on Cell UI's test terminal.
+  add_library(synth_ui STATIC
+  	src/ui/CommandDescriptions.cpp
   	src/ui/UI.cpp
   	src/launchpad/LaunchpadManager.cpp
-  	src/ui/headless/HeadlessUI.cpp
+  	src/ui/HeadlessUI.cpp
+  )
+  target_link_libraries(synth_ui PUBLIC synth_engine)
+  if(SYNTH_BUILD_TERMINAL_UI)
+    if(WIN32)
+      target_sources(synth_ui PRIVATE src/util/StderrCapture.cpp)
+    endif()
+    target_sources(synth_ui PRIVATE
+      src/ui/InteractiveUI.cpp
+      src/ui/OutlineView.cpp
+      src/ui/PatternEditor.cpp
+      src/ui/ArrangementGrid.cpp
+      src/ui/ClipGrid.cpp)
+  endif()
+
+  # add the executable
+  add_executable(synth src/main.cpp
   	src/util/Daemon.cpp
   )
   target_include_directories(synth PRIVATE ${CMAKE_CURRENT_BINARY_DIR})
-  target_link_libraries(synth synth_engine)
+  target_link_libraries(synth synth_ui)
 
   if(NOT WIN32)
+    # AudioDevices lists the choices UI's device pickers show.
+    target_sources(synth_ui PRIVATE src/audio/AudioDevices.cpp)
     target_sources(synth PRIVATE
       src/audio/AlsaAudio.cpp
-      src/audio/AudioDevices.cpp
-      src/midi/AlsaMidiInput.cpp
       src/midi/AlsaMidiPorts.cpp)
+    target_sources(synth_ui PRIVATE src/midi/AlsaMidiInput.cpp)
+    target_link_libraries(synth_ui PUBLIC asound)
     target_link_libraries(synth asound)
   endif()
 
   if(SYNTH_BUILD_TERMINAL_UI)
-    target_sources(synth PRIVATE
-      src/ui/tui/TerminalUI.cpp
-      src/ui/tui/EscapeCoalescer.cpp
-      src/ui/tui/NotcursesInputEventSource.cpp
-      src/ui/tui/OutlineView.cpp
-      src/ui/tui/PatternEditor.cpp
-      src/ui/tui/ArrangementGrid.cpp
-      src/ui/tui/ClipGrid.cpp
-      src/ui/SpectrumImage.cpp
-      src/ui/HeatmapImage.cpp)
     target_compile_definitions(synth PRIVATE SYNTH_TERMINAL_UI)
-    target_link_libraries(synth notcurses++ notcurses notcurses-core)
+    if(SYNTH_ENABLE_GTK)
+      target_compile_definitions(synth PRIVATE SYNTH_GTK_UI)
+    endif()
   endif()
 
   if(NOT WIN32)
@@ -359,8 +374,8 @@ if(SYNTH_BUILD_INTERACTIVE)
     if(NOT PIPEWIRE_FOUND)
       message(FATAL_ERROR "SYNTH_ENABLE_PIPEWIRE requested but libpipewire was not found (install libpipewire-0.3-dev)")
     endif()
-    target_compile_definitions(synth PRIVATE SYNTH_HAVE_PIPEWIRE)
-    target_link_libraries(synth PkgConfig::PIPEWIRE)
+    target_compile_definitions(synth_ui PRIVATE SYNTH_HAVE_PIPEWIRE)
+    target_link_libraries(synth_ui PUBLIC PkgConfig::PIPEWIRE)
   endif()
   endif()
 

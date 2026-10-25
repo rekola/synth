@@ -14,8 +14,7 @@ using namespace std;
 namespace {
 
 // Actual DSP, shared by PhaserTrackState and PhaserVoiceState - see
-// EffectTrackState.h/EffectVoiceState.h and
-// plans/trackstate-voicestate-split.md.
+// EffectTrackState.h/EffectVoiceState.h.
 class PhaserDsp {
 public:
   PhaserDsp(const ChannelConfiguration & channel_config, int stages, float rate, float min_freq, float max_freq, float feedback, float mix)

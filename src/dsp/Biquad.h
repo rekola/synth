@@ -204,7 +204,7 @@ private:
   T z1_ = 0, z2_ = 0;
 
   static constexpr T pi = T(M_PI);
-  static constexpr T sqrt_2 = std::sqrt(2);
+  static constexpr T sqrt_2 = T(M_SQRT2);
 };
 
 #endif

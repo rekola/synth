@@ -3,8 +3,8 @@
 
 #include "../state/TrackState.h"
 
-// Track-tree half of the per-track-effect state contract - see
-// plans/trackstate-voicestate-split.md. Every concrete effect
+// Track-tree half of the per-track-effect state contract (EffectVoiceState.h is
+// its voice-chain sibling). Every concrete effect
 // (Amplifier/BiquadFilter/Chorus/Compressor/Distortion/EnvelopeFilter/
 // ResonantFilter/Tremolo) is genuinely usable both as a persistent,
 // always-rendered wrapper in the track tree (e.g. songs/demo11.xml's

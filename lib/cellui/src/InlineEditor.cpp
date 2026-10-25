@@ -1,5 +1,5 @@
 #include <cellui/InlineEditor.h>
-#include <cellui/UIPlane.h>
+#include <cellui/Plane.h>
 #include <cellui/Input.h>
 
 #include <utility>
@@ -13,6 +13,7 @@ InlineEditor::open(const Field & field, std::function<void(std::string)> commit)
   if (field_.width < 1) field_.width = 1;
   commit_ = std::move(commit);
   open_ = true;
+  replaceable_ = field_.replace_on_type && !field_.initial_text.empty();
   plane_.showReader("", field_.row, field_.col, 1, field_.width, field_.initial_text, field_.text_color);
   paintBackdrop();
   // Opening erases from the field to the plane's right edge, which may
@@ -29,14 +30,22 @@ InlineEditor::isOpen() const {
 bool
 InlineEditor::offerInput(const cellui::Input & input) {
   if (!open_) return false;
-  if (input.getId() == NCKEY_ENTER) {
+  // The release of the key that opened the field (Enter, in the pattern
+  // editor) must not close it again.
+  if (input.getKind() == cellui::Input::Kind::RELEASE) return true;
+  if (input.getId() == Key::Enter) {
     auto text = plane_.closeReader();
     auto commit = std::move(commit_);
     close();
     if (commit) commit(std::move(text));
-  } else if (input.hasCtrl() && input.getId() == 'g') {
+  } else if (input.getId() == Key::Escape || (input.hasCtrl() && input.getId() == 'g')) {
     cancel();
   } else {
+    if (replaceable_) {
+      replaceable_ = false;
+      bool printable = input.getId() >= 32 && input.getId() < 127 && !input.hasCtrl() && !input.hasAlt();
+      if (printable || input.getId() == Key::Backspace || input.getId() == Key::Delete) plane_.setReaderContents("");
+    }
     plane_.offerInput(input);
   }
   return true;
@@ -60,8 +69,8 @@ void
 InlineEditor::paintBackdrop() {
   if (!open_) return;
   auto text_color = field_.text_color.value_or(plane_.getStyles().reader_text_color);
-  plane_.setFgColor(text_color.getRed(), text_color.getGreen(), text_color.getBlue());
-  plane_.setBgColor(field_.backdrop.getRed(), field_.backdrop.getGreen(), field_.backdrop.getBlue());
+  plane_.setFgColor(text_color);
+  plane_.setBgColor(field_.backdrop);
   plane_.putstr(field_.row, field_.col, std::string(static_cast<size_t>(field_.width), ' '));
 }
 

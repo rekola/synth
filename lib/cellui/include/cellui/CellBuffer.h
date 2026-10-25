@@ -1,5 +1,6 @@
 #pragma once
 
+#include <cellui/Backdrop.h>
 #include <cellui/Color.h>
 
 #include <optional>
@@ -7,6 +8,12 @@
 #include <vector>
 
 namespace cellui {
+
+// Where the cursor should be shown after a frame, if anywhere.
+struct CursorRequest {
+  bool visible = false;
+  int y = 0, x = 0;
+};
 
 // A grid of character cells, each one grapheme cluster with its colours and
 // text style. It is what a plane draws into when nothing is attached to a
@@ -22,6 +29,24 @@ class CellBuffer {
     bool underline = false;
     // The right half of a double-width cell before it; draws nothing.
     bool continuation = false;
+    // When composed over another plane: the background is averaged with
+    // what is below, and the foreground leans to white or black against the
+    // final background.
+    bool bg_blend = false;
+    bool fg_contrast = false;
+    // A cell an image covers: the placement's index + 1 (see ImagePlacement).
+    int image = 0;
+    // What lies below shows through blurred and dimmed; with no text or
+    // colours of its own the cell is just that.
+    Backdrop backdrop = {};
+    // How far the cell stands above its plane, in cell widths
+    // (Plane::setLift()); once composed, its height above the base.
+    float lift = 0.0f;
+    // Part of one piece with the lifted cells right above it.
+    bool lift_joined = false;
+    // A lifted cell that casts no shadow (a cursor): it only stands above
+    // the shadows of what is no higher.
+    bool lift_shadow = true;
   };
 
   struct Style {
@@ -29,6 +54,12 @@ class CellBuffer {
     bool bold = false;
     bool italic = false;
     bool underline = false;
+    bool bg_blend = false;
+    bool fg_contrast = false;
+    Backdrop backdrop = {};
+    float lift = 0.0f;
+    bool lift_joined = false;
+    bool lift_shadow = true;
   };
 
   CellBuffer(int rows, int cols);
@@ -44,7 +75,8 @@ class CellBuffer {
   // A cell nothing was written to (or that was erased): transparent when a
   // plane is drawn over another.
   static bool isBlank(const Cell & c) {
-    return c.text == " " && !c.fg && !c.bg && !c.bold && !c.italic && !c.underline && !c.continuation;
+    return c.text == " " && !c.fg && !c.bg && !c.bold && !c.italic && !c.underline && !c.continuation &&
+           !c.bg_blend && !c.fg_contrast && !c.image && !c.backdrop.active();
   }
 
   // Writes `text` from (row, col) in `style`, clipped to the rectangle

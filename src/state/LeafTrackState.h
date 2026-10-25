@@ -7,6 +7,8 @@
 #include "../ambisonic/SphericalPosition.h"
 #include "../model/SendLevels.h"
 #include "../dsp/ValueRamp.h"
+#include "../playback/PerformanceEffect.h"
+#include "PerformanceAudio.h"
 
 #include <algorithm>
 #include <cmath>
@@ -48,16 +50,25 @@ public:
     send_a_ramp_.snapTo(linearToDbForRamp(sends.a));
     send_b_ramp_.snapTo(linearToDbForRamp(sends.b));
     azimuth_ramp_.snapTo(position.azimuth);
+    perf_duck_.snapTo(1.0f);
   }
 
   void addVoice(int column, std::unique_ptr<VoiceState> voice) {
+    // A voice starts from the song's values; a held performance effect
+    // reaches it here.
+    if (hasPerformanceOverlay()) {
+      voice->adjustSendMain(effectiveSendMain());
+      voice->adjustSendA(effectiveSendA());
+      voice->adjustSendB(effectiveSendB());
+      if (orbit_offset_ != 0.0f) voice->adjustAzimuth(orbit_offset_);
+    }
     voices_[column].push_back(std::move(voice));
   }
 
   // Combines this track's own currently-sounding voices_ into one buffer -
   // not an override of anything on TrackState (which has no voice-shaped
-  // render() any more - voices_ is VoiceState-typed, not TrackState-typed;
-  // see plans/trackstate-voicestate-split.md); named distinctly from
+  // render() any more - voices_ is VoiceState-typed, not TrackState-typed);
+  // named distinctly from
   // TrackState::render's 3-arg overload (rather than overloading render()
   // itself) so the two can't be mistaken for one hiding the other. Both
   // InstrumentTrackState::render() and SampleTrackState::render() call this
@@ -69,6 +80,7 @@ public:
     // as a live press already did before it moved server-side.
     advanceSendRamps(frames);
     advanceAzimuthRamp(frames);
+    advancePerformance(frames);
 
     // Render every active voice first (still calling render() even when
     // muted, so envelopes/LFOs keep advancing - only mixing is skipped),
@@ -345,12 +357,42 @@ public:
   // anything on TrackState (azimuth is a VoiceState-only concept).
   void adjustAzimuth(float delta) {
     position_.azimuth += delta;
-    for (auto & [ column, voices ] : voices_) {
-      for (auto & voice : voices) if (voice->isActive()) voice->adjustAzimuth(delta);
+    adjustVoiceAzimuth(delta);
+  }
+
+  // The held effects that work on the track's sound (PerformanceAudio).
+  void updatePerformanceAudio(PerformanceAudioTargets & held, const PerformanceGrid & grid) { perf_audio_.update(held, grid); }
+
+  // Performance effects (PerformanceEffect.h, held on the Launchpad's Custom
+  // grid) as targets the track glides to: a gain on Send Main, how far Send
+  // A and B are raised toward unity (0-1), and how fast the track orbits the
+  // listener (0 turns it back). They reach the voices only - sends_ and
+  // position_ keep the song's values, which is what TrackInfo reports and
+  // the song mirrors.
+  void setPerformanceTargets(float duck_gain, float throw_a, float throw_b, float orbit_degrees_per_frame) {
+    const int ramp_frames = static_cast<int>(performance::kRampSeconds * static_cast<float>(getChannelConfiguration().getAudioOutSampleRate()));
+    if (perf_duck_.getTargetValue() != duck_gain) perf_duck_.glideTo(duck_gain, ramp_frames);
+    if (perf_throw_a_.getTargetValue() != throw_a) perf_throw_a_.glideTo(throw_a, ramp_frames);
+    if (perf_throw_b_.getTargetValue() != throw_b) perf_throw_b_.glideTo(throw_b, ramp_frames);
+    if (orbit_rate_ != 0.0f && orbit_degrees_per_frame == 0.0f) {
+      // Back the shorter way round to where the song has the track.
+      float offset = fmodf(orbit_offset_, 360.0f);
+      if (offset > 180.0f)
+        offset -= 360.0f;
+      else if (offset <= -180.0f)
+        offset += 360.0f;
+      orbit_offset_ = offset; // a whole number of turns away: nothing moves
+      orbit_return_.snapTo(offset);
+      orbit_return_.glideTo(0.0f, static_cast<int>(performance::kOrbitReturnSeconds * static_cast<float>(getChannelConfiguration().getAudioOutSampleRate())));
     }
+    orbit_rate_ = orbit_degrees_per_frame;
   }
 
 protected:
+ // The held sound effects on a track's whole rendered block, before it
+ // reports its level.
+ void applyPerformanceAudio(AudioBuffer & data) { perf_audio_.process(data); }
+
  // Read access to this track's own position/sends/id for a subclass that
  // needs to construct its own voices directly (e.g.
  // SampleTrackState::triggerClip()) rather than through
@@ -379,27 +421,91 @@ protected:
   std::unordered_map<int, std::vector<std::unique_ptr<VoiceState> > > voices_;
 
 private:
+ bool hasPerformanceOverlay() const {
+   return perf_duck_.getCurrentValue() != 1.0f || perf_throw_a_.getCurrentValue() != 0.0f || perf_throw_b_.getCurrentValue() != 0.0f ||
+          orbit_offset_ != 0.0f;
+ }
+ // The sends the voices get: the song's, under any held performance effect.
+ float effectiveSendMain() const { return sends_.main * perf_duck_.getCurrentValue(); }
+ static float thrown(float base, float amount) { return amount > 0.0f ? std::max(base, base + (1.0f - base) * amount) : base; }
+ float effectiveSendA() const { return thrown(sends_.a, perf_throw_a_.getCurrentValue()); }
+ float effectiveSendB() const { return thrown(sends_.b, perf_throw_b_.getCurrentValue()); }
+
+ void advancePerformance(int frames) {
+   bool sends_moved = false;
+   if (perf_duck_.isActive()) {
+     perf_duck_.advance(frames);
+     sends_moved = true;
+   }
+   if (perf_throw_a_.isActive()) {
+     perf_throw_a_.advance(frames);
+     sends_moved = true;
+   }
+   if (perf_throw_b_.isActive()) {
+     perf_throw_b_.advance(frames);
+     sends_moved = true;
+   }
+   if (sends_moved) {
+     pushSendMain();
+     pushSendA();
+     pushSendB();
+   }
+   float delta = 0.0f;
+   if (orbit_rate_ != 0.0f) {
+     delta = orbit_rate_ * static_cast<float>(frames);
+   } else if (orbit_return_.isActive()) {
+     delta = orbit_return_.advance(frames) - orbit_offset_;
+   }
+   if (delta != 0.0f) {
+     orbit_offset_ += delta;
+     if (orbit_rate_ == 0.0f && !orbit_return_.isActive()) orbit_offset_ = 0.0f;
+     adjustVoiceAzimuth(delta);
+   }
+ }
+
+ void adjustVoiceAzimuth(float delta) {
+   for (auto & [column, voices] : voices_) {
+     for (auto & voice : voices)
+       if (voice->isActive()) voice->adjustAzimuth(delta);
+   }
+ }
+ void pushSendMain() {
+   const float s = effectiveSendMain();
+   for (auto & [column, voices] : voices_) {
+     for (auto & voice : voices)
+       if (voice->isActive()) voice->adjustSendMain(s);
+   }
+ }
+ void pushSendA() {
+   const float s = effectiveSendA();
+   for (auto & [column, voices] : voices_) {
+     for (auto & voice : voices)
+       if (voice->isActive()) voice->adjustSendA(s);
+   }
+ }
+ void pushSendB() {
+   const float s = effectiveSendB();
+   for (auto & [column, voices] : voices_) {
+     for (auto & voice : voices)
+       if (voice->isActive()) voice->adjustSendB(s);
+   }
+ }
+
   // setSendMain()/A()/B()'s own "store it, push it to every active voice"
   // half, factored out so advanceSendRamps() (already mid-advance() on its
   // own ramp) can reach it directly without routing back through a public
   // setter that would snapTo() and cut its own glide short.
   void applySendMain(float s) {
     sends_.main = s;
-    for (auto & [ column, voices ] : voices_) {
-      for (auto & voice : voices) if (voice->isActive()) voice->adjustSendMain(s);
-    }
+    pushSendMain();
   }
   void applySendA(float s) {
     sends_.a = s;
-    for (auto & [ column, voices ] : voices_) {
-      for (auto & voice : voices) if (voice->isActive()) voice->adjustSendA(s);
-    }
+    pushSendA();
   }
   void applySendB(float s) {
     sends_.b = s;
-    for (auto & [ column, voices ] : voices_) {
-      for (auto & voice : voices) if (voice->isActive()) voice->adjustSendB(s);
-    }
+    pushSendB();
   }
 
   bool solo_, muted_;
@@ -425,6 +531,15 @@ private:
   // unit rowToAzimuth()/position_.azimuth already use. See glideAzimuth()
   // for how its own target is chosen (shortest way around the circle).
   dsp::ValueRamp azimuth_ramp_;
+  // Held performance effects (setPerformanceTargets()): the Send Main gain,
+  // how far Send A/B are thrown toward unity, and the orbit - its speed, how
+  // far the voices have been turned from the track's azimuth, and the turn
+  // back once it is released.
+  dsp::ValueRamp perf_duck_, perf_throw_a_, perf_throw_b_;
+  float orbit_rate_ = 0.0f; // degrees per frame
+  float orbit_offset_ = 0.0f;
+  dsp::ValueRamp orbit_return_;
+  PerformanceAudio perf_audio_{static_cast<uint32_t>(track_id_) + 1u};
 };
 
 #endif

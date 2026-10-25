@@ -609,8 +609,7 @@ TEST(sf2_looping_multi_region_group_becomes_inactive_after_stop_note) {
 // ---------------------------------------------------------------------
 // Identity-based retrigger cutoff (InstrumentTrackState::retriggerVoices())
 // and SF2 exclusive-class choking (InstrumentTrackState::
-// chokeExclusiveClasses(), VoiceState::getExclusiveClasses()) - see
-// plans/sf2-retrigger-cutoff.md. All use a single long (1.0s ReleaseVolEnv,
+// chokeExclusiveClasses(), VoiceState::getExclusiveClasses()). All use a single long (1.0s ReleaseVolEnv,
 // GenSpec{38, 0}) authored release, so "did it finish within a handful of
 // ~4096-sample blocks" cleanly distinguishes a fast release (~10ms,
 // TSF_FASTRELEASETIME) from the voice's own normal release (would still be
@@ -922,8 +921,7 @@ TEST(get_exclusive_classes_reports_the_regions_own_class_or_none) {
 }
 
 // ---------------------------------------------------------------------
-// Silence-kill threshold (SoundFontVoice::render()) - see
-// plans/silence-kill-threshold.md. Uses GenSpec{37, centibels} (SustainVolEnv,
+// Silence-kill threshold (SoundFontVoice::render()). Uses GenSpec{37, centibels} (SustainVolEnv,
 // converted via decibelsToGain(-centibels/10) - see SoundFont.cpp's
 // tsf_region_envtosecs()) to put a region's sustain level on a specific
 // side of the default -60dB floor, and GenSpec{38, 0} (ReleaseVolEnv = 0

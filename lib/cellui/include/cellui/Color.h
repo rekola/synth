@@ -1,90 +1,116 @@
 #pragma once
 
+#include <array>
 #include <cmath>
+#include <cstddef>
+#include <cstdint>
 #include <string_view>
 #include <utility>
 
 namespace cellui {
 
-// An 8-bit-per-channel RGB color: plain arithmetic on three bytes, no
-// rendering dependency. Built from "#rrggbb" or "#rgb" text, or from HSL.
+// The space a mix interpolates in. LINEAR is light itself (what compositing
+// uses); SRGB is the gamma-encoded space a theme's tweens were tuned in;
+// OKLAB is perceptual (gradients, hue ramps).
+enum class MixSpace { LINEAR, SRGB, OKLAB };
+
+// A colour that can hold any colour a display can show: linear light, Rec.2020
+// primaries, 1.0 = SDR white, never negative, and above 1 for HDR. Every sRGB
+// and Display-P3 colour is inside Rec.2020, so the lighting model can add,
+// scale and multiply colours as light. A sink that can only show sRGB takes
+// toSrgb8(), which maps the gamut and range in one place.
+//
+// Built from "#rrggbb" or "#rgb" text, the CSS forms oklch(L C H) and
+// color(srgb | srgb-linear | display-p3 | rec2020 r g b), 8-bit sRGB, HSL,
+// OKLCH or linear light.
 class Color {
  public:
-  Color() : red(0), green(0), blue(0) { }
-  explicit Color(int _red, int _green, int _blue) : red(_red), green(_green), blue(_blue) { }
-  Color(std::string_view s) {
-    setValue(std::move(s));
-  }
-  Color(const char * s) {
-    setValue(s);
-  }
+  Color() = default;
+  // 8-bit sRGB (clamped to 0..255).
+  explicit Color(int red, int green, int blue);
+  Color(std::string_view s) { setValue(s); }
+  Color(const char * s) { setValue(s); }
   Color & operator=(std::string_view s) {
-    setValue(std::move(s));
+    setValue(s);
     return *this;
   }
-  int getRed() const { return red; }
-  int getGreen() const { return green; }
-  int getBlue() const { return blue; }
 
-  Color blend(float f, const Color & other) const {
-    float inv_f = 1-f;
-    return Color(int(red * inv_f + other.red * f),
-		 int(green * inv_f + other.green * f),
-		 int(blue * inv_f + other.blue * f)
-		 );
-  }
+  // Linear Rec.2020 itself; above 1 is HDR. A component below 0 is outside the
+  // gamut and is mapped in (constant OKLCH hue and lightness).
+  static Color linear(float r, float g, float b);
+  // Linear Rec.709 light (what linearSrgb() gives).
+  static Color fromLinearSrgb(float r, float g, float b);
+  // Gamma-encoded components as written in CSS, 0..1 (more or less is kept).
+  static Color srgb(float r, float g, float b);
+  static Color displayP3(float r, float g, float b);
+  static Color rec2020(float r, float g, float b);
 
   // Standard HSL->RGB conversion - h in degrees (any range, wrapped via
   // fmod), s/l in [0,1]. Lets a caller (see VisibleTrackInfo::getColor())
   // pick colors by generating a hue rather than hand-picking RGB triples,
-  // while keeping saturation/lightness fixed.
-  static Color fromHSL(float h, float s, float l) {
-    h = std::fmod(h, 360.0f);
-    if (h < 0.0f) h += 360.0f;
-    float c = (1.0f - std::fabs(2.0f * l - 1.0f)) * s;
-    float hp = h / 60.0f;
-    float x = c * (1.0f - std::fabs(std::fmod(hp, 2.0f) - 1.0f));
-    float r1 = 0, g1 = 0, b1 = 0;
-    if (hp < 1.0f) { r1 = c; g1 = x; b1 = 0; }
-    else if (hp < 2.0f) { r1 = x; g1 = c; b1 = 0; }
-    else if (hp < 3.0f) { r1 = 0; g1 = c; b1 = x; }
-    else if (hp < 4.0f) { r1 = 0; g1 = x; b1 = c; }
-    else if (hp < 5.0f) { r1 = x; g1 = 0; b1 = c; }
-    else { r1 = c; g1 = 0; b1 = x; }
-    float m = l - c / 2.0f;
-    return Color(static_cast<int>((r1 + m) * 255.0f + 0.5f),
-		 static_cast<int>((g1 + m) * 255.0f + 0.5f),
-		 static_cast<int>((b1 + m) * 255.0f + 0.5f));
-  }
+  // while keeping saturation/lightness fixed. The result is a plain 8-bit
+  // sRGB colour.
+  static Color fromHSL(float h, float s, float l);
+
+  // OKLCH (lightness 0..1, chroma, hue in degrees). Lets a palette hold
+  // lightness and chroma fixed and step only the hue, with the same perceived
+  // brightness at every hue. A colour outside Rec.2020 is mapped in; one
+  // outside sRGB stays as it is until a sink shows it.
+  static Color fromOklch(float lightness, float chroma, float hue);
+  // The same with each channel clipped into sRGB and encoded to 8 bits, the
+  // way the theme's colours were tuned.
+  static Color fromOklchClipped(float lightness, float chroma, float hue);
+
+  float r() const { return r_; }
+  float g() const { return g_; }
+  float b() const { return b_; }
+
+  // Relative to SDR white (Rec.2020 weights).
+  float luminance() const { return 0.2627f * r_ + 0.6780f * g_ + 0.0593f * b_; }
+
+  // The light multiplied: `c * 4` is four times as bright.
+  Color operator*(float gain) const;
+
+  // this * (1 - t) + other * t in `space`.
+  Color mix(const Color & other, float t, MixSpace space = MixSpace::LINEAR) const;
+  // A widget's tween of two theme colours, in the gamma-encoded space those
+  // were tuned in: this * (1 - f) + other * f.
+  Color blend(float f, const Color & other) const { return mix(other, f, MixSpace::SRGB); }
+
+  // What a display that can only show sRGB shows: the gamut mapped in
+  // (chroma reduced at constant OKLCH hue and lightness), the range brought to
+  // 0..1 (a colour above 1 is scaled down, keeping its hue), and encoded with
+  // the sRGB transfer. A colour inside sRGB with every component at most 1
+  // comes back exactly.
+  std::array<uint8_t, 3> toSrgb8() const;
+  // The same, one channel at a time. Prefer toSrgb8() when you need more than
+  // one.
+  int getRed() const { return toSrgb8()[0]; }
+  int getGreen() const { return toSrgb8()[1]; }
+  int getBlue() const { return toSrgb8()[2]; }
+
+  // The colour as linear Rec.709 light (not mapped: a wide colour has a
+  // component below 0 or above 1). With the two functions below, a pixel
+  // loop can work in linear light on 8-bit sRGB data without building a Color
+  // per pixel.
+  std::array<float, 3> linearSrgb() const;
+  // Linear light of an 8-bit sRGB level (0..255).
+  static float srgb8ToLinear(int level);
+  // The 8-bit sRGB level of linear light (clamped to 0..1).
+  static uint8_t linearToSrgb8(float linear);
+
+  // The HSL hue in degrees of the sRGB colour, 0 for a grey.
+  float hslHue() const;
+
+  bool operator==(const Color & o) const { return r_ == o.r_ && g_ == o.g_ && b_ == o.b_; }
+  bool operator!=(const Color & o) const { return !(*this == o); }
+  size_t hash() const;
 
  private:
-  // A non-hex character counts as 0 rather than rejecting the whole value.
-  static inline int hexDigit(char c) {
-    if (c >= '0' && c <= '9') return c - '0';
-    if (c >= 'a' && c <= 'f') return c - 'a' + 10;
-    if (c >= 'A' && c <= 'F') return c - 'A' + 10;
-    return 0;
-  }
+  Color(float r, float g, float b, int) : r_(r), g_(g), b_(b) { }
+  void setValue(std::string_view s);
 
-  void setValue(std::string_view s) {
-    if (!s.empty() && s[0] == '#') s.remove_prefix(1);
-    if (s.size() >= 6) {
-      red = hexDigit(s[0]) * 16 + hexDigit(s[1]);
-      green = hexDigit(s[2]) * 16 + hexDigit(s[3]);
-      blue = hexDigit(s[4]) * 16 + hexDigit(s[5]);
-    } else if (s.size() >= 3) {
-      auto r = hexDigit(s[0]);
-      auto g = hexDigit(s[1]);
-      auto b = hexDigit(s[2]);
-      red = static_cast<unsigned char>(r * 17);   // #rgb is #rrggbb with each digit doubled
-      green = static_cast<unsigned char>(g * 17);
-      blue = static_cast<unsigned char>(b * 17);
-    } else {
-      red = green = blue = 0;
-    }
-  }
-
-  unsigned char red, green, blue;
+  float r_ = 0.0f, g_ = 0.0f, b_ = 0.0f;
 };
 
 }  // namespace cellui

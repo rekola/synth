@@ -1,6 +1,6 @@
 #include <cellui/ChannelMeter.h>
 
-#include <cellui/UIPlane.h>
+#include <cellui/Plane.h>
 #include <cellui/StyleProvider.h>
 
 #include <algorithm>
@@ -27,26 +27,29 @@ ChannelMeter::setLevels(const std::vector<float> & rms, const std::string & labe
   fill();
 
   int bar_rows = label.empty() ? rows : rows - 1;
-  if (bar_rows > 0) {
-    int cells = std::min(cols, static_cast<int>(kMaxChannels / 2));
-    for (int c = 0; c < cells; c++) {
-      auto & left = channels_[static_cast<size_t>(2 * c)];
-      auto & right = channels_[static_cast<size_t>(2 * c + 1)];
-      auto column = [&](const Channel & channel) {
-        return level_meter::BarColumn{level_meter::barSteps(channel.fraction, bar_rows), level_meter::barSteps(channel.peak_fraction, bar_rows)};
-      };
-      auto bar = level_meter::verticalBar(level_meter::Glyphs::BRAILLE, bar_rows, column(left), column(right));
-      bool clipping = left.clipping || right.clipping;
-      for (int i = 0; i < bar_rows; i++) {
-        // Shaded by the height of this cell; i = 0 is the top one.
-        setFgColor(clipping ? styles.meter_clip_color : styles.meterColor((static_cast<float>(bar_rows - i) - 0.5f) / static_cast<float>(bar_rows)));
-        putstr(i, c, bar[static_cast<size_t>(i)]);
-      }
-    }
-  }
+  if (bar_rows > 0) drawBars(bar_rows, std::min(cols, static_cast<int>(kMaxChannels / 2)));
   if (!label.empty()) {
     setFgColor(styles.window_fg_color);
     putstr(rows - 1, 0, label);
+  }
+}
+
+void
+ChannelMeter::drawBars(int bar_rows, int cells) {
+  auto & styles = getPlane().getStyles();
+  for (int c = 0; c < cells; c++) {
+    auto & left = channels_[static_cast<size_t>(2 * c)];
+    auto & right = channels_[static_cast<size_t>(2 * c + 1)];
+    auto column = [&](const Channel & channel) {
+      return level_meter::BarColumn{level_meter::barSteps(channel.fraction, bar_rows), level_meter::barSteps(channel.peak_fraction, bar_rows)};
+    };
+    auto bar = level_meter::verticalBar(level_meter::Glyphs::BRAILLE, bar_rows, column(left), column(right));
+    bool clipping = left.clipping || right.clipping;
+    for (int i = 0; i < bar_rows; i++) {
+      // Shaded by the height of this cell; i = 0 is the top one.
+      setFgColor(clipping ? styles.meter_clip_color : styles.meterColor((static_cast<float>(bar_rows - i) - 0.5f) / static_cast<float>(bar_rows)));
+      putstr(i, c, bar[static_cast<size_t>(i)]);
+    }
   }
 }
 

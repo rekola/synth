@@ -125,9 +125,8 @@ class LaunchpadManager {
   // focus: one connected Launchpad can sit in Live View while another
   // stays on NOTES.
   //
-  // CUSTOM is deliberately generic - "customize whatever's assigned to
-  // this device" - even though the only thing actually built for it today
-  // is nothing at all yet - the mode is kept as an empty placeholder.
+  // CUSTOM is the performance grid (handlePerformancePadEvent()): columns
+  // are Live View's tracks, rows are performance effects, held to apply.
   enum class GridMode { NOTES, SEND_MAIN, PAN, SEND_A, SEND_B, DRAW, LIVE, CUSTOM, TEMPO, SWING };
   GridMode gridMode(int device_id) const;
 
@@ -425,7 +424,7 @@ class LaunchpadManager {
   // any UI cursor state (see UI::handleLaunchpadPadEvent, which passes
   // PatternEditor's own getCursorTrackIndex()/getEditStepSize() when a UI
   // happens to be present).
-  void handlePadEvent(LaunchpadPadEvent & ev, Controller & controller, int fallback_track_index, int edit_step_size);
+  void handlePadEvent(const LaunchpadPadEvent & ev, Controller & controller, int fallback_track_index, int edit_step_size);
 
   // GridMode::LIVE's own pad-press handling - mirrors DRAW mode's own
   // separate entry point (pressDrawPad()) rather than living inside
@@ -451,6 +450,18 @@ class LaunchpadManager {
   // sync with what a press here is about to do.
   void handleLivePadEvent(const LaunchpadPadEvent & ev, Controller & controller);
 
+  // GridMode::CUSTOM, the performance grid: x is a column of Live View's
+  // tracks (live_.track_ids), y a row of performance::kGridRows. A press
+  // holds that effect on that track until the pad is released, pad pressure
+  // deepening it on a model that senses pressure. A pad still held when the
+  // device leaves CUSTOM, or is unplugged, is released for it (refresh()).
+  void handlePerformancePadEvent(const LaunchpadPadEvent & ev, Controller & controller);
+  // GridMode::CUSTOM's right column: the button at the end of a row holds
+  // that row's effect on the master - the whole mix - until released (a
+  // button senses no pressure, so at the plain press amount). With shift held
+  // a press keeps its shift function. Returns whether it took the event.
+  bool handlePerformanceMasterButton(int device_id, int cc_number, bool is_press, Controller & controller);
+
   // Starts the transport for a Live View launch that writes into the
   // arrangement (ClipPlayer::setAssignPlaybackStarter()), recorded as
   // auto-started so disarming Record Arm stops it again.
@@ -464,7 +475,7 @@ class LaunchpadManager {
   // "one shared pressure value, not per-note" semantics
   // InstrumentTrackState::broadcastChannelPressure() already gives poly
   // pressure once aggregated up to channel level.
-  void handleChannelPressureEvent(LaunchpadChannelPressureEvent & ev, Controller & controller);
+  void handleChannelPressureEvent(const LaunchpadChannelPressureEvent & ev, Controller & controller);
 
   // Called whenever the UI thread learns of a new playhead position (see
   // UI::handlePlaybackEvent, right after Controller::receivePlaybackSnapshot() -
@@ -723,7 +734,7 @@ class LaunchpadManager {
     // comment), kStepGridScrollStep at a time so consecutive windows
     // overlap rather than jumping a whole 8-step page at once, reset to a
     // 0 (openStepView()) each time a fresh clip is opened for editing
-    // (Controller::setDrumEditRequestListener()'s own "opened" callback,
+    // (Controller::drum_edit_requested's own "opened" callback,
     // UI::start()) - out of range for whatever the clip's own current
     // length actually is gets clamped wherever this is read, not here,
     // since the clip can change length after this is set.
@@ -795,6 +806,16 @@ class LaunchpadManager {
     // four). NONE wherever LIVE isn't active, same as clip_colors'
     // own default.
     std::array<ClipHighlight, 64> clip_highlight {};
+
+    // CUSTOM: which pads hold a performance effect (x + y*8), the track
+    // each one holds it on (fixed at the press, so a release reaches the
+    // same track) and the pressure last sent.
+    std::array<bool, 64> performance_held{};
+    std::array<int, 64> performance_track{};
+    std::array<int, 64> performance_pressure{};
+    // CUSTOM: which right-column buttons hold their row's effect on the
+    // master, by row.
+    std::array<bool, 8> performance_master_held{};
 
     // DRAW mode: each of the 64 pads' own index into the color palette
     // (see releaseDrawPad/refreshLeds), independent of Song/Track state
@@ -883,6 +904,8 @@ class LaunchpadManager {
   int selected_track_id_ = -1, selected_clip_index_ = -1;
 
   DeviceState & deviceState(int device_id);
+  // Releases every performance effect this device holds.
+  void releasePerformancePads(DeviceState & state, Controller & controller);
   const DeviceState * findDeviceState(int device_id) const;
   void refreshLeds(int device_id, DeviceState & state);
 
@@ -891,7 +914,7 @@ class LaunchpadManager {
   // unconditionally, since "the arm flag gates performance capture, not
   // editing" - and auditions it when it was just set, at a fixed velocity.
   // A pitched note also gets a note-off one row later so it lasts a step.
-  void handleStepGridPadEvent(LaunchpadPadEvent & ev, Controller & controller, int note, int track_id, bool pitched);
+  void handleStepGridPadEvent(const LaunchpadPadEvent & ev, Controller & controller, int note, int track_id, bool pitched);
 
   // The sound the step rows edit for this device: its selected pad, or the
   // first pad until one has been pressed. -1 if the track has no pad there.

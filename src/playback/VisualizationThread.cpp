@@ -103,7 +103,7 @@ VisualizationThread::handleAudioBlockEvent(AudioBlockEvent & ev) {
     // to nothing; after that a repeat tells the UI nothing, so it is not sent
     // and the UI sleeps until sound returns.
     if (++rest_results_ > rest_results_limit_) return;
-    controller_->getUIEventQueue().push(move(result));
+    controller_->postToUI(move(*result));
     return;
   }
   rest_results_ = 0;
@@ -119,7 +119,7 @@ VisualizationThread::handleAudioBlockEvent(AudioBlockEvent & ev) {
   }
 
   dirac_->process(ev.getRawBus());
-  // plans/dirac-heatmap-scope.md SS1: deliver the DirAC grid at roughly
+  // Deliver the DirAC grid at roughly
   // every 3rd analysis frame (~28.7Hz), not every one (~86Hz) - terminal
   // redraw/color-mapping cost buys nothing above that. Diffed against a
   // saved frame count, not a fixed "did process() just fire" flag, so a
@@ -134,7 +134,7 @@ VisualizationThread::handleAudioBlockEvent(AudioBlockEvent & ev) {
     dirac_zero_sent_ = dirac_->atRest();
   }
 
-  controller_->getUIEventQueue().push(move(result));
+  controller_->postToUI(move(*result));
 }
 
 void

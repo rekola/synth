@@ -1,6 +1,6 @@
 #pragma once
 
-#include <cellui/Element.h>
+#include <cellui/Widget.h>
 #include <cellui/LevelMeter.h>
 
 #include <algorithm>
@@ -15,12 +15,13 @@ namespace cellui {
 // channel, two channels sharing each cell (one per dot column), each with
 // its own smoothing and peak marker. A legend lines up with the cells
 // along the bottom row.
-class ChannelMeter : public Element {
+class ChannelMeter : public Widget {
 public:
   // The channels the meter has room for: order-3 ambisonic plus AuxA/AuxB.
   static constexpr size_t kMaxChannels = 18;
 
-  explicit ChannelMeter(UIPlane & parent) : Element(parent) { }
+  explicit ChannelMeter(Plane & parent) : Widget(parent) { }
+  ~ChannelMeter() override = default;
 
   // A fresh reading, one linear RMS per channel (missing ones are
   // silent), and the legend for it. Redraws.
@@ -41,7 +42,7 @@ public:
     setLevels({}, label);
   }
 
-private:
+protected:
   struct Channel {
     level_meter::Ballistics ballistics;
     level_meter::PeakHold peak_hold;
@@ -49,7 +50,13 @@ private:
     float peak_fraction = 0.0f;
     bool clipping = false;
   };
+  // Draws the bars in the top `bar_rows` rows of the first `cells` cells,
+  // two channels to a cell, over the background setLevels() filled in.
+  virtual void drawBars(int bar_rows, int cells);
+
   std::array<Channel, kMaxChannels> channels_;
+
+private:
   std::chrono::steady_clock::time_point last_update_;
 };
 

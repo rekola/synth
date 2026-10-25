@@ -12,6 +12,14 @@ grid mode, so one can sit in Live View while another does note entry.
   and the click sit where Novation's Launchpad Pro MK3 puts them, and the Tempo
   and Swing views follow that device's views; the other shift functions are
   ours.
+- **Custom.** A grid of held, non-destructive per-track effects is the
+  performance mode of hardware trackers (Polyend Tracker); the layout (a
+  column per track, a row per effect, pressure for depth) and the effects
+  themselves are ours. Stutter is the buffer repeat of beat
+  repeaters and DJ loop rolls, and Shuffle their slice rearranger. Erode and
+  Shatter follow granular processors that grain their live input (Mutable
+  Instruments Clouds), set sparse and dense. Gate is the trance gate, Crush
+  the bitcrusher.
 
 ## Note mode
 
@@ -30,7 +38,7 @@ gesture).
 | --- | --- |
 | 95 | Session: opens Live View's clip grid on the pads |
 | 96 | Note: the drum rack or isomorphic keyboard (plus the step rows while a clip is open for editing) |
-| 97 | Custom: nothing yet |
+| 97 | Custom: the performance grid (below) |
 | shift + 97 | Draw: a per-pad coloring toy, independent of the song |
 | shift + Send B | Tempo: the song's tempo as a number on the pads |
 | shift + Stop Clip | Swing: the song's swing as a number on the pads |
@@ -239,6 +247,41 @@ is bright red while anything records, dim red otherwise.
 
 Notes played on the grid during a take are recorded with their exact timing
 unless Record Quantise is on (see Quantise above).
+
+## Performance grid (Custom)
+
+Custom (97) turns the grid into performance effects. Columns are the tracks,
+in the same order as Live View's. Rows are effects. Holding a pad applies that
+row's effect to that column's track, and releasing it ends the effect, which
+glides back over 10 ms so a press never clicks. Several pads can be held at
+once. Pressing harder deepens an effect on a Launchpad X or Pro MK3; the Mini
+MK3 senses no pressure, so it gets the plain press amount. Nothing is written
+to the song: the track's own sends and azimuth stay as they are, and the
+effects are not recorded. Leaving Custom, or unplugging the device, releases
+everything it holds.
+
+| Row (top to bottom) | Effect | Holding it |
+| --- | --- | --- |
+| 8 | (Filter, not built) | dark |
+| 7 | Stutter | From the next row, the track's own sound is captured and then repeated: a quarter note on a press, an eighth, a sixteenth and a 32nd pressing harder (a shorter loop repeats the start of what was captured). It repeats everything the track sends, sample tracks included, until the pad is released, when it fades back to the live track. With the transport stopped it starts capturing at once. |
+| 6 | Shuffle | From the next row, the track is recorded for up to a bar and played back as slices in a random order: each slice is any part already recorded, the part being recorded included, so it starts as the live track and scatters from there. Slices are an eighth note on a press, then a sixteenth, a 32nd and a 64th pressing harder. Released, it fades back to the live track. |
+| 5 | Erode | The track is broken into large, patchy grains: pieces of 40-250 ms of its own recent sound, taken from up to 300 ms back, each at its own level, slightly off pitch and turned a little around the listener, with silence between them. A press leaves it grainy but mostly there; pressing harder thins the grains out until only fragments survive. Works on every track type. |
+| 4 | Shatter | Erode's engine set the other way: a dense spray of tiny grains (5-30 ms) from up to a second back, pitched up to a few semitones off, half of them backwards, scattered all round the listener and fed back into themselves a little. Pressing harder makes it denser, up to an octave off and the full circle. |
+| 3 | Gate | The track is cut on and off on the beat grid - open for the first half of each period - while the song carries on underneath: eighth notes on a press, sixteenths and 32nds pressing harder. With the transport stopped it runs from the press. |
+| 2 | Crush | Lower sample rate and fewer bits: a quarter of the rate and 8 bits on a press, down to a 32nd and 4 bits at full pressure. |
+| 1 | Duck | The track's dry signal drops by 12 dB, to silence at full pressure; its sends are untouched. |
+
+Each row has its own colour, dim while idle and bright while held: cyan for
+Stutter, blue for Shuffle, rust for Erode, violet for Shatter, yellow for
+Gate, green for Crush, red for Duck. A column with no track is dark.
+
+The right-hand button at the end of a row holds that row's effect on the
+master - the whole mix, the reverb and delay returns included - in the row's
+colour. A button senses no pressure, so it always gives the plain press
+amount. With shift held the buttons keep their shift functions.
+
+Orbit and the Send A/B throws exist but are not on the grid at
+present.
 
 ## Step grid
 

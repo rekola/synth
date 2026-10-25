@@ -5,3 +5,4 @@
 #include <cellui/Theme.h>
 
 using cellui::Theme;
+using cellui::TrackPalette;

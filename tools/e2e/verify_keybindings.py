@@ -2,7 +2,7 @@
 """Drive the compiled synth binary through a pty and verify the
 centralized keybinding dispatch: Ctrl-Space/Ctrl-W/Ctrl-Y/Ctrl-G in
 PatternEditor, C-x o/C-x b in UI, and C-x C-c/Space in UI. General
-Emacs-keybinding smoke test, independent of the Launchpad-specific scripts
+terminal-keybinding smoke test, independent of the Launchpad-specific scripts
 in this directory (which all import harness.py directly instead).
 """
 import os
@@ -102,10 +102,10 @@ def main():
     check("Left past the pattern editor's first column keeps focus there",
           vk.has_note(pattern_row("00")), scr.dump())
     vk.other_window(scr)  # the arrangement grid
-    scr.send(b"\x1b[B")  # onto a bar row
+    scr.send(b"\x1b[C")  # onto a bar
     scr.pump(0.2)
-    for _ in range(10):
-        scr.send(b"\x1b[C")  # Right, past the grid's last track
+    for _ in range(20):
+        scr.send(b"\x1b[B")  # Down, past the grid's last track
         scr.pump(0.05)
     scr.send(b"w")  # would enter a note if focus had moved to the pattern editor
     scr.pump(0.5)

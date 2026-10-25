@@ -1,8 +1,8 @@
 # Modern look
 
 Make the UI look current rather than dated, in the terminal now (steps 1-5,
-part of `plans/cell-ui-terminal.md`) and in the window later (step 6,
-`plans/cell-ui-window.md`). Most of this is about decisions,
+part of the terminal phase of `plans/cellui.md`) and in the window later (step 6,
+`plans/cellui-window.md`). Most of this is about decisions,
 not rendering features, so it starts in the terminal. Every colour is
 already a `StyleProvider` constant, which is the lever.
 
@@ -96,7 +96,11 @@ Themes are data:
 
 - True colour where available; elsewhere map each token to the nearest
   palette entry by perceptual distance, not by RGB distance.
-- Use box-drawing for real containers (dialogs, popups) and for the tracker
+- Modal dialogs have no border: a raised panel with a bold title and a dim
+  hint line, over the scrim's blurred and dimmed page. Menus (the bar's
+  dropdowns and the list picker) are the same: opaque raised panels with
+  padding, no border and no translucency. Use box-drawing for
+  other containers and for the tracker
   view's lines between tracks. Rounded corners (╭ ╮ ╰ ╯) for floating ones.
 - One-cell gutters between widgets, filled with the base surface rather
   than drawn lines.
@@ -110,24 +114,46 @@ Themes are data:
 
 1. **Audit:** screenshot every view and dialog in the terminal, list each
    colour, glyph and line used, and map each to a token or mark it for
-   removal. Views done (`plans/modern-look-audit.md`, captured with
-   `tools/modern_look/capture.py`); dialogs still to do.
+   removal. Views done (captured with
+   `tools/modern_look/capture.py`); the dialogs are audited last, after the
+   look is applied to the views.
 2. **Mock:** an HTML mock of Live View and Arrangement view in the proposed
    tokens, dark and light, to agree on the direction before code. This is
    also the reference for the window backend. Done:
    `plans/modern-look-mock.html`, with the token values and contrast checks in
-   `plans/modern-look-tokens.md`; the direction is still to be agreed.
+   `plans/modern-look-tokens.md`; the direction is agreed.
 3. **Tokens:** restructure `StyleProvider` into tokens, with the dark theme
-   matching today's look exactly. This step is pure refactoring.
+   matching today's look exactly. This step is pure refactoring. Done:
+   `Theme` holds every colour `StyleProvider` hands out (surfaces, text,
+   accent, state, the grid tones, and the cursor tints, command and reader
+   text, info bar, meter and spectrum ramps, track flags, locators, buttons,
+   master track), `Theme::dark()` has today's values, and `StyleProvider`
+   only derives from it. The track colours and the tracker-view line colour
+   get their tokens in step 4.
 4. **Apply in the terminal:**
-   - the new surfaces and neutrals;
-   - track colours from the formula;
+   - the new surfaces and neutrals; Done: `Theme::dark()`/`light()` hold
+     them, today's look is `Theme::original()`, `--theme` and the
+     `select-theme` command choose (dark by default);
+   - track colours; Done: `TrackPalette` in the theme. The first eight are a
+     table of hue and chroma picked so the closest two differ as much as
+     possible on the screen and as Launchpad pads, one colour per family
+     (orange, olive, cyan, blue, purple, pink) and two greys, without the
+     gamut's pure blue (the Launchpad takes the palette's hues and a
+     saturation from the chroma in every theme); later ones step the hue over
+     the arcs the clip state hues leave free;
+   - track headers: the raised surface with a slice of the track's colour at
+     the left instead of a block of it (`Theme::track_chips`, the clip grid's
+     header and the tracker's two heading lines); Done;
    - fewer lines, but not between tracks in the tracker view;
    - the icon list;
-   - fades for state changes.
+   - fades for state changes: `cellui::Fades` eases a colour or a number over 160 ms by a
+     key; the clip grid, pattern editor, outline and arrangement grid ease their
+     cursor between the focused and unfocused look with it, and `--reduced-motion` (or
+     `SYNTH_REDUCED_MOTION=1`) turns it off and holds pulses steady. The other
+     in-place changes (flags, cursor to an undo place, panels) are next;
 5. **Light and high-contrast themes,** with a theme command and a setting.
 6. **Window backend:** the same tokens plus elevation shadows, radius,
-   padding, the UI font and smooth motion, in `plans/cell-ui-window.md`'s
+   padding, the UI font and smooth motion, in `plans/cellui-window.md`'s
    styles step.
 
 ## Open: switching a track's instrument

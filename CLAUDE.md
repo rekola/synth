@@ -1,7 +1,8 @@
 # synth — microtonal tracker / synthesizer
 
 Tracker-style music production system with microtonal notes (12/19/31/53-EDO).
-Terminal UI (notcurses), ALSA audio output, songs stored as XML.
+Terminal UI (cellui's own terminal backend, `lib/cellui`), ALSA audio
+output, songs stored as XML.
 Formerly developed as the `syna/` subdirectory of the private `personal` repo;
 full history was preserved when it was extracted into this repository.
 
@@ -26,16 +27,12 @@ cmake --build build -j
 
 Produces `build/synth`.
 
-Dependencies (Ubuntu): `libnotcurses-dev libnotcurses++-dev libfmt-dev
-libsndfile1-dev libasound2-dev libunistring-dev libsoundtouch-dev
-libcairo2-dev` plus CMake, pkg-config, git and a C++17 compiler. The C++ bindings (`ncpp/NotCurses.hh`, what
-`main.cpp`/`TerminalUI.cpp` include) ship in `libnotcurses++-dev`, a
-separate package `libnotcurses-dev` does not pull in as a dependency —
-both are required. `libunistring-dev` backs `lib/cellui`'s `cellui/Utf8.h`
-grapheme-cluster-aware UTF-8 truncation/width helpers — its runtime half
-(`libunistring5`) is already pulled in transitively by `libnotcurses-dev`,
-but the headers/link package isn't, so it still needs installing
-explicitly. `libsoundtouch-dev` backs `src/audio/TimeStretcher.h`'s
+Dependencies (Ubuntu): `libfmt-dev libsndfile1-dev libasound2-dev
+libunistring-dev libsoundtouch-dev libcairo2-dev` plus CMake, pkg-config,
+git and a C++20 compiler. The terminal UI needs no terminal library: Cell
+UI's terminal backend (`lib/cellui`, `cellui/term/`) writes escape
+sequences itself. `libunistring-dev` backs `lib/cellui`'s `cellui/Utf8.h`
+grapheme-cluster-aware UTF-8 truncation/width helpers. `libsoundtouch-dev` backs `src/audio/TimeStretcher.h`'s
 pitch-preserving time-stretch (a `SampleTrack` clip whose own recorded
 tempo disagrees with the song's current one, `SampleTrackState::
 triggerClip()`) — not optional the way `libmysofa-dev` is below, since a
@@ -44,18 +41,29 @@ defect this codebase won't ship. FFT support (the live spectrum analyzer,
 MagLS binaural precomputation) is via vendored PocketFFT
 (`third_party/pocketfft/`) — no separate FFT library package needed.
 canvas (`rekola/canvas`, 2D drawing for the scopes and meters, drawn as
-pixels with Cairo) is fetched at configure time at a pinned commit
-(`FetchContent` in `CMakeLists.txt`, built with none of our warning flags, its
-headers reached as SYSTEM includes; GDI+ on Windows); bump the pin when canvas
-changes. `src/ui/SpectrumImage.{h,cpp}` and `src/ui/HeatmapImage.{h,cpp}` are
-the users so far: the pixel spectrum (`TerminalPixelSpectrumMeter`) and the
-pixel DirAC heatmap (`TerminalPixelHeatmapChart`, its axis labels still
-drawn over the result) are images they draw with canvas, blitted by the
-terminal. An `ImageData` handed to canvas to draw is RGB straight-alpha unless
+pixels with Cairo, or Quartz 2D on macOS) is a dependency of cellui, fetched at configure time at a
+pinned commit (`FetchContent` in `lib/cellui/CMakeLists.txt`, built with none
+of our warning flags, its headers reached as SYSTEM includes; GDI+ on
+Windows); bump the pin when canvas changes. The pixel versions make their
+drawing context through `cellui::nativeContext()` (`src/NativeContext.h`), the
+one place that names a canvas backend. The scopes - the spectrum, the
+DirAC heatmap, the channel meter - are cellui widgets in the versions each
+backend provides (`cellui::Scopes`, `cellui/Scopes.h`;
+`cellui::scopesFor(display)` picks the display's): the cell versions are
+drawn by hand (braille bars, a quadrant or sextant heatmap, labels in text,
+`src/Scopes.cpp`), never through canvas, and the pixel versions are images
+drawn with canvas (`cellui/SpectrumImage.h`, `cellui/HeatmapImage.h`,
+`src/PixelScopes.cpp`, the heatmap's axis labels drawn into the image). An `ImageData` handed to canvas to draw is RGB straight-alpha unless
 tagged otherwise (`setFormat(ChannelOrder::BGR, true)` for bytes B, G, R, A,
 premultiplied, as we build them); what is read back
-is the same layout, and the renderers return RGBA. The cell (braille)
-paths, the level meters and `ChannelMeter` are not on canvas yet.
+is the same layout, and the renderers return RGBA. The VU meters have pixel
+versions too: the channel meter's bars are one image over its bar rows, and
+the clip grid's and pattern editor's level meters are drawn through
+`Scopes::drawVuMeter()` into the widget's own plane (`cellui/VuMeterImage.h`;
+`drawCellVuMeter()` is the cell version), as images at cell positions
+(`Plane::drawImageAt()`: a plane holds one image per cell position, covering
+only the cells it reaches, and the same picture - an id given to `drawImageAt()`, or a hash of its pixels - drawn again, even after
+`erase()` and at another position, keeps its key and version, so it isn't sent again, only placed; a meter scrolled partly out of view is drawn whole at its real position with a row clip, so its pixels do not change with the scroll).
 `libpipewire-0.3-dev` is optional too (`SYNTH_ENABLE_PIPEWIRE`,
 auto-detected, and cmake says so when it isn't used): it only backs
 `src/audio/AudioDevices.cpp`'s listing of the audio server's own inputs and
@@ -64,6 +72,12 @@ without it the lists fall back to the machine's sound cards (one entry per
 card input/output via the ALSA control API - not `snd_device_name_hint()`'s
 dozens of virtual PCMs per card); the dialog title always names which list
 it is, "(PipeWire)" or "(ALSA sound cards)".
+`libgtk-4-dev` is optional too (`SYNTH_ENABLE_GTK`, auto-detected, GTK 4.10 or
+later, Linux only, and cmake says so when it isn't used): it builds the window
+backend (`lib/cellui/src/gtk/`) and `--ui raster`; without it the terminal is
+the only UI. `cellui_gtk_tests` needs a display, so ctest runs it under
+`xvfb-run` (and `xdotool`, which drives its input checks) and skips it where
+neither is there.
 `libmysofa-dev` is optional (binaural ambisonic decoding,
 `SYNTH_ENABLE_BINAURAL`, auto-detected) — without it, `--ambisonic` still
 works via the cardioid stereo decoder fallback.
@@ -75,10 +89,13 @@ extensions), packages `mingw-w64-ucrt-x86_64-{gcc,cmake,ninja,fmt,libsndfile,
 soundtouch,libunistring,python}`. `SYNTH_BUILD_INTERACTIVE` (default ON) selects between the full `synth` and the render-only one
 (`src/main_render.cpp`: `--render`, `--help`, `--licenses` and the options
 `--render` honours, parsed by `src/cli/CommonOptions.*`, shared with
-`main.cpp`); `SYNTH_BUILD_TERMINAL_UI` (default ON, OFF on Windows) adds the
-notcurses UI (`SYNTH_TERMINAL_UI` in `main.cpp`, `EscapeCoalescerTests`), so
-Windows has the full program run with `--headless` (`tools/smoke_headless.py`
-in CI); ALSA and PipeWire sources are Linux only. `.github/workflows/
+`main.cpp`); `SYNTH_BUILD_TERMINAL_UI` (default ON) adds the interactive UI
+(`SYNTH_TERMINAL_UI` in `main.cpp`). cellui's terminal backend is POSIX only, so
+on Windows `InteractiveUI` runs on cellui's Win32 window (`--ui raster`, what `auto`
+picks; the loop waits on handles, `WaitSet::handles()`, `Backend::inputHandles()`,
+`EventLoop::addHandles()`; stderr reaches the status line through `util/StderrCapture.h`, a reader
+thread on a pipe, since a pipe cannot be waited on; the pixel scopes draw through canvas' GDI+ backend; never run
+on a desktop), and `--ui headless` is what CI runs (`tools/smoke_headless.py`); ALSA and PipeWire sources are Linux only. `.github/workflows/
 ci-windows-x86_64.yml` builds, runs ctest and renders songs. The `#ifdef
 _WIN32`s this needed live in small platform helpers: `util/Paths.h` (the
 config dir `%APPDATA%\synth`, the user and installed data dirs, the executable's
@@ -91,6 +108,24 @@ Ctrl-C and the console closing), `Daemon.cpp` (`--daemon` says it is unsupported
 and exits), `Notifier.h` and `AudioBuffer.h` (aligned allocation). The Windows device backends sit in `synth_engine` behind the same interfaces: `audio/WasapiAudio` (shared-mode, event-driven WASAPI; `wasapi:<endpoint id>` names, `AudioDevicesWasapi.cpp` for the lists) and WinMM MIDI (`midi/WinMmMidiInput`, `WinMmMidiPorts`; `winmm::Watcher` polls the device list, as WinMM has no hotplug notice). They compile in CI but nothing there can run them against a device. The installer (Inno Setup) is built by `.github/workflows/release-windows.yml` from `tools/windows/` and described in `docs/building.md`. Files open by
 UTF-8 path through `util/FileOpen.h`.
 
+### macOS
+
+Builds with Apple clang (Xcode command line tools) and Homebrew: `brew install
+cmake ninja pkg-config fmt libsndfile sound-touch libunistring`. Not GCC:
+canvas' Quartz 2D backend includes Apple's framework headers (blocks syntax),
+and Homebrew's `fmt`/`sound-touch` are built against libc++, which GCC's
+libstdc++ cannot link. Clang does not search `/opt/homebrew`, so set
+`CPATH=/opt/homebrew/include` and `LIBRARY_PATH=/opt/homebrew/lib`. There is
+no audio or MIDI backend yet, so only `-DSYNTH_BUILD_INTERACTIVE=OFF` (the
+render-only `synth`, the engine and the tests) builds;
+`.github/workflows/ci-macos-arm64.yml` does that, runs ctest and renders
+songs. Clang optimizes on `-ffinite-math-only` harder than GCC, so
+`CMakeLists.txt` keeps `-fno-finite-math-only` with `-ffast-math` there. The
+pixel scopes draw through canvas' Quartz 2D backend (no Cairo or fontconfig);
+Core Text falls back to another font for a missing glyph by itself, so
+`CanvasRasterizer` has no fontconfig there. `Notifier` is a pipe (no eventfd)
+and `executableDir()` uses `_NSGetExecutablePath`.
+
 ## Run
 
 ```sh
@@ -99,7 +134,7 @@ UTF-8 path through `util/FileOpen.h`.
 ./build/synth --render out.wav songs/demo3.xml   # headless render to WAV
 ```
 
-`--headless` runs without the terminal UI (`HeadlessUI`, `src/ui/headless/`):
+`--ui headless` runs without the terminal UI (`HeadlessUI`, `src/ui/`):
 it plays the song, keeps a Launchpad working, and prints timestamped status
 lines to stderr, plays MIDI input live and records samples; `--autoplay` starts the transport, `--daemon` (with optional
 `--log-file`/`--pid-file`) detaches it. SIGINT/SIGTERM/SIGHUP end any UI
@@ -107,9 +142,9 @@ mode's main loop cleanly (`util/ShutdownSignal.h`, `UI::shouldClose()`).
 See `docs/headless.md`; `tools/e2e/verify_headless.py` covers it.
 
 **Audio and MIDI devices** (`docs/devices.md`): the output, the input and one
-MIDI source are chosen at runtime (M-x `select-playback-device`/
+MIDI source are chosen at runtime (the command palette's `select-playback-device`/
 `select-capture-device`/`select-midi-input`, the Devices menu - each opens a
-modal list, `UI::showChoiceDialog()`, rendered by `tui/ChoiceDialog` over the
+modal list, `UI::showChoiceDialog()`, rendered by `ChoiceDialog` over the
 toolkit-agnostic `ui/ChoiceList.h`; the commands live in `UI`, so a GUI
 backend only supplies the dialog) and saved in
 `~/.config/synth/devices.conf` (`audio/DeviceSettings.h`, machine-wide, never
@@ -144,7 +179,7 @@ PipeWire (and skips without one).
 **Waiting.** Nothing outside a backend sees a file descriptor of the audio
 device: `Player` calls `AudioAPI::wait(notifier, want_capture, timeout)` and
 gets back which of woken/playback/capture is ready (`WaitResult`). The wakeup
-is `util/Notifier.h` (level-triggered; eventfd on Linux, a condition variable
+is `util/Notifier.h` (level-triggered; eventfd on Linux, an event on Windows, a pipe
 elsewhere), which `EventQueue` raises while it holds events. `AlsaAudio::wait()`
 polls the notifier's fd with its streams' own (capture's masked off while not
 wanted: an unstarted capture stream is "ready" forever). `NullAudio`
@@ -152,8 +187,7 @@ wanted: an unstarted capture stream is "ready" forever). `NullAudio`
 real `Player` loop runs on machines without sound hardware (CI, tests). MIDI input
 is `midi/MidiInput.h` (`readEvents()` on the UI thread, `AlsaMidiInput`) and
 Launchpad I/O sits on a `midi/MidiPorts.h` `MidiPortBackend` (`AlsaMidiPorts`),
-neither part of `AudioAPI`. The UI loops block on a `util/WaitSet.h` (groups of
-`Notifier`s and, on POSIX, file descriptors) that each source adds itself to
+neither part of `AudioAPI`. The UI loops are cellui `EventLoop`s (`InteractiveUI`'s from its backend, `HeadlessUI`'s a `cellui::PlatformEventLoop`: poll, or handles on Windows) with the groups of a `util/WaitSet.h` (`Notifier`s and, on POSIX, file descriptors) as sources (`addWaitGroup()`, `ui/WaitSources.h`) that each source adds itself to
 (`addTo()`), and read a source when its group is ready; `LaunchpadIO` is
 platform-neutral and tested against a fake backend.
 
@@ -178,7 +212,7 @@ ctest --test-dir build --output-on-failure
 ```
 
 `synth_engine` (song model, playback, instruments, effects — everything
-except the notcurses UI and ALSA output) is a separate static library so
+except the terminal UI and ALSA output) is a separate static library so
 `tests/synth_tests` can link it without a display or audio device. Tests are
 plain functions registered with `TEST(name) { ... }` (see
 `tests/TestFramework.h`) and use `CHECK`/`CHECK_NEAR`; no external test
@@ -201,7 +235,15 @@ Build with `-DSYNTH_ENABLE_SANITIZERS=ON` to enable ASan+UBSan for the whole
 project; useful for chasing memory bugs (e.g. `AudioBuffer`'s copy-assignment
 leak was confirmed this way).
 
-Needs a real terminal (notcurses full-screen UI) and an ALSA output device.
+Needs a real terminal (a full-screen UI) and an ALSA output device.
+`--ui auto|terminal|raster|headless` chooses the backend (`headless` is no cellui backend at all, see below) (`cellui::term::TerminalSession`
+or `cellui::gtk::Window`, the platform's 2D window, `raster`; `InteractiveUI` runs
+on either through `cellui::Backend`). `auto`, the default, tries `raster` when
+the build has GTK and a display is there (`WAYLAND_DISPLAY` or `DISPLAY`), and
+the terminal when that cannot start; a named backend that cannot start is an
+error, and the choice is made once, at start (`cellui/BackendChoice.h`).
+`SYNTH_WINDOW_STATS=<file>` appends how long the window's frames took to draw
+when it exits. The e2e scripts pass `--ui terminal`.
 Options: `--samplerate N`, `--stereo`, `--ambisonic [order]`,
 `--legacy-binaural`, `--view live|arrangement`. Every song is always rendered through an
 ambisonic bus (ACN/SN3D, AmbiX convention) — there is no plain-stereo-pan
@@ -276,15 +318,18 @@ rather than asserting on it). `BasicMixer` (the old plain-stereo-pan/
 raw-N-channel mixer) was retired entirely along with `STEREO`; every mixer
 `MixerFactory` builds now is `AmbisonicStereoMixer` or
 `AmbisonicBinauralMixer`.
-**Space** toggles playback, **C-x C-c** quits (Emacs's own
-save-buffers-kill-terminal binding - there is no separate Ctrl-Q quit
-shortcut, deliberately: this codebase follows Emacs keybindings, not
-one-off shortcuts, wherever Emacs already has a convention for the
-action), Ctrl-N creates a new song, **Alt-x** opens the M-x command
-minibuffer (see below for the mechanism that makes it work reliably on
-any terminal, ESC-then-x included). Ctrl-K is `PatternEditor`'s own
-kill-row (Emacs's own C-k, kill-line, repurposed the same way), not an
-M-x trigger.
+**Space** toggles playback in both keymaps. Quit, save, open and the rest are
+bound per keymap (`docs/user-interface.md` has the table): on the terminal keymap,
+used in the terminal, **C-x C-c** quits (Emacs's own
+save-buffers-kill-terminal binding; this codebase follows Emacs keybindings
+there, not one-off shortcuts, wherever Emacs already has a convention for the
+action, so Ctrl-Q is not bound) and **Meta-x** (M-x) opens the command palette (see
+below for the mechanism that makes it work reliably on any terminal,
+ESC-then-x included); on the desktop keymap, used in the window, **Ctrl+Q**
+quits and **Ctrl+Shift+P** opens the palette. There is no new-song binding on
+either (`select-named-buffer` starts a new song by name). Ctrl-K is
+`PatternEditor`'s own kill-row (Emacs's own C-k, kill-line, repurposed the
+same way), not a palette trigger.
 `docs/commands.md` lists the pattern effect commands (slides, vibrato, …),
 split into **Implemented** (`ZBxx` pattern break; `0Pxx` azimuth set;
 `0Lxx` Volume set; the real-time
@@ -301,9 +346,11 @@ synonym for it (`Command::updateData()`); `docs/commands.md`'s own
 from - an existing tracker's own command reference, or this codebase's
 own choice - checked deliberately rather than invented blind.
 
-Pattern editor selection uses Emacs keybindings: **C-SPC** sets the mark (selection start), **C-w** kills (cuts) the marked
+Pattern editor selection uses the mark and point model on both keymaps. On the Emacs
+keymap **C-SPC** sets the mark (selection start), **C-w** kills (cuts) the marked
 block, **M-w** copies it, **C-y** yanks (pastes) the clipboard at the
-cursor, **C-g** cancels the selection. The selection is a rectangular
+cursor, **C-g** cancels the selection; on the desktop keymap cut, copy and
+paste are Ctrl+X, Ctrl+C and Ctrl+V, running the same commands. The selection is a rectangular
 row×track block; within a single track it's further scoped to note
 columns (voices) — see below.
 
@@ -329,7 +376,9 @@ Because the effective region always exists, it's also always shown —
 `PatternEditor::renderRow` has no separate "current column" highlight;
 the region highlight is the cursor, so the degenerate (unmarked) case is
 a single-cell cursor and a real/widened mark shows the same color across
-its whole extent. Every widget's cursor uses the same colors
+its whole extent. A cursor shows only while the window has the focus
+(`StyleProvider::window_focused`, set from `BackendEvent::FOCUS`: the window's
+active state, or the terminal's focus reports); a playhead is always shown. Every widget's cursor uses the same colors
 (`StyleProvider`), all leaning cyan so they never read as the neutral
 grey bar/beat highlighting: dark on bright grey (`highlight_fg_color`/
 `highlight_bg_color`) while focused, plain text on a faint grey
@@ -344,8 +393,8 @@ In Live View each pattern editor column marks only its own position,
 in that tint, on its own line (`PatternSource::positionRow()`) - a
 playing track's playhead, a stopped one's position - so no column shows
 two marked rows. Every color lives in `StyleProvider`, so one color
-is one constant. The theme is `TerminalUI`'s own `styles_`: widgets get
-it in `render()`, and every `UIPlane` carries it too (`getStyles()`,
+is one constant. The theme is `InteractiveUI`'s own `styles_`: widgets get
+it in `render()`, and every `Plane` carries it too (`getStyles()`,
 handed down to child planes), so plane-level drawing - the charts, the
 M-x selector, readers - uses the same instance. The per-character underline for
 EFFECT/VELOCITY/DELAY columns (indicating which hex digit `C-+`/`C--`-style
@@ -389,37 +438,69 @@ mnemonic's own trailing hex-digit argument (e.g. `YLxx`'s slide amount)
 stays permissive too, parsing a non-hex character as digit 0 rather than
 rejecting it (`Command::getAzimuthSlidePerTick()`).
 
-Keybinding dispatch is centralized, Emacs-style (v1, partial): `KeyChord.h`/
-`Keymap.h`/`CommandRegistry.h` provide a chord→command-name→callable lookup,
+Keymap profiles: a display declares its `cellui::KeymapProfile`
+(`DisplayInfo::keymap_profile`: the terminal `TERMINAL`, the GTK window `DESKTOP`),
+which reaches widgets through `Plane::keymapProfile()`. `Keymap::bind(stroke,
+name)` works in both profiles; `bind(profile, stroke, name)` only in one and wins
+over a shared binding of the same shortcut. A binding is migrated by making it
+profile-specific; one that is not works everywhere. Migrated so far: the command
+prompt (`StatusLine::isCommandPromptShortcut()`: M-x / Ctrl+Shift+P, either one opens the command palette), undo/redo,
+cut/copy/paste (`kill-region`/`kill-ring-save`/`yank`), save/open/save-as/quit
+(Ctrl+S/O/Shift+S/Q on the desktop; Ctrl+Q exists only there), and the `C-x`
+prefix (Emacs only, since Ctrl+X is cut on the desktop). `docs/user-interface.md` lists
+the desktop shortcuts.
+
+The command palette (`cellui::CommandPalette`, `cellui/CommandPalette.h`; opened by
+`InteractiveUI::showCommandPalette()`) is a modal panel across the bottom rows of
+the screen, where the status line is, with no scrim: the query on the last row
+("M-x " on the terminal keymap, "> " on the desktop one), the selected command's
+description above it, and above that the commands that `cellui::fuzzyMatch()`
+(`FuzzyMatch.h`) ranks best first, each with its binding, the list growing
+upward with the number of matches. Only the list is a raised panel
+(`picker_bg_color`); the description (quiet, italic) and the query sit on the
+display's own background like the status line they cover, so the description is
+not taken for a command. The app gives it
+`PaletteEntry`s: names from `commandCompletions("")`, descriptions from
+`commandDescription()` (`ui/CommandDescriptions.cpp`; a test fails for a command
+without one, so add a line there with a new command), bindings from
+`Widget::bindingFor()`, which reads the widget's `Keymap` for the display's
+profile (`Keymap::sequencesFor()`, spelled by `KeyStroke::describe()`). Choosing
+runs `Controller::sendCommand()` after the palette has closed. Tab is
+Emacs-style completion (`CommandPalette::complete()`): the query becomes the
+longest prefix shared by every name starting with it.
+
+Keybinding dispatch is centralized, Emacs-style (v1, partial): `KeyStroke.h`/
+`Keymap.h`/`CommandRegistry.h` provide a key stroke→command-name→callable lookup,
 and `UIElement::dispatchCommand()` runs it. Widgets populate their own
 `keymap_`/`commands_` in their constructor (see `PatternEditor`'s 5 selection
 commands and `UI`'s `quit`/`new-song`/`toggle-playing`) and call
 `dispatchCommand(input)` early in their `offerInput()` override; anything
 not bound falls through to the widget's existing manual `offerInput` logic
-unchanged. `StatusLine`'s M-x minibuffer still calls
-`Controller::sendCommand()`, which now falls back (via
+unchanged. `Controller::sendCommand()` (what the command palette calls) falls back (via
 `Controller::setCommandFallback()`, wired once in `UI::initialize()`) to
 `UI::executeCommand()` — checks the active element's registry, then UI's own
 — for any name it doesn't recognize itself, so M-x can invoke both
-Controller-level commands (`save-song`, `add-filter`) and the per-widget ones
+Controller-level commands (`save-buffer`, `add-filter`) and the per-widget ones
 (`set-mark`, `kill-region`, `transpose-region-up`/`-down`, …) through the
 same path. Not yet migrated: `StatusLine`, `OutlineView`, and
 `InstrumentList` (dead code anyway). `StatusLine`'s M-x detection is down
-to a single check now, an Alt/Meta-modified `x` event - it no longer needs
-its own two-step `ESC`-then-`x` state machine, since `TerminalUI.cpp`'s
-`EscapeSequenceCoalescer` (`EscapeCoalescer.h`) already folds a bare `ESC`
-followed, arbitrarily later, by `x` into a single Alt-modified event
+to a single check now, a Meta-x event (the `Input`'s Alt or Meta modifier with `x`, on the terminal keymap) - it no longer needs
+its own two-step `ESC`-then-`x` state machine, since `InteractiveUI`'s
+`cellui::KeyReader` (`cellui/KeyReader.h`, over `cellui/EscapeCoalescer.h`; it
+also holds a bare Escape until the next key decides it, asking the app's
+`takeEscape` hook whether something closes on it at once) already folds a bare `ESC`
+followed, arbitrarily later, by `x` into a single Meta-modified event
 before it ever reaches `StatusLine`, the same as a terminal that sends
-physical Alt-x as one event directly; see that header's own top comment
+Meta-x as one event directly; see that header's own top comment
 for why the wait has no deadline (modeled on Emacs's own indefinite
 ESC-as-Meta-prefix behavior, "ESC-" indicator included) rather than a
-short timing window. `UIPlane::showReader()`
+short timing window. `Plane::showReader()`
 now takes an optional prompt string and draws it *before* creating the
 reader's (opaque) child plane, offsetting the reader past it — the prompt
 used to be drawn via a separate `setMessage()` call *after* `showReader()`,
 which silently no-oped since `setMessage()` defers to `pending_message`
-whenever `readerActive()` is already true, so the "M-x " prompt was never
-actually visible even when the minibuffer genuinely opened and worked.
+whenever `readerActive()` is already true, so a status-line prompt was never
+actually visible even when its reader genuinely opened and worked.
 
 `transpose-region-up`/`transpose-region-down` (Ctrl+Shift+Up/Down) transpose
 the effective region (same "always something to act on, even unmarked"
@@ -467,15 +548,15 @@ all of them. `PatternBlockOps::{copy,clear,transpose,paste}PatternBlockNotes`
 are the single-track, note-range-scoped siblings of the whole-track
 functions used for this.
 
-The FFT spectrum (`SpectrumMeter`, `ui/tui/SpectrumMeter.h`) draws its
+The FFT spectrum (`SpectrumMeter`, `ui/SpectrumMeter.h`) draws its
 log-frequency bars through `LevelMeter.h`'s braille sub-cell renderer, the
-same one the volume meters use. When `notcurses_check_pixel_support()`
-reports support (sixel/Kitty graphics/iTerm2, whichever the terminal
-negotiates), `TerminalUI.cpp`'s `TerminalPixelSpectrumMeter` overrides
-`barCount()`/`drawBars()` to blit one bar per pixel column onto the
-meter's own plane instead; the choice is made once at startup in
-`TerminalUI::initialize()`. Both the spectrum and the DirAC heatmap show in
-Arrangement view's scope row and in Live View's left column, stacked
+same one the volume meters use. When the terminal session found an image
+protocol (kitty graphics, iTerm2's inline images or Sixel) and the cell
+size in pixels, the pixel version (`cellui::pixelScopes()`) overrides
+`barCount()`/`drawBars()` to draw one bar per pixel column as the meter's
+plane's image (`Plane::pixelSize()`/`drawImage()`) instead; the choice is
+made once at startup in `InteractiveUI::initialize()` (`cellui::scopesFor()`). Both the spectrum and the DirAC heatmap show in
+Arrangement view's top band (stacked in a narrow column beside the arrangement grid) and in Live View's left column, stacked
 under the full-height outline panel, each below a title bar (only while the
 outline is shown and the terminal is tall enough); off-screen scopes are not updated.
 
@@ -522,9 +603,29 @@ would otherwise resume showing.
   exclusive, purely per-device (`toggleGridMode()`), never tied to
   terminal UI focus - one connected Launchpad can sit in Live View
   while another stays on ordinary note entry. Defaults to `LIVE`.
-  `CUSTOM` is deliberately generic ("customize whatever's assigned to
-  this device") and has nothing built for it today - it shows a blank
-  grid. `SEND_MAIN`/`PAN`/`SEND_A`/`SEND_B`, plus the
+  `CUSTOM` is the performance grid (`handlePerformancePadEvent()`,
+  `playback/PerformanceEffect.h`): columns are Live View's tracks, rows
+  effects (`performance::kGridRows`, the default set, top to bottom: Filter
+  (dark until built), Stutter, Shuffle, Erode, Shatter, Gate, Crush, Duck; Orbit and the Send
+  A/B throws exist off the grid), held to apply, pressure
+  deepening them; the right-hand button at the end of a row holds its effect
+  on the master (`handlePerformanceMasterButton()`, `performance::
+  kMasterTarget`; `SongState::masterPerformance()` runs the sound effects and
+  Duck on the dry mix plus the bus returns, only while one is held). A pad sends `SET_PERFORMANCE`; `SongState::setPerformance()`
+  keeps what is held (never the song) and hands it to `LeafTrackState::
+  setPerformanceTargets()`, which applies it to the voices only, so `sends_`/
+  `position_` - what `TrackInfo` reports and the song mirrors - keep the
+  song's values.
+  The sound effects work on a track's whole rendered block (`state/
+  PerformanceAudio.h`, one per leaf track, applied by `LeafTrackState::
+  applyPerformanceAudio()` before the level is reported, and one on the
+  master): Stutter (`TrackStutter`) loops what it captured from the next row;
+  Shuffle (`TrackShuffle`) records up to a bar from the next row and plays
+  slices of it in a random order; Erode and Shatter are `TrackGrains` with the
+  `grains::kErode`/`kShatter` presets, grains of the recent past with silence
+  between them, each turned about the vertical; Gate (`TrackGate`) follows
+  the bar grid (`PerformanceGrid::bar_phase`); Crush (`TrackCrush`) holds
+  samples and drops bits. `SEND_MAIN`/`PAN`/`SEND_A`/`SEND_B`, plus the
   track-picker overlay's three purposes (Stop Clip/Mute/Solo - see its
   own bullet below), together form Live's own **mixer submode radio
   group** (`DeviceState::mixer_mode`, off by default) - see the
@@ -947,39 +1048,48 @@ would otherwise resume showing.
   currently-followed track directly once triggered from a Launchpad this
   way - "toggle-mute"/"toggle-solo" (`PatternEditor`'s own `commands_`)
   are still reachable unchanged via keybinding/M-x.
-- **`ArrangementGrid`** (`src/ui/tui/ArrangementGrid.h`/`.cpp`) - the terminal-
-  side counterpart: an always-visible overview in the scope row - one row
-  per bar of the arrangement, running one bar past where its content ends
-  (`Song::getArrangementLength()`), columns = tracks, then one marking
-  (›) each bar that has a locator somewhere in it. A placed clip instance renders as
+- **`ArrangementGrid`** (`src/ui/ArrangementGrid.h`/`.cpp`) - the terminal-
+  side counterpart: an always-visible overview in Arrangement view's top band, with
+  time running to the right like a composition: one column per bar of the
+  arrangement, running one bar past where its content ends
+  (`Song::getArrangementLength()`), rows = tracks, each named at the left
+  (`kNameWidth`), under two header rows (`kHeaderRows`): a bar ruler and the
+  locators, each a `›` at its bar followed by its name. The band's height
+  follows the track count (`InteractiveUI::arrangementScopeRows()`, at most a
+  third of the screen); the spectrum and DirAC heatmap are stacked in a narrow
+  column to the grid's right, then the channel meter, each under the same title bar Live View's scopes have (`InteractiveUI::drawScopeTitle()`, on the panel colour `window_accent_bg_color` in both views, so it stays apart from the menu bar), the scopes at Live View's size (`kScopeHeight`), so the band is at least `2 * kScopeHeight + 2` rows. A locator's name is written as a string, so wide characters keep their columns. The selected track shows in the grid only while it has the focus. The bars are a plane of
+  their own (names and header stay put), scrolled sideways by parts of a bar
+  on a smooth display, where the playhead is a vertical `Band`. Left/Right move the
+  cursor along the bars, Up/Down across the tracks; the wheel scrolls the bars
+  (Shift: tracks). A placed clip instance renders as
   a colored block (that track's own identity color) spanning its own
   active length in bars, its leading bar showing a single hex digit - its
   ordinal position in that track's own clip list, the same index Live
   View's own rows address - resolved the same way real playback does
   (`ArrangementOps.h`'s `resolveInstanceAt()`). A bar with no active
-  instance falls back to a page/empty-page glyph showing whether the
-  background has anything there. No per-cell copy/paste - placing/moving
+  instance falls back to a glyph (`*` sounding, `.` only note-offs or
+  commands) showing whether the background has anything there. No per-cell copy/paste - placing/moving
   clip content is `copy-to-clip`'s own job, from `PatternEditor`. Track
   selection is the one shared cursor Live View also follows; Enter
   moves the transport to the cursor's bar.
 - **Views** (`UI::View`, `ARRANGEMENT`/`LIVE`) - how the active song is
   laid out, UI state independent of which buffer (song) is active; a
-  buffer is just a song. Arrangement view: the scope row (with
-  `ArrangementGrid`) plus `PatternEditor`. Live View: `ClipGrid`
-  (`src/ui/tui/ClipGrid.h` - per-track clip slots, Sends, Direction), with
+  buffer is just a song. Arrangement view: the top band (`ArrangementGrid`
+  and the scopes) plus `PatternEditor`. Live View: `ClipGrid`
+  (`src/ui/ClipGrid.h` - per-track clip slots, Sends, Direction), with
   `OutlineView` as a narrow panel on its left (shown by default,
   "toggle-outline"; the tree, with a button bar overlaid on its bottom rows
   while the cursor's row has any, details in a `?`
   popup that Escape closes at once - a widget can take a bare Escape via
   `UIElement::wantsBareEscape()` without it losing its Alt-prefix role),
-  above `PatternEditor` (`TerminalUI::layout()`) - no scope row
+  above `PatternEditor` (`InteractiveUI::layout()`) - no scope row
   (Arrangement view's is optional too, "toggle-scopes"). The clip grid
   and the pattern editor share the current track; the clip grid marks the clip
   the pattern editor is editing for the cursor track
   with a pencil (✎) beside its loop icon (`ClipGrid::
   setTrackClipSource()`) - an icon, not a colour, so a Launchpad can show
   the same thing. The clip grid's cursor row is its own
-  (`TerminalUI::syncLiveView()` shares only the track): it never
+  (`InteractiveUI::syncLiveView()` shares only the track): it never
   moves a track's position, nor follows one - a track's position moves
   only in the pattern editor, or when a clip launched on it starts
   playing. Each track header ends in "◆IMS" (the ◆ double width):
@@ -1012,17 +1122,41 @@ would otherwise resume showing.
   what tells queued from running without motion.
   The last column is the master's, scrolling with the tracks: its slots
   launch a whole scene (`LaunchpadManager::launchScene()`), its last row
-  stops every track, and its Sends row shows its Send Main/A/B. Sends
+  stops every track, and its Sends and Main dials show its Send A/B and Send Main. Sends
   are every `Track`'s (`Track::getSends()`), not just a leaf's, so the
   master has the same parameters, stored and set the same way
   (`sendMain`/`sendA`/`sendB`, `Controller::setTrackSendMain()`/`A()`/
   `B()`): its Send Main is the song's dry mix level and its Send A/B the
   send bus's two returns, applied in `SongState::renderBlock()`; only
-  leaf tracks have Mute/Solo/Monitor and Direction. On the Sends row Left and
-  Right walk through the Main, A and B values (then on into the next column),
-  the cursor covers one value, and Enter edits just that one (a typed dB
-  number; empty leaves it). Every column has a vertical level meter
-  beside its Sends/Direction rows (`LevelMeter.h`: one dB mapping, braille
+  leaf tracks have Mute/Solo/Monitor and Direction. The sends are
+  `cellui::drawDial()` dials (`cellui/Dial.h`): a ring open at the bottom for
+  the letter and a pointer from the centre over the ring's arc, the ring 4 px
+  thick and the pointer in a notch of background so it stays apart from it, in the
+  theme's primary text colour (white, black on a light theme). Each dial is
+  an identical, separate slot of 5x3 cells, the letter in the middle of the bottom border: A on the first three rows of the
+  4-row Sends group, B on its last three, the "Sends" caption in the corner above
+  B, then the Main dial, centred, in a 3-row group of its own (`SendsDirectionRow`). A
+  display that shows pictures (`Plane::cellPixelSize()`) gets a picture with no
+  number (`dial_image::render()`; the last renders are kept by what they show);
+  any other gets the same slot in text, the letter over the dB value - the
+  plane decides, so a backend without pictures needs nothing. The pointer's
+  position is the send's dB over the Launchpad faders' range
+  (`model/SendFader.h`: -36 dB to unity, below that off). On the Sends row Left
+  and Right walk through the A and B dials (then on into the next column),
+  Main is a stop of its own below. The gestures belong to the widget, `cellui::Dial`
+  (`Dial.h`, shown in the gallery in its idle, selected, pressed and off looks): a click starts typing a
+  value over the dial (the dial's own, not an `InlineEditor`, which cannot show over a picture: the dial
+  dimmed under the typed text and a caret, or in the text version the box's middle row; the current value
+  is shown, the first key typed replaces it, a number up to +12, no unit; Enter commits, Escape - a bare one in the
+  terminal too, `wantsBareEscape()` - losing the focus, or a click anywhere else closes it, the grid doing the last), dragging up or down
+  turns it (3 dB a row, Shift 0.3, one undo step per drag, below the lowest step off, a drag goes on
+  wherever the pointer is and its release does not open the editor), the wheel over it turns it
+  (1 dB a step, Shift 0.1, instead of scrolling), and the pressed look (the lines in a brighter cursor colour) and
+  the selected one (the lines in the cursor colour) are its own, neither touching the background. `ClipGrid` only places the dials of
+  each column (`dialAt()`), gives them their values and `DialSpec`, and passes on the mouse and keys; Enter on a
+  selected dial calls `Dial::startEdit()`. The empty clip slots stand as high as the clips and a little
+  brighter than the grid, and a rule under the Sends sets them apart from the track's other parameters. Every column has a vertical
+  level meter beside its Main and Direction rows, not the Sends (`LevelMeter.h`: one dB mapping, braille
   by default with sextants as an opt-in glyph set, `Ballistics` smoothing
   a block's RMS in the power domain so a low note doesn't ripple, bars
   shaded by height from green through orange to the clip red
@@ -1078,9 +1212,10 @@ would otherwise resume showing.
   scrolls the widget under the mouse without moving focus, and scrolls its
   view, never its cursor (so never the transport); Shift scrolls tracks
   sideways, and the next cursor move brings the view back.
-  The left button picks cells: in `ClipGrid` a click moves the cursor
-  and presses the slot like Enter does (a clip launches, the master's
-  scene/stop-all slots fire; Sends rows only select), in `ArrangementGrid`
+  The left button picks cells: in `ClipGrid` a press shows the cell under
+  it pressed (`StyleProvider::row_pressed_bg_color`) and the release moves the
+  cursor and track there and presses the slot like Enter does (a clip launches, the master's
+  scene/stop-all slots fire; a Sends value opens its editor), in `ArrangementGrid`
   it moves the cursor to the bar and track (Enter still commits), and in
   `PatternEditor` it moves the cursor to the cell (a click in a heading
   picks the track, one past the last track the locator slot) and clears the
@@ -1089,7 +1224,7 @@ would otherwise resume showing.
   resolves x against the column spans `renderRow()` records, and moves rows
   the way Up/Down do, so a playing track's locked row stays put). A drag
   and a fresh press look alike to the widgets (the held button repeats its
-  press), so each tells them apart by the release in between; `TerminalUI`
+  press), so each tells them apart by the release in between; `InteractiveUI`
   keeps focus on the widget the press started in until then.
 - **Song file references.** A track names its pool instrument by the
   instrument's `id` (`instrument="i1"`; every pool entry gets one), and the arrangement places a
@@ -1236,52 +1371,49 @@ would otherwise resume showing.
     `synth_engine`, so `Controller` and the tests use it), `AudioDevices`
     (listing what can be chosen; executable-only, like `AlsaAudio`),
     `AudioBuffer`, `OfflineRenderer`.
-  - `src/ui/` — toolkit-agnostic UI plumbing with no notcurses
-    dependency: `UI`/`UIElement`/`UIPlane`/`UIMenu` (abstract app/widget/
+  - `src/ui/` — toolkit-agnostic UI plumbing with no terminal
+    dependency: `UI`/`UIElement`/`Plane`/`UIMenu` (abstract app/widget/
     render-surface interfaces a future non-terminal UI could implement
     against too - a concrete backend's real implementation, e.g.
-    `TerminalPlane`/`TerminalMenu`, lives entirely inside that backend's
-    own file, not alongside the interface), `Chart`/`HeatmapChart`
-    (same pattern - `TerminalChart`/`TerminalPixelChart`/
-    `TerminalHeatmapChart`/`TerminalPixelHeatmapChart` are
-    `TerminalUI.cpp`'s own concrete renderers), `StyleProvider` (a plain
+    `TerminalMenu`, lives entirely inside that backend's own file, not
+    alongside the interface), `HeatmapChart` (its versions are cellui's,
+    through `cellui::Scopes`), `StyleProvider` (a plain
     named-color theme struct, not terminal-specific itself), the
-    Emacs-style keybinding dispatch (`KeyChord.h`/`Keymap.h`/
+    Emacs-style keybinding dispatch (`KeyStroke.h`/`Keymap.h`/
     `CommandRegistry.h`), and selection/clipboard data types
     (`SelectionBounds.h`/`SelectionScope.h`/`ClipboardEntry.h`/
     `GridPosition.h`). `UI` itself owns nothing widget-shaped - just the
     app-level lifecycle every backend needs (spawning the audio/
     visualization threads, running until told to quit, reporting status)
     - a concrete subclass owns its own widget set, screen layout, and
-    Launchpad callback wiring (`UI::wireLaunchpad()`'s hook). `src/ui/tui/`
-    — the concrete notcurses implementation built on those interfaces:
-    `TerminalUI` (the sole such subclass today - owns every widget,
+    Launchpad callback wiring (`UI::wireLaunchpad()`'s hook). A status message from UI-thread code is `Controller::log()` (the `status_message` signal, shown at once); the audio thread's own, its playback snapshots, recorded blocks, latency and threshold events, and the visualization thread's results are plain event structs sent with `Controller::postToUI()` into the `cellui::ThreadInbox` that `UI::start()` makes over the UI's loop (`UI::eventLoop()`), and handled by `on<E>()` handlers there (`UI::eventsPending()`: more wait behind the one being handled); MIDI and Launchpad input is read on the UI thread and goes to the same handlers with `UI::deliver()`. `Event`/`EventHandler`/`EventQueue` remain only for what the UI sends the other way (`PlaybackControlEvent` to the audio thread, `AudioBlockEvent` to the visualization thread) and for `InputEvent`. Beside them in the same directory:
+    the concrete implementations built on those interfaces and on any
+    cellui `Backend` (the terminal's `cellui::term::TerminalSession`, the
+    GTK or Win32 window; the screen a root `cellui::BufferPlane` composes):
+    `InteractiveUI` (the sole such subclass today - owns every widget,
     `initializeWidgets()`/`layout()`/`renderComponents()`, every Emacs
     keybinding, and every `EventHandler` override), `PatternEditor`/
-    `OutlineView` and the rest of the terminal widgets, plus
-    notcurses-specific input handling (`NotcursesInputEventSource`,
-    `EscapeCoalescer`) and text-cell rendering helpers (`SubcellGlyphs.h`)
-    that wouldn't apply to a pixel-based UI.
+    `OutlineView` and the rest of the terminal widgets.
 
     Info dialogs (the outline panel's details popup, the About dialog) have
     their content written as Markdown, parsed by `ui/Markdown.h` - a tiny
     subset (`#` headings, paragraphs, `*italic*`, `**bold**`, `\` escapes)
     and nothing else - so any backend can show the same text. `UI::
     showInfoDialog(title, markdown)` is the backend hook the shared `about`
-    command calls (text in `ui/AboutText.h`); `tui/InfoDialog` is the
+    command calls (text in `ui/AboutText.h`); `InfoDialog` is the
     terminal rendering (`markdown::layout()` word-wraps to cells; a GUI
     would lay out the parsed `Document` itself). The terminal one is modal
     and closes on Escape/Enter/q/C-g or a click.
 
     Commands (`CommandRegistry`-named, dispatched by both a keybinding and
     M-x) default to living in `UI::initializeCommands()` (`ui/UI.cpp`),
-    not `TerminalUI`, since a future GUI backend shares the same command
+    not `InteractiveUI`, since a future GUI backend shares the same command
     names/behavior even though its own keybindings (or menu items, or
-    toolbar buttons) will look nothing like the Emacs chords `TerminalUI`
+    toolbar buttons) will look nothing like the terminal shortcuts `InteractiveUI`
     binds them to - only the *binding* is backend-specific, not what the
-    command does. A command stays in `TerminalUI` instead when it
+    command does. A command stays in `InteractiveUI` instead when it
     genuinely can't be shared yet - needs a prompt/dialog (`StatusLine`'s
-    minibuffer has no GUI equivalent today) or reaches directly into a
+    name prompts have no GUI equivalent today) or reaches directly into a
     concrete terminal widget pointer (`pattern_editor_`/
     `arrangement_grid_`) with no abstract stand-in to go through. The one
     deliberate, permanent exception is pattern-editor selection/copy-paste
@@ -1289,51 +1421,142 @@ would otherwise resume showing.
     mark`, see the Emacs mark/kill-ring model below) - a GUI's own
     copy-paste is expected to follow ordinary GUI conventions (Ctrl-C/-X/
     -V-style, not Emacs mark-and-kill), so these aren't a "not yet shared"
-    gap to close later; they belong in `TerminalUI` for good.
-  - `src/ui/headless/` — `HeadlessUI`, the backend with no screen: just the
+    gap to close later; they belong in `InteractiveUI` for good.
+  - `HeadlessUI` (also in `src/ui/`) is the backend with no screen: just the
     main loop, Launchpad wiring and stderr status output. Launchpad pad/button
-    handling itself lives in `UI` and is shared with `TerminalUI`.
+    handling itself lives in `UI` and is shared with `InteractiveUI`.
   - `src/launchpad/` — Launchpad hardware I/O and layout - see the
     Launchpad section above.
   - `src/util/` — small, dependency-free helpers (`constants.h`,
     `Logger.h`, …) used from everywhere.
-- `lib/cellui/` — **Cell UI**, the UI library (plan: `plans/cell-ui.md`), its
+- `lib/cellui/` — **cellui**, the UI library, its
   own CMake project (`cmake -S lib/cellui -B build-cellui` builds and tests it
   alone, which CI does) that includes nothing from `src/` - a ctest
   (`cellui_includes_nothing_from_src`) fails on any include that leaves it.
   Headers are `cellui/X.h`, in `namespace cellui`; the library owns the
   libunistring dependency. So far it holds the leaves that never depended on
-  the app: `Color` (`#rgb` now means each digit doubled), `utf8` (grapheme-
+  the app: `Color` (linear Rec.2020 light as floats, 1.0 = SDR white, never negative, above 1 is HDR; built from `#rgb`/`#rrggbb` (each digit doubled), `oklch()`, `color(srgb|srgb-linear|display-p3|rec2020 ...)`, HSL or linear values; a backend that shows only sRGB takes `toSrgb8()`, which maps the gamut in and scales the range; `mix()` is in linear light and the compositor, `bg_blend` and the backdrops use it, while `blend()` is a widget's tween in encoded sRGB, where the theme was tuned), `utf8` (grapheme-
   aware width, truncation and padding), `markdown` (the tiny subset the info
   dialogs use), `ChoiceList`, the sub-cell glyph tables and two-colour
-  quantizer (`SubcellGlyphs.h`), and the input data (`Input.h`: key id, modifiers,
-  position, press/release kind, and the `NCKEY_*` key ids; the app's
+  quantizer (`SubcellGlyphs.h`), the Escape-as-Meta coalescer (`EscapeCoalescer.h`) and `KeyReader` (the inputs as widgets see them, Escape as Meta included, and when the "ESC-" indicator is due), and the input data (`Input.h`: key id, modifiers,
+  position, press/release kind, and the key ids `cellui::Key::Up` and so on, `Key::` in the app; the app's
   `InputEvent` is an `Input` that is also an `Event`; the note-entry key mapping
-  is `keyToMidiNote()` in `playback/KeyboardNotes.h`), the key chord packing, `Keymap` and `CommandRegistry`, and the theme (`Theme`,
-  `StyleProvider`) and `UIPlane` (it carries the app's own object as an opaque
+  is `keyToMidiNote()` in `playback/KeyboardNotes.h`), the key stroke packing, `Keymap` and `CommandRegistry`, and the theme (`Theme`,
+  `StyleProvider`) and `Plane` (it carries the app's own object as an opaque
   `getAppContext()`, which `UIElement::getController()` casts back; input is
-  `cellui::Input`), and the widget base `Element` (`Element.h`: the plane,
-  drawing, `offerInput(const Input &)`, the keymap and prefix-chord dispatch;
+  `cellui::Input`), and the widget base `Widget` (`Widget.h`: the plane,
+  drawing, `offerInput(const Input &)`, the keymap and prefix-key dispatch;
   the app's `UIElement` adds the event handler and the controller), `UIMenu`, and the 2D grid chart contract
-  `HeatmapChart`, the generic widgets (`ChoiceDialog`, `InlineEditor`, `SpinBox`, `CoverArt`, `ChannelMeter`,
+  `HeatmapChart`, the generic widgets (`ChoiceDialog`, `InlineEditor`, `SpinBox`, `CoverArt`, `Dial` (`Dial.h`: `drawDial()`, a send's knob, a picture or text by what the plane shows, and the `Dial` widget with its gestures), `ChannelMeter`,
   `SpectrumMeter` and `LevelMeter.h`'s one dB mapping, ballistics and glyph cells, plus
-  `Digit.h`), `InfoDialog` (the cell rendering of a Markdown info box; a
+  `Signal.h` (`Signal<Args...>` and the RAII `Connection`: a point-to-point observer, synchronous on the UI thread, tolerant of handlers that disconnect, connect, re-emit or destroy the owner mid-emission), `EventTypes.h` (`Handled`, `Phase`, `EventContext`, the type key and the per-widget handler table behind `Widget::on<E>()`/`post()`/`postToRoot()`: an event is any struct, a widget tree of links via `attach()`/`detach()`, targeted capture/bubble dispatch and tree-order root dispatch through a per-root registry), `InputEvents.h` (`KeyDown`, `MouseDown`, `Enter`, `FocusIn`, `Resize`, ... as plain event structs) and `InputDispatcher.h` (keys to the focused widget, pointer events to the topmost widget in `BufferPlane::takeHitAreas()`, a grab from press to release, `Enter`/`Leave` from successive hit tests, focus traversal, `offer(Input)`; not wired into `InteractiveUI` yet; `DisplayInfo::key_release`/`precise_mouse`/`hover` say what the display reports; `Input::getFx()`/`getFy()` carry the sub-cell pointer position: the windows always, the terminal in pixel mouse mode 1016), `ThreadPosts.h` (`ThreadInbox`: other threads post events to the root widget, dispatched on the UI thread at the start of every loop turn and in the turn a post woke the loop; `post()` any movable payload from any thread, `pending()` how many wait, `addRing()` a `RealtimeRing` for a producer that must never allocate or block, trivially copyable payload of at most 64 bytes; the app's `UI::start()` makes one, `Controller::postToUI()` posts to it), `Wakeup.h` and the `EventLoop` additions (`wake()` from any thread, `onFrame()`/`onWake()` hooks, `run(opener)` with `deleteLater()` for widgets given up inside nested runs), `Digit.h`, `Viewport.h`: the offset, `reveal()` margins and the wheel's detached state every scrolling widget shares; `ChoiceList` (so `ChoiceDialog`), `OutlineView` and `ArrangementGrid` use it; where `DisplayInfo::smooth_scroll` it also animates a shown position toward the offset, and a widget on a plane of its own draws one row more and calls `Plane::setScrollOffset()` with the fraction - the plane then composes as a `BackdropLayer::scroll` layer, which the window draws translated from a texture of its own, as `PatternEditor` (its rows, on a plane under the one with the headings; in Live View each track's column has a plane of its own and an offset of its own, `ColumnScroll`, measured from how far `PatternSource::trackLine()` of the top row moved, so a playing column glides while the still ones stay put, each column's own line is a `setBand()` over its plane that holds still while the rows scroll under it, and a playing view or column (`PatternSource::trackScrollRate()`) follows its playhead exactly instead of easing to each row: its line moves down the screen by the transport's own phase (`PlaybackInfo::getCurrentDelay()`) until it reaches the scroll margin, then holds still while the rows scroll under it by that phase; the cursor is four bands on every display, only while the editor is the focus: the cursor row's line (Live View: each track's; cells in the terminal) and, above the columns, two levels: the cursor's note column with its velocity and delay (or the effect command) with a 1px border, except along the field below (`cursor_border_plane_`, a `Band` with `border_px` and no fill, `border_skip_col`/`border_skip_cols`; the terminal tints the whole cells instead), and the field it is on (note, velocity, delay, local fx or command) in two blended bands that invert what is under it, text included (on the terminal's whole cells too): a white `BlendMode::DIFFERENCE` band turns the brightness round and a `BlendMode::COLOR` band over it puts the highlight's own hue back, since difference alone turns the hue round too (`cursor_plane_`/`cursor_hue_plane_`, `updateCursorBands()`, `cursor_x0_`/`cursor_x1_` and `cursor_sub_x0_`/`cursor_sub_x1_` recorded by `renderRow()`), so only a real selection (a mark, or select-all) is drawn in the rows, scrolling with them, and the per-digit underline is hidden while playing or scrolling), `ChoiceDialog` (its entries on a plane of their own over the box, under the same kind of cursor band, easing to the selection), `ArrangementGrid` and `OutlineView` (its tree on a plane of its own, under the heading and the button bar, and its cursor, on a smoothly scrolling display, a translucent `setBand()` over the tree so the row shows through: it eases to its row in the view, so at the first or last row in view, with the keys going on, it stays in place and only the content moves (other displays highlight the row in the tree); the content extends the button bar's rows past the last row so that one can scroll clear of the bar) do; `Plane::setBand()` puts a translucent strip at a fractional row over such a plane, unshifted, which is the arrangement grid's playhead while the transport plays; a `Band` can have a border inside its rectangle (`border_px`, drawn by the GTK and Win32 windows after the fill; the whole-cell version has none) and has a `BlendMode` (normal, multiply, screen, overlay, darken, lighten, difference, exclusion, and the non-separable hue, saturation, color, luminosity; `cellui/BlendMode.h`, `blendColors()` on encoded sRGB), drawn by the window with a GSK blend node, and on a display that cannot scroll by parts of a cell `BufferPlane::compose()` lays the band over the whole cells it reaches, rounded, blending their foreground and background colours: one primitive, the same look in the window and the terminal; any plane can blend as a whole too, `Plane::setBlend(mode, alpha)`: the colours its cells set are laid over what is below, as a `ScrollContent::blend` layer in the window and on the composed cells in the terminal), `InfoDialog` (the cell rendering of a Markdown info box; a
   backend with richer text drawing lays out `markdown::parse()` itself instead,
   through `UI::showInfoDialog(title, markdown)`), and `BufferPlane`/`CellBuffer` (a
   plane that keeps its own cells, the way a screen's planes do - drawing, moving,
   raising and hiding work on the plane, and `refresh()` composes the tree into a
-  grid of cells rendering as plain text or ANSI) with the gallery page
+  grid of cells rendering as plain text or ANSI; a plane's elevation,
+  `Plane::setElevation()`, adds to its parent's, and the tree is drawn lowest
+  first, planes of one height in tree order, so a popup floats over everything
+  below it wherever it sits in the tree - `Theme::elevation`'s steps, in cell
+  widths: panel, raised (the pattern editor's track headers), card (the clip
+  grid's clips), overlay for menus, pickers and popups, modal for a modal dialog and
+  its scrim; cells can stand above their plane too (`Plane::setLift()`, a
+  cell attribute, so a partial redraw keeps it: a run in a row is one piece,
+  joined to the one above only when asked) - and every frame tells the backend
+  the areas above the base, `FrameInfo::elevations`) with the gallery page
   (`Gallery.h`, a class that keeps its widgets' planes, `cellui_gallery`; its text is a golden file in
   `lib/cellui/tests/golden/`, rewritten with `CELLUI_UPDATE_GOLDEN=1`) (`HeatmapChart.h`, with the fixed hue and the HSV helper its
   renderers share). The old paths (`util/Utf8.h`, `ui/Markdown.h`,
-  `ui/ChoiceList.h`, `ui/tui/SubcellGlyphs.h`, `model/Color.h`, `ui/Keymap.h`, `ui/CommandRegistry.h`, `ui/KeyChord.h`, `ui/Theme.h`,
-  `ui/StyleProvider.h`, `ui/UIPlane.h`, `ui/HeatmapChart.h`, `ui/UIMenu.h`, `util/digit.h` and the headers of the widgets above in
-  `ui/tui/`) are forwarding
+  `ui/ChoiceList.h`, `ui/SubcellGlyphs.h`, `model/Color.h`, `ui/Keymap.h`, `ui/CommandRegistry.h`, `ui/KeyStroke.h`, `ui/Theme.h`,
+  `ui/StyleProvider.h`, `ui/Plane.h`, `ui/HeatmapChart.h`, `ui/UIMenu.h`, `util/digit.h` and the headers of the widgets above in
+  `ui/`) are forwarding
   headers with aliases (`Utf8`, `markdown`, `Color`, ...), so call sites did not
   change; what stays in the app is what knows the song or the controller (`PatternEditor`,
   `ClipGrid`, `ArrangementGrid`, `OutlineView`, `InfoLine`, `StatusLine`, `PatternScroll`) and the
-  notcurses implementations (`TerminalPlane`, `TerminalMenu`, the pixel charts),
-  which the terminal backend replaces. Its tests are in `lib/cellui/tests/` with a copy of the tiny test
+  terminal UI's own glue (`TerminalMenu` on `MenuBar`, the pixel charts). The
+  terminal backend is `cellui/term/`: `InputParser` (keys, mouse, paste, focus,
+  query replies, a short grace for split sequences), `Discovery`/`Capabilities`
+  (start-up queries with a deadline; the display scale guessed from the cell
+  size, `estimateDisplayScale()`, and light or dark from the default colours,
+  `detectAppearance()`, which picks the default `--theme`), `FrameEncoder` (the
+  frame diff as escape sequences), `ImageEncoder` (kitty graphics, iTerm2 inline images, Sixel) and
+  `TerminalSession` (the tty, its modes, signals and restoration).
+  `cellui::Backend` (`cellui/Backend.h`, outside `term/`) is what the app needs of any
+  display - `DisplayInfo` (`cellui/DisplayInfo.h`: cell size in pixels, whether pictures
+  can be shown, default colours, display scale, sextants, `hdr` (unset for the terminal and
+  the GTK window), size, `BackendEvent`s
+  (`cellui/BackendEvent.h`: input as `cellui::Input`, resize, paste, close, display changed, focus gained or lost; the Win32 window also lets go of the keys and button held when it loses the focus), a frame to
+  show, and `setNativeSelection()` (the user selects text with the mouse instead of the
+  app getting the clicks) - which `TerminalSession` and `cellui::test::TestBackend`
+  implement. `TerminalSession` translates its `TermEvent`s (which stay inside `term/`,
+  `pollTerm()` for its own tests) and keeps the terminal-only `Capabilities` (image
+  protocol, kitty keyboard, query replies, dither) around the `DisplayInfo` it hands out.
+  `InteractiveUI` and its tests use only `Backend`, `BackendEvent` and `DisplayInfo`.
+  The loop is the backend's too: `Backend::eventLoop()` gives an `EventLoop`
+  (`cellui/EventLoop.h`: `run()`, `quit()`, `iterate(block)`, sources that are file
+  descriptors, a before hook that returns how long the turn may wait and an after hook;
+  re-entrant, so a handler may `run()` a nested loop - a modal dialog waiting for its
+  answer - and `quit()` ends the innermost). `PollEventLoop` (poll(2)) serves the
+  terminal session and `TestBackend`; `InteractiveUI::startUI()` registers the app's
+  `WaitSet` groups (`WaitSet::fds()`) as sources and does its per-turn work in the hooks.
+  The window backend is `cellui/gtk/`: `GlibEventLoop` (a turn is one
+  `g_main_context_iteration()`, the app's descriptors are GSources on the same
+  context as GTK's own) and `Window`, a `GtkWindow` with one custom widget whose
+  `snapshot()` rasterizes the presented frame (cells and the images over them) with
+  `canvasRasterizer()` at scale 1 into one `GdkTexture`, only when something was
+  presented (its text is drawn in the system's monospace font; a character that font
+  lacks, such as the musical accidentals of the 31- and 53-EDO note names, is drawn from
+  the best installed font that has it, found with fontconfig - the drawing library's own
+  text has no fallback - and shrunk to its cell if wider; fontconfig comes with
+  `libcairo2-dev`). It reports `DisplayInfo` with the cell size from the font's Pango metrics,
+  pictures always available and no sextants, and turns GTK's key (taken in the capture
+  phase, with real press/repeat/release), click, drag (the held button's press again at
+  each new cell), wheel (buttons 4-7) and paste (Ctrl+Shift+V, Shift+Insert) events into
+  `BackendEvent`s; a size change is a `RESIZE` in cells and closing the window a `CLOSE`.
+  Events wait in a queue behind an eventfd that is `inputFd()`.
+  The Windows backend is `cellui/win32/` (built on Windows only, compiled but never run): `Window`
+  is a Win32 window drawn with Direct2D and DirectWrite (cells, pictures, scrolled planes, backdrop dimming, shadows as
+  fading rings, blended bands and planes (its target has no blend modes: the region under one is drawn again from the cells with every colour blended, `Window::blendRegion()`, so only the cells and scrolled planes below show the blend, not images or blurs), and a blur made by drawing the region small and large again offscreen, as the window's target has no
+  effects; it draws cells itself, so `canvasRasterizer()` is null there), and `Win32EventLoop` waits on the message queue and on handles
+  (`addHandles()`; descriptors do not exist there, so `Window::inputFd()`/`wakeFd()` are -1 and
+  `inputHandle()`/`wakeHandle()` are the events to wait on). A backdrop is the
+  backend's to apply: `BufferPlane::refresh()` sets what is composed below each one aside as a
+  `BackdropLayer` (cells, blur, dim, tint and the rectangle it covers; `takeBackdropLayers()`,
+  handed to the backend in `FrameInfo::backdrops`, always given, bottom first) and leaves the
+  frame with only what is above it, so no backend's work shows in the application or in
+  `BufferPlane`. `Window` draws each layer as a texture (kept while a fingerprint of its cells
+  and pictures is unchanged), then the stack so far again under a GSK blur node and a dim
+  colour inside the backdrop's cells; it never makes the blur itself, whatever the renderer.
+  Over the frame it draws two GSK outset shadows around every area of `FrameInfo::elevations`
+  that no later backdrop covers (`ElevatedArea::layer`) - a key light from the upper left,
+  offset down by half the height and right by a little less, blurred by all of it, and a faint
+  ambient one - then, height by height, the cells
+  of every area as high or higher again over them, and every band as high (`Band::lift`, which the
+  cursors and playheads take so a lower shadow does not fall on them), so a shadow falls only on what is lower, and
+  a light top and dark bottom edge on each area (`FrameStats::shadows`).
+  The terminal cannot blur, so what it shows is made in its own backend: `term::BackdropEmulation`
+  (`TerminalSession::present()`) - cells averaged over their neighbours with the glyphs
+  faded out, or with pictures the cells drawn, blurred and stretched in tiles of 4 x 16
+  cells redrawn only when what they show changed. `TestBackend` stacks the layers
+  unblurred (`info().backdrops` has them) and shows them as a terminal does after
+  `emulateBackdrops(true)`.
+  The pointer's shape is a plane attribute (`Plane::setMouseCursor()`,
+  `MouseCursor`: `INHERIT` shows what is below, `DEFAULT`/`POINTER`/`TEXT`):
+  `refresh()` lists the rectangles of the planes that asked for one, in drawing
+  order, as `FrameInfo::mouse_cursors` (`takeMouseCursors()`, `mouseCursorAt()`),
+  and the backend shows the last one over the pointer's cell - the window with
+  `gtk_widget_set_cursor_from_name()`, the terminal with OSC 22 (so it asks for
+  any-motion mouse reporting and keeps hover moves to itself). A popup sets
+  `DEFAULT` so its area is not taken for what lies below it. Not done yet: per-plane render nodes, input methods, HiDPI, native
+  dialogs and menus. `TestBackend` (`cellui/TestBackend.h`) has no tty or window: input is
+  pushed by the test, and each presented frame is kept for the test to read
+  directly (`text()`, `frame()` cells and their styles, `info()`: the plane tree from
+  `BufferPlane::describe()` and the focus `InteractiveUI::focusName()` gives, `cursor()`,
+  `images()`, `setHdr()` for the display's HDR report, `sdrFrame()` for the frame clipped to sRGB), so `tests/InteractiveUITests.cpp` drives the real
+  `InteractiveUI` (`step()` is one loop turn without waiting) and asserts on what it
+  shows. It is named for the test, not the terminal, so a window backend's tests can use it too.
+  The UI sources are the `synth_ui` library for that reason.
+  `cellui_gallery --live` shows the gallery through it. Its tests are in `lib/cellui/tests/` with a copy of the tiny test
   framework (no dependency on `tests/`).
 
   `src/effects/`, `src/bus/`, and `src/dsp/` (below) predate this split
@@ -1462,9 +1685,12 @@ would otherwise resume showing.
   (`DiracAnalyzer::atRest()`) hold zeros and have said so, with real zero
   blocks fed to them; after that a result carries only the meter reading and
   nothing is decoded or analyzed, and once the meter has had time to fall
-  (about four seconds) no result is sent at all, so an idle UI sleeps. The UI
+  (`VisualizationThread::kSettleSeconds`) no result is sent at all, so an idle
+  UI sleeps; a second later `Player` stops sending it silent blocks, so it
+  sleeps too. `AmbisonicMagLSDecoder::encode()` with nothing accumulated and its
+  tail drained writes zeros without touching the tail. The UI
   redraws nothing for an unchanged result, and blanks the scopes itself when
-  they come back on screen (`TerminalUI::scopes_stale_`, `blankScopes()` from
+  they come back on screen (`InteractiveUI::scopes_stale_`, `blankScopes()` from
   `renderComponents()`), since nothing more arrives to replace what they held.
 - That DSP lives in `src/bus/` (the shared send bus's own subsystem, depending
   on `src/dsp/` — reusable, dependency-free DSP building blocks, never the
@@ -1475,11 +1701,15 @@ would otherwise resume showing.
   mono accumulators, and — only when its own `ChannelConfiguration` is
   `AMBISONIC` (skipped for the one synthetic top-level `MONO` config a
   Compressor regression test constructs directly, which has no sensible
-  ambisonic tap-encode target) — always runs them through
-  `SendBusProcessor::process()` (even when both are silent, so every
-  slot's internal tail/feedback/modulation state stays continuous across
-  blocks — the same reasoning as `AmbisonicBinauralMixer`'s overlap-add
-  tail), then accumulates the result directly into the mixer with a
+  ambisonic tap-encode target) — runs them through
+  `SendBusProcessor::process()` (silent input included, so every slot's
+  internal tail/feedback/modulation state stays continuous across blocks,
+  until input and output - the bus's and each effect's own before its return
+  scales it, `getChainSendSum()` - have stayed under `kBusAudibleFloor` for
+  longer than either effect keeps a sound, `BusEffect::idleAfterSeconds()`
+  (its longest delay, or a diffuse encoder's ring-down; never for an effect
+  that doesn't say, or a frozen granular cloud): nothing audible is left
+  inside then, and the effects aren't run until input returns), then accumulates the result directly into the mixer with a
   single `mixer.accumulate()` call — but only while the bus is audible
   (`SendBusProcessor::isAudible()`: its block peak reached
   `kBusAudibleFloor` within the last `kBusAudibleHoldSeconds`; the floor
@@ -1501,8 +1731,8 @@ would otherwise resume showing.
   `SongState::initialize()` installs the real ones, so `process()` is
   always safe to call even pre-load); any of the three real effects can
   occupy either slot. Every `BusEffect` shares the same shape:
-  `process(monoInput, frames)` always runs, even on silent input, so
-  internal state stays continuous; `getNumTaps()`/`getTap()`/
+  `process(monoInput, frames)` runs on silent input too (until the bus is
+  idle, above), so internal state stays continuous; `getNumTaps()`/`getTap()`/
   `getTapDirection()` expose its output as N independent spatial taps
   (`FDNReverb`: 8 feedback-delay lines at the cube-vertex directions from
   `AmbisonicEncoding.h`'s `cubeVertexDirections()`; `MultiTapDelay`: 4
@@ -1594,10 +1824,13 @@ would otherwise resume showing.
 
 ## Conventions
 
-- C++17, no exceptions ethos in audio path; state objects (`*State.h`) are
+- C++20, no exceptions ethos in audio path; state objects (`*State.h`) are
   separated from song model objects so playback state can be reset cheaply.
 - The build enables many `-Werror=` flags plus `-Wsign-conversion`; new code
   must compile warning-clean.
+- A chord is three or more notes sounding together. A key with its modifiers is a
+  *shortcut* (`KeyStroke` in code), several in a row a *key sequence*, never
+  a chord (`docs/glossary.md`).
 - A command only a pad controller dispatches (nothing else registers it) is
   named with a `pad-` prefix (`pad-next-track`), not `launchpad-`: other
   devices can use it too. A pad gesture whose keyboard equivalent is
@@ -1607,6 +1840,10 @@ would otherwise resume showing.
   lineage (`docs/drums-and-sequencer.md`, the README), keep it accurate. Add a
   layout or number only when it is known exactly - leave it out rather than
   add a subtly wrong version.
+- No layout or styling tests (where something sits, how tall it is, what colour
+  it has): they only restate the code. The exception is complex layout that
+  keeps breaking, such as the `PatternEditor` heading; test behaviour (what a
+  key, a click or a song change does) as usual.
 - Comments: keep them short (a one-liner covers most cases). Don't point
   at something outside the code to explain the code - state the reasoning
   directly instead of citing: a `plans/*.md` file (they get deleted once
@@ -1647,7 +1884,7 @@ would otherwise resume showing.
   placement, the row; for a clip, `clip_index` and the row in it) it changed,
   and the commands move the current track there, the transport row while
   stopped, and for a clip the clip grid and (in Live View) the pattern editor
-  (`Controller::setUndoFocusListener()`). Typing edits amalgamate: `Song::Edit`'s `typing` flag
+  (`Controller::undo_clip_focused`). Typing edits amalgamate: `Song::Edit`'s `typing` flag
   appends a transaction's ops to the previous entry
   (`Document::begin(..., amalgamate)`) while the run is unbroken
   (`Song::breakTypingRun()` from `PatternEditor` on any non-typing key, an
@@ -1659,8 +1896,7 @@ would otherwise resume showing.
   does). Held note keys keep a group open
   too (`Controller::setNoteHeld()`, from `PatternEditor`), so a chord is one
   step.
-- The song's own state lives in a DOM (`src/doc/`, plan in
-  `plans/undo-document-model.md`): nodes with stable ids, four journaled
+- The song's own state lives in a DOM (`src/doc/`): nodes with stable ids, four journaled
   primitives, one append-only journal per song (`Song::document()`, capped at
   `Song::kJournalLimit` edits). The song-level scalars (tempo, swing,
   signatures, tuning, key, scale, the room), scenes and locators, the

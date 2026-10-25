@@ -48,7 +48,7 @@ static const LeafTrack & leafNow(Controller & controller, int track_id) {
 }
 
 TEST(controller_save_song_writes_to_the_opened_path) {
-  // save-song used to always write "tmp.xml" regardless of which song was
+  // save-buffer used to always write "tmp.xml" regardless of which song was
   // open; it must write back to the file that was actually opened.
   namespace fs = std::filesystem;
   auto scratch_path = fs::path(TESTS_SCRATCH_DIR) / "controller_save_song_scratch.xml";
@@ -64,7 +64,7 @@ TEST(controller_save_song_writes_to_the_opened_path) {
   // mutate the song so the saved file is distinguishable from the original
   controller.getSong().setTempo(200);
 
-  CHECK(controller.sendCommand("save-song"));
+  CHECK(controller.sendCommand("save-buffer"));
 
   auto saved = readFile(scratch_path.string());
   CHECK(saved.find("tempo=\"200\"") != std::string::npos);
@@ -327,16 +327,16 @@ TEST(controller_command_completions_merges_literal_and_fallback_names) {
 
   controller.setCommandCompleter([](std::string_view prefix) {
     std::set<std::string> result;
-    for (std::string_view name : { "set-mark", "save-song-as" }) {
+    for (std::string_view name : {"set-mark", "save-buffer-as"}) {
       if (name.substr(0, prefix.size()) == prefix) result.emplace(name);
     }
     return result;
   });
 
-  auto matches = controller.commandCompletions("save-song");
-  CHECK(matches.count("save-song") == 1); // Controller's own literal command
-  CHECK(matches.count("save-song-as") == 1); // reached via the fallback completer
-  CHECK(matches.count("set-mark") == 0); // doesn't share the "save-song" prefix
+  auto matches = controller.commandCompletions("save-buffer");
+  CHECK(matches.count("save-buffer") == 1);    // Controller's own literal command
+  CHECK(matches.count("save-buffer-as") == 1); // reached via the fallback completer
+  CHECK(matches.count("set-mark") == 0);       // doesn't share the "save-buffer" prefix
 
   auto all = controller.commandCompletions("");
   CHECK(all.count("add-filter") == 1);
@@ -972,6 +972,28 @@ TEST(toggle_record_arm_clip_grid_focused_arms_a_sample_track_without_arrangement
   CHECK(!controller.isClipRecording(track_id));
 }
 
+// The controller's UI signals take any number of listeners, and one that goes
+// away stops hearing them.
+TEST(controller_signals_reach_every_listener_until_it_disconnects) {
+  ChannelConfiguration config(8000, 1);
+  Controller controller(config);
+  controller.switchToBuffer(controller.freshBufferName());
+  auto & song = controller.getSong();
+  auto & track = song.addTrack(std::make_unique<PercussionTrack>());
+  auto track_id = track.getInternalId();
+  song.addClip(Clip(track_id));
+
+  int first = 0, second = 0;
+  auto a = controller.drum_edit_requested.connect([&](int, bool) { first++; });
+  {
+    auto b = controller.drum_edit_requested.connect([&](int, bool) { second++; });
+    CHECK(controller.toggleDrumClipFocus(track_id, 0));
+    CHECK(first == 1 && second == 1);
+  }
+  CHECK(controller.toggleDrumClipFocus(track_id, 0)); // closes it again
+  CHECK(first == 2 && second == 1);
+}
+
 // Controller::toggleDrumClipFocus() called directly with a (track_id,
 // clip_index) pair - the Launchpad's own CC91-held-as-shift gesture
 // (LaunchpadManager::handleLivePadEvent()) reaches it this way, never
@@ -992,7 +1014,7 @@ TEST(toggle_drum_clip_focus_direct_call_opens_and_closes_a_clip) {
 
   int requested_track_id = -1;
   bool requested_opened = false;
-  controller.setDrumEditRequestListener([&](int id, bool opened) { requested_track_id = id; requested_opened = opened; });
+  auto drum_edit = controller.drum_edit_requested.connect([&](int id, bool opened) { requested_track_id = id; requested_opened = opened; });
 
   CHECK(controller.toggleDrumClipFocus(track_id, 0));
   CHECK(controller.getFocusedClipTrackId() == track_id);
@@ -1032,7 +1054,7 @@ TEST(toggle_drum_clip_focus_is_a_no_op_off_a_non_percussion_clip) {
   song.addClip(Clip(sample_track_id));
 
   bool listener_called = false;
-  controller.setDrumEditRequestListener([&](int, bool) { listener_called = true; });
+  auto drum_edit = controller.drum_edit_requested.connect([&](int, bool) { listener_called = true; });
 
   CHECK(!controller.toggleDrumClipFocus(sample_track_id, 0));
   CHECK(controller.getFocusedClipTrackId() == -1);
@@ -1076,7 +1098,7 @@ TEST(close_drum_clip_focus_closes_whatever_is_open) {
 
   int requested_track_id = -1;
   bool requested_opened = true;
-  controller.setDrumEditRequestListener([&](int id, bool opened) { requested_track_id = id; requested_opened = opened; });
+  auto drum_edit = controller.drum_edit_requested.connect([&](int id, bool opened) { requested_track_id = id; requested_opened = opened; });
 
   controller.toggleDrumClipFocus(track_id, 0); // opens it
   CHECK(controller.getFocusedClipTrackId() == track_id);
@@ -1097,7 +1119,7 @@ TEST(close_drum_clip_focus_is_a_no_op_when_nothing_is_focused) {
   controller.switchToBuffer(controller.freshBufferName());
 
   bool listener_called = false;
-  controller.setDrumEditRequestListener([&](int, bool) { listener_called = true; });
+  auto drum_edit = controller.drum_edit_requested.connect([&](int, bool) { listener_called = true; });
 
   controller.closeDrumClipFocus();
   CHECK(controller.getFocusedClipTrackId() == -1);
@@ -2018,7 +2040,7 @@ TEST(monitor_setting_round_trips_through_the_song_file) {
     auto track_ids = controller.getSong().getPlayableTrackIds();
     CHECK(!track_ids.empty());
     controller.cycleTrackMonitor(track_ids.front()); // In
-    CHECK(controller.sendCommand("save-song"));
+    CHECK(controller.sendCommand("save-buffer"));
   }
   CHECK(readFile(scratch_path.string()).find("monitor=\"in\"") != std::string::npos);
 

@@ -1,0 +1,143 @@
+#include "TestFramework.h"
+
+#include <cellui/Widget.h>
+
+#include <string>
+
+using namespace cellui;
+
+namespace {
+
+// Records what is drawn; every other plane operation does nothing.
+class RecordingPlane : public Plane {
+ public:
+  explicit RecordingPlane(const StyleProvider & styles) : Plane(nullptr, styles) { }
+
+  std::string drawn;
+  int fg_red = -1;
+
+  using Plane::setFgColor;
+  using Plane::setBgColor;
+  void setFgColor(const Color & color) override { fg_red = color.getRed(); }
+  void setBgColor(const Color &) override { }
+  void setUnderline(bool) override { }
+  void setBold(bool) override { }
+  void setItalic(bool) override { }
+  void erase() override { drawn.clear(); }
+  void putstr(int, int, const std::string & s) override { drawn += s; }
+  std::unique_ptr<Plane> createChild() override { return std::make_unique<RecordingPlane>(getStyles()); }
+  void drawBorder() override { }
+  int offered = 0;
+  bool offerInput(const Input &) override { offered++; return true; }
+  void showReader(const std::string &, int, int, int, int, const std::string &, std::optional<Color>) override { }
+  std::string closeReader() override { return ""; }
+  bool readerActive() const override { return false; }
+  std::string getReaderContents() const override { return ""; }
+  void setReaderContents(const std::string &) override { }
+  void showReaderIndicator(int, const std::string &) override { }
+  void hideReaderIndicator() override { }
+  void showPicker(int, int, int, int, int) override { }
+  void addItem(const std::string &, const std::string &) override { }
+  void selectPickerItem(int) override { }
+  bool pickerActive() const override { return false; }
+  std::string getPickerSelection() const override { return ""; }
+  void closePicker() override { }
+  void refresh() override { }
+};
+
+class Probe : public Widget {
+ public:
+  explicit Probe(Plane & parent) : Widget(parent) {
+    commands_.define("hello", [this] { hello++; });
+    commands_.define("prefixed", [this] { prefixed++; });
+    keymap_.bind(KeyStroke::pack('h', false, false, false, false), "hello");
+    auto ctrl_x = KeyStroke::pack('x', true, false, false, false);
+    keymap_.bindPrefixed(ctrl_x, KeyStroke::pack('p', false, false, false, false), "prefixed");
+    assertCommandBindingsValid();
+  }
+  bool press(int id, bool ctrl = false) {
+    return dispatchCommand(Input(id, 0, 0, false, false, ctrl, false, Input::Kind::PRESS));
+  }
+  bool release(int id) {
+    return dispatchCommand(Input(id, 0, 0, false, false, false, false, Input::Kind::RELEASE));
+  }
+  void onResize() override { resized++; }
+  int hello = 0, prefixed = 0, resized = 0;
+};
+
+}  // namespace
+
+TEST(element_draws_through_its_plane_and_chains) {
+  StyleProvider styles;
+  RecordingPlane root(styles);
+  Probe p(root);
+  p.setFgColor(Color("#102030")).putstr(0, 0, "ab").putstr(0, 2, 'c');
+  CHECK(p.getDim() == std::pair(0, 0));
+  p.resize(3, 4);
+  CHECK(p.getDim() == std::pair(3, 4));
+  CHECK(p.resized == 1);
+}
+
+TEST(element_dispatches_bound_shortcuts_but_not_releases) {
+  StyleProvider styles;
+  RecordingPlane root(styles);
+  Probe p(root);
+  CHECK(p.press('h'));
+  CHECK(p.hello == 1);
+  CHECK(!p.release('h'));
+  CHECK(p.hello == 1);
+  CHECK(!p.press('q'));
+}
+
+TEST(element_prefix_sequence_consumes_the_next_key) {
+  StyleProvider styles;
+  RecordingPlane root(styles);
+  Probe p(root);
+  CHECK(p.press('x', true));
+  CHECK(p.press('p'));
+  CHECK(p.prefixed == 1);
+  // A prefix followed by an unbound key aborts the sequence and swallows the key.
+  CHECK(p.press('x', true));
+  CHECK(p.press('h'));
+  CHECK(p.hello == 0);
+  CHECK(p.press('h'));
+  CHECK(p.hello == 1);
+}
+
+TEST(element_offers_input_to_its_plane_by_default) {
+  StyleProvider styles;
+  RecordingPlane root(styles);
+  class Plain : public Widget {
+   public:
+    explicit Plain(Plane & parent) : Widget(parent) { }
+    RecordingPlane & plane() { return static_cast<RecordingPlane &>(getPlane()); }
+  } e(root);
+  Input in('a', 0, 0, false, false, false, false);
+  CHECK(e.offerInput(in));
+  CHECK(e.plane().offered == 1);
+  Widget none;
+  CHECK(!none.offerInput(in));
+}
+
+TEST(plane_knows_the_widget_that_owns_it) {
+  StyleProvider styles;
+  RecordingPlane root(styles);
+  CHECK(root.owner() == nullptr);
+
+  struct Owned : Widget {
+    explicit Owned(Plane & parent) : Widget(parent) { }
+    Plane & plane() { return getPlane(); }
+    void swap(std::unique_ptr<Plane> & other) { swapPlane(other); }
+  };
+  Owned a(root);
+  Plane * first = &a.plane();
+  CHECK(first->owner() == &a);
+
+  // A plane swapped in takes the widget as its owner; the one swapped out
+  // keeps it, since the widget still draws on both.
+  auto spare = root.createChild();
+  CHECK(spare->owner() == nullptr);
+  a.swap(spare);
+  CHECK(a.plane().owner() == &a);
+  CHECK(spare.get() == first && first->owner() == &a);
+}

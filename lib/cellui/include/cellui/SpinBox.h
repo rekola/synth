@@ -1,6 +1,6 @@
 #pragma once
 
-#include <cellui/Element.h>
+#include <cellui/Widget.h>
 #include <cellui/StyleProvider.h>
 #include <cellui/Color.h>
 #include <cellui/Input.h>
@@ -31,17 +31,17 @@ inline std::string centered(const std::string & text, int width) {
 // as separate bright buttons.
 // Owns none of the value itself (only get_value/set_value callbacks), so
 // the same class can back any bounded integer.
-class SpinBox : public Element {
+class SpinBox : public Widget {
  public:
   // bg_color/fg_color are the widget's own idle colors (label text only -
   // the value field always shows dark-on-bright regardless, see render())
   // - passed in rather than pulled from StyleProvider since this widget is
   // meant to blend into whatever bar it's embedded in, not the theme's
   // generic window colors.
-  SpinBox(UIPlane & parent, std::string label, int min_value, int max_value,
+  SpinBox(Plane & parent, std::string label, int min_value, int max_value,
           std::function<int()> get_value, std::function<void(int)> set_value,
           Color bg_color, Color fg_color)
-    : Element(parent), label_(std::move(label)), min_value_(min_value), max_value_(max_value),
+    : Widget(parent), label_(std::move(label)), min_value_(min_value), max_value_(max_value),
       get_value_(std::move(get_value)), set_value_(std::move(set_value)),
       bg_color_(bg_color), fg_color_(fg_color) { }
 
@@ -65,7 +65,7 @@ class SpinBox : public Element {
     // Blank the whole row first in the ambient bar colors - otherwise the
     // gap after the label (and anything else render() doesn't explicitly
     // overwrite below) would show through as whatever a freshly created
-    // plane's own base cell defaults to (see UIPlane::createChild()),
+    // plane's own base cell defaults to (see Plane::createChild()),
     // not a blend-in blank.
     setFgColor(fg_color_);
     setBgColor(bg_color_);
@@ -109,7 +109,7 @@ class SpinBox : public Element {
   }
 
   bool offerInput(const cellui::Input & input) override {
-    if (input.getId() == NCKEY_BUTTON1) {
+    if (input.getId() == Key::Button1) {
       if (input.getKind() != Input::Kind::RELEASE) {
         arrow_press_ = hitsArrow(input.getY(), input.getX());
         return true;
@@ -133,11 +133,11 @@ class SpinBox : public Element {
 	cancelEditing();
       }
       return true;
-    } else if (input.getId() == NCKEY_BUTTON4) { // scroll wheel up
+    } else if (input.getId() == Key::Button4) { // scroll wheel up
       cancelEditing();
       step(1);
       return true;
-    } else if (input.getId() == NCKEY_BUTTON5) { // scroll wheel down
+    } else if (input.getId() == Key::Button5) { // scroll wheel down
       cancelEditing();
       step(-1);
       return true;
@@ -146,11 +146,11 @@ class SpinBox : public Element {
     if (!editing_) return false;
     if (input.getKind() == Input::Kind::RELEASE) return true; // consume key-up while editing - nothing to do
 
-    if (input.getId() == NCKEY_ENTER) {
+    if (input.getId() == Key::Enter) {
       commitEdit();
-    } else if (input.getId() == NCKEY_ESC) {
+    } else if (input.getId() == Key::Escape) {
       cancelEditing();
-    } else if (input.getId() == NCKEY_BACKSPACE) {
+    } else if (input.getId() == Key::Backspace) {
       if (!edit_buffer_.empty()) edit_buffer_.pop_back();
     } else if (auto d = digit(input.getId(), 10);
                d >= 0 && !input.hasCtrl() && !input.hasAlt() && !input.hasMeta()) {

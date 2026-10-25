@@ -5,6 +5,7 @@
 #include "../ambisonic/SphericalPosition.h"
 #include "../model/SongObject.h"
 
+#include <limits>
 #include <vector>
 
 // Denormal guard shared by the bus effects' feedback paths: decaying
@@ -66,12 +67,18 @@ class BusEffect : public SongObject {
       default_wet_level_(defaultWetLevel), default_chain_send_level_(defaultChainSendLevel) { }
   virtual ~BusEffect() = default;
 
-  // Always runs, even for silent input, so internal tail/feedback/
-  // modulation state stays continuous across blocks.
+  // Runs for silent input too, so internal tail/feedback/modulation state
+  // stays continuous across blocks, until the bus is idle (below).
   virtual void process(const float * monoInput, int frames) = 0;
 
   virtual int getNumTaps() const = 0;
   virtual const float * getTap(int i) const = 0;
+
+  // How long input and output must both stay silent before nothing
+  // audible is left inside (its longest delay, pre-delay included):
+  // SendBusProcessor stops calling process() after that. Infinity, the
+  // default, is never.
+  virtual float idleAfterSeconds() const { return std::numeric_limits<float>::infinity(); }
   virtual SphericalPosition getTapDirection(int i) const = 0;
 
   // Pre-encode mono sum of this effect's current-block tap outputs - what
@@ -125,7 +132,7 @@ class BusEffect : public SongObject {
   virtual void setRowDuration(float rowDurationSeconds) { }
 
   // Second, parallel output path for effects whose output isn't a set of
-  // point-source taps - see plans/drum-bus-saturator.md. The tap
+  // point-source taps. The tap
   // path above (getNumTaps()/getTap()/getTapDirection(), consumed by
   // SendBusProcessor via computeAmbisonicGains()) can only ever produce
   // one mono signal broadcast into every channel at fixed relative gains

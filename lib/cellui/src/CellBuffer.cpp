@@ -52,9 +52,9 @@ void CellBuffer::write(int row, int col, const std::string & text, const Style &
     }
     if (col >= col_lo && col + width <= col_hi) {
       Cell & cell = cells_[index(row, col)];
-      cell = Cell{glyph, style.fg, style.bg, style.bold, style.italic, style.underline, false};
+      cell = Cell{glyph, style.fg, style.bg, style.bold, style.italic, style.underline, false, style.bg_blend, style.fg_contrast, 0, style.backdrop, style.lift, style.lift_joined, style.lift_shadow};
       if (width == 2) {
-        cells_[index(row, col + 1)] = Cell{"", style.fg, style.bg, style.bold, style.italic, style.underline, true};
+        cells_[index(row, col + 1)] = Cell{"", style.fg, style.bg, style.bold, style.italic, style.underline, true, style.bg_blend, style.fg_contrast, 0, style.backdrop, style.lift, style.lift_joined, style.lift_shadow};
       }
       last_col = col;
     } else {
@@ -100,20 +100,22 @@ std::string CellBuffer::toAnsi(int max_rows) const {
                             want.underline == current.underline &&
                             want.fg.has_value() == current.fg.has_value() &&
                             want.bg.has_value() == current.bg.has_value() &&
-                            (!want.fg || (want.fg->getRed() == current.fg->getRed() &&
-                                          want.fg->getGreen() == current.fg->getGreen() &&
-                                          want.fg->getBlue() == current.fg->getBlue())) &&
-                            (!want.bg || (want.bg->getRed() == current.bg->getRed() &&
-                                          want.bg->getGreen() == current.bg->getGreen() &&
-                                          want.bg->getBlue() == current.bg->getBlue())))
+                            (!want.fg || want.fg->toSrgb8() == current.fg->toSrgb8()) &&
+                            (!want.bg || want.bg->toSrgb8() == current.bg->toSrgb8()))
                          : !want.fg && !want.bg && !want.bold && !want.italic && !want.underline;
       if (!same) {
         out += "\x1b[0";
         if (want.bold) out += ";1";
         if (want.italic) out += ";3";
         if (want.underline) out += ";4";
-        if (want.fg) out += ";38;2;" + std::to_string(want.fg->getRed()) + ";" + std::to_string(want.fg->getGreen()) + ";" + std::to_string(want.fg->getBlue());
-        if (want.bg) out += ";48;2;" + std::to_string(want.bg->getRed()) + ";" + std::to_string(want.bg->getGreen()) + ";" + std::to_string(want.bg->getBlue());
+        if (want.fg) {
+          auto rgb = want.fg->toSrgb8();
+          out += ";38;2;" + std::to_string(int{rgb[0]}) + ";" + std::to_string(int{rgb[1]}) + ";" + std::to_string(int{rgb[2]});
+        }
+        if (want.bg) {
+          auto rgb = want.bg->toSrgb8();
+          out += ";48;2;" + std::to_string(int{rgb[0]}) + ";" + std::to_string(int{rgb[1]}) + ";" + std::to_string(int{rgb[2]});
+        }
         out += "m";
         current = want;
         styled = true;

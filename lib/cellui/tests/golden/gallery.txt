@@ -1,22 +1,29 @@
-Cell UI gallery
+cellui gallery
 
 Text styles
 normal  bold   italic  underline  bold italic
 
 Surfaces and text
- surface.base        secondary text      disabled text       #111111
- surface.panel       secondary text      disabled text       #292929
- surface.raised      secondary text      disabled text       #3d3d3d
- surface.overlay     secondary text      disabled text       #323232
+ surface.base        secondary text      disabled text       #11161a
+ surface.panel       secondary text      disabled text       #1c2227
+ surface.raised      secondary text      disabled text       #2c3338
+ surface.overlay     secondary text      disabled text       #3e464c
 
 Accent and state
- accent                  #bcd4e0
- accent.dim              #3a4a54
- focus                   #bcd4e0
- state.playing           #50e070
- state.playing.dim       #2e7a3e
- state.recording         #ff3c3c
- state.recording.dim     #a04040
+ accent                  #75d4eb
+ accent.dim              #245560
+ focus                   #75d4eb
+ state.playing           #009722
+ state.playing.dim       #668666
+ state.recording         #e23532
+ state.recording.dim     #a46a64
+
+Wide colours and their clip
+ srgb green              #00ff00  Y 0.72
+ display-p3 green        #00f74f  Y 0.69
+ rec2020 green           #00ed7e  Y 0.68
+ red LED, 6x             #ff5d5a  Y 1.86
+ white, 3x               #ffffff  Y 3.00
 
 Level meter ramp
 ████████████████████████████████
@@ -52,20 +59,22 @@ Choice list
 entry 6 of 8
 
 Info dialog
-┌─ About ──────────────────────────────────┐
-│ Cell UI                                  │
-│                                          │
-│ A small toolkit for text interfaces,     │
-│ drawn here from Markdown.                │
-└──────────────────────────────────────────┘
 
-Choice dialog
-      ┌─ Devices ────────────────────┐
-      │   Built-in Audio             │
-      │ ● USB Interface (port 2-1)   │
-      │   HDMI Output                │
-      │   Bluetooth Speaker          │
-      └─ Enter: choose  Esc: cancel ─┘
+  About
+
+  cellui
+
+  A small toolkit for text interfaces,
+  drawn here from Markdown.
+
+
+Choice Devices
+         Built-in Audio
+       ● USB Interface (port 2-1)
+         HDMI Output
+         Bluetooth Speaker
+
+       Enter: choose  Esc: cancel
 
 Meters
 ⣤⣤⣤⣀⣀⣀⣤⣤⣤⣤⣤⣤⣤⣤⣤⣄⣀⡀                          ⣆⢠⢸⡇
@@ -78,3 +87,11 @@ Spin box and cover art
 Octave ◂ 4 ▸
 
                                  🖼
+
+
+
+Dials
+idle      selected  pressed   off
+╭───╮     ╭───╮     ╭───╮     ╭───╮
+│-20│     │-10│     │-6 │     │off│
+╰─A─╯     ╰─B─╯     ╰─M─╯     ╰─A─╯

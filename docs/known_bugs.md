@@ -19,7 +19,7 @@ Found 2026-07-11, not yet fixed.
   playback in one run, while the same key reliably worked instantly
   against a freshly created (empty, `Ctrl-N`) song. Not yet root-caused;
   suspect keyboard input getting starved behind a backlog of
-  playback/render work in `TerminalUI`'s shared `poll()` loop when the
+  playback/render work in `InteractiveUI`'s shared `poll()` loop when the
   audio-event descriptor is almost always ready, though this wasn't
   confirmed (the existing anti-backlog skip in `UI::handlePlaybackEvent`
   addresses redundant *rendering* work for superseded events, not input
@@ -190,3 +190,15 @@ Found 2026-07-11, not yet fixed.
   marker too (as it already does for sample tracks), or the merge writes no
   stop marker: the marker means both "silence this track here" and "this
   placement was removed", and only the first should silence it.
+
+- **A pause leaves sustained voices ringing, and what survives it is an
+  interim choice.** The transport toggle only pauses and resumes: launched
+  clips keep their clip and row, queued changes and taken-over tracks stay,
+  and play resumes them where they were (`Player`'s `STOP` no longer silences
+  the session). That is not the live-sequencer convention, which stops every
+  session clip with the transport. Open: a pause releases sample-track voices
+  but leaves an instrument's voices as they are, so a held note rings on
+  through the pause and whatever starts on resume layers over it. Releasing
+  every voice on a pause would break what relies on them ringing - a demoted
+  buffer's held notes, a song end's tail in an offline render - so the answer
+  likely distinguishes a pause from those. Needs a design decision first.

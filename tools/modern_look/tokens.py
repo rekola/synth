@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""The modern-look colour tokens (plans/modern-look-tokens.md): OKLCH values
+"""The modern-look colour tokens: OKLCH values
 for the dark and light themes, converted to sRGB hex and checked against the
 WCAG contrast rules. Prints a report; with an output path, also writes the
 hex values as JSON.
@@ -38,16 +38,16 @@ H = 250  # slightly cool neutrals
 # Theme-dependent: surfaces, text, the accent.
 THEMES = {
  'dark': {
-  'surface.base':   (0.175, 0.010, H),
-  'surface.panel':  (0.215, 0.011, H),
-  'surface.raised': (0.265, 0.012, H),
-  'surface.overlay':(0.315, 0.013, H),
-  'text.primary':   (0.940, 0.008, H),
-  'text.secondary': (0.760, 0.010, H),
-  'text.disabled':  (0.560, 0.010, H),
-  'accent':         (0.800, 0.085, 215),
-  'accent.dim':     (0.380, 0.045, 215),
-  'text.on-accent': (0.180, 0.020, 215),
+  'surface.base':   (0.150, 0.010, H),
+  'surface.panel':  (0.215, 0.012, H),
+  'surface.raised': (0.285, 0.013, H),
+  'surface.overlay':(0.355, 0.014, H),
+  'text.primary':   (0.965, 0.006, H),
+  'text.secondary': (0.820, 0.010, H),
+  'text.disabled':  (0.620, 0.010, H),
+  'accent':         (0.820, 0.095, 215),
+  'accent.dim':     (0.420, 0.055, 215),
+  'text.on-accent': (0.160, 0.020, 215),
  },
  'light': {
   'surface.base':   (0.965, 0.006, H),
@@ -80,23 +80,24 @@ SHARED = {
 # The level meter ramp, quiet to loud (not a Launchpad matter).
 METER = [(0.0, (0.560, 0.130, 150)), (0.5, (0.700, 0.185, 140)), (0.78, (0.780, 0.160, 85)), (0.92, (0.680, 0.200, 45)), (1.0, (0.600, 0.215, 27))]
 
-# Track identity colours: one lightness and chroma, hues spread by the
-# golden ratio over the arcs the Launchpad's own state colours leave free
-# (not near its green or red).
-TRACK_L, TRACK_C = 0.585, 0.12
-ARCS = [(45.0, 105.0), (180.0, 340.0)]
-def track_hue(i):
-    t = (0.5 + i * 0.6180339887) % 1.0
-    pos = t * sum(b - a for a, b in ARCS)
-    for a, b in ARCS:
-        if pos <= b - a: return a + pos
-        pos -= b - a
-    return ARCS[-1][1]
+# Track identity colours: one lightness, and for each of the first eight a
+# hue and a chroma, picked so the least pair of them (on the screen, and as a
+# Launchpad pad shows it) differs as much as it can while the hues stay clear
+# of the Launchpad's own state colours (green, red). One colour per family
+# (orange, olive, cyan, blue, purple, pink) and two greys, a warm and a cool
+# one: teal and azure read as one cyan, and the pure blue corner of the gamut
+# is left out. The order puts similar ones far apart in the
+# ordinal, as neighbours are what sit side by side. Later tracks step the hue
+# by the golden ratio over the free arcs at the middle chroma.
+TRACK_L = 0.585
+TRACKS = [(205, 0.14), (344, 0.08), (108, 0.19), (263, 0.12), (108, 0.04), (308, 0.12), (69, 0.19), (230, 0.04)]
+def track_hue(i): return TRACKS[i][0]
+def track_chroma(i): return TRACKS[i][1]
 
 out = {}
 def put(name, d): out.setdefault(name, {}).update(d)
 shared_rgb = {k: oklch_to_srgb(*v) for k, v in SHARED.items()}
-tracks_rgb = [oklch_to_srgb(TRACK_L, TRACK_C, track_hue(i)) for i in range(8)]
+tracks_rgb = [oklch_to_srgb(TRACK_L, track_chroma(i), track_hue(i)) for i in range(8)]
 meter_rgb = [(f, oklch_to_srgb(*c)) for f, c in METER]
 for name, th in THEMES.items():
     rgb = {k: oklch_to_srgb(*v) for k, v in th.items()}
@@ -136,9 +137,22 @@ for i in range(8):
     h = track_hue(i)
     d = min(abs((h - sh + 180) % 360 - 180) for sh in (145, 27))
     print(f'track {i}: hue {h:6.1f}  nearest state hue {d:5.1f}  {"ok" if d >= 35 else "FAIL"}')
+def oklab(rgb):
+    def lin(c): return c/12.92 if c <= 0.04045 else ((c+0.055)/1.055)**2.4
+    r, g, b = (lin(c) for c in rgb)
+    l = (0.4122214708*r + 0.5363325363*g + 0.0514459929*b) ** (1/3)
+    m = (0.2119034982*r + 0.6806995451*g + 0.1073969566*b) ** (1/3)
+    s = (0.0883024619*r + 0.2817188376*g + 0.6299787005*b) ** (1/3)
+    return (0.2104542553*l + 0.7936177850*m - 0.0040720468*s,
+            1.9779984951*l - 2.4285922050*m + 0.4505937099*s,
+            0.0259040371*l + 0.7827717662*m - 0.8086757660*s)
+print('== track colours, least difference between two (OKLab distance x100, need >= 6.5)')
+least = min((math.dist(oklab(tracks_rgb[i]), oklab(tracks_rgb[j]))*100, i, j) for i in range(8) for j in range(i+1, 8))
+print(f'tracks {least[1]} and {least[2]}: {least[0]:5.1f}  {"ok" if least[0] >= 6.5 else "FAIL"}')
 sh = {k: hexof(v) for k, v in shared_rgb.items()}
 sh['tracks'] = [hexof(v) for v in tracks_rgb]
-sh['track_hues'] = [round(track_hue(i), 1) for i in range(8)]
+sh['track_hues'] = [track_hue(i) for i in range(8)]
+sh['track_chromas'] = [track_chroma(i) for i in range(8)]
 sh['meter'] = [[f, hexof(c)] for f, c in meter_rgb]
 out['shared'] = sh
 if len(sys.argv) > 1:

@@ -10,7 +10,6 @@
 #include "model/Clip.h"
 #include "instruments/InstrumentLibrary.h"
 #include "playback/PlaybackControlEvent.h"
-#include "playback/LogEvent.h"
 
 #include <algorithm>
 #include <cassert>
@@ -218,7 +217,7 @@ Controller::Controller(ChannelConfiguration _channel_config) : channel_config(_c
   mixer_type_ = MixerType::AMBISONIC_STEREO;
 #endif
 
-  commands_.define("save-song", [this]() {
+  commands_.define("save-buffer", [this]() {
     auto song = getCurrentSong();
     song->save(getActiveBufferName());
     last_saved_versions_[getActiveBufferName()] = song->getVersion();
@@ -243,7 +242,7 @@ Controller::Controller(ChannelConfiguration _channel_config) : channel_config(_c
       edit.discard();
       return;
     }
-    getUIEventQueue().push(make_unique<LogEvent>("Clip merged to background"));
+    log("Clip merged to background");
   });
   // Undo and redo (Song::undo()/redo()): the same two commands from a
   // keybinding, M-x and the Launchpad's shift layer. Both say so when there
@@ -269,27 +268,29 @@ Controller::Controller(ChannelConfiguration _channel_config) : channel_config(_c
     auto & song = getSong();
     bool take = song.document().inGroup();
     if (sounding(song.nextUndoPlace())) {
-      getUIEventQueue().push(make_unique<LogEvent>("Undo: that clip is playing - stop it first"));
+      log("Undo: that clip is playing - stop it first");
       return;
     }
     bool done = song.undo();
     if (done) { follow(song); resendTrackStateToAudio(); }
-    getUIEventQueue().push(make_unique<LogEvent>(done ? "Undo" : take ? "Undo: not while recording" : "Nothing to undo"));
+    log(done ? "Undo" : take ? "Undo: not while recording"
+                             : "Nothing to undo");
   });
   commands_.define("undo-redo", [this, follow, sounding]() {
     auto & song = getSong();
     bool take = song.document().inGroup();
     if (sounding(song.nextRedoPlace())) {
-      getUIEventQueue().push(make_unique<LogEvent>("Redo: that clip is playing - stop it first"));
+      log("Redo: that clip is playing - stop it first");
       return;
     }
     bool done = song.redo();
     if (done) { follow(song); resendTrackStateToAudio(); }
-    getUIEventQueue().push(make_unique<LogEvent>(done ? "Redo" : take ? "Redo: not while recording" : "Nothing to redo"));
+    log(done ? "Redo" : take ? "Redo: not while recording"
+                             : "Nothing to redo");
   });
   commands_.define("toggle-metronome", [this]() {
     setMetronomeOn(!metronome_on_);
-    getUIEventQueue().push(make_unique<LogEvent>(metronome_on_ ? "Metronome on" : "Metronome off"));
+    log(metronome_on_ ? "Metronome on" : "Metronome off");
   });
   commands_.define("tempo-increase", [this]() { setTempo(getSong().getTempo() + 1); });
   commands_.define("tempo-decrease", [this]() { setTempo(getSong().getTempo() - 1); });
@@ -299,7 +300,7 @@ Controller::Controller(ChannelConfiguration _channel_config) : channel_config(_c
     auto & song = getSong();
     Song::Edit edit(song, "toggle record quantize");
     song.setRecordQuantize(!song.getRecordQuantize());
-    getUIEventQueue().push(make_unique<LogEvent>(song.getRecordQuantize() ? "Record quantise on" : "Record quantise off"));
+    log(song.getRecordQuantize() ? "Record quantise on" : "Record quantise off");
   });
   // One Record Arm for every track type, reachable from a Launchpad
   // (CC19), a keybinding, or M-x alike.
@@ -470,7 +471,7 @@ Controller::toggleDrumClipFocus(int track_id, int clip_index) {
       // handles that once nothing's focused) or to open a different
       // clip's own slot instead.
       clearFocusedClip();
-      if (drum_edit_requested_) drum_edit_requested_(track_id, false);
+      drum_edit_requested.emit(track_id, false);
       return true;
     }
     setFocusedClip(track_id, existing.getId());
@@ -493,7 +494,7 @@ Controller::toggleDrumClipFocus(int track_id, int clip_index) {
     clip.setLength(song->getSceneBarRows(scene)); // a bar of the scene's own time signature
     setFocusedClip(track_id, clip.getId());
   }
-  if (drum_edit_requested_) drum_edit_requested_(track_id, true);
+  drum_edit_requested.emit(track_id, true);
   return true;
 }
 
@@ -510,7 +511,7 @@ Controller::addBuffer(std::shared_ptr<Song> song, const string & name, Version s
   }
   loadActiveBufferState(name);
   refreshBufferCommands();
-  if (buffer_change_listener_) buffer_change_listener_();
+  buffers_changed.emit();
 }
 
 void
@@ -538,7 +539,7 @@ Controller::renameActiveBuffer(const string & new_name, Version saved_version) {
   // survives any other buffer switch (see the per-buffer editing/
   // playback-state plan's Part B).
   getPlaybackEventQueue().push(make_unique<PlaybackControlEvent>(PlaybackControlEvent::BUFFER_RENAMED, old_name, new_name));
-  if (buffer_change_listener_) buffer_change_listener_();
+  buffers_changed.emit();
 }
 
 // Keeps one CommandRegistry command per open buffer in sync with songs_'s
@@ -648,7 +649,7 @@ Controller::switchToBuffer(const string & name) {
   }
   loadActiveBufferState(song_id);
   if (created) refreshBufferCommands();
-  if (buffer_change_listener_) buffer_change_listener_();
+  buffers_changed.emit();
 }
 
 void
@@ -700,7 +701,7 @@ Controller::killActiveBuffer() {
   // happened to be the playing buffer, simply by no longer existing to
   // render at all, rather than needing a separate STOP first.
   getPlaybackEventQueue().push(make_unique<PlaybackControlEvent>(PlaybackControlEvent::BUFFER_KILLED, song_id));
-  if (buffer_change_listener_) buffer_change_listener_();
+  buffers_changed.emit();
   return true;
 }
 
@@ -836,7 +837,7 @@ void Controller::mirrorSceneChange(const string & buffer_name, const PlaybackInf
   if (info.getTempo() > 0 && info.getTempo() != song->getTempo()) {
     Song::Edit edit(*song, "scene tempo", Song::Edit::Kind::STRUCTURE, Song::Edit::Origin::SYNC);
     song->setTempo(static_cast<short>(info.getTempo()));
-    if (buffer_name == active_buffer_name_) getUIEventQueue().push(make_unique<LogEvent>("Tempo " + to_string(song->getTempo())));
+    if (buffer_name == active_buffer_name_) log("Tempo " + to_string(song->getTempo()));
   }
 }
 
@@ -932,7 +933,8 @@ Controller::cycleTrackMonitor(int track_id) {
   m = m == Monitor::AUTO ? Monitor::IN : m == Monitor::IN ? Monitor::OFF : Monitor::AUTO;
   Song::Edit edit(*song, "cycle monitor");
   song->editTrack(track_id, [&](Track & track) { leafOf(track).setMonitor(m); });
-  getUIEventQueue().push(make_unique<LogEvent>(m == Monitor::IN ? "Monitor: In" : m == Monitor::OFF ? "Monitor: Off" : "Monitor: Auto"));
+  log(m == Monitor::IN ? "Monitor: In" : m == Monitor::OFF ? "Monitor: Off"
+                                                           : "Monitor: Auto");
 }
 
 std::string
@@ -997,7 +999,7 @@ Controller::verifyPublishedContent() {
     if (song->publishedContentIsCurrent()) {
       stale_content_warned_.erase(name);
     } else if (stale_content_warned_.insert(name).second) {
-      getUIEventQueue().push(make_unique<LogEvent>("Playback content is stale in " + name + ": a write skipped Song::Edit"));
+      log("Playback content is stale in " + name + ": a write skipped Song::Edit");
     }
   }
 }
@@ -1030,7 +1032,7 @@ Controller::syncMonitoring() {
   }
   if (!now.empty() && !monitor_feedback_warned_) {
     monitor_feedback_warned_ = true;
-    getUIEventQueue().push(make_unique<LogEvent>("Monitoring audio input - mind feedback through open speakers"));
+    log("Monitoring audio input - mind feedback through open speakers");
   }
   monitored_track_ids_ = std::move(now);
 }
@@ -1136,6 +1138,11 @@ Controller::setBusEffectKind(int slot, BusEffectKind kind) {
   Song::Edit edit(*song, "set bus effect");
   song->setBusSlotKind(slot, kind);
   getPlaybackEventQueue().push(make_unique<PlaybackControlEvent>(PlaybackControlEvent::SET_BUS_EFFECT, getActiveBufferName(), slot, static_cast<int>(kind)));
+}
+
+void Controller::setPerformanceEffect(int track_id, PerformanceEffect effect, int pressure) {
+  getPlaybackEventQueue().push(make_unique<PlaybackControlEvent>(PlaybackControlEvent::SET_PERFORMANCE, getActiveBufferName(), track_id,
+                                                                 static_cast<int>(effect), pressure));
 }
 
 void
@@ -1543,7 +1550,7 @@ Controller::setSwing(int percent) {
   auto & song = getSong();
   Song::Edit edit(song, "set swing");
   song.setSwing(percent);
-  getUIEventQueue().push(make_unique<LogEvent>("Swing " + to_string(song.getSwing()) + "%"));
+  log("Swing " + to_string(song.getSwing()) + "%");
 }
 
 void
@@ -1551,7 +1558,7 @@ Controller::setTempo(int bpm) {
   auto & song = getSong();
   Song::Edit edit(song, "set tempo");
   song.setTempo(static_cast<short>(std::clamp(bpm, 20, 300)));
-  getUIEventQueue().push(make_unique<LogEvent>("Tempo " + to_string(song.getTempo())));
+  log("Tempo " + to_string(song.getTempo()));
 }
 
 void
@@ -1566,7 +1573,7 @@ Controller::deleteClipSlot(int track_id, int clip_index) {
   }
   string name;
   if (deleteClipOrStopButton(song, track_id, clip_index, &name) == SlotDelete::CLIP) {
-    getUIEventQueue().push(make_unique<LogEvent>("Deleted clip: " + (name.empty() ? string("(unnamed)") : name)));
+    log("Deleted clip: " + (name.empty() ? string("(unnamed)") : name));
   }
 }
 
@@ -1873,7 +1880,7 @@ Controller::finishSampleCapture() {
       }
 
       auto duration_seconds = static_cast<float>(post_trim_frames) / static_cast<float>(channel_config.getAudioOutSampleRate());
-      getUIEventQueue().push(make_unique<LogEvent>(fmt::format("recorded {} ({:.1f}s)", clip.getName(), duration_seconds)));
+      log(fmt::format("recorded {} ({:.1f}s)", clip.getName(), duration_seconds));
       break;
     }
   }

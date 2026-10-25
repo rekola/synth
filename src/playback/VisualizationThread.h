@@ -13,18 +13,20 @@ class Controller;
 class Mixer;
 
 // Runs real signal-analysis work (the spectrum-FFT feeding the terminal's
-// live chart, and DirAC directional analysis feeding the heatmap - see
-// plans/dirac-heatmap-scope.md) on its own dedicated thread, spawned by
+// live chart, and DirAC directional analysis feeding the heatmap) on its own dedicated thread, spawned by
 // UI::start() alongside the audio thread - deliberately neither the
 // real-time audio thread (which must never be blocked by FFT-sized work)
 // nor the UI/main thread (which must stay responsive to input). Receives
 // raw audio as AudioBlockEvents (Controller::getVisualizationQueue(), audio
 // thread -> here) and sends results back as VisualizationResultEvents
-// (Controller::getUIEventQueue(), here -> UI thread) - the UI thread does
+// (Controller::postToUI(), here -> UI thread) - the UI thread does
 // no analysis of its own, it only displays whatever this thread already
 // computed.
 class VisualizationThread : public EventHandler {
  public:
+  // How long silent blocks take to bring every scope to rest (the meter's
+  // fall is the slowest); after that they change nothing.
+  static constexpr int kSettleSeconds = 4;
   // Both out-of-line (defined in VisualizationThread.cpp, where Mixer.h's
   // full definition is visible) - decode_mixer_ below is a
   // unique_ptr<Mixer>, and Mixer is only forward-declared here, so even
@@ -50,7 +52,7 @@ class VisualizationThread : public EventHandler {
     for (; size + frame_count <= sample_rate / 10; size += frame_count) { }
     spectrum_.setSize(size, sample_rate);
     dirac_ = std::make_unique<DiracAnalyzer>(sample_rate);
-    rest_results_limit_ = 4 * sample_rate / std::max(frame_count, 1);
+    rest_results_limit_ = kSettleSeconds * sample_rate / std::max(frame_count, 1);
   }
 
   void handleAudioBlockEvent(AudioBlockEvent & ev) override;

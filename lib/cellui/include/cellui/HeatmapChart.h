@@ -1,6 +1,6 @@
 #pragma once
 
-#include <cellui/Element.h>
+#include <cellui/Widget.h>
 
 #include <cmath>
 #include <cstdint>
@@ -15,15 +15,15 @@ namespace cellui {
 // point markers overlaid on it. Currently backs the DirAC directional
 // heatmap but not named after it, in case a future 2D visualization reuses
 // this base.
-class HeatmapChart : public Element {
+class HeatmapChart : public Widget {
  public:
   // Normalized [0,1) position within the logical grid - u = column axis
   // (e.g. azimuth), v = row axis (e.g. elevation), (0,0) = bottom-left,
   // matching setGrid()'s own row-0-is-bottom convention below.
   struct Marker { float u, v; };
 
-  explicit HeatmapChart(UIPlane & plane, int grid_cols, int grid_rows)
-    : Element(plane), grid_cols_(grid_cols), grid_rows_(grid_rows) { }
+  explicit HeatmapChart(Plane & plane, int grid_cols, int grid_rows)
+    : Widget(plane), grid_cols_(grid_cols), grid_rows_(grid_rows) { }
 
   // `brightness`/`saturation` are each gridCols()*gridRows() entries,
   // row-major with row 0 = bottom (matching DiracAnalyzer::getGrid()'s own

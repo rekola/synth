@@ -25,6 +25,10 @@
 #include "../model/Song.h"
 #include "../model/ArrangementOps.h"
 #include "../model/PatternBlockOps.h"
+#include "../playback/LogEvent.h"
+#include "../playback/MidiEvent.h"
+#include "../playback/VisualizationResultEvent.h"
+#include "../playback/PlaybackEvent.h"
 #include "../playback/RecordEvent.h"
 #include "../playback/RecordingLatencyEvent.h"
 #include "../playback/ThresholdRecordingTriggeredEvent.h"
@@ -39,6 +43,14 @@ using namespace std;
 
 namespace {
 
+// A handler of E on `root` that always takes the event.
+template <class E, class F>
+cellui::Connection subscribe(cellui::Widget & root, F fn) {
+  return root.on<E>([fn](const E & ev, cellui::EventContext &) {
+    fn(ev);
+    return cellui::Handled::yes;
+  });
+}
 
 void audio_thread_func(Controller * controller, AudioAPI * audio) {
   setCurrentThreadName("synth-audio");
@@ -109,6 +121,23 @@ UI::start(AudioAPI & audio, MidiInput & midi, LaunchpadIO & launchpad_io, Launch
   wireLaunchpad(launchpad_manager);
 
   setCurrentThreadName("synth-ui");
+  // What the audio and visualization threads post to the UI arrives here,
+  // on this thread, through the loop startUI() runs.
+  cellui::ThreadInbox inbox(eventLoop(), *this);
+  std::vector<cellui::Connection> subscriptions;
+  subscriptions.push_back(subscribe<PlaybackEvent>(*this, [this](const PlaybackEvent & ev) { handlePlaybackEvent(ev); }));
+  subscriptions.push_back(subscribe<LogEvent>(*this, [this](const LogEvent & ev) { setStatus(ev.getText()); }));
+  subscriptions.push_back(subscribe<RecordEvent>(*this, [this](const RecordEvent & ev) { handleRecordEvent(ev); }));
+  subscriptions.push_back(subscribe<RecordingLatencyEvent>(*this, [this](const RecordingLatencyEvent & ev) { handleRecordingLatencyEvent(ev); }));
+  subscriptions.push_back(subscribe<ThresholdRecordingTriggeredEvent>(*this, [this](const ThresholdRecordingTriggeredEvent & ev) { handleThresholdRecordingTriggeredEvent(ev); }));
+  subscriptions.push_back(subscribe<VisualizationResultEvent>(*this, [this](const VisualizationResultEvent & ev) { handleVisualizationResultEvent(ev); }));
+  subscriptions.push_back(subscribe<MidiEvent>(*this, [this](const MidiEvent & ev) { handleMidiEvent(ev); }));
+  subscriptions.push_back(subscribe<LaunchpadPadEvent>(*this, [this](const LaunchpadPadEvent & ev) { handleLaunchpadPadEvent(ev); }));
+  subscriptions.push_back(subscribe<LaunchpadButtonEvent>(*this, [this](const LaunchpadButtonEvent & ev) { handleLaunchpadButtonEvent(ev); }));
+  subscriptions.push_back(subscribe<LaunchpadChannelPressureEvent>(*this, [this](const LaunchpadChannelPressureEvent & ev) { handleLaunchpadChannelPressureEvent(ev); }));
+  inbox_ = &inbox;
+  getController().setUIInbox(&inbox);
+
   std::thread audio_thread(audio_thread_func, &(getController()), &audio);
   std::thread visualization_thread(visualization_thread_func, &(getController()), audio.getFrequency(), audio.getFrameCount());
 
@@ -119,16 +148,16 @@ UI::start(AudioAPI & audio, MidiInput & midi, LaunchpadIO & launchpad_io, Launch
 
   audio_thread.join();
   visualization_thread.join();
+  getController().setUIInbox(nullptr);
+  inbox_ = nullptr;
 }
 
-void
-UI::handleLaunchpadChannelPressureEvent(LaunchpadChannelPressureEvent & ev) {
+void UI::handleLaunchpadChannelPressureEvent(const LaunchpadChannelPressureEvent & ev) {
   if (!launchpad_manager_) return;
   launchpad_manager_->handleChannelPressureEvent(ev, getController());
 }
 
-void
-UI::handleLaunchpadPadEvent(LaunchpadPadEvent & ev) {
+void UI::handleLaunchpadPadEvent(const LaunchpadPadEvent & ev) {
   // Track-picker overlay (opened by CC49 "Stop Clip"/CC39 "Mute"/CC29
   // "Solo" - see LaunchpadManager::handleRawButton()'s own comment) -
   // Live-View-only, so this only ever intercepts the picker row itself
@@ -167,6 +196,10 @@ UI::handleLaunchpadPadEvent(LaunchpadPadEvent & ev) {
     launchpad_manager_->handleLivePadEvent(ev, getController());
     return;
   }
+  if (launchpad_manager_ && launchpad_manager_->gridMode(ev.getDeviceIndex()) == LaunchpadManager::GridMode::CUSTOM) {
+    launchpad_manager_->handlePerformancePadEvent(ev, getController());
+    return;
+  }
   if (!launchpad_manager_) return;
   // handlePadEvent() itself indexes song.getPlayableTrackIds() with this
   // - see indexOfTrack()'s own comment for why a real index, not the bare
@@ -176,8 +209,7 @@ UI::handleLaunchpadPadEvent(LaunchpadPadEvent & ev) {
     indexOfTrack(track_ids, getController().getSong().getCurrentTrackId()), launchpadEditStepSize());
 }
 
-void
-UI::handleLaunchpadButtonEvent(LaunchpadButtonEvent & ev) {
+void UI::handleLaunchpadButtonEvent(const LaunchpadButtonEvent & ev) {
   if (!launchpad_manager_) return;
 
   auto device_id = ev.getDeviceIndex();
@@ -252,6 +284,10 @@ UI::handleLaunchpadButtonEvent(LaunchpadButtonEvent & ev) {
     return;
   }
 
+  // Custom: the right column holds its row's performance effect on the
+  // master, press and release.
+  if (launchpad_manager_->handlePerformanceMasterButton(device_id, ev.getCCNumber(), ev.getKind() == LaunchpadButtonEvent::PRESS, getController())) return;
+
   // The mixer radio group's own ten CC numbers (Record Arm/Volume/Pan/
   // Send A/Send B/Stop Clip/Mute/Solo, Pro MK3's Mute/Solo twins -
   // LaunchpadManager::isMixerFunctionButton()) need release too, for their
@@ -278,8 +314,7 @@ UI::handleLaunchpadButtonEvent(LaunchpadButtonEvent & ev) {
   dispatch_named_command(ev.getCCNumber());
 }
 
-void
-UI::handleRecordEvent(RecordEvent & ev) {
+void UI::handleRecordEvent(const RecordEvent & ev) {
   if (getController().isRecording()) {
     setStatus(fmt::format("recorded {} frames", ev.getData().size()));
     getController().addToSample(ev.getData());
@@ -295,8 +330,7 @@ UI::handleRecordEvent(RecordEvent & ev) {
   }
 }
 
-void
-UI::handleRecordingLatencyEvent(RecordingLatencyEvent & ev) {
+void UI::handleRecordingLatencyEvent(const RecordingLatencyEvent & ev) {
   // Both guards defensive - Player.cpp only ever pushes this once per
   // take (the false -> true edge of Controller::isRecording()), and
   // hasRecordingClip() being already true would mean a second, spurious
@@ -308,8 +342,7 @@ UI::handleRecordingLatencyEvent(RecordingLatencyEvent & ev) {
   }
 }
 
-void
-UI::handleThresholdRecordingTriggeredEvent(ThresholdRecordingTriggeredEvent & ev) {
+void UI::handleThresholdRecordingTriggeredEvent(const ThresholdRecordingTriggeredEvent & ev) {
   // Defensive, same reasoning as handleRecordingLatencyEvent() above -
   // Player.cpp only ever pushes this once per arm cycle (its own
   // threshold_triggered_this_arm_cycle_ latch).
@@ -369,11 +402,11 @@ UI::initializeCommands() {
   // Every command defined here has no widget-specific dependency (a plain
   // Controller call, or setStatus() - already virtual) - shared between
   // every UI backend, so each backend's own keybindings (Emacs-style
-  // chords here, whatever a future GUI uses there) just need to bind a key
+  // shortcuts here, whatever a future GUI uses there) just need to bind a key
   // to one of these names rather than redefine what it does. A command
   // that does need a backend-specific dialog/prompt, or reaches into a
   // concrete widget, stays defined in that backend instead (e.g.
-  // TerminalUI::initializeWidgets()).
+  // InteractiveUI::initializeWidgets()).
   commands_.define("about", [this]() { showInfoDialog(kAboutTitle, kAboutMarkdown); });
 
   // The device pickers list what is available right now (read fresh each
@@ -444,6 +477,20 @@ UI::initializeCommands() {
       setStatus("Scale " + scaleLabel(scale) + (retuned > 0 ? fmt::format(", {} tuned notes retuned", retuned) : ""));
     });
   });
+  // The colours: the modern look in dark or light, or the original one.
+  commands_.define("select-theme", [this]() {
+    static const char * const kNames[] = {"dark", "light", "original"};
+    std::vector<Choice> choices;
+    int current = -1;
+    for (auto name : kNames) {
+      if (theme_name_ == name) current = static_cast<int>(choices.size());
+      choices.push_back({name, name});
+    }
+    showChoiceDialog("Theme", std::move(choices), current, [this, current](int index) {
+      if (index == current || index < 0 || index >= static_cast<int>(std::size(kNames))) return;
+      if (setTheme(kNames[index])) setStatus(std::string("Theme ") + kNames[index]);
+    });
+  });
   commands_.define("next-buffer", [this]() {
     getController().cycleBuffer(true);
   });
@@ -479,8 +526,8 @@ UI::initializeCommands() {
   // which widget currently has focus.
   commands_.define("octave-up", [this]() { getController().octaveUp(); });
   commands_.define("octave-down", [this]() { getController().octaveDown(); });
-  commands_.define("save-song", [this]() {
-    getController().sendCommand("save-song");
+  commands_.define("save-buffer", [this]() {
+    getController().sendCommand("save-buffer");
     setStatus("Saved " + getController().getActiveBufferName());
   });
   // Controller-level command (Controller.cpp's own definition) - targets
@@ -493,7 +540,7 @@ UI::initializeCommands() {
 
   // Clip menu entries not built yet - say so rather than failing as an
   // unknown command.
-  for (auto name : {"double-clip-length", "halve-clip-length", "rename-clip"}) {
+  for (auto name : {"double-clip-length", "halve-clip-length", "rename-clip", "duplicate", "capture-midi", "quantize-region", "insert-scene"}) {
     commands_.define(name, [this, name]() { setStatus(std::string(name) + ": not implemented yet"); });
   }
 

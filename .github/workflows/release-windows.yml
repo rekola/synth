@@ -10,6 +10,7 @@ on:
     paths:
       - tools/windows/**
       - tools/smoke_headless.py
+      - third_party/sofa/**
       - .github/workflows/release-windows.yml
 
 permissions:
@@ -52,11 +53,20 @@ jobs:
           fi
           echo "version=$version" >> "$GITHUB_OUTPUT"
 
+      # Binaural decoding needs libmysofa; the installer carries a SOFA file for
+      # it when the build has the decoder (tools/windows/stage.sh).
+      - name: libmysofa
+        run: |
+          pacman -S --needed --noconfirm mingw-w64-ucrt-x86_64-libmysofa \
+            || echo "libmysofa is not available from MSYS2: building without the binaural decoder"
+
       - name: Configure
         run: cmake -G Ninja -B build -DCMAKE_BUILD_TYPE=Release -DSYNTH_MARCH=x86-64-v2
 
       - name: Build
-        run: cmake --build build --target synth
+        run: |
+          grep SYNTH_ENABLE_BINAURAL build/CMakeCache.txt
+          cmake --build build --target synth
 
       # A General MIDI SoundFont makes the instrument tracks sound as they do
       # on Linux. Without one the installer still works, with the built-in
@@ -81,6 +91,44 @@ jobs:
       - name: Stage
         run: tools/windows/stage.sh build stage soundfonts
 
+      # Code signing: with the repository secrets SIGN_PFX_BASE64 (a .pfx file,
+      # base64 encoded) and SIGN_PFX_PASSWORD the program and the installer are
+      # signed. On a pull request a throwaway certificate stands in, which
+      # tests the signing and signs nothing anyone should trust.
+      - name: Signing certificate
+        id: cert
+        shell: powershell
+        env:
+          SIGN_PFX_BASE64: ${{ secrets.SIGN_PFX_BASE64 }}
+          SIGN_PFX_PASSWORD: ${{ secrets.SIGN_PFX_PASSWORD }}
+        run: |
+          $pfx = Join-Path $env:RUNNER_TEMP "sign.pfx"
+          if ($env:SIGN_PFX_BASE64) {
+            [IO.File]::WriteAllBytes($pfx, [Convert]::FromBase64String($env:SIGN_PFX_BASE64))
+            $password = $env:SIGN_PFX_PASSWORD
+            "kind=real" >> $env:GITHUB_OUTPUT
+          } elseif ($env:GITHUB_EVENT_NAME -eq "pull_request") {
+            $password = [Guid]::NewGuid().ToString()
+            Write-Output "::add-mask::$password"
+            $cert = New-SelfSignedCertificate -Type CodeSigningCert -Subject "CN=synth test signing" -CertStoreLocation Cert:\CurrentUser\My
+            Export-PfxCertificate -Cert $cert -FilePath $pfx -Password (ConvertTo-SecureString $password -AsPlainText -Force) | Out-Null
+            "kind=test" >> $env:GITHUB_OUTPUT
+          } else {
+            Write-Output "No signing certificate: the installer will be unsigned."
+            "kind=none" >> $env:GITHUB_OUTPUT
+            exit 0
+          }
+          "pfx=$pfx" >> $env:GITHUB_OUTPUT
+          "SIGN_PASSWORD=$password" >> $env:GITHUB_ENV
+
+      - name: Sign the program
+        if: steps.cert.outputs.kind != 'none'
+        shell: powershell
+        run: |
+          $timestamp = if ("${{ steps.cert.outputs.kind }}" -eq "real") { "http://timestamp.digicert.com" } else { "" }
+          .\tools\windows\sign.ps1 -Pfx "${{ steps.cert.outputs.pfx }}" -Password $env:SIGN_PASSWORD -TimestampUrl $timestamp stage\synth.exe
+          if ((Get-AuthenticodeSignature stage\synth.exe).SignerCertificate -eq $null) { throw "synth.exe has no signature" }
+
       - name: Installer
         shell: pwsh
         run: |
@@ -95,21 +143,42 @@ jobs:
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           Get-ChildItem installer
 
+      - name: Sign the installer
+        if: steps.cert.outputs.kind != 'none'
+        shell: powershell
+        run: |
+          $timestamp = if ("${{ steps.cert.outputs.kind }}" -eq "real") { "http://timestamp.digicert.com" } else { "" }
+          $setup = (Get-ChildItem installer\*-setup.exe | Select-Object -First 1).FullName
+          .\tools\windows\sign.ps1 -Pfx "${{ steps.cert.outputs.pfx }}" -Password $env:SIGN_PASSWORD -TimestampUrl $timestamp $setup
+          $signature = Get-AuthenticodeSignature $setup
+          if ($signature.SignerCertificate -eq $null) { throw "the installer has no signature" }
+          # Only a certificate from a trusted authority gives a valid chain.
+          if ("${{ steps.cert.outputs.kind }}" -eq "real" -and $signature.Status -ne "Valid") { throw "the installer signature is $($signature.Status)" }
+
       # Install it for real, with no MSYS2 on the PATH, and play a song from
-      # the installed copy: this catches a missing DLL or a wrong layout.
+      # the installed copy: this catches a missing DLL or a wrong layout. The
+      # PATH task is on, which is then undone by uninstalling.
       - name: Try the installed program
         shell: pwsh
         run: |
           $setup = Get-ChildItem installer\*-setup.exe | Select-Object -First 1
           $dir = Join-Path $env:RUNNER_TEMP "synth-installed"
-          Start-Process -Wait -FilePath $setup.FullName -ArgumentList "/VERYSILENT", "/SUPPRESSMSGBOXES", "/NORESTART", "/DIR=$dir"
+          Start-Process -Wait -FilePath $setup.FullName -ArgumentList "/VERYSILENT", "/SUPPRESSMSGBOXES", "/NORESTART", "/DIR=$dir", "/TASKS=addtopath"
           if (-not (Test-Path "$dir\synth.exe")) { throw "synth.exe was not installed" }
           if (-not (Test-Path "$dir\share\synth\songs\welcome.xml")) { throw "the welcome song was not installed" }
+          $userPath = [Environment]::GetEnvironmentVariable("Path", "User")
+          if (-not (";$userPath;".ToUpper().Contains(";$($dir.ToUpper());"))) { throw "the install directory is not on the user PATH" }
+          $binaural = Test-Path "$dir\share\sofa\MIT_KEMAR_normal_pinna.sofa"
+          Write-Output "SOFA file installed: $binaural"
           $env:PATH = "$env:SystemRoot\System32;$env:SystemRoot;$env:SystemRoot\System32\Wbem;$((Get-Command python).Source | Split-Path)"
           Push-Location $env:RUNNER_TEMP
-          python "$env:GITHUB_WORKSPACE\tools\smoke_headless.py" "$dir\synth.exe" - 6
+          $expect = if ($binaural) { "SOFA file" } else { "" }
+          python "$env:GITHUB_WORKSPACE\tools\smoke_headless.py" "$dir\synth.exe" - 6 $expect
           python "$env:GITHUB_WORKSPACE\tools\smoke_headless.py" "$dir\synth.exe" "$dir\share\synth\songs\demo3.xml" 6
           Pop-Location
+          Start-Process -Wait -FilePath "$dir\unins000.exe" -ArgumentList "/VERYSILENT", "/SUPPRESSMSGBOXES", "/NORESTART"
+          $userPath = [Environment]::GetEnvironmentVariable("Path", "User")
+          if (";$userPath;".ToUpper().Contains(";$($dir.ToUpper());")) { throw "uninstalling left the install directory on the user PATH" }
 
       - uses: actions/upload-artifact@v4
         with:
@@ -123,5 +192,5 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           gh release view $env:GITHUB_REF_NAME 2>$null
-          if ($LASTEXITCODE -ne 0) { gh release create $env:GITHUB_REF_NAME --title $env:GITHUB_REF_NAME --notes "Windows installer: run it, then use the Start menu entries, or synth.exe --headless from a terminal. Audio and MIDI on Windows are new." }
+          if ($LASTEXITCODE -ne 0) { gh release create $env:GITHUB_REF_NAME --title $env:GITHUB_REF_NAME --notes "Windows installer: run it, then use the Start menu entries, or synth.exe --ui headless from a terminal. Audio and MIDI on Windows are new." }
           gh release upload $env:GITHUB_REF_NAME (Get-ChildItem installer\*-setup.exe).FullName --clobber
