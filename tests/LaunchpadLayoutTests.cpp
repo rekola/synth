@@ -1,4 +1,5 @@
 #include "TestFramework.h"
+#include "../src/model/SendFader.h"
 
 #include "../src/launchpad/LaunchpadLayout.h"
 
@@ -417,8 +418,8 @@ TEST(advance_track_index_steps_within_bounds_and_clamps_at_the_edges) {
 TEST(advance_track_index_seeds_from_the_fallback_when_unassigned) {
   // -1 means "not yet assigned" - the caller folds the fallback track in
   // before calling, so this is really just "seed from N, then step".
-  CHECK(advanceTrackIndex(/*fallback=*/2, 1, 5) == 3);
-  CHECK(advanceTrackIndex(/*fallback=*/2, -1, 5) == 1);
+  CHECK(advanceTrackIndex(/*current_or_unassigned=*/2, 1, 5) == 3);
+  CHECK(advanceTrackIndex(/*current_or_unassigned=*/2, -1, 5) == 1);
 }
 
 namespace {
@@ -513,4 +514,16 @@ TEST(step_rows_cover_the_top_half_left_to_right_then_bottom_to_top) {
   CHECK(stepForPad(0, kPlayRows + 1) == 8);
   CHECK(stepForPad(7, 7) == kStepsPerView - 1);
   CHECK(stepForPad(8, 5) == -1);
+}
+
+TEST(send_dial_points_apart_for_every_fader_row) {
+  // Row 0 is off (-100 dB), row r >= 1 is -36 dB plus 6 dB per row above the first.
+  float previous = -1.0f;
+  for (int row = 0; row < 8; row++) {
+    float db = row == 0 ? -100.0f : kSendFloorDb + 6.0f * static_cast<float>(row - 1);
+    float fraction = sendDbToFraction(db);
+    CHECK(fraction > previous);
+    previous = fraction;
+  }
+  CHECK_NEAR(sendDbToFraction(0.0f), 1.0f, 1e-6);
 }
