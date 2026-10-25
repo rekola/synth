@@ -3,8 +3,8 @@
 
 #include "InfoDialog.h"
 #include <cellui/Fade.h>
-#include "../UIElement.h"
-#include "../../model/TrackType.h"
+#include "UIElement.h"
+#include "../model/TrackType.h"
 
 #include <chrono>
 #include <memory>
@@ -13,7 +13,7 @@
 #include <string>
 #include <utility>
 
-#include "../StyleProvider.h"
+#include "StyleProvider.h"
 #include <cellui/Viewport.h>
 
 // What a row's own default action(s) - Key::Enter/Key::Delete, and what
@@ -55,7 +55,7 @@ struct DetailsLine {
 // Instruments - the same "collapsible headings" shape Emacs's own
 // outline-mode shows for a text buffer, applied to the song structure
 // instead. Shown as a panel on the left of ClipGrid in Live View
-// (UI::View; "toggle-outline"/"outline-view", see TerminalUI::layout()).
+// (UI::View; "toggle-outline"/"outline-view", see InteractiveUI::layout()).
 //
 // A narrow panel: an "Outline" heading, the scrollable tree across the
 // whole width, and over its bottom rows (only while the cursor's row has

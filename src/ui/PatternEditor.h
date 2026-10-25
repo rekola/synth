@@ -1,19 +1,19 @@
 #ifndef _PATTERNEDITOR_H_
 #define _PATTERNEDITOR_H_
 
-#include "../UIElement.h"
-#include "../GridPosition.h"
-#include "../../model/Song.h"
-#include "../../state/PlaybackInfo.h"
+#include "UIElement.h"
+#include "GridPosition.h"
+#include "../model/Song.h"
+#include "../state/PlaybackInfo.h"
 #include <chrono>
 #include <optional>
-#include "../../model/PatternBlockOps.h"
-#include "../ClipboardEntry.h"
-#include "../../playback/MidiNoteInput.h"
-#include "../SelectionBounds.h"
-#include "../PatternSource.h"
-#include "../ChordGrouper.h"
-#include "../ScenePatternSource.h"
+#include "../model/PatternBlockOps.h"
+#include "ClipboardEntry.h"
+#include "../playback/MidiNoteInput.h"
+#include "SelectionBounds.h"
+#include "PatternSource.h"
+#include "ChordGrouper.h"
+#include "ScenePatternSource.h"
 #include "InlineEditor.h"
 #include "LevelMeter.h"
 
@@ -31,7 +31,7 @@
 
 class Synth;
 #include <cellui/Input.h>
-#include "../StyleProvider.h"
+#include "StyleProvider.h"
 class Song;
 class VisibleTrackInfo;
 class Controller;

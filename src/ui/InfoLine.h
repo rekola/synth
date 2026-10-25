@@ -1,10 +1,10 @@
 #ifndef _INFOLINE_H_
 #define _INFOLINE_H_
 
-#include "../UIElement.h"
-#include "../../Controller.h"
-#include "../../state/SongState.h"
-#include "../../util/Utf8.h"
+#include "UIElement.h"
+#include "../Controller.h"
+#include "../state/SongState.h"
+#include "../util/Utf8.h"
 
 #include <algorithm>
 #include <fmt/format.h>

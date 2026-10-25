@@ -1,9 +1,9 @@
 #ifndef _INSTRUMENTLIST_H_
 #define _INSTRUMENTLIST_H_
 
-#include "../UIElement.h"
+#include "UIElement.h"
 
-#include "../StyleProvider.h"
+#include "StyleProvider.h"
 
 class InstrumentList : public UIElement {
  public:

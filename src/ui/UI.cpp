@@ -406,7 +406,7 @@ UI::initializeCommands() {
   // to one of these names rather than redefine what it does. A command
   // that does need a backend-specific dialog/prompt, or reaches into a
   // concrete widget, stays defined in that backend instead (e.g.
-  // TerminalUI::initializeWidgets()).
+  // InteractiveUI::initializeWidgets()).
   commands_.define("about", [this]() { showInfoDialog(kAboutTitle, kAboutMarkdown); });
 
   // The device pickers list what is available right now (read fresh each

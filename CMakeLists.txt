@@ -12,9 +12,9 @@ include(GNUInstallDirs)
 # The full `synth` (--ui headless, the Launchpad, live MIDI and audio) builds
 # everywhere; OFF gives the engine, the tests and a render-only `synth`
 # (src/main_render.cpp). The terminal backend of lib/cellui is POSIX only;
-# on Windows the same UI (TerminalUI) runs in cellui's Win32 window.
+# on Windows the same UI (InteractiveUI) runs in cellui's Win32 window.
 option(SYNTH_BUILD_INTERACTIVE "Build the full synth (headless mode, Launchpad, live audio/MIDI)" ON)
-option(SYNTH_BUILD_TERMINAL_UI "Build the interactive UI (TerminalUI: in the terminal, or on Windows in the window)" ON)
+option(SYNTH_BUILD_TERMINAL_UI "Build the interactive UI (InteractiveUI: in the terminal, or on Windows in the window)" ON)
 
 # Default to an optimized build when the generator supports build types (a
 # plain `cmake -B build` with no CMAKE_BUILD_TYPE otherwise applies no -O
@@ -96,7 +96,7 @@ add_library(synth_engine STATIC
 	src/instruments/PadSynthTable.cpp
 	src/instruments/InstrumentLibrary.cpp
 	src/Controller.cpp
-	src/ui/tui/InstrumentList.cpp
+	src/ui/InstrumentList.cpp
 	src/instruments/SoundFont.cpp
 	src/instruments/SF2Modulator.cpp
 	src/model/Song.cpp
@@ -153,7 +153,7 @@ add_library(synth_engine STATIC
 	src/model/JustIntonation.cpp
 	src/model/PatternGrid.cpp
 	src/model/ArrangementOps.cpp
-	src/ui/tui/PatternScroll.cpp
+	src/ui/PatternScroll.cpp
 	src/ui/ArrangementPatternSource.cpp
 	src/ui/ScenePatternSource.cpp
 	src/launchpad/LaunchpadLayout.cpp
@@ -310,7 +310,7 @@ if(SYNTH_BUILD_INTERACTIVE)
   	src/ui/CommandDescriptions.cpp
   	src/ui/UI.cpp
   	src/launchpad/LaunchpadManager.cpp
-  	src/ui/headless/HeadlessUI.cpp
+  	src/ui/HeadlessUI.cpp
   )
   target_link_libraries(synth_ui PUBLIC synth_engine)
   if(SYNTH_BUILD_TERMINAL_UI)
@@ -318,11 +318,11 @@ if(SYNTH_BUILD_INTERACTIVE)
       target_sources(synth_ui PRIVATE src/util/StderrCapture.cpp)
     endif()
     target_sources(synth_ui PRIVATE
-      src/ui/tui/TerminalUI.cpp
-      src/ui/tui/OutlineView.cpp
-      src/ui/tui/PatternEditor.cpp
-      src/ui/tui/ArrangementGrid.cpp
-      src/ui/tui/ClipGrid.cpp)
+      src/ui/InteractiveUI.cpp
+      src/ui/OutlineView.cpp
+      src/ui/PatternEditor.cpp
+      src/ui/ArrangementGrid.cpp
+      src/ui/ClipGrid.cpp)
   endif()
 
   # add the executable

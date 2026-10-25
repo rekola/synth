@@ -1,10 +1,10 @@
-#include "TerminalUI.h"
+#include "InteractiveUI.h"
 
-#include "../../playback/InputEvent.h"
-#include "../../Controller.h"
-#include "../UIMenu.h"
-#include "../CommandDescriptions.h"
-#include "../HeatmapChart.h"
+#include "../playback/InputEvent.h"
+#include "../Controller.h"
+#include "UIMenu.h"
+#include "CommandDescriptions.h"
+#include "HeatmapChart.h"
 #include "InfoLine.h"
 #include "StatusLine.h"
 #include "PatternEditor.h"
@@ -14,35 +14,35 @@
 #include "SpectrumMeter.h"
 #include "OutlineView.h"
 #include "SpinBox.h"
-#include "../../dsp/DiracAnalyzer.h"
-#include "../../audio/AudioAPI.h"
-#include "../../launchpad/LaunchpadIO.h"
-#include "../../midi/MidiInput.h"
-#include "../../util/WaitSet.h"
-#include "../../launchpad/LaunchpadPadEvent.h"
-#include "../../launchpad/LaunchpadButtonEvent.h"
-#include "../../launchpad/LaunchpadChannelPressureEvent.h"
-#include "../../launchpad/LaunchpadProtocol.h"
-#include "../../launchpad/LaunchpadManager.h"
+#include "../dsp/DiracAnalyzer.h"
+#include "../audio/AudioAPI.h"
+#include "../launchpad/LaunchpadIO.h"
+#include "../midi/MidiInput.h"
+#include "../util/WaitSet.h"
+#include "../launchpad/LaunchpadPadEvent.h"
+#include "../launchpad/LaunchpadButtonEvent.h"
+#include "../launchpad/LaunchpadChannelPressureEvent.h"
+#include "../launchpad/LaunchpadProtocol.h"
+#include "../launchpad/LaunchpadManager.h"
 #include "SubcellGlyphs.h"
-#include "../../util/Utf8.h"
-#include "../../util/constants.h"
-#include "../../model/Color.h"
-#include "../KeyStroke.h"
-#include "../../playback/Player.h"
-#include "../../playback/PlaybackEvent.h"
-#include "../../playback/LogEvent.h"
-#include "../WaitSources.h"
-#include "../../playback/RecordEvent.h"
-#include "../../playback/RecordingLatencyEvent.h"
-#include "../../model/ArrangementOps.h"
-#include "../../audio/AudioBuffer.h"
-#include "../../playback/ThresholdRecordingTriggeredEvent.h"
-#include "../../playback/PlaybackControlEvent.h"
-#include "../../playback/AudioBlockEvent.h"
-#include "../../playback/VisualizationResultEvent.h"
-#include "../../playback/VisualizationThread.h"
-#include "../../bus/BusEffectRegistry.h"
+#include "../util/Utf8.h"
+#include "../util/constants.h"
+#include "../model/Color.h"
+#include "KeyStroke.h"
+#include "../playback/Player.h"
+#include "../playback/PlaybackEvent.h"
+#include "../playback/LogEvent.h"
+#include "WaitSources.h"
+#include "../playback/RecordEvent.h"
+#include "../playback/RecordingLatencyEvent.h"
+#include "../model/ArrangementOps.h"
+#include "../audio/AudioBuffer.h"
+#include "../playback/ThresholdRecordingTriggeredEvent.h"
+#include "../playback/PlaybackControlEvent.h"
+#include "../playback/AudioBlockEvent.h"
+#include "../playback/VisualizationResultEvent.h"
+#include "../playback/VisualizationThread.h"
+#include "../bus/BusEffectRegistry.h"
 
 #include <cstdio>
 #include <ctime>
@@ -66,7 +66,7 @@
 #include <sys/time.h>
 
 #ifdef _WIN32
-#include "../../util/StderrCapture.h"
+#include "../util/StderrCapture.h"
 #endif
 #include <cellui/MenuBar.h>
 #include <cellui/KeyReader.h>
@@ -396,7 +396,7 @@ private:
   string activated_command_;
 };
 
-TerminalUI::TerminalUI(cellui::Backend & backend)
+InteractiveUI::InteractiveUI(cellui::Backend & backend)
     : backend_(backend), screen_(backend.rows(), backend.cols()) {
   // Something that closes on a bare Escape gets it at once, rather than when
   // the next key shows it was no Alt prefix.
@@ -418,14 +418,14 @@ TerminalUI::TerminalUI(cellui::Backend & backend)
   };
 }
 
-TerminalUI::~TerminalUI() {
+InteractiveUI::~InteractiveUI() {
 }
 
 // Shows "ESC-" once a pending Escape has waited KeyReader::kIndicatorDelay,
 // the way Emacs shows its Meta prefix; readInput() clears it when the wait
 // ends.
 void
-TerminalUI::updateEscapeIndicator() {
+InteractiveUI::updateEscapeIndicator() {
   auto due = key_reader_.indicatorDue();
   if (!due || escape_indicator_shown_) return;
   if (std::chrono::steady_clock::now() >= *due) {
@@ -436,7 +436,7 @@ TerminalUI::updateEscapeIndicator() {
 
 // The loop's wait, shortened so the indicator appears on time.
 int
-TerminalUI::escapeIndicatorPollTimeoutMs() const {
+InteractiveUI::escapeIndicatorPollTimeoutMs() const {
   constexpr int kDefaultPollTimeoutMs = 1000;
   auto due = key_reader_.indicatorDue();
   if (!due || escape_indicator_shown_) return kDefaultPollTimeoutMs;
@@ -445,7 +445,7 @@ TerminalUI::escapeIndicatorPollTimeoutMs() const {
 }
 
 void
-TerminalUI::initialize(std::shared_ptr<Controller> & controller) {
+InteractiveUI::initialize(std::shared_ptr<Controller> & controller) {
   const auto & display = backend_.display();
   bool use_pixel = display.pictures && display.cell_px_height > 0 && display.cell_px_width > 0;
   auto root_plane = make_unique<cellui::BufferPlane>(screen_, styles_, controller);
@@ -502,7 +502,7 @@ TerminalUI::initialize(std::shared_ptr<Controller> & controller) {
 // section floats at the overlay elevation over everything but a modal
 // dialog) - and an open modal dialog above its scrim, which share the modal
 // elevation.
-void TerminalUI::raiseOverlays() {
+void InteractiveUI::raiseOverlays() {
   menu_->raiseToTop();
   modal_scrim_.raise();
   command_palette_.raise();
@@ -514,7 +514,7 @@ void TerminalUI::raiseOverlays() {
 }
 
 void
-TerminalUI::render() {
+InteractiveUI::render() {
   raiseOverlays();
   root_plane_->refresh();
   cellui::CursorRequest cursor;
@@ -531,14 +531,14 @@ TerminalUI::render() {
 }
 
 void
-TerminalUI::step() {
+InteractiveUI::step() {
   readInput();
   renderComponents();
   render();
 }
 
 std::string
-TerminalUI::focusName() const {
+InteractiveUI::focusName() const {
   if (command_palette_.isOpen()) return "command-palette";
   if (choice_dialog_.isOpen()) return "choice-dialog";
   if (info_dialog_.isOpen()) return "info-dialog";
@@ -554,7 +554,7 @@ TerminalUI::focusName() const {
 }
 
 void
-TerminalUI::resizeScreen() {
+InteractiveUI::resizeScreen() {
   if (screen_.rows() == backend_.rows() && screen_.cols() == backend_.cols()) return;
   screen_ = cellui::CellBuffer(backend_.rows(), backend_.cols());
   root_plane_->resize(backend_.rows(), backend_.cols());
@@ -563,7 +563,7 @@ TerminalUI::resizeScreen() {
 // The command row has no background of its own: the display cannot draw the
 // last cell of the last row, so a coloured row would end in a different one.
 void
-TerminalUI::clearLastRow() {
+InteractiveUI::clearLastRow() {
   auto [rows, cols] = getDim();
   if (rows < 1) return;
   setBgDefault();
@@ -571,7 +571,7 @@ TerminalUI::clearLastRow() {
 }
 
 void
-TerminalUI::applyTheme(const Theme & theme) {
+InteractiveUI::applyTheme(const Theme & theme) {
   styles_.applyTheme(theme);
   if (!hasPlane()) return;
   setFgColor(styles_.window_fg_color);
@@ -583,18 +583,18 @@ TerminalUI::applyTheme(const Theme & theme) {
   force_next_render_ = true;
 }
 
-void TerminalUI::setReducedMotion(bool reduced) {
+void InteractiveUI::setReducedMotion(bool reduced) {
   styles_.reduced_motion = reduced;
   force_next_render_ = true;
 }
 
 void
-TerminalUI::refresh() {
+InteractiveUI::refresh() {
   backend_.redraw();
 }
 
 bool
-TerminalUI::readInput() {
+InteractiveUI::readInput() {
   using cellui::BackendEvent;
   for (auto & event : backend_.poll()) {
     switch (event.type) {
@@ -637,7 +637,7 @@ TerminalUI::readInput() {
 }
 
 void
-TerminalUI::commitOverviewCell(int track_id, int row) {
+InteractiveUI::commitOverviewCell(int track_id, int row) {
   // The whole commit refuses while playing - matches PatternEditor's own
   // move-row-up/move-row-down guard (row navigation only ever runs while
   // stopped), and avoids a commit that silently only did half of what it
@@ -656,7 +656,7 @@ TerminalUI::commitOverviewCell(int track_id, int row) {
 }
 
 void
-TerminalUI::initializeWidgets() {
+InteractiveUI::initializeWidgets() {
   // chart and volume are missing
   pattern_editor_ = make_shared<PatternEditor>(getPlane());
   pattern_editor_->setScopes(scopes_.get());
@@ -1012,7 +1012,7 @@ TerminalUI::initializeWidgets() {
 }
 
 bool
-TerminalUI::executeCommand(std::string_view name) {
+InteractiveUI::executeCommand(std::string_view name) {
   // A command reached here other than through M-x's own submission (a menu
   // click, Launchpad-by-name dispatch) always takes focus away from
   // whatever a status-line prompt was reading, same as StatusLine::cancelReader()'s own
@@ -1044,7 +1044,7 @@ TerminalUI::executeCommand(std::string_view name) {
 }
 
 std::set<std::string>
-TerminalUI::commandCompletions(std::string_view prefix) const {
+InteractiveUI::commandCompletions(std::string_view prefix) const {
   // A set, not a list - more than one source below can legitimately define
   // the same command name (e.g. a widget-local override), and "every known
   // command name" is a set to begin with; ordered so a later phase can show
@@ -1061,7 +1061,7 @@ TerminalUI::commandCompletions(std::string_view prefix) const {
   return result;
 }
 
-void TerminalUI::drawScopeTitle(int row, int col, int width, const std::string & text, bool ends_in_divider) {
+void InteractiveUI::drawScopeTitle(int row, int col, int width, const std::string & text, bool ends_in_divider) {
   const auto & bg = styles_.window_accent_bg_color;
   setFgColor(styles_.window_accent_fg_color);
   setBgColor(bg);
@@ -1074,7 +1074,7 @@ void TerminalUI::drawScopeTitle(int row, int col, int width, const std::string &
   }
 }
 
-int TerminalUI::arrangementScopeRows() const {
+int InteractiveUI::arrangementScopeRows() const {
   // The two scopes at their Live View size under their title bars; more for a
   // song with more tracks (a header of two rows, then a row per track), but at
   // most a third of the screen.
@@ -1085,7 +1085,7 @@ int TerminalUI::arrangementScopeRows() const {
 }
 
 void
-TerminalUI::layout() {
+InteractiveUI::layout() {
   auto [ rows, cols ] = getDim();
   outline_view_->setScreenSize(rows, cols);
 
@@ -1226,8 +1226,8 @@ TerminalUI::layout() {
 }
 
 bool
-TerminalUI::renderComponents(bool refresh) {
-  // See force_next_render_'s own comment on TerminalUI.h - consumed here
+InteractiveUI::renderComponents(bool refresh) {
+  // See force_next_render_'s own comment on InteractiveUI.h - consumed here
   // (the one call site whose own return value actually reaches startUI()'s
   // render() gate), not at whichever earlier, input-handling call site
   // actually requested it.
@@ -1328,7 +1328,7 @@ TerminalUI::renderComponents(bool refresh) {
 }
 
 bool
-TerminalUI::syncLiveView() {
+InteractiveUI::syncLiveView() {
   auto & song = getController().getSong();
 
   // The track: the shared current track, in each widget's own index space.
@@ -1353,7 +1353,7 @@ TerminalUI::syncLiveView() {
 }
 
 std::vector<std::shared_ptr<cellui::Widget>>
-TerminalUI::focusableElements() const {
+InteractiveUI::focusableElements() const {
   if (getView() == View::ARRANGEMENT) {
     if (!scopes_visible_) return { pattern_editor_ };
     return { pattern_editor_, arrangement_grid_ };
@@ -1368,7 +1368,7 @@ TerminalUI::focusableElements() const {
 }
 
 void
-TerminalUI::viewChanged() {
+InteractiveUI::viewChanged() {
   auto active = active_element_.lock();
   auto elements = focusableElements();
   if (std::find(elements.begin(), elements.end(), active) == elements.end()) {
@@ -1396,11 +1396,11 @@ TerminalUI::viewChanged() {
   synced_track_id_ = -1;
   layout();
   // Not a direct renderComponents(true) call here - see
-  // force_next_render_'s own comment on TerminalUI.h.
+  // force_next_render_'s own comment on InteractiveUI.h.
   force_next_render_ = true;
 }
 
-bool TerminalUI::tryActivate(int y, int x, std::shared_ptr<cellui::Widget> element) {
+bool InteractiveUI::tryActivate(int y, int x, std::shared_ptr<cellui::Widget> element) {
   auto [pos_y, pos_x] = element->getPosition();
   auto [rows, cols] = element->getDim();
 
@@ -1413,7 +1413,7 @@ bool TerminalUI::tryActivate(int y, int x, std::shared_ptr<cellui::Widget> eleme
 }
 
 bool
-TerminalUI::offerInput(const cellui::Input & input) {
+InteractiveUI::offerInput(const cellui::Input & input) {
   bool handled = false;
 
   // No open reader (a StatusLine prompt, any widget's inline
@@ -1476,7 +1476,7 @@ TerminalUI::offerInput(const cellui::Input & input) {
     layoutChoiceDialog();
     layoutCommandPalette();
     // Deferred, not a direct renderComponents(true) call - see
-    // force_next_render_'s own comment on TerminalUI.h: this runs from
+    // force_next_render_'s own comment on InteractiveUI.h: this runs from
     // inside input handling, before startUI()'s own main loop reaches its
     // own renderComponents() call (the one that actually gates
     // render(), the real terminal update) - a direct call here would
@@ -1595,7 +1595,7 @@ TerminalUI::offerInput(const cellui::Input & input) {
 }
 
 void
-TerminalUI::setStatus(std::string s) {
+InteractiveUI::setStatus(std::string s) {
   if (status_line_) {
     status_line_->setMessage(std::move(s));
     render();
@@ -1603,14 +1603,14 @@ TerminalUI::setStatus(std::string s) {
 }
 
 void
-TerminalUI::showInfoDialog(const std::string & title, const std::string & markdown) {
+InteractiveUI::showInfoDialog(const std::string & title, const std::string & markdown) {
   info_dialog_title_ = title;
   info_dialog_markdown_ = markdown;
   layoutInfoDialog();
   force_next_render_ = true;
 }
 
-void TerminalUI::showChoiceDialog(const std::string & title, std::vector<Choice> choices, int current,
+void InteractiveUI::showChoiceDialog(const std::string & title, std::vector<Choice> choices, int current,
                                   std::function<void(int)> on_choose) {
   if (choices.empty()) {
     setStatus(title + ": nothing to choose from");
@@ -1625,7 +1625,7 @@ void TerminalUI::showChoiceDialog(const std::string & title, std::vector<Choice>
 }
 
 // How the active widgets bind `command` on this display, the focused one first.
-std::string TerminalUI::bindingFor(const std::string & command) const {
+std::string InteractiveUI::bindingFor(const std::string & command) const {
   if (auto active = active_element_.lock()) {
     if (auto binding = active->bindingFor(command); !binding.empty()) return binding;
   }
@@ -1634,7 +1634,7 @@ std::string TerminalUI::bindingFor(const std::string & command) const {
   return cellui::Widget::bindingFor(command);
 }
 
-void TerminalUI::showCommandPalette() {
+void InteractiveUI::showCommandPalette() {
   // Opening it aborts a widget's own half-typed edit, like any prompt.
   pattern_editor_->cancelReaderEdit();
   clip_grid_->cancelReaderEdit();
@@ -1647,13 +1647,13 @@ void TerminalUI::showCommandPalette() {
   force_next_render_ = true;
 }
 
-void TerminalUI::layoutCommandPalette() {
+void InteractiveUI::layoutCommandPalette() {
   if (!command_palette_.isOpen()) return;
   auto [screen_rows, screen_cols] = getDim();
   command_palette_.show(getPlane(), screen_rows, screen_cols);
 }
 
-void TerminalUI::handleCommandPaletteInput(const cellui::Input & input) {
+void InteractiveUI::handleCommandPaletteInput(const cellui::Input & input) {
   auto result = command_palette_.offerInput(input);
   if (result == cellui::CommandPalette::Result::NONE) {
     layoutCommandPalette(); // redraw with the new query or selection
@@ -1669,7 +1669,7 @@ void TerminalUI::handleCommandPaletteInput(const cellui::Input & input) {
   if (!name.empty() && !getController().sendCommand(name)) setStatus("Invalid command");
 }
 
-void TerminalUI::layoutModalScrim() {
+void InteractiveUI::layoutModalScrim() {
   if (!choice_dialog_.isOpen() && info_dialog_title_.empty()) {
     modal_scrim_.close();
     return;
@@ -1678,14 +1678,14 @@ void TerminalUI::layoutModalScrim() {
   modal_scrim_.show(getPlane(), screen_rows, screen_cols, getPlane().getStyles().theme.modal_backdrop);
 }
 
-void TerminalUI::layoutChoiceDialog() {
+void InteractiveUI::layoutChoiceDialog() {
   if (!choice_dialog_.isOpen()) return;
   layoutModalScrim();
   auto [screen_rows, screen_cols] = getDim();
   choice_dialog_.show(getPlane(), screen_rows, screen_cols);
 }
 
-void TerminalUI::handleChoiceDialogInput(const cellui::Input & input) {
+void InteractiveUI::handleChoiceDialogInput(const cellui::Input & input) {
   auto result = choice_dialog_.offerInput(input);
   if (result == ChoiceDialog::Result::NONE) {
     layoutChoiceDialog(); // redraw with the moved selection
@@ -1702,7 +1702,7 @@ void TerminalUI::handleChoiceDialogInput(const cellui::Input & input) {
 
 // Centers the dialog on the screen.
 void
-TerminalUI::layoutInfoDialog() {
+InteractiveUI::layoutInfoDialog() {
   if (info_dialog_title_.empty()) return;
   layoutModalScrim();
   auto [screen_rows, screen_cols] = getDim();
@@ -1712,11 +1712,11 @@ TerminalUI::layoutInfoDialog() {
 }
 
 cellui::EventLoop &
-TerminalUI::eventLoop() {
+InteractiveUI::eventLoop() {
   return backend_.eventLoop();
 }
 
-void TerminalUI::handlePlaybackEvent(const PlaybackEvent & ev) {
+void InteractiveUI::handlePlaybackEvent(const PlaybackEvent & ev) {
   // Reconciled, not a plain setPlaybackInfo() - see Controller::
   // receivePlaybackSnapshot()'s own comment: this snapshot's own
   // edit-position fields can be stale relative to a more recent local
@@ -1777,7 +1777,7 @@ void TerminalUI::handlePlaybackEvent(const PlaybackEvent & ev) {
 // Shows the scopes empty and forgets what they held, so the next result
 // redraws them whatever it equals.
 void
-TerminalUI::blankScopes() {
+InteractiveUI::blankScopes() {
   scopes_stale_ = false;
   chart_->clear();
   heatmap_->setGrid(std::vector<float>(DiracAnalyzer::kGridSize, 0.0f), std::vector<float>(DiracAnalyzer::kGridSize, 0.0f));
@@ -1790,7 +1790,7 @@ TerminalUI::blankScopes() {
   dirac_running_max_ = 0.0f;
 }
 
-void TerminalUI::handleVisualizationResultEvent(const VisualizationResultEvent & ev) {
+void InteractiveUI::handleVisualizationResultEvent(const VisualizationResultEvent & ev) {
   // If a newer event is already queued behind this one, this one's visual
   // result is about to be immediately overwritten - skip the
   // comparatively expensive chart/meter update work for it. Doesn't
@@ -1889,17 +1889,17 @@ void TerminalUI::handleVisualizationResultEvent(const VisualizationResultEvent &
   if (changed) redraw_requested_ = true;
 }
 
-void TerminalUI::handleMidiEvent(const MidiEvent & ev) {
+void InteractiveUI::handleMidiEvent(const MidiEvent & ev) {
   pattern_editor_->handleMidiEvent(ev);
 }
 
 int
-TerminalUI::launchpadEditStepSize() const {
+InteractiveUI::launchpadEditStepSize() const {
   return pattern_editor_->getEditStepSize();
 }
 
 void
-TerminalUI::wireLaunchpad(LaunchpadManager & launchpad_manager) {
+InteractiveUI::wireLaunchpad(LaunchpadManager & launchpad_manager) {
   // launchpad_manager_ itself is already set by UI::start() before this
   // hook runs.
   // "move-row-up"/"move-row-down" while in GridMode::LIVE move
@@ -1989,7 +1989,7 @@ TerminalUI::wireLaunchpad(LaunchpadManager & launchpad_manager) {
 }
 
 void
-TerminalUI::startUI(AudioAPI &, MidiInput & midi, LaunchpadIO & launchpad_io) {
+InteractiveUI::startUI(AudioAPI &, MidiInput & midi, LaunchpadIO & launchpad_io) {
 #ifndef _WIN32
   int out_pipe[2];
 
@@ -2220,7 +2220,7 @@ TerminalUI::startUI(AudioAPI &, MidiInput & midi, LaunchpadIO & launchpad_io) {
 
       if (render) {
         count("present");
-        TerminalUI::render();
+        InteractiveUI::render();
       }
       // A colour still easing needs the next frame even if nothing else wakes
       // the loop.

@@ -4,7 +4,7 @@
 
 #include "../src/Controller.h"
 #include "../src/ambisonic/ChannelConfiguration.h"
-#include "../src/ui/tui/TerminalUI.h"
+#include "../src/ui/InteractiveUI.h"
 
 #include <cellui/TestBackend.h>
 
@@ -30,13 +30,13 @@ struct UIFixture {
   ChannelConfiguration config{44100, 1};
   std::shared_ptr<Controller> controller = std::make_shared<Controller>(config);
   cellui::test::TestBackend terminal;
-  std::unique_ptr<TerminalUI> ui;
+  std::unique_ptr<InteractiveUI> ui;
 
   explicit UIFixture(const std::string & song = "", UI::View view = UI::View::LIVE, cellui::DisplayInfo display = {})
       : terminal(40, 120, std::move(display)) {
     if (song.empty()) controller->switchToBuffer(controller->freshBufferName());
     else CHECK(controller->openSong(song));
-    ui = std::make_unique<TerminalUI>(terminal);
+    ui = std::make_unique<InteractiveUI>(terminal);
     ui->setTheme("dark");
     ui->setReducedMotion(true); // states change at once, so a test sees exact frames
     ui->setInitialView(view);

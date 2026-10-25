@@ -7,7 +7,7 @@ navigating the shared cursor onto a step-sequenced PercussionTrack used
 to show/allow editing the background pattern directly, unconditionally,
 even with Record Arm off). Opening a clip is a Launchpad gesture (shift + pad in Live View) - it
 switches that Launchpad into NOTES mode showing the clip's own step grid
-(TerminalUI.cpp's own drum-edit-request listener,
+(InteractiveUI.cpp's own drum-edit-request listener,
 LaunchpadManager::openStepView()). The simulated device does that, then
 this script confirms a pad press there toggles that lane/step immediately,
 reflected in the LED colors sent back to the device - not silently

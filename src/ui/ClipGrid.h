@@ -1,16 +1,16 @@
 #ifndef _CLIPGRID_H_
 #define _CLIPGRID_H_
 
-#include "../UIElement.h"
+#include "UIElement.h"
 #include "InlineEditor.h"
 #include "LevelMeter.h"
 
 #include <cellui/Dial.h>
 #include <cellui/Fade.h>
 #include <cellui/Scopes.h>
-#include "../../launchpad/ClipHighlight.h"
-#include "../../model/Clip.h"
-#include "../../model/SendLevels.h"
+#include "../launchpad/ClipHighlight.h"
+#include "../model/Clip.h"
+#include "../model/SendLevels.h"
 
 #include <algorithm>
 #include <chrono>
@@ -22,7 +22,7 @@
 #include <vector>
 
 #include <cellui/Input.h>
-#include "../StyleProvider.h"
+#include "StyleProvider.h"
 class Song;
 
 // A per-track overview: one column per color-eligible leaf track (Song::
@@ -52,7 +52,7 @@ class Song;
 // populated clip cells only, never washed across the whole column.
 //
 // Shown in Live View (UI::View), above PatternEditor - see
-// TerminalUI::layout().
+// InteractiveUI::layout().
 class ClipGrid : public UIElement {
  public:
   ClipGrid(Plane & parent);
@@ -83,7 +83,7 @@ class ClipGrid : public UIElement {
   }
 
   // Lets UI move the column cursor to the shared current track
-  // (TerminalUI::syncLiveView()).
+  // (InteractiveUI::syncLiveView()).
   void setCursorTrackIndex(int track_index) { cursor_track_index_ = track_index; }
 
   // Read-only counterparts, for Controller::setClipGridCursor() (kept

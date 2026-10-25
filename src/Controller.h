@@ -676,7 +676,7 @@ class Controller {
   // spot) goes through here rather than pushing MOVE_POSITION/SET_POSITION
   // directly, for the same reason togglePlaying() above updates its own
   // mirror synchronously instead of only pushing an event: the UI thread's
-  // own main loop (TerminalUI::readInput()) drains every currently-buffered
+  // own main loop (InteractiveUI::readInput()) drains every currently-buffered
   // terminal keystroke in one tight loop before ever returning to poll()
   // and giving the Player thread's PlaybackEvent round-trip a chance to be
   // read back - so a burst of terminal-generated key auto-repeat (holding

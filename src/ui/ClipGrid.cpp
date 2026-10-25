@@ -1,18 +1,18 @@
 #include "ClipGrid.h"
 #include "LevelMeter.h"
-#include "../ScenePatternSource.h"
+#include "ScenePatternSource.h"
 
-#include "../../playback/InputEvent.h"
-#include "../KeyStroke.h"
-#include "../StyleProvider.h"
-#include "../../Controller.h"
-#include "../../model/Song.h"
-#include "../../model/ArrangementOps.h"
-#include "../../model/LeafTrack.h"
-#include "../../model/Clip.h"
-#include "../../model/SendFader.h"
-#include "../../model/SongStructure.h"
-#include "../../util/Utf8.h"
+#include "../playback/InputEvent.h"
+#include "KeyStroke.h"
+#include "StyleProvider.h"
+#include "../Controller.h"
+#include "../model/Song.h"
+#include "../model/ArrangementOps.h"
+#include "../model/LeafTrack.h"
+#include "../model/Clip.h"
+#include "../model/SendFader.h"
+#include "../model/SongStructure.h"
+#include "../util/Utf8.h"
 
 #include <cellui/Dial.h>
 
@@ -213,7 +213,7 @@ ClipGrid::ClipGrid(Plane & parent) : UIElement(parent) {
   keymap_.bind(KeymapProfile::DESKTOP, KeyStroke::pack('x', true, false, false, false), "kill-region");
   keymap_.bind(KeymapProfile::DESKTOP, KeyStroke::pack('c', true, false, false, false), "kill-ring-save");
   keymap_.bind(KeymapProfile::DESKTOP, KeyStroke::pack('v', true, false, false, false), "yank");
-  // The terminal shortcut is TerminalUI's: its C-c prefix is global, so a widget's
+  // The terminal shortcut is InteractiveUI's: its C-c prefix is global, so a widget's
   // own C-c sequence would never be reached.
   keymap_.bind(KeymapProfile::DESKTOP, KeyStroke::pack('r', true, false, false, false), "rename");
   keymap_.bind(KeymapProfile::DESKTOP, KeyStroke::pack('u', true, false, false, false), "quantize-clip");

@@ -1,7 +1,7 @@
 #ifndef _ARRANGEMENTGRID_H_
 #define _ARRANGEMENTGRID_H_
 
-#include "../UIElement.h"
+#include "UIElement.h"
 
 #include <chrono>
 #include <functional>
@@ -13,7 +13,7 @@
 #include <cellui/Fade.h>
 #include <cellui/Input.h>
 #include <cellui/Viewport.h>
-#include "../StyleProvider.h"
+#include "StyleProvider.h"
 class Song;
 
 // Always-visible overview of the whole song, with time running to the right

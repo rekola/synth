@@ -1,28 +1,28 @@
-#include "../../playback/KeyboardNotes.h"
+#include "../playback/KeyboardNotes.h"
 #include "PatternEditor.h"
 #include "LevelMeter.h"
 
-#include "../../playback/InputEvent.h"
-#include "../../state/SongState.h"
-#include "../../Controller.h"
-#include "../StyleProvider.h"
-#include "../../instruments/Tuning.h"
-#include "../../model/LeafTrack.h"
-#include "../../model/PatternGrid.h"
-#include "../ArrangementPatternSource.h"
-#include "../../model/InstrumentTrack.h"
-#include "../../model/SampleTrack.h"
-#include "../../model/PercussionTrack.h"
-#include "../../model/Group.h"
-#include "../../playback/MidiEvent.h"
-#include "../../playback/MidiNoteInput.h"
-#include "../../playback/PlaybackControlEvent.h"
-#include "../KeyStroke.h"
+#include "../playback/InputEvent.h"
+#include "../state/SongState.h"
+#include "../Controller.h"
+#include "StyleProvider.h"
+#include "../instruments/Tuning.h"
+#include "../model/LeafTrack.h"
+#include "../model/PatternGrid.h"
+#include "ArrangementPatternSource.h"
+#include "../model/InstrumentTrack.h"
+#include "../model/SampleTrack.h"
+#include "../model/PercussionTrack.h"
+#include "../model/Group.h"
+#include "../playback/MidiEvent.h"
+#include "../playback/MidiNoteInput.h"
+#include "../playback/PlaybackControlEvent.h"
+#include "KeyStroke.h"
 #include "PatternScroll.h"
-#include "../../model/ArrangementOps.h"
-#include "../../model/Clip.h"
+#include "../model/ArrangementOps.h"
+#include "../model/Clip.h"
 #include "SubcellGlyphs.h"
-#include "../../util/Utf8.h"
+#include "../util/Utf8.h"
 
 #include <string>
 #include <random>
@@ -1954,7 +1954,7 @@ PatternEditor::offerInputKey(const cellui::Input & input) {
   auto & event_queue = getController().getPlaybackEventQueue();
 
   // Kitty-protocol RELEASE events now reach offerInput() (previously
-  // dropped in TerminalUI::readInput() - see InputEvent::Kind's own doc
+  // dropped in InteractiveUI::readInput() - see InputEvent::Kind's own doc
   // comment). Only the raw computer-keyboard note-entry code below cares
   // about a key actually going up (to stop a held note, mirroring real
   // MIDI/Launchpad note-off) - it's fully self-contained, since
@@ -2044,7 +2044,7 @@ PatternEditor::offerInputKey(const cellui::Input & input) {
       // up. Numpad Divide/Multiply rather than a modifier combo on
       // ordinary keys since every other candidate (Ctrl+Up/Down,
       // Alt+PageUp/PageDown, ...) either collided with something else or
-      // risked terminal/WM interception - see TerminalUI::readInput()'s
+      // risked terminal/WM interception - see InteractiveUI::readInput()'s
       // own comment for why these two specifically need their own
       // escape-sequence recognizer to even arrive as a single key event.
       // INSTRUMENT_CONTROL only - PercussionTrack has no instrument_id_ of

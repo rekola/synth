@@ -1,14 +1,14 @@
 #ifndef _HEADLESSUI_H_
 #define _HEADLESSUI_H_
 
-#include "../UI.h"
-#include "../StyleProvider.h"
+#include "UI.h"
+#include "StyleProvider.h"
 
 #include <cellui/PlatformEventLoop.h>
 #include <cellui/Signal.h>
 #include <memory>
 #include <vector>
-#include "../../playback/MidiNoteInput.h"
+#include "../playback/MidiNoteInput.h"
 
 #include <string>
 #include <unordered_map>

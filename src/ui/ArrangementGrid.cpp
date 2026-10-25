@@ -1,14 +1,14 @@
 #include "ArrangementGrid.h"
 
-#include "../../playback/InputEvent.h"
-#include "../StyleProvider.h"
-#include "../../Controller.h"
-#include "../../model/Song.h"
-#include "../../model/Arrangement.h"
-#include "../../model/Clip.h"
-#include "../../model/ArrangementOps.h"
-#include "../../model/SongStructure.h"
-#include "../KeyStroke.h"
+#include "../playback/InputEvent.h"
+#include "StyleProvider.h"
+#include "../Controller.h"
+#include "../model/Song.h"
+#include "../model/Arrangement.h"
+#include "../model/Clip.h"
+#include "../model/ArrangementOps.h"
+#include "../model/SongStructure.h"
+#include "KeyStroke.h"
 
 #include <algorithm>
 #include <cellui/Utf8.h>
