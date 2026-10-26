@@ -1398,7 +1398,7 @@ TEST(note_names_53edo_spell_just_intonation) {
   CHECK(steps("D4") == 9);                 // 9:8
   CHECK(steps("E4") == 17);                // 5:4
   CHECK(steps("A4") == 39);                // 5:3
-  CHECK(steps("A𝄮4") - steps("D4") == 31); // the fifth above D is A raised by a comma
+  CHECK(steps("A↑4") - steps("D4") == 31); // the fifth above D is A raised by a comma
   CHECK(steps("C♯4") == 3);
   CHECK(steps("C𝄪4") == 7);
   CHECK(steps("Cx4") == steps("C𝄪4"));
@@ -1407,9 +1407,12 @@ TEST(note_names_53edo_spell_just_intonation) {
   CHECK(steps("E𝄫4") == 10); // 8:7
   CHECK(steps("A𝄰4") == 43); // 7:4
   CHECK(steps("B𝄫4") == 41); // 12:7
+  CHECK(steps("D↓4") == 8);  // 10:9
+  CHECK(steps("B♭4") == 45); // 9:5
+  CHECK(steps("B𝄭4") == 44); // 16:9
   // The meantone tunings have no comma step: the arrows are ignored there.
   for (auto tuning : {Tuning::EDO12, Tuning::EDO19, Tuning::EDO31}) {
-    CHECK(Note::stringToKey(tuning, "A𝄮4") == Note::stringToKey(tuning, "A4"));
+    CHECK(Note::stringToKey(tuning, "A↑4") == Note::stringToKey(tuning, "A4"));
     CHECK(Note::stringToKey(tuning, "A𝄰4") == Note::stringToKey(tuning, "A♯4"));
     CHECK(Note::stringToKey(tuning, "E𝄭4") == Note::stringToKey(tuning, "E♭4"));
   }
