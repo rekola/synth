@@ -150,11 +150,10 @@ class Note {
 
   static inline std::string keyToString(Tuning tuning, int value) {
     static const char * note_names_53edo[] = {
-      "C", "C𝄮", "D𝄫", "C♯", "C𝄰", "D𝄭", "D♭", "C𝄪", "D𝄯", "D", "E𝄫", "D𝄱", "D♯", "D𝄰",
-      "E♭", "F𝄫", "D𝄪", "E", "E𝄮", "F♭", "E♯", "F𝄯", "F", "F𝄮", "E𝄪", "F♯", "F𝄰",
-      "G𝄭", "G♭", "F𝄪", "G𝄯", "G", "A𝄫", "G𝄱", "G♯", "A𝄭", "A♭", "A𝄬", "G𝄪", "A",
-      "A𝄮", "B𝄫", "A♯", "A𝄰", "B𝄭", "B♭", "A𝄪", "B𝄯", "B", "B𝄮", "B𝄱", "B♯", "B𝄰"
-    };
+        "C", "C↑", "D𝄫", "C♯", "C𝄰", "D𝄭", "D♭", "C𝄪", "D↓", "D", "E𝄫", "D𝄱", "D♯", "D𝄰",
+        "E♭", "F𝄫", "D𝄪", "E", "E↑", "F♭", "E♯", "F↓", "F", "F↑", "E𝄪", "F♯", "F𝄰",
+        "G𝄭", "G♭", "F𝄪", "G↓", "G", "A𝄫", "G𝄱", "G♯", "A𝄭", "A♭", "A𝄬", "G𝄪", "A",
+        "A↑", "B𝄫", "A♯", "A𝄰", "B𝄭", "B♭", "A𝄪", "B↓", "B", "B↑", "B𝄱", "B♯", "B𝄰"};
     static const char * note_names_31edo[] = { "C", "D𝄫", "C♯", "D♭", "C𝄪", "D", "E𝄫", "D♯",
 					       "E♭", "D𝄪", "E", "F♭", "E♯", "F", "G𝄫", "F♯",
 					       "G♭", "F𝄪", "G", "A𝄫", "G♯", "A♭", "G𝄪", "A",
@@ -331,10 +330,10 @@ class Note {
 	else if (accidental == "bb" || accidental == "𝄫") value -= 2;
 	else if (accidental == "b" || accidental == "♭" || accidental == "𝄭" || accidental == "𝄬") value--;
 	else {
-	  assert(accidental.empty() || accidental == "-" || accidental == "♮" || accidental == "𝄮" || accidental == "𝄯");
-	}
+          assert(accidental.empty() || accidental == "-" || accidental == "♮" || accidental == "↑" || accidental == "↓");
+        }
 
-	return value;
+        return value;
       } else if (tuning == Tuning::EDO19) {
 	auto value = (octave + 1) * 19;
 
@@ -362,10 +361,10 @@ class Note {
         else if (accidental == "b" || accidental == "♭" || accidental == "𝄭" || accidental == "𝄬")
           value -= 1;
 	else {
-          assert(accidental.empty() || accidental == "-" || accidental == "♮" || accidental == "𝄮" || accidental == "𝄯");
-	}
+          assert(accidental.empty() || accidental == "-" || accidental == "♮" || accidental == "↑" || accidental == "↓");
+        }
 
-	return value;
+        return value;
       } else if (tuning == Tuning::EDO31) {
 	auto value = (octave + 1) * 31;
       
@@ -386,10 +385,10 @@ class Note {
 	else if (accidental == "x" || accidental == "𝄪") value += 4;
 	else if (accidental == "bb" || accidental == "𝄫") value -= 4;	
 	else {
-	  assert(accidental.empty() || accidental == "-" || accidental == "♮" || accidental == "𝄮" || accidental == "𝄯");
-	}
+          assert(accidental.empty() || accidental == "-" || accidental == "♮" || accidental == "↑" || accidental == "↓");
+        }
 
-	return value;
+        return value;
       } else {
 	auto value = (octave + 1) * 53;
       
@@ -405,10 +404,13 @@ class Note {
 	else if (accidental == "𝄰") value += 4;
 	else if (accidental == "#" || accidental == "♯") value += 3;
 	else if (accidental == "𝄱") value += 2;
-	else if (accidental == "𝄮") value += 1;
-	else if (accidental == "𝄯") value -= 1;
-	else if (accidental == "𝄬") value -= 2;
-	else if (accidental == "b" || accidental == "♭") value -= 3;
+        else if (accidental == "↑")
+          value += 1;
+        else if (accidental == "↓")
+          value -= 1;
+        else if (accidental == "𝄬")
+          value -= 2;
+        else if (accidental == "b" || accidental == "♭") value -= 3;
 	else if (accidental == "𝄭") value -= 4;
 	else if (accidental == "bb" || accidental == "𝄫") value -= 7;
 	else {
