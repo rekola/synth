@@ -5,6 +5,8 @@
 #include <string_view>
 #include <vector>
 
+#include "Ratio.h"
+
 // A song-wide scale, for the sequencer (Song::getScaleDegreesWindow()) and,
 // for a just scale, the ratio each note is tuned to; the Launchpad's keyboard
 // ignores it. NONE is the explicit "no scale chosen"
@@ -93,20 +95,18 @@ static inline std::vector<std::string_view> scaleDegreeNames(Scale scale) {
   return {};
 }
 
-// The exact ratio above the tonic of each of scaleDegreeNames()'s degrees, for
+// Returns the exact ratio above the tonic of each of the degrees, for
 // a scale that is a just scale: otonal's are in the proportion
 // 12:14:15:16:18:20:21, utonal's its mirror. Empty for the others, whose notes
 // have no one ratio that suits every chord.
-struct ScaleRatio {
-  int num = 1, den = 1;
-};
+static inline std::vector<Ratio> scaleDegreeRatios(Scale scale) {
+  using namespace ratio_literals;
 
-static inline std::vector<ScaleRatio> scaleDegreeRatios(Scale scale) {
   switch (scale) {
     case Scale::OTONAL:
-      return {{1, 1}, {9, 8}, {7, 6}, {5, 4}, {4, 3}, {3, 2}, {5, 3}, {7, 4}, {9, 5}};
+      return {1 / 1_r, 9 / 8_r, 7 / 6_r, 5 / 4_r, 4 / 3_r, 3 / 2_r, 5 / 3_r, 7 / 4_r, 9 / 5_r};
     case Scale::UTONAL:
-      return {{1, 1}, {10, 9}, {8, 7}, {6, 5}, {4, 3}, {3, 2}, {8, 5}, {12, 7}, {16, 9}};
+      return {1 / 1_r, 10 / 9_r, 8 / 7_r, 6 / 5_r, 4 / 3_r, 3 / 2_r, 8 / 5_r, 12 / 7_r, 16 / 9_r};
     case Scale::NONE:
     case Scale::MAJOR:
     case Scale::MINOR:
