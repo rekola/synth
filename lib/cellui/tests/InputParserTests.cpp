@@ -259,6 +259,9 @@ TEST(parser_kitty_keys) {
   CHECK(same(run(p, {{0, "\x1b[99;5u"}}), v({"Ctrl+C press"})));
   CHECK(same(run(p, {{0, "\x1b[57410;5u"}}), v({"Ctrl+KpDivide press"})));
   CHECK(same(run(p, {{0, "\x1b[57376u"}}), v({"F13 press"})));
+  // Num Lock is a modifier bit of its own and must not hide the Ctrl.
+  CHECK(same(run(p, {{0, "\x1b[57410;133u"}}), v({"Ctrl+KpDivide press"})));
+  CHECK(same(run(p, {{0, "\x1b[57411;133u"}}), v({"Ctrl+KpMultiply press"})));
 }
 
 TEST(parser_string_introducers_are_alt_keys_unless_a_reply_follows) {
