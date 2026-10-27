@@ -27,12 +27,12 @@ untouched. One `Song::Edit`, so one undo.
   9:8, and nearest-pitch picks 9:8. A song that needs 10:9 in a ii chord gets
   it if `apply-just-intonation-region` ran first, since the correction says
   which one was meant.
-- 53 to 31-EDO is lossy: a comma pair (D𝄯 and D) lands on one step. Tuned
+- 53 to 31-EDO is lossy: a comma pair (D↓ and D) lands on one step. Tuned
   notes keep the difference in their corrections.
 - Ties: decide which way and test it.
 
 Tests: an otonal and a utonal song from 31 to 53-EDO land on the steps above;
-a tuned ii chord from 31-EDO gets D𝄯; 53 to 31 and back again is the identity
+a tuned ii chord from 31-EDO gets D↓; 53 to 31 and back again is the identity
 for tuned notes. README: say that editing `temperament` renames and the
 command converts.
 
