@@ -49,9 +49,15 @@ drawing context through `cellui::nativeContext()` (`src/NativeContext.h`), the
 one place that names a canvas backend. The scopes - the spectrum, the
 DirAC heatmap, the channel meter - are cellui widgets in the versions each
 backend provides (`cellui::Scopes`, `cellui/Scopes.h`;
-`cellui::scopesFor(display)` picks the display's): the cell versions are
-drawn by hand (braille bars, a quadrant or sextant heatmap, labels in text,
-`src/Scopes.cpp`), never through canvas, and the pixel versions are images
+`cellui::scopesFor(display)` picks the display's): the cell
+versions are the terminal's fallback for a display with no pictures
+(`cellui/term/CellScopes.h`; braille bars, a quadrant or sextant heatmap and
+waveform, labels in text; their glyph tables and bar glyphs are
+`cellui/term/SubcellGlyphs.h` and `GlyphMeter.h`), drawn by hand, never
+through canvas, and nothing outside `cellui/term/` - not the synth, not a
+window backend - knows those glyphs: the application asks `Scopes` for a
+spectrum, a heatmap, a VU meter or a waveform row (`drawWaveformRow()`) and
+the display draws it as it can. The pixel versions are images
 drawn with canvas (`cellui/SpectrumImage.h`, `cellui/HeatmapImage.h`,
 `src/PixelScopes.cpp`, the heatmap's axis labels drawn into the image). An `ImageData` handed to canvas to draw is RGB straight-alpha unless
 tagged otherwise (`setFormat(ChannelOrder::BGR, true)` for bytes B, G, R, A,
@@ -60,7 +66,7 @@ is the same layout, and the renderers return RGBA. The VU meters have pixel
 versions too: the channel meter's bars are one image over its bar rows, and
 the clip grid's and pattern editor's level meters are drawn through
 `Scopes::drawVuMeter()` into the widget's own plane (`cellui/VuMeterImage.h`;
-`drawCellVuMeter()` is the cell version), as images at cell positions
+`term::drawCellVuMeter()` is the cell version), as images at cell positions
 (`Plane::drawImageAt()`: a plane holds one image per cell position, covering
 only the cells it reaches, and the same picture - an id given to `drawImageAt()`, or a hash of its pixels - drawn again, even after
 `erase()` and at another position, keeps its key and version, so it isn't sent again, only placed; a meter scrolled partly out of view is drawn whole at its real position with a row clip, so its pixels do not change with the scroll).
@@ -549,8 +555,8 @@ are the single-track, note-range-scoped siblings of the whole-track
 functions used for this.
 
 The FFT spectrum (`SpectrumMeter`, `ui/SpectrumMeter.h`) draws its
-log-frequency bars through `LevelMeter.h`'s braille sub-cell renderer, the
-same one the volume meters use. When the terminal session found an image
+log-frequency bars in cells as the terminal fallback (two bars to a
+cell). When the terminal session found an image
 protocol (kitty graphics, iTerm2's inline images or Sixel) and the cell
 size in pixels, the pixel version (`cellui::pixelScopes()`) overrides
 `barCount()`/`drawBars()` to draw one bar per pixel column as the meter's
@@ -1156,8 +1162,7 @@ would otherwise resume showing.
   each column (`dialAt()`), gives them their values and `DialSpec`, and passes on the mouse and keys; Enter on a
   selected dial calls `Dial::startEdit()`. The empty clip slots stand as high as the clips and a little
   brighter than the grid, and a rule under the Sends sets them apart from the track's other parameters. Every column has a vertical
-  level meter beside its Main and Direction rows, not the Sends (`LevelMeter.h`: one dB mapping, braille
-  by default with sextants as an opt-in glyph set, `Ballistics` smoothing
+  level meter beside its Main and Direction rows, not the Sends (`LevelMeter.h`: one dB mapping, `Ballistics` smoothing
   a block's RMS in the power domain so a low note doesn't ripple, bars
   shaded by height from green through orange to the clip red
   (`StyleProvider::meterColor()`), and a
@@ -1437,8 +1442,8 @@ would otherwise resume showing.
   libunistring dependency. So far it holds the leaves that never depended on
   the app: `Color` (linear Rec.2020 light as floats, 1.0 = SDR white, never negative, above 1 is HDR; built from `#rgb`/`#rrggbb` (each digit doubled), `oklch()`, `color(srgb|srgb-linear|display-p3|rec2020 ...)`, HSL or linear values; a backend that shows only sRGB takes `toSrgb8()`, which maps the gamut in and scales the range; `mix()` is in linear light and the compositor, `bg_blend` and the backdrops use it, while `blend()` is a widget's tween in encoded sRGB, where the theme was tuned), `utf8` (grapheme-
   aware width, truncation and padding), `markdown` (the tiny subset the info
-  dialogs use), `ChoiceList`, the sub-cell glyph tables and two-colour
-  quantizer (`SubcellGlyphs.h`), the Escape-as-Meta coalescer (`EscapeCoalescer.h`) and `KeyReader` (the inputs as widgets see them, Escape as Meta included, and when the "ESC-" indicator is due), and the input data (`Input.h`: key id, modifiers,
+  dialogs use), `ChoiceList`, the terminal fallback's sub-cell glyph tables and two-colour
+  quantizer (`term/SubcellGlyphs.h`), the Escape-as-Meta coalescer (`EscapeCoalescer.h`) and `KeyReader` (the inputs as widgets see them, Escape as Meta included, and when the "ESC-" indicator is due), and the input data (`Input.h`: key id, modifiers,
   position, press/release kind, and the key ids `cellui::Key::Up` and so on, `Key::` in the app; the app's
   `InputEvent` is an `Input` that is also an `Event`; the note-entry key mapping
   is `keyToMidiNote()` in `playback/KeyboardNotes.h`), the key stroke packing, `Keymap` and `CommandRegistry`, and the theme (`Theme`,
@@ -1467,7 +1472,7 @@ would otherwise resume showing.
   (`Gallery.h`, a class that keeps its widgets' planes, `cellui_gallery`; its text is a golden file in
   `lib/cellui/tests/golden/`, rewritten with `CELLUI_UPDATE_GOLDEN=1`) (`HeatmapChart.h`, with the fixed hue and the HSV helper its
   renderers share). The old paths (`util/Utf8.h`, `ui/Markdown.h`,
-  `ui/ChoiceList.h`, `ui/SubcellGlyphs.h`, `model/Color.h`, `ui/Keymap.h`, `ui/CommandRegistry.h`, `ui/KeyStroke.h`, `ui/Theme.h`,
+  `ui/ChoiceList.h`, `model/Color.h`, `ui/Keymap.h`, `ui/CommandRegistry.h`, `ui/KeyStroke.h`, `ui/Theme.h`,
   `ui/StyleProvider.h`, `ui/Plane.h`, `ui/HeatmapChart.h`, `ui/UIMenu.h`, `util/digit.h` and the headers of the widgets above in
   `ui/`) are forwarding
   headers with aliases (`Utf8`, `markdown`, `Color`, ...), so call sites did not
@@ -1509,7 +1514,7 @@ would otherwise resume showing.
   the best installed font that has it, found with fontconfig - the drawing library's own
   text has no fallback - and shrunk to its cell if wider; fontconfig comes with
   `libcairo2-dev`). It reports `DisplayInfo` with the cell size from the font's Pango metrics,
-  pictures always available and no sextants, and turns GTK's key (taken in the capture
+  pictures always available, and turns GTK's key (taken in the capture
   phase, with real press/repeat/release), click, drag (the held button's press again at
   each new cell), wheel (buttons 4-7) and paste (Ctrl+Shift+V, Shift+Insert) events into
   `BackendEvent`s; a size change is a `RESIZE` in cells and closing the window a `CLOSE`.

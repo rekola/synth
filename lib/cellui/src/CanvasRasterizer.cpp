@@ -163,7 +163,7 @@ class Pixels {
 
 class CanvasRasterizer : public CellRasterizer {
  public:
-  explicit CanvasRasterizer(std::string family) : family_(family), fonts_(std::move(family)) { }
+  CanvasRasterizer(std::string family, bool cell_shapes) : family_(family), fonts_(std::move(family)), cell_shapes_(cell_shapes) { }
 
   Image render(const CellBuffer & cells, const std::vector<ImagePlacement> & images, int row, int col, int rows, int cols, int cell_h,
                int cell_w, int scale, Color default_fg, Color default_bg) override {
@@ -218,11 +218,14 @@ class CanvasRasterizer : public CellRasterizer {
     }
   }
 
-  // Block elements and braille, drawn as shapes, exactly: a font may lack
-  // them, and a meter is made of them. False for a glyph that is text.
-  static bool drawShape(Pixels & px, const CellBuffer::Cell & cell, double x, double y, double w, double h, const Color & fg) {
+  // Block elements and braille, drawn as shapes, exactly, when the cells hold
+  // a terminal's fallback charts (a font may lack them, and a meter is made
+  // of them); otherwise they are text like any glyph. False for a glyph that
+  // is text.
+  bool drawShape(Pixels & px, const CellBuffer::Cell & cell, double x, double y, double w, double h, const Color & fg) {
     uint32_t cp = firstCodepoint(cell.text);
     if (cp == 0 || cp == ' ') return true;
+    if (!cell_shapes_) return false;
     if (cp == 0x2588) {
       px.fill(x, y, w, h, fg);
     } else if (cp >= 0x2581 && cp <= 0x2587) {  // lower eighths
@@ -336,12 +339,13 @@ class CanvasRasterizer : public CellRasterizer {
 
   std::string family_;
   FontFallback fonts_;
+  bool cell_shapes_;
   int measured_h_ = 0, measured_w_ = 0;
   float font_size_ = 0;
 };
 
 }  // namespace
 
-std::unique_ptr<CellRasterizer> canvasRasterizer(const std::string & family) { return std::make_unique<CanvasRasterizer>(family); }
+std::unique_ptr<CellRasterizer> canvasRasterizer(const std::string & family, bool cell_shapes) { return std::make_unique<CanvasRasterizer>(family, cell_shapes); }
 
 }  // namespace cellui

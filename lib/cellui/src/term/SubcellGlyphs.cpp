@@ -1,6 +1,6 @@
-#include <cellui/SubcellGlyphs.h>
+#include <cellui/term/SubcellGlyphs.h>
 
-namespace cellui {
+namespace cellui::term {
 
 const unsigned int kQuadrantCodepoints[16] = {
   0x0020, 0x2598, 0x259D, 0x2580,
@@ -91,4 +91,4 @@ quantizeToTwoColors(const std::vector<SubcellRgb> & samples, SubcellRgb & on_col
   return best_mask;
 }
 
-}  // namespace cellui
+}  // namespace cellui::term

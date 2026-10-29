@@ -7,12 +7,25 @@
 #include <cellui/VuMeterImage.h>
 
 #include <memory>
+#include <vector>
 
 namespace cellui {
 
-// The scopes - the spectrum, the DirAC heatmap and the VU meters - in the
-// versions a backend can show. An application asks its backend's Scopes
-// for a scope and never knows how it is drawn.
+// A waveform is drawn a pattern row at a time from this many time slices of
+// the row.
+constexpr int kWaveformSlices = 12;
+
+// How a waveform looks: the bar's colour, what it is drawn on, and the
+// neutral colour of its guide lines.
+struct WaveformLook {
+  Color fg;
+  Color bg;
+  Color guide;
+};
+
+// The scopes - the spectrum, the DirAC heatmap, the VU meters and the
+// waveform - in the versions a backend can show. An application asks its
+// backend's Scopes for a scope and never knows how it is drawn.
 class Scopes {
  public:
   virtual ~Scopes() = default;
@@ -27,16 +40,17 @@ class Scopes {
   // meter for the plane's images (see Plane::drawImageAt()); 0 for none.
   virtual void drawVuMeter(Plane & plane, int row, int col, int rows, const VuReading & reading, const VuMeterLook & look,
                            int clip_top, int clip_bottom, uint64_t id = 0) const = 0;
+  // One pattern row's slice of a sample clip's waveform across `width` cells
+  // from (row, col): kWaveformSlices amplitudes (0..1) over the row's time,
+  // each a bar centred in the row's width.
+  virtual void drawWaveformRow(Plane & plane, int row, int col, int width, const std::vector<float> & slices,
+                               const WaveformLook & look) const = 0;
 };
 
-// The cell version of drawVuMeter(): a braille bar in the cell's right dot
-// column, shaded by height (or in look.color), on look.background.
-void drawCellVuMeter(Plane & plane, int row, int col, int rows, const VuReading & reading, const VuMeterLook & look, int clip_top,
-                     int clip_bottom);
-
-// Drawn in cells by hand: braille bars, a quadrant or sextant heatmap, the
-// labels in text. Every backend can show these.
-std::unique_ptr<Scopes> cellScopes();
+// The fallback for a display with no pictures, drawn in cells (cellui/term/
+// CellScopes.h). Every backend can show these. `sextants`: the display can
+// draw the finer glyphs (DisplayInfo::sextants).
+std::unique_ptr<Scopes> cellScopes(bool sextants = false);
 
 // Drawn as pixels with canvas, for a backend whose planes show images
 // (Plane::pixelSize()/drawImage()). Not available where canvas has no
@@ -49,7 +63,7 @@ inline std::unique_ptr<Scopes> scopesFor(const DisplayInfo & display) {
   if (display.pictures && display.cell_px_height > 0 && display.cell_px_width > 0) {
     if (auto pixel = pixelScopes()) return pixel;
   }
-  return cellScopes();
+  return cellScopes(display.sextants);
 }
 
 }  // namespace cellui

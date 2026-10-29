@@ -1,8 +1,8 @@
 #include "TestFramework.h"
 
-#include <cellui/SubcellGlyphs.h>
+#include <cellui/term/SubcellGlyphs.h>
 
-using namespace cellui;
+using namespace cellui::term;
 
 #include <vector>
 

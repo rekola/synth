@@ -12,9 +12,9 @@
 namespace cellui {
 
 // The raw per-channel volume meter of the scope row: one vertical bar per
-// channel, two channels sharing each cell (one per dot column), each with
-// its own smoothing and peak marker. A legend lines up with the cells
-// along the bottom row.
+// channel, two channels sharing each cell, each with its own smoothing and
+// peak marker. A legend lines up with the cells along the bottom row. How
+// the bars are drawn is the display's (Scopes::channelMeter()).
 class ChannelMeter : public Widget {
 public:
   // The channels the meter has room for: order-3 ambisonic plus AuxA/AuxB.
@@ -52,7 +52,7 @@ protected:
   };
   // Draws the bars in the top `bar_rows` rows of the first `cells` cells,
   // two channels to a cell, over the background setLevels() filled in.
-  virtual void drawBars(int bar_rows, int cells);
+  virtual void drawBars(int bar_rows, int cells) = 0;
 
   std::array<Channel, kMaxChannels> channels_;
 

@@ -1,14 +1,13 @@
 #pragma once
 
 #include <cellui/Widget.h>
-#include <cellui/LevelMeter.h>
 
 #include <vector>
 
 namespace cellui {
 
-// The scope row's live spectrum: log-frequency bars drawn with the same
-// sub-cell renderer as the volume meters, two bins per cell. No peak hold.
+// The scope row's live spectrum: log-frequency bars. How they are drawn is
+// the display's (Scopes::spectrum()). No peak hold.
 class SpectrumMeter : public Widget {
 public:
   explicit SpectrumMeter(Plane & parent) : Widget(parent) { }
@@ -22,13 +21,12 @@ public:
   void clear();
 
  protected:
-  // How many bars the display shows across `cols` cells; braille packs two
-  // per cell, a pixel renderer can use one per pixel column.
-  virtual size_t barCount(int cols) { return static_cast<size_t>(2 * cols); }
+  // How many bars the display shows across `cols` cells.
+  virtual size_t barCount(int cols) = 0;
 
   // Draws the bars, each a 0..1 level (same size as barCount()). Clears and
   // redraws the whole plane.
-  virtual void drawBars(const std::vector<float> & levels);
+  virtual void drawBars(const std::vector<float> & levels) = 0;
 
   static std::vector<float> splineSample(const std::vector<float> & knots, size_t count);
 

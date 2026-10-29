@@ -394,7 +394,7 @@ void BackdropEmulation::apply(CellBuffer & frame, std::vector<ImagePlacement> & 
   for (auto & t : tiles_) t.used = false;
   redrawn_tiles_ = 0;
   if (!layers.empty()) {
-    if (!rasterizer_ && display.pictures) rasterizer_ = canvasRasterizer();
+    if (!rasterizer_ && display.pictures) rasterizer_ = canvasRasterizer("monospace", true);
     // What is on top of what: each layer's own cells over the stack so far,
     // its backdrop on the stack, the frame's cells last.
     auto over = [](CellBuffer & out, const CellBuffer & cells) {

@@ -1,8 +1,10 @@
 #pragma once
 
+#include <cellui/Color.h>
+
 #include <vector>
 
-namespace cellui {
+namespace cellui::term {
 
 // Unicode Block Elements (2x2, always-supported) and Symbols for Legacy
 // Computing sextant (2x3, capability-gated) sub-cell glyph tables - shared
@@ -30,7 +32,7 @@ extern const unsigned int kQuadrantCodepoints[16];
 // (0b101010, right column only) = RIGHT HALF BLOCK U+2590. The remaining
 // 60 masks get consecutive new codepoints U+1FB00..U+1FB3B in mask order,
 // skipping 21/42. Only actually a real glyph on a terminal that has
-// sextants - checked once via Plane::canRenderSextants(), not per call.
+// sextants - the cell scopes ask the display once, not per call.
 unsigned int sextantCodepoint(int mask);
 
 // Unicode Braille Patterns (U+2800-U+28FF) for an 8-bit mask over a
@@ -51,7 +53,7 @@ unsigned int brailleCodepoint(int mask);
 // quantizeToTwoColors() below needs to accumulate running sums/means at
 // full precision; converted to/from a real Color at each caller's own
 // edges.
-struct SubcellRgb { float r, g, b; };
+using SubcellRgb = FloatRgb;
 
 // Exact (brute-force) optimal 2-color quantization of `samples` (one
 // character cell's own sub-cell colors, already computed by the caller -
@@ -71,4 +73,4 @@ struct SubcellRgb { float r, g, b; };
 // fit" problem regardless of what the samples themselves represent.
 int quantizeToTwoColors(const std::vector<SubcellRgb> & samples, SubcellRgb & on_color, SubcellRgb & off_color);
 
-}  // namespace cellui
+}  // namespace cellui::term

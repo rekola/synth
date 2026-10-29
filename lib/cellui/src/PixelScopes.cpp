@@ -7,6 +7,8 @@
 #include <cellui/StyleProvider.h>
 #include <cellui/Plane.h>
 #include <cellui/VuMeterImage.h>
+#include <cellui/WaveformImage.h>
+#include <cellui/term/CellScopes.h>
 
 #include <algorithm>
 #include <set>
@@ -113,21 +115,21 @@ private:
 
 // The spectrum as the plane's image: one level per pixel column, drawn
 // with canvas.
-class PixelSpectrumMeter : public SpectrumMeter {
+class PixelSpectrumMeter : public term::CellSpectrumMeter {
 public:
-  using SpectrumMeter::SpectrumMeter;
+  using term::CellSpectrumMeter::CellSpectrumMeter;
 
 protected:
   size_t barCount(int cols) override {
     int pxy = 0, pxx = 0;
     if (getPlane().pixelSize(pxy, pxx)) return static_cast<size_t>(pxx);
-    return SpectrumMeter::barCount(cols);
+    return term::CellSpectrumMeter::barCount(cols);
   }
 
   void drawBars(const std::vector<float> & levels) override {
     int pxy = 0, pxx = 0;
     if (!getPlane().pixelSize(pxy, pxx) || levels.size() != static_cast<size_t>(pxx)) {
-      SpectrumMeter::drawBars(levels);
+      term::CellSpectrumMeter::drawBars(levels);
       return;
     }
     // Pixels are made lazily: until a level is above zero, only the
@@ -152,15 +154,15 @@ protected:
 
 // The channel meter's bars as one image over its bar rows, two channels to
 // a cell; the legend below stays text.
-class PixelChannelMeter : public ChannelMeter {
+class PixelChannelMeter : public term::CellChannelMeter {
  public:
-  using ChannelMeter::ChannelMeter;
+  using term::CellChannelMeter::CellChannelMeter;
 
  protected:
   void drawBars(int bar_rows, int cells) override {
     int cell_h = 0, cell_w = 0;
     if (!getPlane().cellPixelSize(cell_h, cell_w)) {
-      ChannelMeter::drawBars(bar_rows, cells);
+      term::CellChannelMeter::drawBars(bar_rows, cells);
       return;
     }
     // Lazily, as the spectrum: the plane is already the background, which is
@@ -203,7 +205,7 @@ class PixelScopes : public Scopes {
     int top = std::max(row, clip_top), bottom = std::min(row + rows, clip_bottom);
     if (rows <= 0 || top >= bottom) return;
     if (!plane.cellPixelSize(cell_h, cell_w)) {
-      drawCellVuMeter(plane, row, col, rows, reading, look, clip_top, clip_bottom);
+      term::drawCellVuMeter(plane, row, col, rows, reading, look, clip_top, clip_bottom);
       return;
     }
     // Pixels are made lazily: a meter that has never sounded is only its
@@ -212,7 +214,7 @@ class PixelScopes : public Scopes {
     auto key = std::make_pair(&plane, id);
     if (!drawn_.count(key)) {
       if (reading.fraction <= 0.0f && reading.peak <= 0.0f && !reading.clipping) {
-        drawCellVuMeter(plane, row, col, rows, reading, look, clip_top, clip_bottom);
+        term::drawCellVuMeter(plane, row, col, rows, reading, look, clip_top, clip_bottom);
         return;
       }
       drawn_.insert(key);
@@ -222,6 +224,16 @@ class PixelScopes : public Scopes {
     unsigned width = static_cast<unsigned>(cell_w), height = static_cast<unsigned>(rows * cell_h);
     auto pixels = vu_meter_image::render({std::nullopt, reading}, look, width, height, plane.getStyles(), static_cast<float>(plane.displayScale()));
     plane.drawImageAt(row, col, pixels, static_cast<int>(width), static_cast<int>(height), id, clip_top, clip_bottom);
+  }
+  void drawWaveformRow(Plane & plane, int row, int col, int width, const std::vector<float> & slices, const WaveformLook & look) const override {
+    int cell_h = 0, cell_w = 0;
+    if (width <= 0 || !plane.cellPixelSize(cell_h, cell_w)) {
+      term::drawCellWaveformRow(plane, row, col, width, slices, look, false);
+      return;
+    }
+    unsigned pixel_w = static_cast<unsigned>(width * cell_w), pixel_h = static_cast<unsigned>(cell_h);
+    auto pixels = waveform_image::render(slices, look.fg, look.bg, look.guide, pixel_w, pixel_h, static_cast<float>(plane.displayScale()));
+    plane.drawImageAt(row, col, pixels, static_cast<int>(pixel_w), static_cast<int>(pixel_h));
   }
 
  private:

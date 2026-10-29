@@ -86,23 +86,4 @@ void SpectrumMeter::clear() {
   drawBars(std::vector<float>(barCount(cols), 0.0f));
 }
 
-void
-SpectrumMeter::drawBars(const std::vector<float> & levels) {
-  auto [ rows, cols ] = getDim();
-  auto & styles = getPlane().getStyles();
-  setBgColor(styles.window_bg_color);
-  fill();
-  for (int c = 0; c < cols; c++) {
-    auto column = [&](size_t bin) {
-      return level_meter::BarColumn{level_meter::barSteps(levels[bin], rows), 0};
-    };
-    auto bar = level_meter::verticalBar(level_meter::Glyphs::BRAILLE, rows, column(static_cast<size_t>(2 * c)), column(static_cast<size_t>(2 * c + 1)));
-    for (int i = 0; i < rows; i++) {
-      // Shaded by the height of this cell; i = 0 is the top one.
-      setFgColor(styles.spectrumColor((static_cast<float>(rows - i) - 0.5f) / static_cast<float>(rows)));
-      putstr(i, c, bar[static_cast<size_t>(i)]);
-    }
-  }
-}
-
 }  // namespace cellui

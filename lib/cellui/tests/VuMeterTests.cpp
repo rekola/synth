@@ -2,8 +2,11 @@
 
 #include <cellui/BufferPlane.h>
 #include <cellui/LevelMeter.h>
+#include <cellui/term/CellScopes.h>
+#include <cellui/term/GlyphMeter.h>
 #include <cellui/Scopes.h>
 #include <cellui/VuMeterImage.h>
+#include <cellui/WaveformImage.h>
 
 using namespace cellui;
 
@@ -67,9 +70,9 @@ TEST(vu_meter_cell_version_is_the_braille_bar_clipped_to_its_rows) {
   BufferPlane root(b, styles);
   VuReading reading{0.6f, 0.9f, false};
   // Five rows from row 0, the top one clipped away.
-  drawCellVuMeter(root, 0, 1, 5, reading, VuMeterLook{styles.window_bg_color, std::nullopt}, 1, 6);
+  term::drawCellVuMeter(root, 0, 1, 5, reading, VuMeterLook{styles.window_bg_color, std::nullopt}, 1, 6);
   root.refresh();
-  auto bar = level_meter::verticalBar(reading.fraction, 5, reading.peak);
+  auto bar = term::glyph_meter::verticalBar(reading.fraction, 5, reading.peak);
   CHECK(b.at(0, 1).text == " ");
   for (int i = 1; i < 5; i++) CHECK(b.at(i, 1).text == bar[static_cast<size_t>(i)]);
 }
@@ -108,4 +111,28 @@ TEST(vu_meter_pixel_version_shows_only_its_visible_rows) {
   scopes->drawVuMeter(plain, 0, 0, 5, VuReading{1.0f, 0.0f, false}, VuMeterLook{styles.window_bg_color, std::nullopt}, 0, 5);
   plain.refresh();
   CHECK(plain.images().empty() && c.at(4, 0).text != " ");
+}
+
+TEST(waveform_row_cell_version_fills_loud_slices_and_dots_quiet_ones) {
+  StyleProvider styles;
+  CellBuffer b(1, 16);
+  BufferPlane root(b, styles);
+  WaveformLook look{styles.window_fg_color, styles.window_bg_color, styles.window_border_color};
+  auto scopes = cellScopes();
+  // A full-width bar in every slice fills the row; silence leaves guide lines and dots.
+  scopes->drawWaveformRow(root, 0, 0, 16, std::vector<float>(kWaveformSlices, 1.0f), look);
+  root.refresh();
+  for (int c = 0; c < 16; c++) CHECK(b.at(0, c).text != "·" && b.at(0, c).text != "│" && b.at(0, c).bg == styles.window_fg_color);
+  scopes->drawWaveformRow(root, 0, 0, 16, std::vector<float>(kWaveformSlices, 0.0f), look);
+  root.refresh();
+  CHECK(b.at(0, 8).text == "│");
+  CHECK(b.at(0, 1).text == "·");
+}
+
+TEST(waveform_row_pixel_version_is_a_row_wide_image) {
+  auto image = waveform_image::render(std::vector<float>(kWaveformSlices, 0.5f), Color(255, 255, 255), Color(0, 0, 0), Color(128, 128, 128), 40, 10);
+  CHECK(image.size() == 400u);
+  // Centre column is covered by the bar; the outer edge is the background.
+  CHECK((image[5 * 40 + 20] & 0xffffffu) != 0u);
+  CHECK((image[5 * 40 + 0] & 0xffffffu) == 0u);
 }

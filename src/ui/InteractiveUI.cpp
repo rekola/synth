@@ -24,7 +24,6 @@
 #include "../launchpad/LaunchpadChannelPressureEvent.h"
 #include "../launchpad/LaunchpadProtocol.h"
 #include "../launchpad/LaunchpadManager.h"
-#include "SubcellGlyphs.h"
 #include "../util/Utf8.h"
 #include "../util/constants.h"
 #include "../model/Color.h"
@@ -452,7 +451,6 @@ InteractiveUI::initialize(std::shared_ptr<Controller> & controller) {
   root_plane_ = root_plane.get();
   if (display.default_fg && display.default_bg) root_plane_->setDefaultColors(*display.default_fg, *display.default_bg);
   root_plane_->setDisplayScale(display.display_scale);
-  root_plane_->setSextants(display.sextants);
   root_plane_->setSmoothScroll(display.smooth_scroll);
   root_plane_->setKeymapProfile(display.keymap_profile);
   key_reader_.setEscapeAsMeta(display.escape_as_meta);

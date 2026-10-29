@@ -26,13 +26,10 @@ class WaveformPeaks {
   bool empty() const { return peaks_.empty(); }
   int rowCount() const { return subrows_per_row_ > 0 ? static_cast<int>(peaks_.size()) / subrows_per_row_ : 0; }
   // How many independent time-buckets each pattern row was actually built
-  // with - whatever build()'s own caller (PatternEditor, driven by
-  // Plane::canRenderSextants()) asked for at the time, not a fixed
-  // constant: quadrant glyphs need 2 (the universally-supported
-  // fallback), sextants need 3 (when the terminal actually supports
-  // them) - a terminal's own capabilities don't change mid-session, but
-  // the cache still tracks what it was actually built for rather than
-  // assuming, so a caller can detect a mismatch and rebuild.
+  // with - whatever build()'s own caller (PatternEditor) asked for at the
+  // time, cellui::kWaveformSlices. The cache still tracks what it was built
+  // for rather than assuming, so a caller can detect a mismatch and
+  // rebuild.
   int subrowsPerRow() const { return subrows_per_row_; }
 
   // RMS amplitude (0..1, a full-scale square wave's own RMS being the
