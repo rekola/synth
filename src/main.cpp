@@ -50,6 +50,40 @@
 
 using namespace std;
 
+static void
+printUsage() {
+  fmt::print("usage: synth [options] [song.xml]\n"
+             "       synth --render out.wav [options] song.xml\n"
+             "With no song, opens songs/welcome.xml, or an empty song if it is missing.\n"
+             "\n"
+             "Audio:\n");
+  printCommonOptionsUsage(stdout);
+  fmt::print("  --render FILE          render the song to a WAV file and exit\n"
+             "  --playback-device NAME output device for this run (see --list-devices)\n"
+             "  --capture-device NAME  input device for this run\n"
+             "  --midi-input NAME      MIDI source for this run\n"
+             "  --list-devices         print the devices that can be selected and exit\n"
+             "  --null-audio           no sound device; blocks are paced by the clock\n"
+             "\n"
+             "User interface:\n"
+             "  --ui MODE              auto, terminal, raster (a window) or headless (default auto)\n"
+             "  --view VIEW            live or arrangement: the view to start in (default live)\n"
+             "  --keymap KEYMAP        gui or terminal: the key bindings to use instead of the\n"
+             "                         display's own (the window uses gui, the terminal terminal)\n"
+             "  --theme THEME          dark, light or original (default: from the terminal's colours)\n"
+             "  --reduced-motion       no easing or pulsing (also SYNTH_REDUCED_MOTION=1)\n"
+             "  --dither METHOD        nearest, ordered or floyd-steinberg: Sixel image dithering\n"
+             "                         (default ordered)\n"
+             "\n"
+             "Headless:\n"
+             "  --autoplay             start the transport once running (needs --ui headless)\n"
+             "  --daemon               run headless, detached from the terminal\n"
+             "  --log-file FILE        where a daemon's output goes\n"
+             "  --pid-file FILE        where a daemon writes its process id\n"
+             "\n"
+             "  --help, -h             this text\n");
+}
+
 int main(int argc, char *argv[]) {
   // 48000, not 44100: the "default" ALSA device is commonly PipeWire's
   // ALSA-compat plugin, whose own graph runs at a fixed native rate
@@ -86,7 +120,10 @@ int main(int argc, char *argv[]) {
   string pid_file; // --pid-file: where a daemon writes its pid
 
   for (int i = 1; i < argc; i++) {
-    if (parseCommonOption(argc, argv, i, common, channel_config)) {
+    if (strcmp(argv[i], "--help") == 0 || strcmp(argv[i], "-h") == 0) {
+      printUsage();
+      return 0;
+    } else if (parseCommonOption(argc, argv, i, common, channel_config)) {
     } else if (strcmp(argv[i], "--view") == 0) {
       if (i + 1 < argc && strcmp(argv[i + 1], "live") == 0) initial_view = UI::View::LIVE;
       else if (i + 1 < argc && strcmp(argv[i + 1], "arrangement") == 0) initial_view = UI::View::ARRANGEMENT;
@@ -153,7 +190,7 @@ int main(int argc, char *argv[]) {
     } else if (strcmp(argv[i], "--list-devices") == 0) {
       list_devices = true;
     } else if (argv[i][0] == '-') {
-      fmt::print(stderr, "invalid parameter\n");
+      fmt::print(stderr, "invalid parameter {} (see --help)\n", argv[i]);
       exit(1);
     } else {
       input.push_back(argv[i]);

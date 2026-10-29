@@ -245,7 +245,9 @@ error, and the choice is made once, at start (`cellui/BackendChoice.h`).
 `SYNTH_WINDOW_STATS=<file>` appends how long the window's frames took to draw
 when it exits. The e2e scripts pass `--ui terminal`.
 Options: `--samplerate N`, `--stereo`, `--ambisonic [order]`,
-`--legacy-binaural`, `--view live|arrangement`. Every song is always rendered through an
+`--legacy-binaural`, `--view live|arrangement`; `--help` lists them all
+(`printUsage()` in `main.cpp`, the shared ones from `printCommonOptionsUsage()`,
+which `main_render.cpp` uses too) - add a line there with a new option. Every song is always rendered through an
 ambisonic bus (ACN/SN3D, AmbiX convention) — there is no plain-stereo-pan
 mode at all any more, and `ChannelConfiguration::STEREO` doesn't exist as a
 type (see `ChannelConfiguration.h`); `--ambisonic [order]` just sets the

@@ -58,6 +58,16 @@ bool parseCommonOption(int argc, char * argv[], int & i, CommonOptions & options
   return true;
 }
 
+void printCommonOptionsUsage(FILE * out) {
+  fmt::print(out,
+             "  --samplerate N         output sample rate (default 48000)\n"
+             "  --ambisonic [order]    ambisonic order, 1-{} (default {})\n"
+             "  --stereo               cardioid stereo decode instead of binaural\n"
+             "  --legacy-binaural      virtual-speaker binaural decoder\n"
+             "  --licenses             print third-party licences\n",
+             kAmbisonicOrder, kAmbisonicOrder);
+}
+
 void printLicenses() {
   fmt::print("{}\n", kThirdPartyLicensesText);
 }
