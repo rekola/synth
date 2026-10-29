@@ -180,7 +180,7 @@ PipeWire (and skips without one).
 device: `Player` calls `AudioAPI::wait(notifier, want_capture, timeout)` and
 gets back which of woken/playback/capture is ready (`WaitResult`). The wakeup
 is `util/Notifier.h` (level-triggered; eventfd on Linux, an event on Windows, a pipe
-elsewhere), which `EventQueue` raises while it holds events. `AlsaAudio::wait()`
+elsewhere), which `MessageQueue` raises while it holds messages. `AlsaAudio::wait()`
 polls the notifier's fd with its streams' own (capture's masked off while not
 wanted: an unstarted capture stream is "ready" forever). `NullAudio`
 (`--null-audio`) takes blocks at the pace of the clock with no device, so the
@@ -1386,13 +1386,13 @@ would otherwise resume showing.
     app-level lifecycle every backend needs (spawning the audio/
     visualization threads, running until told to quit, reporting status)
     - a concrete subclass owns its own widget set, screen layout, and
-    Launchpad callback wiring (`UI::wireLaunchpad()`'s hook). A status message from UI-thread code is `Controller::log()` (the `status_message` signal, shown at once); the audio thread's own, its playback snapshots, recorded blocks, latency and threshold events, and the visualization thread's results are plain event structs sent with `Controller::postToUI()` into the `cellui::ThreadInbox` that `UI::start()` makes over the UI's loop (`UI::eventLoop()`), and handled by `on<E>()` handlers there (`UI::eventsPending()`: more wait behind the one being handled); MIDI and Launchpad input is read on the UI thread and goes to the same handlers with `UI::deliver()`. `Event`/`EventHandler`/`EventQueue` remain only for what the UI sends the other way (`PlaybackControlEvent` to the audio thread, `AudioBlockEvent` to the visualization thread) and for `InputEvent`. Beside them in the same directory:
+    Launchpad callback wiring (`UI::wireLaunchpad()`'s hook). A status message from UI-thread code is `Controller::log()` (the `status_message` signal, shown at once); the audio thread's own, its playback snapshots, recorded blocks, latency and threshold events, and the visualization thread's results are plain event structs sent with `Controller::postToUI()` into the `cellui::ThreadInbox` that `UI::start()` makes over the UI's loop (`UI::eventLoop()`), and handled by `on<E>()` handlers there (`UI::eventsPending()`: more wait behind the one being handled); MIDI and Launchpad input is read on the UI thread and goes to the same handlers with `UI::deliver()`. What the UI sends the other way are plain structs on `MessageQueue<T>` (`playback/MessageQueue.h`, many producers and one consumer that waits on its `Notifier`): `PlaybackControlEvent` to the audio thread (`Controller::getPlaybackEventQueue()`) and `AudioBlockEvent` to the visualization thread (`getVisualizationQueue()`). There is no `Event` base class or visitor any more; `InputEvent` is `cellui::Input`. Beside them in the same directory:
     the concrete implementations built on those interfaces and on any
     cellui `Backend` (the terminal's `cellui::term::TerminalSession`, the
     GTK or Win32 window; the screen a root `cellui::BufferPlane` composes):
     `InteractiveUI` (the sole such subclass today - owns every widget,
     `initializeWidgets()`/`layout()`/`renderComponents()`, every Emacs
-    keybinding, and every `EventHandler` override), `PatternEditor`/
+    keybinding, and every handler of an event the UI receives), `PatternEditor`/
     `OutlineView` and the rest of the terminal widgets.
 
     Info dialogs (the outline panel's details popup, the About dialog) have

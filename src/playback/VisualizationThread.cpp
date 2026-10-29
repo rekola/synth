@@ -144,10 +144,10 @@ VisualizationThread::run() {
   while (!terminate_) {
     if (queue.wait(1000)) {
       auto event = queue.pop();
-      handleEvent(*event);
+      handleAudioBlockEvent(*event);
       while (queue.hasEvents()) {
         auto event2 = queue.pop();
-        handleEvent(*event2);
+        handleAudioBlockEvent(*event2);
       }
     }
   }
