@@ -1392,7 +1392,7 @@ would otherwise resume showing.
     GTK or Win32 window; the screen a root `cellui::BufferPlane` composes):
     `InteractiveUI` (the sole such subclass today - owns every widget,
     `initializeWidgets()`/`layout()`/`renderComponents()`, every Emacs
-    keybinding, and every `EventHandler` override), `PatternEditor`/
+    keybinding, and every handler of an event the UI receives), `PatternEditor`/
     `OutlineView` and the rest of the terminal widgets.
 
     Info dialogs (the outline panel's details popup, the About dialog) have
