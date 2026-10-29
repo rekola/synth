@@ -1,7 +1,6 @@
 #ifndef _UIELEMENT_H_
 #define _UIELEMENT_H_
 
-#include "../playback/EventHandler.h"
 #include "../playback/InputEvent.h"
 #include "Plane.h"
 
@@ -14,9 +13,9 @@
 
 class Controller;
 
-// The library's widget, plus what ties it to the app: the event handler
-// interface, the app's input event and the controller.
-class UIElement : public cellui::Widget, public EventHandler {
+// The library's widget, plus what ties it to the app: the app's input
+// event and the controller.
+class UIElement : public cellui::Widget {
  public:
   UIElement() { }
   explicit UIElement(Plane & parent) : cellui::Widget(parent) {}

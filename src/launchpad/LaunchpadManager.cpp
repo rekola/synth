@@ -1,6 +1,5 @@
 #include "LaunchpadManager.h"
 #include "../model/SendFader.h"
-#include "../playback/EventHandler.h"
 
 #include "LaunchpadIO.h"
 #include "LaunchpadLayout.h"

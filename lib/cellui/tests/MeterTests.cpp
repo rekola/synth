@@ -4,6 +4,7 @@
 #include <cellui/ChannelMeter.h>
 #include <cellui/CoverArt.h>
 #include <cellui/SpectrumMeter.h>
+#include <cellui/term/CellCharts.h>
 
 using namespace cellui;
 
@@ -11,7 +12,7 @@ TEST(channelmeter_draws_bars_and_a_legend_then_falls_to_rest) {
   StyleProvider styles;
   CellBuffer b(5, 10);
   BufferPlane root(b, styles);
-  ChannelMeter meter(root);
+  term::CellChannelMeter meter(root);
   meter.resize(5, 10);
   CHECK(meter.atRest());
   meter.setLevels({1.0f, 0.5f, 0.0f, 0.25f}, "WYZX");
@@ -28,7 +29,7 @@ TEST(channelmeter_ignores_channels_beyond_its_room) {
   StyleProvider styles;
   CellBuffer b(4, 40);
   BufferPlane root(b, styles);
-  ChannelMeter meter(root);
+  term::CellChannelMeter meter(root);
   meter.resize(4, 40);
   meter.setLevels(std::vector<float>(40, 0.5f), "x");  // more than kMaxChannels
   CHECK(!meter.atRest());
@@ -38,7 +39,7 @@ TEST(spectrummeter_redraws_only_when_the_curve_changes) {
   StyleProvider styles;
   CellBuffer b(4, 30);
   BufferPlane root(b, styles);
-  SpectrumMeter meter(root);
+  term::CellSpectrumMeter meter(root);
   meter.resize(4, 30);
   std::vector<float> db(128, -30.0f);
   CHECK(meter.setSpectrum(db, 100.0f));

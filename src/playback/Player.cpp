@@ -738,19 +738,18 @@ Player::renderPreview(int frames) {
   return data;
 }
 
-void Player::handleQueuedEvent(std::unique_ptr<Event> event) {
-  auto * control = dynamic_cast<PlaybackControlEvent *>(event.get());
-  auto type = control ? control->getType() : PlaybackControlEvent::Type();
+void Player::handleQueuedEvent(std::unique_ptr<PlaybackControlEvent> event) {
+  auto type = event->getType();
   if (type == PlaybackControlEvent::BATCH_BEGIN) {
     batch_open_ = true;
   } else if (type == PlaybackControlEvent::BATCH_END) {
     batch_open_ = false;
-    for (auto & held : batch_events_) handleEvent(*held);
+    for (auto & held : batch_events_) handlePlaybackControlEvent(*held);
     batch_events_.clear();
   } else if (batch_open_) {
     batch_events_.push_back(std::move(event));
   } else {
-    handleEvent(*event);
+    handlePlaybackControlEvent(*event);
   }
 }
 

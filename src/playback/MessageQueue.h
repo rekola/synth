@@ -1,7 +1,6 @@
-#ifndef _EVENTQUEUE_H_
-#define _EVENTQUEUE_H_
+#ifndef _MESSAGEQUEUE_H_
+#define _MESSAGEQUEUE_H_
 
-#include "Event.h"
 #include "../util/Notifier.h"
 
 #include <deque>
@@ -13,16 +12,17 @@
 // signal, kept raised exactly while the deque is non-empty (both updated
 // under the same lock). Raising it never blocks, so push() can't stall the
 // producer however far behind the consumer falls.
-class EventQueue {
+template <class T>
+class MessageQueue {
  public:
-  EventQueue() = default;
+  MessageQueue() = default;
 
-  EventQueue(const EventQueue &) = delete;
-  EventQueue & operator=(const EventQueue &) = delete;
+  MessageQueue(const MessageQueue &) = delete;
+  MessageQueue & operator=(const MessageQueue &) = delete;
 
-  void push(std::unique_ptr<Event> event) {
+  void push(std::unique_ptr<T> message) {
     std::lock_guard<std::mutex> guard(event_mutex);
-    events.push_front(std::move(event));
+    events.push_front(std::move(message));
     notifier_.signal();
   }
 
@@ -36,7 +36,7 @@ class EventQueue {
   bool wait(int timeout_ms) { return notifier_.wait(timeout_ms); }
 
   // Blocks until an event is available.
-  std::unique_ptr<Event> pop() {
+  std::unique_ptr<T> pop() {
     while (true) {
       {
         std::lock_guard<std::mutex> guard(event_mutex);
@@ -59,7 +59,7 @@ class EventQueue {
  private:
   Notifier notifier_;
   mutable std::mutex event_mutex;
-  std::deque<std::unique_ptr<Event> > events;
+  std::deque<std::unique_ptr<T> > events;
 };
 
 #endif

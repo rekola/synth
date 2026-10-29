@@ -164,9 +164,6 @@ class BufferPlane : public Plane {
   // refresh(), lowest first: the last one over a cell is the topmost (root
   // only).
   std::vector<HitArea> takeHitAreas() { return std::move(hit_areas_); }
-  // What canRenderSextants() reports, for the whole tree (root only).
-  void setSextants(bool can) { sextants_ = can; }
-  bool canRenderSextants() const override { return root().sextants_; }
   // What keymapProfile() reports, for the whole tree (root only).
   void setKeymapProfile(KeymapProfile profile) { keymap_profile_ = profile; }
   KeymapProfile keymapProfile() const override { return root().keymap_profile_; }
@@ -238,7 +235,6 @@ class BufferPlane : public Plane {
   Color default_fg_ = Color(255, 255, 255), default_bg_ = Color(0, 0, 0);
   double display_scale_ = 1.0;
   KeymapProfile keymap_profile_ = KeymapProfile::TERMINAL;
-  bool sextants_ = false;
   bool smooth_scroll_ = false;
   mutable std::vector<BackdropLayer> layers_;
   std::vector<ElevatedArea> elevations_;
