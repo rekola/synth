@@ -7,7 +7,7 @@
 namespace cellui {
 
 // The scope row's live spectrum: log-frequency bars. How they are drawn is
-// the display's (Scopes::spectrum()). No peak hold.
+// the display's (Charts::spectrum()). No peak hold.
 class SpectrumMeter : public Widget {
 public:
   explicit SpectrumMeter(Plane & parent) : Widget(parent) { }

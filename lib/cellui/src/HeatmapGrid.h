@@ -1,7 +1,7 @@
 #pragma once
 
 // The heatmap's resampling and axis labels, shared by its cell and pixel
-// versions (Scopes.cpp, PixelScopes.cpp).
+// versions (Charts.cpp, PixelCharts.cpp).
 
 #include <cellui/HeatmapImage.h>
 #include <cellui/Color.h>

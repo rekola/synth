@@ -1,4 +1,4 @@
-#include <cellui/VuMeterImage.h>
+#include <cellui/SparklineImage.h>
 
 #include <canvas/Context.h>
 #include "NativeContext.h"
@@ -8,7 +8,7 @@
 
 namespace cellui {
 
-namespace vu_meter_image {
+namespace sparkline_image {
 
 namespace {
 
@@ -19,7 +19,7 @@ canvas::Color toCanvas(const Color & c) {
 
 }  // namespace
 
-std::vector<uint32_t> render(const std::vector<std::optional<VuReading>> & columns, const VuMeterLook & look, unsigned width,
+std::vector<uint32_t> render(const std::vector<std::optional<SparklineReading>> & columns, const SparklineLook & look, unsigned width,
                              unsigned height, const StyleProvider & styles, float scale) {
   std::vector<uint32_t> out(static_cast<size_t>(width) * height, 0);
   if (width == 0 || height == 0) return out;
@@ -40,7 +40,7 @@ std::vector<uint32_t> render(const std::vector<std::optional<VuReading>> & colum
 
   for (size_t i = 0; i < columns.size(); i++) {
     if (!columns[i]) continue;
-    const VuReading & reading = *columns[i];
+    const SparklineReading & reading = *columns[i];
     // The bar in the middle of its slot, a gap either side.
     const float x0 = static_cast<float>(margin + static_cast<unsigned>(i) * slot + gap);
     const float x1 = x0 + static_cast<float>(bar);
@@ -87,6 +87,6 @@ std::vector<uint32_t> render(const std::vector<std::optional<VuReading>> & colum
   return out;
 }
 
-}  // namespace vu_meter_image
+}  // namespace sparkline_image
 
 }  // namespace cellui

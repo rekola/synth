@@ -7,7 +7,7 @@
 
 #include <cellui/Dial.h>
 #include <cellui/Fade.h>
-#include <cellui/Scopes.h>
+#include <cellui/Charts.h>
 #include "../launchpad/ClipHighlight.h"
 #include "../model/Clip.h"
 #include "../model/SendLevels.h"
@@ -59,9 +59,9 @@ class ClipGrid : public UIElement {
 
   bool render(const StyleProvider & styles, bool refresh, bool focused);
 
-  // The backend's scopes, which draw the VU meters; unset, they are drawn
+  // The backend's scopes, which draw the sparklines; unset, they are drawn
   // in cells.
-  void setScopes(const cellui::Scopes * scopes) { scopes_ = scopes; }
+  void setCharts(const cellui::Charts * scopes) { charts_ = scopes; }
 
   // A clip slot's transport/recording state (LaunchpadManager::
   // clipHighlight()), shown on its row the way a Launchpad pad shows it.
@@ -236,7 +236,7 @@ class ClipGrid : public UIElement {
     float peak_fraction = 0.0f;
   };
   std::unordered_map<int, MeterDisplay> meters_;
-  const cellui::Scopes * scopes_ = nullptr;
+  const cellui::Charts * charts_ = nullptr;
   std::chrono::steady_clock::time_point last_meter_update_;
 
   // Clip and track rename share one editor; only one can be open at a time.

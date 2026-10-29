@@ -10,7 +10,7 @@
 #include <cellui/KeyReader.h>
 #include <cellui/Signal.h>
 #include <cellui/Scrim.h>
-#include <cellui/Scopes.h>
+#include <cellui/Charts.h>
 #include <chrono>
 #include <memory>
 #include <optional>
@@ -141,7 +141,7 @@ class InteractiveUI : public UI {
   std::shared_ptr<ChannelMeter> volume_meter_;
   std::shared_ptr<HeatmapChart> heatmap_;
   // The scopes in the versions this terminal shows.
-  std::unique_ptr<cellui::Scopes> scopes_;
+  std::unique_ptr<cellui::Charts> charts_;
   std::shared_ptr<StatusLine> status_line_;
 
   StyleProvider styles_;

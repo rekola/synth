@@ -47,7 +47,7 @@ TEST(braille_codepoint_all_on_is_the_full_eight_dot_cell) {
   CHECK(brailleCodepoint(0xFF) == 0x28FF);
 }
 
-// Cross-checks against PatternEditor's own pre-existing VU meter glyphs
+// Cross-checks against PatternEditor's own pre-existing sparkline glyphs
 // (kGlyphs[], a hand-picked bottom-up fill of the right column only, dots
 // 4/5/6/8) - the row-major mask for "just the right column, this many
 // rows from the bottom" must permute to exactly those same codepoints.

@@ -1539,7 +1539,7 @@ PatternEditor::render(const StyleProvider & styles, bool refresh, bool focused) 
     renderRow(styles, heading_height, track_ids, track_info, score_playing_row - current_scroll_.row, true, sel_bounds, focused);
     need_redraw = true;
   } else if (info.getVoiceCount() != current_voice_count_ || meters_showing_ || anyMeterLive(info, track_ids)) {
-    // The per-track VU meter lives in the heading row and needs to keep
+    // The per-track sparkline lives in the heading row and needs to keep
     // animating every block a voice is actually sounding - including a
     // manually-auditioned note or its note-off release tail, with the
     // sequencer stopped, not just while the transport is playing (the
@@ -2891,7 +2891,7 @@ PatternEditor::renderHeadingOnPlane(const StyleProvider & styles, const std::vec
       }
       draw_edge(row, col, segment_color(left), next_segment_color(idx));
     };
-    // The per-track VU meter next to a leaf's instrument name - a single
+    // The per-track sparkline next to a leaf's instrument name - a single
     // vertical cell, filling bottom-up in the right part of the cell (flush
     // with the row's own right edge), in whichever version the backend's
     // scopes draw. meter_fraction() gives a track's smoothed, dB-mapped
@@ -2907,10 +2907,10 @@ PatternEditor::renderHeadingOnPlane(const StyleProvider & styles, const std::vec
       return fraction;
     };
     auto draw_vu_meter = [&](int row, int col, float fraction, bool clipping, const Color & background, int track_id) {
-      cellui::VuReading reading{fraction, 0.0f, clipping};
-      cellui::VuMeterLook look{background, styles.meter_active_color};
-      static const auto fallback = cellui::cellScopes();
-      (scopes_ ? scopes_ : fallback.get())->drawVuMeter(getPlane(), row, col, 1, reading, look, row, row + 1, static_cast<uint64_t>(track_id) + 2);
+      cellui::SparklineReading reading{fraction, 0.0f, clipping};
+      cellui::SparklineLook look{background, styles.meter_active_color};
+      static const auto fallback = cellui::cellCharts();
+      (charts_ ? charts_ : fallback.get())->drawSparkline(getPlane(), row, col, 1, reading, look, row, row + 1, static_cast<uint64_t>(track_id) + 2);
     };
 
     // Whether the left-edge marker (below) has been drawn yet for this
@@ -3128,7 +3128,7 @@ PatternEditor::renderHeadingOnPlane(const StyleProvider & styles, const std::vec
 
 	    auto instrument_name_width = std::max(0, actual_width - 1 - chip_width);
 	    // Reserve exactly 1 column at the right for the single-cell
-	    // vertical VU meter, but never shrinking the name below
+	    // vertical sparkline, but never shrinking the name below
 	    // kMinNameWidth - a narrow column just goes without a meter
 	    // rather than leaving no room to read the name at all. Reserved
 	    // by track type (has_meter), not by whether TrackInfo actually
@@ -3367,13 +3367,13 @@ PatternEditor::renderRow(const StyleProvider & styles, int heading_height, const
   // display's scopes across `width` cells from start_col: each time slice of
   // the row (WaveformPeaks, cellui::kWaveformSlices to a row) is a bar
   // centred across the width, a small bar-graph reading like a horizontal
-  // VU meter's. Not read as a sub-timeline left to right.
-  static const auto fallback_scopes = cellui::cellScopes();
+  // sparkline's. Not read as a sub-timeline left to right.
+  static const auto fallback_scopes = cellui::cellCharts();
   auto renderWaveformRow = [&](const WaveformPeaks & peaks, int row, int width, Color fg_color, Color bg_color, int start_col) {
     if (width <= 0) return;
     std::vector<float> slices(static_cast<size_t>(cellui::kWaveformSlices));
     for (int i = 0; i < cellui::kWaveformSlices; i++) slices[static_cast<size_t>(i)] = peaks.at(row, i);
-    (scopes_ ? scopes_ : fallback_scopes.get())->drawWaveformRow(getPlane(), display_row, start_col, width, slices, cellui::WaveformLook{fg_color, bg_color, styles.window_border_color});
+    (charts_ ? charts_ : fallback_scopes.get())->drawWaveformRow(getPlane(), display_row, start_col, width, slices, cellui::WaveformLook{fg_color, bg_color, styles.window_border_color});
   };
 
   auto current_pos = 0;

@@ -348,7 +348,7 @@ class AudioBuffer final {
 
   // Root-mean-square level of the Main W (0th-order/omnidirectional)
   // channel only, normalized by frame count so it doesn't grow with however
-  // many frames happen to make up the block. Feeds the per-track VU meter
+  // many frames happen to make up the block. Feeds the per-track sparkline
   // (PatternEditor's own instrument-name-row bar); 0 when Main is absent
   // (nothing to meter) or the buffer is empty.
   float calculateMainRMS() const {

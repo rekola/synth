@@ -4,7 +4,7 @@
 #include <cellui/DisplayInfo.h>
 #include <cellui/HeatmapChart.h>
 #include <cellui/SpectrumMeter.h>
-#include <cellui/VuMeterImage.h>
+#include <cellui/SparklineImage.h>
 
 #include <memory>
 #include <vector>
@@ -23,23 +23,24 @@ struct WaveformLook {
   Color guide;
 };
 
-// The scopes - the spectrum, the DirAC heatmap, the VU meters and the
-// waveform - in the versions a backend can show. An application asks its
-// backend's Scopes for a scope and never knows how it is drawn.
-class Scopes {
+// The charts - a spectrum, a heatmap, a per-channel bar chart, sparklines and
+// a waveform - in the versions a backend can show. An application asks its
+// backend's Charts for a chart and never knows how it is drawn.
+class Charts {
  public:
-  virtual ~Scopes() = default;
+  virtual ~Charts() = default;
 
   virtual std::shared_ptr<SpectrumMeter> spectrum(Plane & parent) const = 0;
   // A heatmap of a grid_cols x grid_rows grid.
   virtual std::shared_ptr<HeatmapChart> heatmap(Plane & parent, int grid_cols, int grid_rows) const = 0;
   virtual std::shared_ptr<ChannelMeter> channelMeter(Plane & parent) const = 0;
-  // A VU meter drawn into a widget's own plane: `rows` cells tall from
-  // (row, col), one cell wide, drawn only in the plane rows from clip_top up
-  // to clip_bottom (a meter partly scrolled out of view). `id` names the
-  // meter for the plane's images (see Plane::drawImageAt()); 0 for none.
-  virtual void drawVuMeter(Plane & plane, int row, int col, int rows, const VuReading & reading, const VuMeterLook & look,
-                           int clip_top, int clip_bottom, uint64_t id = 0) const = 0;
+  // A sparkline drawn into a widget's own plane: a bar `rows` cells tall from
+  // (row, col), one cell wide, showing a value and a mark above it, drawn only
+  // in the plane rows from clip_top up to clip_bottom (one partly scrolled out
+  // of view). `id` names the sparkline for the plane's images (see
+  // Plane::drawImageAt()); 0 for none.
+  virtual void drawSparkline(Plane & plane, int row, int col, int rows, const SparklineReading & reading, const SparklineLook & look,
+                             int clip_top, int clip_bottom, uint64_t id = 0) const = 0;
   // One pattern row's slice of a sample clip's waveform across `width` cells
   // from (row, col): kWaveformSlices amplitudes (0..1) over the row's time,
   // each a bar centred in the row's width.
@@ -48,22 +49,22 @@ class Scopes {
 };
 
 // The fallback for a display with no pictures, drawn in cells (cellui/term/
-// CellScopes.h). Every backend can show these. `sextants`: the display can
+// CellCharts.h). Every backend can show these. `sextants`: the display can
 // draw the finer glyphs (DisplayInfo::sextants).
-std::unique_ptr<Scopes> cellScopes(bool sextants = false);
+std::unique_ptr<Charts> cellCharts(bool sextants = false);
 
 // Drawn as pixels with canvas, for a backend whose planes show images
 // (Plane::pixelSize()/drawImage()). Not available where canvas has no
 // pixel backend built (nullptr).
-std::unique_ptr<Scopes> pixelScopes();
+std::unique_ptr<Charts> pixelCharts();
 
 // The scopes a display shows: the pixel version when pictures can be shown,
 // else the cell version.
-inline std::unique_ptr<Scopes> scopesFor(const DisplayInfo & display) {
+inline std::unique_ptr<Charts> chartsFor(const DisplayInfo & display) {
   if (display.pictures && display.cell_px_height > 0 && display.cell_px_width > 0) {
-    if (auto pixel = pixelScopes()) return pixel;
+    if (auto pixel = pixelCharts()) return pixel;
   }
-  return cellScopes(display.sextants);
+  return cellCharts(display.sextants);
 }
 
 }  // namespace cellui

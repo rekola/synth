@@ -4,7 +4,7 @@
 #include <cellui/ChannelMeter.h>
 #include <cellui/CoverArt.h>
 #include <cellui/SpectrumMeter.h>
-#include <cellui/term/CellScopes.h>
+#include <cellui/term/CellCharts.h>
 
 using namespace cellui;
 

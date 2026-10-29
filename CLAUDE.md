@@ -48,25 +48,25 @@ Windows); bump the pin when canvas changes. The pixel versions make their
 drawing context through `cellui::nativeContext()` (`src/NativeContext.h`), the
 one place that names a canvas backend. The scopes - the spectrum, the
 DirAC heatmap, the channel meter - are cellui widgets in the versions each
-backend provides (`cellui::Scopes`, `cellui/Scopes.h`;
-`cellui::scopesFor(display)` picks the display's): the cell
+backend provides (`cellui::Charts`, `cellui/Charts.h`;
+`cellui::chartsFor(display)` picks the display's): the cell
 versions are the terminal's fallback for a display with no pictures
-(`cellui/term/CellScopes.h`; braille bars, a quadrant or sextant heatmap and
+(`cellui/term/CellCharts.h`; braille bars, a quadrant or sextant heatmap and
 waveform, labels in text; their glyph tables and bar glyphs are
 `cellui/term/SubcellGlyphs.h` and `GlyphMeter.h`), drawn by hand, never
 through canvas, and nothing outside `cellui/term/` - not the synth, not a
-window backend - knows those glyphs: the application asks `Scopes` for a
-spectrum, a heatmap, a VU meter or a waveform row (`drawWaveformRow()`) and
+window backend - knows those glyphs: the application asks `Charts` for a
+spectrum, a heatmap, a sparkline or a waveform row (`drawWaveformRow()`) and
 the display draws it as it can. The pixel versions are images
 drawn with canvas (`cellui/SpectrumImage.h`, `cellui/HeatmapImage.h`,
-`src/PixelScopes.cpp`, the heatmap's axis labels drawn into the image). An `ImageData` handed to canvas to draw is RGB straight-alpha unless
+`src/PixelCharts.cpp`, the heatmap's axis labels drawn into the image). An `ImageData` handed to canvas to draw is RGB straight-alpha unless
 tagged otherwise (`setFormat(ChannelOrder::BGR, true)` for bytes B, G, R, A,
 premultiplied, as we build them); what is read back
-is the same layout, and the renderers return RGBA. The VU meters have pixel
+is the same layout, and the renderers return RGBA. The sparklines have pixel
 versions too: the channel meter's bars are one image over its bar rows, and
 the clip grid's and pattern editor's level meters are drawn through
-`Scopes::drawVuMeter()` into the widget's own plane (`cellui/VuMeterImage.h`;
-`term::drawCellVuMeter()` is the cell version), as images at cell positions
+`Charts::drawSparkline()` into the widget's own plane (`cellui/SparklineImage.h`;
+`term::drawCellSparkline()` is the cell version), as images at cell positions
 (`Plane::drawImageAt()`: a plane holds one image per cell position, covering
 only the cells it reaches, and the same picture - an id given to `drawImageAt()`, or a hash of its pixels - drawn again, even after
 `erase()` and at another position, keeps its key and version, so it isn't sent again, only placed; a meter scrolled partly out of view is drawn whole at its real position with a row clip, so its pixels do not change with the scroll).
@@ -558,10 +558,10 @@ The FFT spectrum (`SpectrumMeter`, `ui/SpectrumMeter.h`) draws its
 log-frequency bars in cells as the terminal fallback (two bars to a
 cell). When the terminal session found an image
 protocol (kitty graphics, iTerm2's inline images or Sixel) and the cell
-size in pixels, the pixel version (`cellui::pixelScopes()`) overrides
+size in pixels, the pixel version (`cellui::pixelCharts()`) overrides
 `barCount()`/`drawBars()` to draw one bar per pixel column as the meter's
 plane's image (`Plane::pixelSize()`/`drawImage()`) instead; the choice is
-made once at startup in `InteractiveUI::initialize()` (`cellui::scopesFor()`). Both the spectrum and the DirAC heatmap show in
+made once at startup in `InteractiveUI::initialize()` (`cellui::chartsFor()`). Both the spectrum and the DirAC heatmap show in
 Arrangement view's top band (stacked in a narrow column beside the arrangement grid) and in Live View's left column, stacked
 under the full-height outline panel, each below a title bar (only while the
 outline is shown and the terminal is tall enough); off-screen scopes are not updated.
@@ -1382,7 +1382,7 @@ would otherwise resume showing.
     against too - a concrete backend's real implementation, e.g.
     `TerminalMenu`, lives entirely inside that backend's own file, not
     alongside the interface), `HeatmapChart` (its versions are cellui's,
-    through `cellui::Scopes`), `StyleProvider` (a plain
+    through `cellui::Charts`), `StyleProvider` (a plain
     named-color theme struct, not terminal-specific itself), the
     Emacs-style keybinding dispatch (`KeyStroke.h`/`Keymap.h`/
     `CommandRegistry.h`), and selection/clipboard data types
@@ -1867,7 +1867,7 @@ would otherwise resume showing.
   command, a pad press, a whole live take's single note. The scope is the
   only thing that bumps the version (`incVersion()` no longer exists), and it
   publishes the audio thread's copy (below) when the outermost one closes, so
-  an action's writes become visible together. Scopes nest; `discard()` is for
+  an action's writes become visible together. Charts nest; `discard()` is for
   a scope that wrote nothing. `CONTENT` edits (note/command/velocity/delay)
   count in the minor version, everything else in the major one. A write
   outside any scope is a bug that leaves the audio thread on stale content;

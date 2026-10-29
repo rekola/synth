@@ -1,4 +1,4 @@
-#include <cellui/term/CellScopes.h>
+#include <cellui/term/CellCharts.h>
 
 #include "HeatmapGrid.h"
 
@@ -147,7 +147,7 @@ private:
 
 }  // namespace
 
-void drawCellVuMeter(Plane & plane, int row, int col, int rows, const VuReading & reading, const VuMeterLook & look, int clip_top,
+void drawCellSparkline(Plane & plane, int row, int col, int rows, const SparklineReading & reading, const SparklineLook & look, int clip_top,
                      int clip_bottom) {
   if (rows <= 0) return;
   auto & styles = plane.getStyles();
@@ -282,18 +282,18 @@ void drawCellWaveformRow(Plane & plane, int row, int col, int width, const std::
 
 namespace {
 
-class CellScopes : public Scopes {
+class CellCharts : public Charts {
  public:
-  explicit CellScopes(bool sextants) : sextants_(sextants) { }
+  explicit CellCharts(bool sextants) : sextants_(sextants) { }
 
   std::shared_ptr<SpectrumMeter> spectrum(Plane & parent) const override { return std::make_shared<CellSpectrumMeter>(parent); }
   std::shared_ptr<HeatmapChart> heatmap(Plane & parent, int grid_cols, int grid_rows) const override {
     return std::make_shared<CellHeatmapChart>(parent, grid_cols, grid_rows, sextants_);
   }
   std::shared_ptr<ChannelMeter> channelMeter(Plane & parent) const override { return std::make_shared<CellChannelMeter>(parent); }
-  void drawVuMeter(Plane & plane, int row, int col, int rows, const VuReading & reading, const VuMeterLook & look, int clip_top,
+  void drawSparkline(Plane & plane, int row, int col, int rows, const SparklineReading & reading, const SparklineLook & look, int clip_top,
                    int clip_bottom, uint64_t) const override {
-    drawCellVuMeter(plane, row, col, rows, reading, look, clip_top, clip_bottom);
+    drawCellSparkline(plane, row, col, rows, reading, look, clip_top, clip_bottom);
   }
   void drawWaveformRow(Plane & plane, int row, int col, int width, const std::vector<float> & slices, const WaveformLook & look) const override {
     drawCellWaveformRow(plane, row, col, width, slices, look, sextants_);
@@ -307,6 +307,6 @@ class CellScopes : public Scopes {
 
 }  // namespace term
 
-std::unique_ptr<Scopes> cellScopes(bool sextants) { return std::make_unique<term::CellScopes>(sextants); }
+std::unique_ptr<Charts> cellCharts(bool sextants) { return std::make_unique<term::CellCharts>(sextants); }
 
 }  // namespace cellui

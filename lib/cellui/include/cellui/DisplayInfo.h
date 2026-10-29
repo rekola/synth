@@ -41,7 +41,7 @@ struct DisplayInfo {
   // 1 for a 96-dpi display, 2 for a typical HiDPI one; what the application
   // draws in pixels is scaled by it.
   double display_scale = 1.0;
-  // Whether the terminal fallback charts (cellScopes()) can use the finer
+  // Whether the terminal fallback charts (cellCharts()) can use the finer
   // sextant glyphs. A display that shows pictures has no use for it.
   bool sextants = false;
   // Unset for a backend with no HDR path at all (the terminal, a window drawn
