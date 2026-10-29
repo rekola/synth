@@ -3,7 +3,8 @@
 #include <cellui/ChoiceList.h>
 #include <cellui/InfoDialog.h>
 #include <cellui/Markdown.h>
-#include <cellui/SubcellGlyphs.h>
+#include <cellui/Charts.h>
+#include <cellui/term/SubcellGlyphs.h>
 #include <cellui/Utf8.h>
 
 #include <algorithm>
@@ -173,6 +174,7 @@ Gallery::Gallery(Plane & plane, const Theme & theme) {
   page.skip(2);
 
   page.heading("Sub-cell glyphs");
+  using namespace term;
   std::string quadrants, braille, sextants;
   for (int mask = 0; mask < 16; mask++) quadrants += utf8::encodeCodepoint(mask == 0 ? 0x2591 : kQuadrantCodepoints[mask]);
   for (int mask = 1; mask < 64; mask += 3) sextants += utf8::encodeCodepoint(sextantCodepoint(mask));
@@ -245,12 +247,12 @@ Gallery::Gallery(Plane & plane, const Theme & theme) {
       float t = static_cast<float>(i) / static_cast<float>(db.size());
       db[i] = -12.0f - 55.0f * std::sqrt(t) + 8.0f * std::sin(static_cast<float>(i) * 0.35f);
     }
-    spectrum_ = std::make_unique<SpectrumMeter>(plane);
+    spectrum_ = cellCharts()->spectrum(plane);
     spectrum_->resize(4, 40);
     spectrum_->move(page.row(), 0);
     spectrum_->setSpectrum(db, 86.0f);
 
-    channels_ = std::make_unique<ChannelMeter>(plane);
+    channels_ = cellCharts()->channelMeter(plane);
     channels_->resize(5, 10);
     channels_->move(page.row(), 44);
     channels_->setLevels({0.7f, 0.3f, 0.12f, 0.5f, 0.02f, 0.9f, 1.2f, 0.0f}, "W Y Z X");

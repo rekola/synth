@@ -33,8 +33,8 @@ class Gallery {
   InfoDialog dialog_;
   ChoiceDialog choice_;
   int octave_ = 4;
-  std::unique_ptr<SpectrumMeter> spectrum_;
-  std::unique_ptr<ChannelMeter> channels_;
+  std::shared_ptr<SpectrumMeter> spectrum_;
+  std::shared_ptr<ChannelMeter> channels_;
   std::unique_ptr<SpinBox> spin_;
   std::unique_ptr<CoverArt> cover_;
   std::vector<std::unique_ptr<Dial>> dials_;

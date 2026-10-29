@@ -18,7 +18,7 @@
 #include "LevelMeter.h"
 
 #include <cellui/Fade.h>
-#include <cellui/Scopes.h>
+#include <cellui/Charts.h>
 
 #include <chrono>
 #include <functional>
@@ -289,13 +289,13 @@ protected:
   PendingNibbles pending_;
   // Asked for by an undo; applied in render(), where the track's columns are known.
   std::optional<Song::EditPlace> focus_cell_;
-  const cellui::Scopes * scopes_ = nullptr;
+  const cellui::Charts * charts_ = nullptr;
 public:
   // Writes a half-typed velocity or delay to the song.
   void commitPendingValue();
-  // The backend's scopes, which draw the VU meters; unset, they are drawn
+  // The backend's scopes, which draw the sparklines; unset, they are drawn
   // in cells.
-  void setScopes(const cellui::Scopes * scopes) { scopes_ = scopes; }
+  void setCharts(const cellui::Charts * scopes) { charts_ = scopes; }
   void focusCell(const Song::EditPlace & place) { focus_cell_ = place; }
 private:
   bool offerInputKey(const cellui::Input & input);
@@ -314,11 +314,11 @@ private:
   // from its own column 0.
   GridPosition current_scroll_;
   int current_tempo = 0;
-  // Last frame's PlaybackInfo::getVoiceCount() - lets the VU meter catch
+  // Last frame's PlaybackInfo::getVoiceCount() - lets the sparkline catch
   // the one extra redraw needed right as the last voice finishes (see
   // render()'s own use of it), not just while it's still sounding.
   int current_voice_count_ = 0;
-  // A track's VU meter smoothing, by track id, and whether any meter drawn
+  // A track's sparkline smoothing, by track id, and whether any meter drawn
   // last was still showing a level (the heading keeps redrawing until they
   // have all fallen back to silent).
   struct MeterSmoothing {

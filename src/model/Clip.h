@@ -193,8 +193,8 @@ class Clip : public SongObject {
   // rebuilt into the composite still shows the original take's own
   // peaks, not a half-built or empty one.
   // `getLength()` (this class's own field, SampleContent has no notion of
-  // it) and `subrows_per_row` (a runtime choice, Plane::
-  // canRenderSextants()) are the two things only this call site actually
+  // it) and `subrows_per_row` (the caller's choice of resolution) are the
+  // two things only this call site actually
   // knows, so they're passed in as plain parameters rather than something
   // SampleContent tracks itself. getLength() > 0 ? getLength() : 1, not
   // getLength() directly - the same "0 means not given one yet, treat it

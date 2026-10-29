@@ -1,10 +1,10 @@
 #pragma once
 
 // The heatmap's resampling and axis labels, shared by its cell and pixel
-// versions (Scopes.cpp, PixelScopes.cpp).
+// versions (Charts.cpp, PixelCharts.cpp).
 
 #include <cellui/HeatmapImage.h>
-#include <cellui/SubcellGlyphs.h>
+#include <cellui/Color.h>
 
 #include <algorithm>
 #include <array>
@@ -27,8 +27,8 @@ namespace heatmap_grid {
 // `background` is window_bg_color, the idle background every scope
 // shares - the heatmap repaints every cell/pixel each frame, so it has no
 // untouched cells to show it through the way the other charts do.
-inline SubcellRgb heatmapCellColor(const Color & background, float saturation, float value) {
-  SubcellRgb c{};
+inline FloatRgb heatmapCellColor(const Color & background, float saturation, float value) {
+  FloatRgb c{};
   heatmap_image::cellColor(background, saturation, value, c.r, c.g, c.b);
   return c;
 }
@@ -155,7 +155,7 @@ struct AxisLabel { int row, col; const char * text; };
 // while still visibly taking on whatever hue/brightness is really there.
 constexpr float kLabelForegroundAlpha = 0.55f; // how much white shows through the glyph
 
-inline void labelForegroundColor(const SubcellRgb & bg, uint8_t & r, uint8_t & g, uint8_t & b) {
+inline void labelForegroundColor(const FloatRgb & bg, uint8_t & r, uint8_t & g, uint8_t & b) {
   r = static_cast<uint8_t>(kLabelForegroundAlpha * 255.0f + (1.0f - kLabelForegroundAlpha) * bg.r);
   g = static_cast<uint8_t>(kLabelForegroundAlpha * 255.0f + (1.0f - kLabelForegroundAlpha) * bg.g);
   b = static_cast<uint8_t>(kLabelForegroundAlpha * 255.0f + (1.0f - kLabelForegroundAlpha) * bg.b);

@@ -24,7 +24,6 @@
 #include "../launchpad/LaunchpadChannelPressureEvent.h"
 #include "../launchpad/LaunchpadProtocol.h"
 #include "../launchpad/LaunchpadManager.h"
-#include "SubcellGlyphs.h"
 #include "../util/Utf8.h"
 #include "../util/constants.h"
 #include "../model/Color.h"
@@ -70,7 +69,7 @@
 #endif
 #include <cellui/MenuBar.h>
 #include <cellui/KeyReader.h>
-#include <cellui/Scopes.h>
+#include <cellui/Charts.h>
 #include <cellui/Backend.h>
 
 #ifndef _WIN32
@@ -240,7 +239,7 @@ static vector<MenuSectionSpec> menuSpec(vector<MenuItemSpec> buffer_items) {
                         {nullptr, nullptr, nullptr},
                         {"Outline", "", "outline-view"},
                         {"Toggle Outline", "", "toggle-outline"},
-                        {"Toggle Scopes", "", "toggle-scopes"},
+                        {"Toggle Charts", "", "toggle-scopes"},
                     }},
       // Machine-wide, not per song - the choice is remembered across runs.
       {"Devices", 'd', {
@@ -452,7 +451,6 @@ InteractiveUI::initialize(std::shared_ptr<Controller> & controller) {
   root_plane_ = root_plane.get();
   if (display.default_fg && display.default_bg) root_plane_->setDefaultColors(*display.default_fg, *display.default_bg);
   root_plane_->setDisplayScale(display.display_scale);
-  root_plane_->setSextants(display.sextants);
   root_plane_->setSmoothScroll(display.smooth_scroll);
   root_plane_->setKeymapProfile(display.keymap_profile);
   key_reader_.setEscapeAsMeta(display.escape_as_meta);
@@ -477,10 +475,10 @@ InteractiveUI::initialize(std::shared_ptr<Controller> & controller) {
     menu_->applyStyles(styles_);
   }
 
-  scopes_ = cellui::scopesFor(display);
-  chart_ = scopes_->spectrum(getPlane());
-  volume_meter_ = scopes_->channelMeter(getPlane());
-  heatmap_ = scopes_->heatmap(getPlane(), DiracAnalyzer::kAzimuthBins, DiracAnalyzer::kElevationBins);
+  charts_ = cellui::chartsFor(display);
+  chart_ = charts_->spectrum(getPlane());
+  volume_meter_ = charts_->channelMeter(getPlane());
+  heatmap_ = charts_->heatmap(getPlane(), DiracAnalyzer::kAzimuthBins, DiracAnalyzer::kElevationBins);
 
   // No footer legend on either scope: the heatmap's axis extremes are
   // drawn directly in the grid area instead (axisLabels(), above), and the
@@ -659,10 +657,10 @@ void
 InteractiveUI::initializeWidgets() {
   // chart and volume are missing
   pattern_editor_ = make_shared<PatternEditor>(getPlane());
-  pattern_editor_->setScopes(scopes_.get());
+  pattern_editor_->setCharts(charts_.get());
   arrangement_grid_ = make_shared<ArrangementGrid>(getPlane());
   clip_grid_ = make_shared<ClipGrid>(getPlane());
-  clip_grid_->setScopes(scopes_.get());
+  clip_grid_->setCharts(charts_.get());
   outline_view_ = make_shared<OutlineView>(getPlane());
   // Enter commits the cell under this grid's own (local, passive) cursor
   // to shared state - see ArrangementGrid.h's own comment on why this is a
@@ -1239,7 +1237,7 @@ InteractiveUI::renderComponents(bool refresh) {
   refresh = refresh || force_next_render_;
   force_next_render_ = false;
   bool render = false;
-  // Scopes coming back on screen start empty at once: a silent analysis sends
+  // Charts coming back on screen start empty at once: a silent analysis sends
   // nothing more to replace what they held.
   if (scopes_stale_ && scopes_on_screen_) {
     blankScopes();
@@ -1800,7 +1798,7 @@ void InteractiveUI::handleVisualizationResultEvent(const VisualizationResultEven
   // catches up faster instead of falling further behind.
   bool superseded = eventsPending();
   bool changed = superseded; // a superseded event is redrawn by the one behind it
-  // Scopes that are off screen aren't updated at all.
+  // Charts that are off screen aren't updated at all.
   if (!superseded && scopes_on_screen_) {
     if (scopes_stale_) {
       blankScopes();
