@@ -661,8 +661,19 @@ void Window::Impl::drawLayer(size_t i, const CellRange * only) {
     }
     if (band.border_px > 0) {
       brush->SetColor(colorOf(band.border_color, band.border_alpha));
-      for (const BandBorderRect & r : bandBorderRects(band, bx, by, (content.col + band.border_skip_col) * cell_w, cell_w, cell_h))
+      BandBorderShape shape = bandBorder(band, bx, by, (content.col + band.border_skip_col) * cell_w, cell_w, cell_h);
+      for (const BandBorderRect & r : shape.rects)
         rt_->FillRectangle(D2D1::RectF(static_cast<float>(r.x), static_cast<float>(r.y), static_cast<float>(r.x + r.w), static_cast<float>(r.y + r.h)), brush.get());
+      // A round corner is the band's rounded outline stroked inside the border's
+      // width, cut to the square the arc fills.
+      float t = static_cast<float>(shape.thickness);
+      for (const BandBorderCorner & corner : shape.corners) {
+        float arc = static_cast<float>(corner.size) - t / 2;
+        D2D1_RECT_F square = D2D1::RectF(static_cast<float>(corner.x), static_cast<float>(corner.y), static_cast<float>(corner.x + corner.size), static_cast<float>(corner.y + corner.size));
+        rt_->PushAxisAlignedClip(square, D2D1_ANTIALIAS_MODE_PER_PRIMITIVE);
+        rt_->DrawRoundedRectangle(D2D1::RoundedRect(D2D1::RectF(bx + t / 2, by + t / 2, strip.right - t / 2, strip.bottom - t / 2), arc, arc), brush.get(), t);
+        rt_->PopAxisAlignedClip();
+      }
     }
   }
   rt_->PopAxisAlignedClip();
