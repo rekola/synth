@@ -108,7 +108,8 @@ inline const std::string_view keyToMidiNote(const cellui::Input & input, Tuning 
 	// 82 Shaker
     }
   } else {
-    if (scale == Scale::OTONAL) {
+    // A scale with no layout of its own plays the otonal one.
+    if (scale != Scale::UTONAL) {
       switch (input.getId()) {
         case 'z':
           return "C";
@@ -129,7 +130,7 @@ inline const std::string_view keyToMidiNote(const cellui::Input & input, Tuning 
         case 'm':
           return "A#";
         case 'k':
-          return "C𝄫";
+          return "C𝄫'";
         case 'l':
           return "B";
         case ',':
@@ -139,7 +140,7 @@ inline const std::string_view keyToMidiNote(const cellui::Input & input, Tuning 
         case '-':
           return "E'";
       }
-    } else if (scale == Scale::UTONAL) {
+    } else {
       switch (input.getId()) {
         case 'z':
           return "C";

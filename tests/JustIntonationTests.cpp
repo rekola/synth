@@ -187,10 +187,10 @@ TEST(scale_corrections_give_each_degree_its_exact_ratio_in_every_tuning) {
   };
   const std::vector<Row> rows = {
       // Where two degrees of a scale share a step (12-EDO), the first named wins.
-      {Tuning::EDO12, {0, 4, -33, -14, -2, 2, -16, -31, -31}, {0, -18, -18, 16, -2, 2, 14, 33, -4}},
-      {Tuning::EDO19, {0, 14, 14, 7, -7, 7, 0, 21, 7}, {0, -7, -21, 0, -7, 7, -7, -14, -14}},
-      {Tuning::EDO31, {0, 10, -4, -1, -5, 5, -6, 1, 11}, {0, -11, -1, 6, -5, 5, 1, 4, -10}},
-      {Tuning::EDO53, {0, 0, -5, 1, 0, 0, 1, -5, -1}, {0, 1, 5, -1, 0, 0, -1, 5, 0}},
+      {Tuning::EDO12, {0, 39, 4, -33, -14, -2, 2, -16, -31, -31, -12}, {0, 12, -49, -49, 16, -2, 2, 14, 33, -4, -39}},
+      {Tuning::EDO19, {0, 12, 14, 14, 7, -7, 7, 0, 21, -24, -24}, {0, -15, -15, -21, 0, -7, 7, -7, -14, -14, -12}},
+      {Tuning::EDO31, {0, 22, 10, -4, -1, -5, 5, -6, 1, 4, 4}, {0, -4, -4, -1, 6, -5, 5, 1, 4, -10, -22}},
+      {Tuning::EDO53, {0, 3, 0, -5, 1, 0, 0, 1, -5, 8, 1}, {0, -1, -8, 5, -1, 0, 0, -1, 5, 0, -3}},
   };
   for (auto & row : rows) {
     for (auto scale : {Scale::OTONAL, Scale::UTONAL}) {
@@ -218,7 +218,7 @@ TEST(scale_corrections_follow_the_key_and_ignore_octaves) {
 TEST(otonal_and_utonal_are_tuned_together) {
   // The steps of both scales together: 31-EDO has one step for each pair of
   // degrees a syntonic comma apart, 53-EDO two.
-  for (auto [tuning, expected] : {std::pair{Tuning::EDO31, 13}, std::pair{Tuning::EDO53, 15}}) {
+  for (auto [tuning, expected] : {std::pair{Tuning::EDO31, 17}, std::pair{Tuning::EDO53, 19}}) {
     for (auto scale : {Scale::OTONAL, Scale::UTONAL}) {
       auto corrections = scaleCorrectionsFor(tuning, scale, 0);
       int present = 0;
@@ -258,7 +258,7 @@ TEST(every_triad_of_the_two_scales_is_exact_in_every_voicing) {
     std::vector<int> notes;
     for (int step = 0; step < edo; step++)
       if (scale.forNote(step)) notes.push_back(step);
-    CHECK(notes.size() == (tuning == Tuning::EDO31 ? 13u : 15u));
+    CHECK(notes.size() == (tuning == Tuning::EDO31 ? 17u : 19u));
     for (size_t a = 0; a < notes.size(); a++) {
       for (size_t b = a + 1; b < notes.size(); b++) {
         for (size_t c = b + 1; c < notes.size(); c++) {

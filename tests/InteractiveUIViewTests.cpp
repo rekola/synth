@@ -83,7 +83,7 @@ TEST(terminal_ui_wheel_in_live_view_scrolls_the_outline_and_leaves_the_scene) {
   f.otherWindow();  // the pattern editor
   for (int i = 0; i < 4; i++) f.wheel(30, 50);
   // A note typed into the pattern editor creates a clip in its scene.
-  f.type("q");
+  f.type("z");
   CHECK(f.line(2).find("Clip") != std::string::npos);
 }
 
@@ -132,7 +132,7 @@ TEST(terminal_ui_emacs_keybindings_reach_their_commands) {
   // Left at the first column stays in the pattern editor.
   std::string before = patternLine(f, "00");
   for (int i = 0; i < 3; i++) f.press(Key::Left);
-  f.type("q");
+  f.type("z");
   CHECK(patternLine(f, "00") != before);
 
   // Right past the arrangement grid's last track stays in the grid.
@@ -140,7 +140,7 @@ TEST(terminal_ui_emacs_keybindings_reach_their_commands) {
   f.press(Key::Down);
   std::string row01 = patternLine(f, "01");
   for (int i = 0; i < 10; i++) f.press(Key::Right);
-  f.type("w");  // would enter a note if focus had moved to the pattern editor
+  f.type("x"); // would enter a note if focus had moved to the pattern editor
   CHECK(patternLine(f, "01") == row01);
 }
 
@@ -230,7 +230,7 @@ TEST(terminal_ui_live_view_layout_and_the_clip_grid_cursor) {
   f.otherWindow();  // the pattern editor
   // A note typed into the pattern editor creates a clip where the track is -
   // its first clip - not at the clip grid's cursor (row 4).
-  f.type("q");
+  f.type("z");
   CHECK(f.line(2).find("Clip") != std::string::npos);
   CHECK(f.line(5).find("Clip") == std::string::npos);
 

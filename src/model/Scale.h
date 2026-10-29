@@ -87,7 +87,7 @@ static inline std::vector<std::string_view> scaleDegreeNames(Scale scale) {
   case Scale::MAJOR: return { "C", "D", "E", "F", "G", "A", "B" };
   case Scale::MINOR: return { "C", "D", "E♭", "F", "G", "A♭", "B♭" };
   case Scale::OTONAL:
-    return {"C", "D♭", "D", "D♯", "E", "F", "G", "A", "A𝄰", "C𝄫", "B"};
+    return {"C", "D♭", "D", "D♯", "E", "F", "G", "A", "A𝄰", "C𝄫'", "B"};
   case Scale::UTONAL:
     return {"C", "D𝄭", "C𝄪", "E𝄫", "E♭", "F", "G", "A♭", "B𝄫", "B𝄭", "B↓"};
   case Scale::NONE: return {};
