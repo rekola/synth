@@ -19,7 +19,7 @@ std::vector<Input> drain(KeyReader & r) {
 
 }  // namespace
 
-TEST(key_reader_escape_then_key_is_only_the_chord) {
+TEST(key_reader_escape_then_key_is_only_the_shortcut) {
   KeyReader r;
   r.push(key(Key::Escape));
   CHECK(drain(r).empty() && r.escapePending() && r.indicatorDue());

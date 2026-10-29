@@ -2,55 +2,93 @@
 #define _KEYBOARDNOTES_H_
 
 #include "../instruments/Tuning.h"
+#include "../model/Scale.h"
 
 #include <cellui/Input.h>
 
-// The key ids, as Key::Up and so on.
-namespace Key = cellui::Key;
+#include <string_view>
 
 // The note-entry keyboard mapping: the MIDI note a key plays in a tuning, or -1.
-inline int keyToMidiNote(const cellui::Input & input, int octave, Tuning tuning) {
+inline const std::string_view keyToMidiNote(const cellui::Input & input, Tuning tuning, Scale scale) {
   if (tuning == Tuning::PERCUSSION) {
     switch (input.getId()) {
-    case '1': return 27; // High Q
-    case '2': return 28; // Slap
-    case '3': return 29; // Stratch Push
-    case '4': return 30; // Stratch Pull
-    case '5': return 31; // Sticks
-    case '6': return 32; // Square Click
-    case '7': return 33; // Metronome Click
-    case '8': return 34; // Metronome Bell
-    case '9': return 35; // Acoustic Bass Drum
-    case '0': return 36; // Electric Bass Drum
-    case 'q': return 37; // Side Stick
-    case 'w': return 38; // Acoustic Snare
-    case 'e': return 39; // Hand Clap
-    case 'r': return 40; // Electric Snare
-    case 't': return 41; // Low Floor Tom
-    case 'y': return 42; // Closed Hi-hat
-    case 'u': return 43; // High Floor Tom
-    case 'i': return 44; // Pedal Hi-hat
-    case 'o': return 45; // Low Tom
-    case 'p': return 46; // Open Hi-hat
-    case 's': return 47; // Low-Mid Tom
-    case 'd': return 48; // Hi-Mid Tom
-    case 'f': return 49; // Crash Cymbal 1
-    case 'g': return 50; // High Tom
-    case 'h': return 51; // Ride Cymbal 1
-    case 'j': return 52; // Chinese Cymbal
-    case 'k': return 53; // Ride Bell
-    case 'l': return 54; // Tambourine
-    case 'z': return 55; // Splash Cymbal
-    case 'x': return 56; // Cowbell
-    case 'c': return 57; // Crash Cymbal 2
-    case 'v': return 58; // Vibra Slap
-    case 'b': return 59; // Ride Cymbal 2
-    case 'n': return 60; // High Bongo
-    case 'm': return 61; // Low Bongo
-    case '.': return 62; // Mute High Conga
-    case ',': return 63; // Open High Conga
-    case '-': return 64; // Low Conga
-	// 65 High Timbale
+      case '1':
+        return "HQ";
+      case '2':
+        return "SLP"; // Slap
+      case '3':
+        return "SPU"; // Stratch Push
+      case '4':
+        return "SPD"; // Stratch Pull
+      case '5':
+        return "STK"; // Sticks
+      case '6':
+        return "SQC"; // Square Click
+      case '7':
+        return "MCK"; // Metronome Click
+      case '8':
+        return "MBL"; // Metronome Bell
+      case '9':
+        return "BD2"; // Acoustic Bass Drum
+      case '0':
+        return "BD"; // Electric Bass Drum
+      case 'q':
+        return "RS"; // Side Stick
+      case 'w':
+        return "SD"; // Acoustic Snare
+      case 'e':
+        return "CP"; // Hand Clap
+      case 'r':
+        return "SD2"; // Electric Snare
+      case 't':
+        return "TFL"; // Low Floor Tom
+      case 'y':
+        return "CH"; // Closed Hi-hat
+      case 'u':
+        return "TFH"; // High Floor Tom
+      case 'i':
+        return "PH"; // Pedal Hi-hat
+      case 'o':
+        return "LT"; // Low Tom
+      case 'p':
+        return "OH"; // Open Hi-hat
+      case 's':
+        return "MT"; // Low-Mid Tom
+      case 'd':
+        return "MT2"; // Hi-Mid Tom
+      case 'f':
+        return "CR"; // Crash Cymbal 1
+      case 'g':
+        return "HT"; // High Tom
+      case 'h':
+        return "RD"; // Ride Cymbal 1
+      case 'j':
+        return "CHN"; // Chinese Cymbal
+      case 'k':
+        return "RB"; // Ride Bell
+      case 'l':
+        return "TMB"; // Tambourine
+      case 'z':
+        return "SPL"; // Splash Cymbal
+      case 'x':
+        return "CB"; // Cowbell
+      case 'c':
+        return "CR2"; // Crash Cymbal 2
+      case 'v':
+        return "VS"; // Vibra Slap
+      case 'b':
+        return "RD2"; // Ride Cymbal 2
+      case 'n':
+        return "BOH"; // High Bongo
+      case 'm':
+        return "BOL"; // Low Bongo
+      case '.':
+        return "CGM"; // Mute High Conga
+      case ',':
+        return "CGH"; // Open High Conga
+      case '-':
+        return "CGL"; // Low Conga
+                      // 65 High Timbale
 	// 66 Low Timbale
 	// 67 High Agogô
 	// 68 Low Agogô
@@ -69,91 +107,73 @@ inline int keyToMidiNote(const cellui::Input & input, int octave, Tuning tuning)
 	// 81 Open Triangle
 	// 82 Shaker
     }
-  } else if (tuning == Tuning::EDO12) {
-    int base = (octave - 4) * 12;
-    switch (input.getId()) {
-    case 'z': return base + 48;
-    case 's': return base + 49;
-    case 'x': return base + 50;
-	
-    case 'q': return base + 60;
-    case '2': return base + 61;
-    case 'w': return base + 62;
-    case '3': return base + 63;
-    case 'e': return base + 64;
-	
-    case 'r': return base + 65;
-    case '5': return base + 66;
-    case 't': return base + 67;
-    case '6': return base + 68;
-    case 'y': return base + 69;
-    case '7': return base + 70;
-    case 'u': return base + 71;
-	
-    case 'i': return base + 72;
-    case '9': return base + 73;
-    case 'o': return base + 74;
-    case '0': return base + 75;
-    case 'p': return base + 76;	
-    }
-  } else if (tuning == Tuning::EDO31) {
-    int base = (octave - 4) * 31;
-    switch (input.getId()) {
-    case 'z': return base + 155; // C
-    case '1': return base + 157; // C#
-    case 'q': return base + 158; // Db
-    case '2': return base + 159; // Cx
-    case 'w': return base + 160; // D
-    case 's': return base + 161; // E𝄫
-    case 'x': return base + 162; // D#
-    case 'd': return base + 163; // Eb
-    case 'c': return base + 165; // E
-    case 'v': return base + 168; // F
-    case 'g': return base + 169; // G𝄫
-    case 'b': return base + 173; // G
-    case 'h': return base + 176; // Ab
-    case 'u': return base + 177; // G𝄪
-    case 'n': return base + 178; // A
-    case 'j': return base + 179; // B𝄫
-    case 'm': return base + 180; // A#
-    case 'k': return base + 181; // Bb
-    case 'i': return base + 182; // A𝄪
-    case '8': return base + 183; // B
-    case ',': return base + 186; // C'
-    case 'l': return base + 192; // E𝄫'
-    case '.': return base + 193; // D#'
-    case '-': return base + 196; // E'
-    }
-  } else if (tuning == Tuning::EDO53) {
-    int base = (octave - 4) * 53;
-    switch (input.getId()) {
-    case 'z': return base + 265; // C
-    case '1': return base + 268; // C#
-    case 'q': return base + 270; // D𝄭
-    case '2': return base + 272; // Cx
-    case 'w': return base + 274; // D
-    case 's': return base + 275; // E𝄫
-    case 'x': return base + 277; // D#
-    case 'd': return base + 279; // Eb
-    case 'c': return base + 282; // E
-    case 'v': return base + 287; // F
-    case 'g': return base + 289; // G𝄫
-    case 'b': return base + 296; // G
-    case 'h': return base + 301; // Ab
-    case 'u': return base + 303; // G𝄪
-    case 'n': return base + 304; // A
-    case 'j': return base + 306; // B𝄫
-    case 'm': return base + 308; // A𝄰
-    case 'k': return base + 310; // Bb
-    case 'i': return base + 311; // A𝄪
-    case '8': return base + 313; // B
-    case ',': return base + 53 + 265; // C'
-    case 'l': return base + 53 + 275; // E𝄫'
-    case '.': return base + 53 + 277; // D#'
-    case '-': return base + 53 + 282; // E'
+  } else {
+    // A scale with no layout of its own plays the otonal one.
+    if (scale != Scale::UTONAL) {
+      switch (input.getId()) {
+        case 'z':
+          return "C";
+        case 's':
+          return "D♭";
+        case 'd':
+          return "D";
+        case 'x':
+          return "D♯";
+        case 'c':
+          return "E";
+        case 'v':
+          return "F";
+        case 'b':
+          return "G";
+        case 'n':
+          return "A";
+        case 'm':
+          return "A#";
+        case 'k':
+          return "C𝄫'";
+        case 'l':
+          return "B";
+        case ',':
+          return "C'";
+        case '.':
+          return "D#'";
+        case '-':
+          return "E'";
+      }
+    } else {
+      switch (input.getId()) {
+        case 'z':
+          return "C";
+        case 's':
+          return "D𝄭";
+        case 'd':
+          return "C𝄪";
+        case 'x':
+          return "E𝄫";
+        case 'c':
+          return "E♭";
+        case 'v':
+          return "F";
+        case 'b':
+          return "G";
+        case 'n':
+          return "A♭";
+        case 'm':
+          return "B𝄫";
+        case 'k':
+          return "B𝄭";
+        case 'l':
+          return "B↓";
+        case ',':
+          return "C'";
+        case '.':
+          return "E𝄫'";
+        case '-':
+          return "E♭'";
+      }
     }
   }
-  return -1;
+  return "";
 }
 
 #endif

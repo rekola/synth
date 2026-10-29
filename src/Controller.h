@@ -140,7 +140,7 @@ class Controller {
   // (which would silently discard any in-memory edits the open copy has
   // that the file itself doesn't).
   bool openSong(const std::string & filename);
-  // "Save As": like sendCommand("save-song") (saves the current song, and
+  // "Save As": like sendCommand("save-buffer") (saves the current song, and
   // resets hasUnsavedChanges()'s baseline the same way), but to `filename`
   // rather than whatever filename the song was opened/created with - and,
   // standard Save As semantics, subsequent plain saves target `filename`
@@ -541,7 +541,6 @@ class Controller {
     if (ui_inbox_) ui_inbox_->post(std::move(event));
   }
 
-  EventQueue & getUIEventQueue() { return ui_event_queue; }
   EventQueue & getPlaybackEventQueue() { return playback_event_queue; }
 
   // Live View clip launching and its clock - see ClipPlayer.h.
@@ -550,7 +549,7 @@ class Controller {
 
   // Audio thread -> VisualizationThread only (see VisualizationThread.h) -
   // carries raw AudioBlockEvents, never anything UI-facing; results come
-  // back the other way via ui_event_queue (VisualizationResultEvent).
+  // back the other way via postToUI() (VisualizationResultEvent).
   EventQueue & getVisualizationQueue() { return visualization_queue; }
 
   // Plain overwrite - used by togglePlaying()/moveEditPosition()/
@@ -677,7 +676,7 @@ class Controller {
   // spot) goes through here rather than pushing MOVE_POSITION/SET_POSITION
   // directly, for the same reason togglePlaying() above updates its own
   // mirror synchronously instead of only pushing an event: the UI thread's
-  // own main loop (TerminalUI::readInput()) drains every currently-buffered
+  // own main loop (InteractiveUI::readInput()) drains every currently-buffered
   // terminal keystroke in one tight loop before ever returning to poll()
   // and giving the Player thread's PlaybackEvent round-trip a chance to be
   // read back - so a burst of terminal-generated key auto-repeat (holding
@@ -1291,7 +1290,7 @@ class Controller {
   std::set<std::string> registered_buffer_commands_;
   std::shared_ptr<AudioBuffer> current_sample;
   InstrumentProvider instrument_provider;
-  EventQueue ui_event_queue, playback_event_queue, visualization_queue;
+  EventQueue playback_event_queue, visualization_queue;
   std::mutex ui_inbox_mutex_;
   cellui::ThreadInbox * ui_inbox_ = nullptr;
   // playback_info/recording_track_id/local_position_edit_seq_/
@@ -1407,7 +1406,7 @@ class Controller {
   // See getGlobalOctave()'s own comment - deliberately global, unlike the
   // per-buffer state above.
   int global_octave_ = 4;
-  // Controller's own named commands ("save-song", ...) - sendCommand()
+  // Controller's own named commands ("save-buffer", ...) - sendCommand()
   // tries this first, then command_fallback_; commandCompletions() reads
   // its prefix index the same way.
   CommandRegistry commands_;

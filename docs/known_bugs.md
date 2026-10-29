@@ -19,7 +19,7 @@ Found 2026-07-11, not yet fixed.
   playback in one run, while the same key reliably worked instantly
   against a freshly created (empty, `Ctrl-N`) song. Not yet root-caused;
   suspect keyboard input getting starved behind a backlog of
-  playback/render work in `TerminalUI`'s shared `poll()` loop when the
+  playback/render work in `InteractiveUI`'s shared `poll()` loop when the
   audio-event descriptor is almost always ready, though this wasn't
   confirmed (the existing anti-backlog skip in `UI::handlePlaybackEvent`
   addresses redundant *rendering* work for superseded events, not input

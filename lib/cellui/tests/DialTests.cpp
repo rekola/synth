@@ -78,3 +78,124 @@ TEST(dial_text_version_is_clipped_to_the_plane_rows_it_is_given) {
   CHECK(plain.at(1, 1).text == "o");
   CHECK(plain.at(2, 2).text == "B" || plain.at(2, 3).text == "B");
 }
+
+namespace {
+
+Input mouse(int id, int y, int x, Input::Kind kind = Input::Kind::PRESS, bool shift = false) {
+  return Input(id, y, x, false, shift, false, false, kind);
+}
+
+struct DialFixture {
+  StyleProvider styles;
+  CellBuffer buffer{12, 30};
+  BufferPlane plane{buffer, styles};
+  Dial dial{plane, DialSpec{"A"}};
+  std::vector<float> changes;
+  int begun = 0, ended = 0, clicks = 0;
+  DialFixture() {
+    dial.setPosition(2, 3);
+    dial.setValue(-20.0f);
+    dial.on_change = [this](float v) { changes.push_back(v); };
+    dial.on_turn_begin = [this] { begun++; };
+    dial.on_turn_end = [this] { ended++; };
+    dial.on_click = [this] { clicks++; };
+  }
+};
+
+}  // namespace
+
+TEST(dial_widget_drag_turns_it_up_and_down_and_ends_without_opening_the_editor) {
+  DialFixture f;
+  CHECK(!f.dial.offerMouse(mouse(Key::Button1, 0, 0)));  // a press elsewhere is not its own
+  CHECK(f.dial.offerMouse(mouse(Key::Button1, 3, 5)));
+  CHECK(f.dial.isDragging() && f.dial.isPressed());
+  // Two rows up, a drag that moves with the pointer anywhere, outside the dial too.
+  CHECK(f.dial.offerMouse(mouse(Key::Button1, 1, 25)));
+  CHECK(f.dial.value() > -20.0f && f.begun == 1);
+  CHECK(f.dial.offerMouse(mouse(Key::Button1, 9, 5)));
+  CHECK(f.dial.value() < -20.0f);
+  CHECK(f.dial.offerMouse(mouse(Key::Button1, 3, 5, Input::Kind::RELEASE)));
+  CHECK(f.ended == 1 && f.clicks == 0 && !f.dial.isEditing() && !f.dial.isPressed() && !f.dial.isDragging());
+}
+
+TEST(dial_widget_drag_below_its_lowest_step_is_off_and_shift_is_fine) {
+  DialFixture f;
+  f.dial.offerMouse(mouse(Key::Button1, 3, 5));
+  f.dial.offerMouse(mouse(Key::Button1, 11, 5));
+  CHECK(f.dial.value() < -99.0f);
+  f.dial.offerMouse(mouse(Key::Button1, 3, 5, Input::Kind::RELEASE));
+  DialFixture g;
+  g.dial.offerMouse(mouse(Key::Button1, 3, 5));
+  g.dial.offerMouse(mouse(Key::Button1, 1, 5, Input::Kind::PRESS, true));
+  CHECK(g.dial.value() > -20.0f && g.dial.value() < -19.0f);
+}
+
+TEST(dial_widget_wheel_turns_it_only_over_it) {
+  DialFixture f;
+  CHECK(!f.dial.offerMouse(mouse(Key::Button4, 0, 0)));
+  CHECK(f.dial.offerMouse(mouse(Key::Button4, 3, 5)));
+  CHECK_NEAR(f.dial.value(), -19.0f, 0.01f);
+  CHECK(f.dial.offerMouse(mouse(Key::Button5, 3, 5)));
+  CHECK(f.dial.offerMouse(mouse(Key::Button5, 3, 5)));
+  CHECK_NEAR(f.dial.value(), -21.0f, 0.01f);
+}
+
+TEST(dial_widget_click_opens_the_editor_on_its_value_and_typing_sets_it) {
+  DialFixture f;
+  f.dial.offerMouse(mouse(Key::Button1, 3, 5));
+  f.dial.offerMouse(mouse(Key::Button1, 3, 5, Input::Kind::RELEASE));
+  CHECK(f.clicks == 1 && f.dial.isEditing());
+  f.dial.offerInput(keyInput('-', 0));
+  f.dial.offerInput(keyInput('6', 0));
+  f.dial.offerInput(keyInput(Key::Enter, 0));
+  CHECK(!f.dial.isEditing());
+  CHECK_NEAR(f.dial.value(), -6.0f, 0.001f);
+}
+
+TEST(dial_widget_escape_closes_the_editor_and_keeps_the_value) {
+  DialFixture f;
+  f.dial.startEdit();
+  CHECK(f.dial.isEditing());
+  f.dial.offerInput(keyInput('9', 0));
+  f.dial.offerInput(keyInput(Key::Escape, 0));
+  CHECK(!f.dial.isEditing());
+  CHECK_NEAR(f.dial.value(), -20.0f, 0.001f);
+  CHECK(f.changes.empty());
+}
+
+TEST(dial_widget_pressed_and_selected_look_different_from_idle) {
+  DialFixture f;
+  f.dial.setLook(Color(255, 255, 255), Color(10, 10, 10));
+  f.dial.draw();
+  f.plane.refresh();
+  auto idle = f.buffer.at(2, 3);
+  f.dial.setSelected(1.0f);
+  f.dial.draw();
+  f.plane.refresh();
+  auto selected = f.buffer.at(2, 3);
+  f.dial.setSelected(0.0f);
+  f.dial.setPressed(true);
+  f.dial.draw();
+  f.plane.refresh();
+  auto pressed = f.buffer.at(2, 3);
+  // Each changes the lines, not the slot, and differently.
+  CHECK(!(idle.fg == selected.fg) && idle.bg == selected.bg);
+  CHECK(!(pressed.fg == idle.fg) && !(pressed.fg == selected.fg) && pressed.bg == idle.bg);
+}
+
+TEST(dial_widget_shows_what_is_typed_with_a_caret_and_closing_removes_it) {
+  DialFixture f;
+  f.dial.startEdit();
+  f.dial.offerInput(keyInput('7', 0));
+  f.dial.draw();
+  f.plane.refresh();
+  std::string row;
+  for (int c = 3; c < 9; c++) row += f.buffer.at(3, c).text;
+  CHECK(row.find("7") != std::string::npos && row.find("▏") != std::string::npos);
+  f.dial.cancelEdit();
+  f.dial.draw();
+  f.plane.refresh();
+  row.clear();
+  for (int c = 3; c < 9; c++) row += f.buffer.at(3, c).text;
+  CHECK(row.find("▏") == std::string::npos);
+}

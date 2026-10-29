@@ -72,7 +72,7 @@ you're changing.
   reusable for testing any keybinding/UI behavior. `hide_outline()` hides
   Live View's outline panel, for scripts that read the clip grid's
   rows from the start of each line.
-- **`verify_keybindings.py`** - general Emacs-keybinding smoke test
+- **`verify_keybindings.py`** - general terminal-keybinding smoke test
   (Ctrl-Space/W/Y/G/C-x o/C-x b/C-x C-c), independent of Launchpad. Kept as a
   pty smoke test: the real key encodings through the terminal parser, and the
   process actually exiting. What the keys do is covered by the unit tests.
@@ -94,7 +94,7 @@ you're changing.
   clip) draw blank.
 - The scroll margin, the clip grid's stop buttons, `set-song-scale`, the mouse
   wheel, Live View's layout and the keybindings' effects are unit tests on the
-  test backend now (`tests/TerminalUITests.cpp`, `TerminalUIViewTests.cpp`),
+  test backend now (`tests/InteractiveUITests.cpp`, `InteractiveUIViewTests.cpp`),
   not scripts here.
 
 - **`verify_arrangement_clip_region.py`** (fixture

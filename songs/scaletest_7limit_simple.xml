@@ -9,40 +9,37 @@
             <instrument from="guitar.acoustic.steel" harmonic="1" subharmonic="1"/>
         </resonantFilter>
         <instrument id="i2" from="piano.acoustic.grand" harmonic="1" subharmonic="1"/>
-        <instrument id="i3" from="kit.standard" harmonic="1" subharmonic="1"/>
     </instruments>
     <tracks>
         <track id="0" instrument="i1" azimuth="30" distance="1" elevation="50" color="" sendA="-16.9020" sendB="0.0000" noteColumns="7"/>
         <percussionTrack id="perc" azimuth="0" distance="0.89999998" elevation="0" color="" sendA="-20.0000" sendB="-7.3595"/>
-        <percussionTrack id="drums" azimuth="0" distance="0.89999998" elevation="0" color="" sendB="-4.8608">
-        </percussionTrack>
     </tracks>
     <locators>
         <locator row="0">Major</locator>
-        <locator row="64">C quartal major</locator>
-        <locator row="68">D# quartal</locator>
+        <locator row="64">C narrow major</locator>
+        <locator row="68">D# narrow</locator>
         <locator row="72">C/E</locator>
         <locator row="76">F major</locator>
-        <locator row="80">G quartal major</locator>
+        <locator row="80">G narrow major</locator>
         <locator row="84">A major</locator>
-        <locator row="88">A# quartal minor</locator>
+        <locator row="88">A# narrow minor</locator>
         <locator row="92">C major</locator>
         <locator row="128">C major harmonic seventh</locator>
         <locator row="132">D#</locator>
         <locator row="136">E</locator>
         <locator row="140">F major seventh</locator>
-        <locator row="144">G quartal major</locator>
+        <locator row="144">G narrow major</locator>
         <locator row="148">A major</locator>
-        <locator row="152">A# quartal minor</locator>
+        <locator row="152">A# narrow minor</locator>
         <locator row="156">C major</locator>
         <locator row="192">Minor</locator>
         <locator row="256">C minor</locator>
         <locator row="260">E𝄫</locator>
         <locator row="264">E♭</locator>
         <locator row="268">F minor</locator>
-        <locator row="272">G quartal minor</locator>
+        <locator row="272">G narrow minor</locator>
         <locator row="276">A♭ major</locator>
-        <locator row="280">B𝄫 quartal major</locator>
+        <locator row="280">B𝄫 narrow major</locator>
         <locator row="284">C minor</locator>
         <locator row="320">C minor</locator>
         <locator row="324">C major</locator>
@@ -50,12 +47,12 @@
         <locator row="332">C major 6th</locator>
         <locator row="336">C minor 7th</locator>
         <locator row="340">C major 7th</locator>
-        <locator row="344">G quartal major</locator>
-        <locator row="348">G quartal major something</locator>
-        <locator row="352">G quartal major something something</locator>
-        <locator row="356">G quartal minor</locator>
-        <locator row="360">G quartal minor</locator>
-        <locator row="364">G quartal minor</locator>
+        <locator row="344">G narrow major</locator>
+        <locator row="348">G narrow major something</locator>
+        <locator row="352">G narrow major something something</locator>
+        <locator row="356">G narrow minor</locator>
+        <locator row="360">G narrow minor</locator>
+        <locator row="364">G narrow minor</locator>
         <locator row="384">C major harmonic seventh</locator>
         <locator row="388">C major harmonic seventh</locator>
     </locators>

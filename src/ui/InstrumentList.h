@@ -1,0 +1,25 @@
+#ifndef _INSTRUMENTLIST_H_
+#define _INSTRUMENTLIST_H_
+
+#include "UIElement.h"
+
+#include "StyleProvider.h"
+
+class InstrumentList : public UIElement {
+ public:
+  InstrumentList(Plane & parent) : UIElement(parent) {
+  }
+
+  bool offerInput(const cellui::Input & input) override;
+  bool render(const StyleProvider & styles, bool refresh = false);
+
+protected:
+  void renderRow(const StyleProvider & styles, int row, bool highlight);
+
+ private:
+  int current_song_version = 0;
+  int new_scroll_pos = 0, current_scroll_pos = 0;
+  int new_cursor_row = 0, current_cursor_row = 0;
+};
+
+#endif

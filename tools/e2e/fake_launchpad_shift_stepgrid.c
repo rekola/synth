@@ -94,7 +94,7 @@ int main() {
 
   // Opening a clip switches every connected device to NOTES mode to show
   // its own step grid (Controller::toggleDrumClipFocus()'s own "opened"
-  // callback, TerminalUI.cpp's forceNotesModeOnAllDevices()) - CC95
+  // callback, InteractiveUI.cpp's forceNotesModeOnAllDevices()) - CC95
   // ("Live") closes it outright (Controller::closeDrumClipFocus(),
   // LaunchpadManager::handleRawButton()'s own CC95 case), the same effect
   // as pressing shift+pad again on the pad that opened it, just without

@@ -30,7 +30,7 @@
       <instrument from="Chateau Grand" />
     </resonantFilter>
 
-    <group id="i6" name="Quartal Piano">
+    <group id="i6" name="Piano">
       <instrument from="piano.electric.fm" />
 
       <envelope attack="0.01" decay="1" sustain="0" release="0.8" keynumToDecay="50">

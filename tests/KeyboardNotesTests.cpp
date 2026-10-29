@@ -1,6 +1,7 @@
 #include "TestFramework.h"
 
 #include "../src/playback/KeyboardNotes.h"
+#include "../src/model/Note.h"
 
 namespace {
 cellui::Input key(int id) {
@@ -8,24 +9,27 @@ cellui::Input key(int id) {
 }
 }  // namespace
 
-TEST(keyboard_notes_12edo_middle_octave) {
-  CHECK(keyToMidiNote(key('q'), 4, Tuning::EDO12) == 60);
-  CHECK(keyToMidiNote(key('z'), 4, Tuning::EDO12) == 48);
-  CHECK(keyToMidiNote(key('q'), 5, Tuning::EDO12) == 72);
+TEST(keyboard_notes_31edo_utonal) {
+  CHECK(keyToMidiNote(key('z'), Tuning::EDO31, Scale::UTONAL) == "C");
+  CHECK(keyToMidiNote(key('s'), Tuning::EDO31, Scale::UTONAL) == "D𝄭");
+  CHECK(keyToMidiNote(key('c'), Tuning::EDO31, Scale::UTONAL) == "E♭");
 }
 
 TEST(keyboard_notes_scale_with_the_edo_per_octave) {
-  CHECK(keyToMidiNote(key('z'), 5, Tuning::EDO31) - keyToMidiNote(key('z'), 4, Tuning::EDO31) == 31);
-  CHECK(keyToMidiNote(key('z'), 5, Tuning::EDO53) - keyToMidiNote(key('z'), 4, Tuning::EDO53) == 53);
+  Note edo_31_a(keyToMidiNote(key('z'), Tuning::EDO31, Scale::OTONAL), Tuning::EDO31);
+  Note edo_31_b(keyToMidiNote(key(','), Tuning::EDO31, Scale::OTONAL), Tuning::EDO31);
+
+  Note edo_53_a(keyToMidiNote(key('z'), Tuning::EDO53, Scale::OTONAL), Tuning::EDO53);
+  Note edo_53_b(keyToMidiNote(key(','), Tuning::EDO53, Scale::OTONAL), Tuning::EDO53);
+
+  CHECK(edo_31_b.getValue() - edo_31_a.getValue() == 31);
+  CHECK(edo_53_b.getValue() - edo_53_a.getValue() == 53);
 }
 
-TEST(keyboard_notes_percussion_ignores_octave) {
-  CHECK(keyToMidiNote(key('9'), 2, Tuning::PERCUSSION) == 35);
-  CHECK(keyToMidiNote(key('9'), 7, Tuning::PERCUSSION) == 35);
-}
-
-TEST(keyboard_notes_unmapped_key_is_minus_one) {
-  CHECK(keyToMidiNote(key(Key::Enter), 4, Tuning::EDO12) == -1);
-  CHECK(keyToMidiNote(key('q'), 4, Tuning::PERCUSSION) == 37);
-  CHECK(keyToMidiNote(key('!'), 4, Tuning::EDO12) == -1);
+TEST(keyboard_notes_unmapped_key_is_empty) {
+  CHECK(keyToMidiNote(key(cellui::Key::Enter), Tuning::EDO31, Scale::UTONAL) == "");
+  CHECK(keyToMidiNote(key('a'), Tuning::EDO31, Scale::OTONAL) == "");
+  CHECK(keyToMidiNote(key('9'), Tuning::EDO31, Scale::UTONAL) == "");
+  CHECK(keyToMidiNote(key('!'), Tuning::EDO12, Scale::NONE) == "");
+  CHECK(keyToMidiNote(key('+'), Tuning::PERCUSSION, Scale::NONE) == "");
 }

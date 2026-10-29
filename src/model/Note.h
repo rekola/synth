@@ -17,10 +17,10 @@ class Note {
  public:  
   Note() : value(-1), velocity(0), delay(0) { }
   explicit Note(int _value, short _velocity = 0x28, short _delay = 0) : value(_value), velocity(_velocity), delay(_delay) { }
-  explicit Note(std::string_view input_value, short _velocity = 0x28, short _delay = 0, Tuning tuning = Tuning::EDO12)
-    : value(stringToKey(tuning, std::move(input_value))),
-      velocity(_velocity),
-      delay(_delay) { }
+  explicit Note(std::string_view input_value, Tuning tuning, short _velocity = 0x28, short _delay = 0, int default_octave = 4)
+      : value(stringToKey(tuning, input_value, default_octave)),
+        velocity(_velocity),
+        delay(_delay) {}
 
   // int, not short: value is stored as int (transpose() can legitimately
   // grow it well past SHRT_MAX for a high-EDO tuning many octaves up -
@@ -150,11 +150,10 @@ class Note {
 
   static inline std::string keyToString(Tuning tuning, int value) {
     static const char * note_names_53edo[] = {
-      "C", "C𝄮", "D𝄫", "C♯", "C𝄰", "D𝄭", "D♭", "C𝄪", "D𝄯", "D", "E𝄫", "D𝄱", "D♯", "D𝄰",
-      "E♭", "F𝄫", "D𝄪", "E", "E𝄮", "F♭", "E♯", "F𝄯", "F", "F𝄮", "E𝄪", "F♯", "F𝄰",
-      "G𝄭", "G♭", "F𝄪", "G𝄯", "G", "A𝄫", "G𝄱", "G♯", "A𝄭", "A♭", "A𝄬", "G𝄪", "A",
-      "A𝄮", "B𝄫", "A♯", "A𝄰", "B𝄭", "B♭", "A𝄪", "B𝄯", "B", "B𝄮", "B𝄱", "B♯", "B𝄰"
-    };
+        "C", "C↑", "D𝄫", "C♯", "C𝄰", "D𝄭", "D♭", "C𝄪", "D↓", "D", "E𝄫", "D𝄱", "D♯", "D𝄰",
+        "E♭", "F𝄫", "D𝄪", "E", "E↑", "F♭", "E♯", "F↓", "F", "F↑", "E𝄪", "F♯", "F𝄰",
+        "G𝄭", "G♭", "F𝄪", "G↓", "G", "A𝄫", "G𝄱", "G♯", "A𝄭", "A♭", "A𝄬", "G𝄪", "A",
+        "A↑", "B𝄫", "A♯", "A𝄰", "B𝄭", "B♭", "A𝄪", "B↓", "B", "B↑", "B𝄱", "B♯", "B𝄰"};
     static const char * note_names_31edo[] = { "C", "D𝄫", "C♯", "D♭", "C𝄪", "D", "E𝄫", "D♯",
 					       "E♭", "D𝄪", "E", "F♭", "E♯", "F", "G𝄫", "F♯",
 					       "G♭", "F𝄪", "G", "A𝄫", "G♯", "A♭", "G𝄪", "A",
@@ -239,7 +238,7 @@ class Note {
     }    
   }
 
-  static inline int stringToKey(Tuning tuning, std::string_view input_value) {
+  static inline int stringToKey(Tuning tuning, std::string_view input_value, int default_octave = 4) {
     if (input_value == "off" || input_value == "OFF") {
       return 0;
     } else if (tuning == Tuning::PERCUSSION) {
@@ -300,8 +299,12 @@ class Note {
       else if (input_value == "TRO") return 81; // Open Triangle
       else if (input_value == "SH") return 82; // Shaker
       else return 0;
-    } else {     
-      int octave = 4;
+    } else {
+      auto octave = default_octave;
+      while (!input_value.empty() && input_value[input_value.size() - 1] == '\'') {
+        input_value.remove_suffix(1);
+        octave++;
+      }
       auto pos = input_value.find_first_of("0123456789");
       if (pos != std::string_view::npos) {
 	auto octave_text = input_value.substr(pos);
@@ -331,10 +334,10 @@ class Note {
 	else if (accidental == "bb" || accidental == "𝄫") value -= 2;
 	else if (accidental == "b" || accidental == "♭" || accidental == "𝄭" || accidental == "𝄬") value--;
 	else {
-	  assert(accidental.empty() || accidental == "-" || accidental == "♮" || accidental == "𝄮" || accidental == "𝄯");
-	}
+          assert(accidental.empty() || accidental == "-" || accidental == "♮" || accidental == "↑" || accidental == "↓");
+        }
 
-	return value;
+        return value;
       } else if (tuning == Tuning::EDO19) {
 	auto value = (octave + 1) * 19;
 
@@ -362,10 +365,10 @@ class Note {
         else if (accidental == "b" || accidental == "♭" || accidental == "𝄭" || accidental == "𝄬")
           value -= 1;
 	else {
-          assert(accidental.empty() || accidental == "-" || accidental == "♮" || accidental == "𝄮" || accidental == "𝄯");
-	}
+          assert(accidental.empty() || accidental == "-" || accidental == "♮" || accidental == "↑" || accidental == "↓");
+        }
 
-	return value;
+        return value;
       } else if (tuning == Tuning::EDO31) {
 	auto value = (octave + 1) * 31;
       
@@ -386,10 +389,10 @@ class Note {
 	else if (accidental == "x" || accidental == "𝄪") value += 4;
 	else if (accidental == "bb" || accidental == "𝄫") value -= 4;	
 	else {
-	  assert(accidental.empty() || accidental == "-" || accidental == "♮" || accidental == "𝄮" || accidental == "𝄯");
-	}
+          assert(accidental.empty() || accidental == "-" || accidental == "♮" || accidental == "↑" || accidental == "↓");
+        }
 
-	return value;
+        return value;
       } else {
 	auto value = (octave + 1) * 53;
       
@@ -405,10 +408,13 @@ class Note {
 	else if (accidental == "𝄰") value += 4;
 	else if (accidental == "#" || accidental == "♯") value += 3;
 	else if (accidental == "𝄱") value += 2;
-	else if (accidental == "𝄮") value += 1;
-	else if (accidental == "𝄯") value -= 1;
-	else if (accidental == "𝄬") value -= 2;
-	else if (accidental == "b" || accidental == "♭") value -= 3;
+        else if (accidental == "↑")
+          value += 1;
+        else if (accidental == "↓")
+          value -= 1;
+        else if (accidental == "𝄬")
+          value -= 2;
+        else if (accidental == "b" || accidental == "♭") value -= 3;
 	else if (accidental == "𝄭") value -= 4;
 	else if (accidental == "bb" || accidental == "𝄫") value -= 7;
 	else {
@@ -433,8 +439,8 @@ class Note {
 	if (s == "off" || s == "OFF") {
 	  r.emplace_back(0, 0);
 	} else {
-	  r.emplace_back(s, velocity, delay, tuning);
-	}
+          r.emplace_back(s, tuning, velocity, delay);
+        }
       }
 
       pos0 = pos1 + 1;      

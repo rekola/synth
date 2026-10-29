@@ -104,7 +104,7 @@ add_executable(synth_tests
 target_link_libraries(synth_tests synth_engine)
 # The terminal UI, driven on Cell UI's test terminal (which Windows lacks).
 if(SYNTH_BUILD_INTERACTIVE AND SYNTH_BUILD_TERMINAL_UI AND NOT WIN32)
-  target_sources(synth_tests PRIVATE TerminalUITests.cpp TerminalUIViewTests.cpp)
+  target_sources(synth_tests PRIVATE InteractiveUITests.cpp InteractiveUIViewTests.cpp)
   target_link_libraries(synth_tests synth_ui)
 endif()
 target_compile_definitions(synth_tests PRIVATE

@@ -26,7 +26,7 @@ at configure time, GTK is optional). Headers are `cellui/X.h` in
 - **Text and colour.** `Color` (linear Rec.2020 floats, so HDR is possible),
   `utf8` (grapheme-aware width, truncation and padding), the sub-cell glyph
   tables, `markdown` (a tiny subset for info boxes).
-- **Input.** `Input` (key or mouse, press/repeat/release), `KeyChord`, `Keymap`
+- **Input.** `Input` (key or mouse, press/repeat/release), `KeyStroke`, `Keymap`
   and `CommandRegistry` (Emacs-style named commands and prefix sequences, with
   per-display keymap profiles), `KeyReader` (Escape as Meta).
 - **Widgets.** `Widget` is the widget base; on top of it `ChoiceDialog`,
@@ -182,7 +182,7 @@ capture_keys_ = on<cellui::KeyDown>(
 The toolkit's input is ordinary events (`cellui/InputEvents.h`):
 
 - `KeyDown` / `KeyUp`: key id, modifiers, and the UTF-8 text the key produced,
-  kept separate from the key (empty for a chord with Ctrl, Alt or Meta).
+  kept separate from the key (empty for a shortcut with Ctrl, Alt or Meta).
 - `MouseDown` / `MouseMove` / `MouseUp` / `Wheel`: position in cells (fractional
   where the display is precise) and the cell itself as `row`/`col`.
 - `Enter` / `Leave`, `FocusIn` / `FocusOut`.
@@ -227,7 +227,7 @@ canvas_.on<cellui::MouseMove>([this](const cellui::MouseMove & m, cellui::EventC
 });
 ```
 
-Key chords and named commands (`Keymap`, `CommandRegistry`) are a separate layer:
+Key shortcuts and named commands (`Keymap`, `CommandRegistry`) are a separate layer:
 a `KeyDown` handler is where a widget consults its keymap.
 
 ### Events from other threads

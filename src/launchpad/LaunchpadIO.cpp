@@ -1,7 +1,4 @@
 #include "LaunchpadIO.h"
-#include "LaunchpadPadEvent.h"
-#include "LaunchpadButtonEvent.h"
-#include "LaunchpadChannelPressureEvent.h"
 #include "../util/Logger.h"
 
 #include <algorithm>
@@ -123,8 +120,9 @@ LaunchpadIO::handlePortStart(MidiPortAddress address) {
   auto info = backend_->port(address);
   if (!info || !acceptsPort(*info)) return;
 
-  auto model = modelOf(*info);
-  if (!model) return;
+  auto detected = modelOf(*info);
+  if (!detected) return;
+  auto model = *detected;
 
   bool is_daw_port = looksLikeDawPort(info->port_name) || looksLikeDawPort(info->client_name);
   if (replace_daw_session) {
@@ -137,7 +135,7 @@ LaunchpadIO::handlePortStart(MidiPortAddress address) {
     }
   }
 
-  connectToDevice(*logger_, address, *model, is_daw_port);
+  connectToDevice(*logger_, address, model, is_daw_port);
 }
 
 void
@@ -173,9 +171,9 @@ LaunchpadIO::addTo(WaitSet & waits, WaitSet::Group group) {
   if (backend_) backend_->addTo(waits, group);
 }
 
-vector<unique_ptr<Event>>
+vector<LaunchpadInput>
 LaunchpadIO::pollEvents() {
-  vector<unique_ptr<Event>> result;
+  vector<LaunchpadInput> result;
   if (!backend_) return result;
 
   for (auto & message : backend_->receive()) {
@@ -197,8 +195,8 @@ LaunchpadIO::pollEvents() {
 	// 0=release is a reasonable inference from Novation's documented
 	// button behavior but hasn't been confirmed against real hardware.
 	auto kind = message.value == 0 ? LaunchpadButtonEvent::RELEASE : LaunchpadButtonEvent::PRESS;
-	result.push_back(make_unique<LaunchpadButtonEvent>(session.session_id, message.number, kind, session.model));
-	break;
+        result.push_back(LaunchpadButtonEvent(session.session_id, message.number, kind, session.model));
+        break;
       }
 
       if (message.type == MidiMessage::CHANNEL_PRESSURE) {
@@ -206,8 +204,8 @@ LaunchpadIO::pollEvents() {
 	// (LaunchpadPadEvent::AFTERTOUCH) below, mutually exclusive with it
 	// on real hardware (a device is configured to send one or the
 	// other, never both for the same gesture).
-	result.push_back(make_unique<LaunchpadChannelPressureEvent>(session.session_id, message.value, session.model));
-	break;
+        result.push_back(LaunchpadChannelPressureEvent(session.session_id, message.value, session.model));
+        break;
       }
 
       LaunchpadPadEvent::Kind kind;
@@ -233,8 +231,8 @@ LaunchpadIO::pollEvents() {
       if (velocity >= 0) {
 	auto pad = LaunchpadProtocol::noteNumberToPad(message.number);
 	if (pad) {
-	  result.push_back(make_unique<LaunchpadPadEvent>(session.session_id, pad->first, pad->second, kind, velocity, session.model));
-	}
+          result.push_back(LaunchpadPadEvent(session.session_id, pad->first, pad->second, kind, velocity, session.model));
+        }
       }
       break;
     }

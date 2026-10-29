@@ -217,7 +217,7 @@ Controller::Controller(ChannelConfiguration _channel_config) : channel_config(_c
   mixer_type_ = MixerType::AMBISONIC_STEREO;
 #endif
 
-  commands_.define("save-song", [this]() {
+  commands_.define("save-buffer", [this]() {
     auto song = getCurrentSong();
     song->save(getActiveBufferName());
     last_saved_versions_[getActiveBufferName()] = song->getVersion();

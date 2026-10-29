@@ -12,9 +12,9 @@
 #include "midi/MidiPorts.h"
 #include "launchpad/LaunchpadManager.h"
 #ifdef SYNTH_TERMINAL_UI
-#include "ui/tui/TerminalUI.h"
+#include "ui/InteractiveUI.h"
 #endif
-#include "ui/headless/HeadlessUI.h"
+#include "ui/HeadlessUI.h"
 #include "util/Daemon.h"
 #include "util/ShutdownSignal.h"
 #include "Controller.h"
@@ -352,7 +352,7 @@ int main(int argc, char *argv[]) {
   installShutdownSignalHandlers();
 
   if (!theme_given) theme_name = light ? "light" : "dark";
-  TerminalUI ui(*backend);
+  InteractiveUI ui(*backend);
   ui.setInitialView(initial_view);
   ui.setTheme(theme_name);
   ui.setReducedMotion(reduced_motion);

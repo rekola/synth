@@ -7,6 +7,7 @@
 #include "../src/bus/SendBusProcessor.h"
 #include "../src/bus/BusEffectRegistry.h"
 #include "../src/Controller.h"
+#include "UICatcher.h"
 #include "../src/playback/AudioBlockEvent.h"
 #include "../src/playback/VisualizationResultEvent.h"
 #include "../src/playback/VisualizationThread.h"
@@ -280,6 +281,7 @@ TEST(binaural_mixer_drains_its_tail_through_empty_blocks) {
 
 TEST(visualization_thread_empty_bus_gives_zero_result_then_stops_analyzing) {
   Controller controller{ChannelConfiguration(44100, 1)};
+  UICatcher ui(controller);
   VisualizationThread thread(&controller);
   const int frames = 256;
   thread.configure(44100, frames);
@@ -289,9 +291,7 @@ TEST(visualization_thread_empty_bus_gives_zero_result_then_stops_analyzing) {
     master.zero();
     AudioBlockEvent ev(std::move(master), std::move(raw), AudioBuffer(0, false, false, frames), AudioBuffer(0, false, false, frames));
     thread.handleAudioBlockEvent(ev);
-    if (!controller.getUIEventQueue().hasEvents()) return std::unique_ptr<VisualizationResultEvent>();
-    auto popped = controller.getUIEventQueue().pop();
-    return std::unique_ptr<VisualizationResultEvent>(dynamic_cast<VisualizationResultEvent *>(popped.release()));
+    return ui.take<VisualizationResultEvent>();
   };
 
   // Some sound first, so the analyzers hold something to clear.
@@ -301,7 +301,7 @@ TEST(visualization_thread_empty_bus_gives_zero_result_then_stops_analyzing) {
   }
   for (int n = 0; n < 40; n++) {
     auto r = push(loud);
-    CHECK(r != nullptr);
+    CHECK(r.has_value());
     if (r) CHECK(r->getChannelLoudness()[0] > 0.1f);
   }
 
@@ -315,7 +315,7 @@ TEST(visualization_thread_empty_bus_gives_zero_result_then_stops_analyzing) {
   int results_at_the_end = 0;
   for (int n = 0; n < silent_blocks; n++) {
     auto r = push(AudioBuffer(0, false, false, frames));
-    if (n < 600) CHECK(r != nullptr);
+    if (n < 600) CHECK(r.has_value());
     if (n >= silent_blocks - 20 && r) results_at_the_end++;
     if (!r) continue;
     CHECK(r->getChannelLoudness().size() == 6); // 4 regular + AuxA + AuxB

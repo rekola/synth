@@ -51,10 +51,10 @@ struct DisplayInfo {
   // Whether a plane's content can be shown shifted by a fraction of a cell
   // (Plane::setScrollOffset()), so a view can scroll smoothly.
   bool smooth_scroll = false;
-  // The key chords the application binds commands to here: the terminal's
+  // The key shortcuts the application binds commands to here: the terminal's
   // are Emacs's, a window's the usual desktop ones.
-  KeymapProfile keymap_profile = KeymapProfile::EMACS;
-  // Whether a bare Escape may be the prefix of a Meta chord (a terminal sends
+  KeymapProfile keymap_profile = KeymapProfile::TERMINAL;
+  // Whether a bare Escape may be the prefix of a Meta shortcut (a terminal sends
   // Meta-x as ESC x). A backend that reports Alt as a modifier clears it, and
   // Escape is then an ordinary key.
   bool escape_as_meta = true;

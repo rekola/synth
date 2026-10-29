@@ -6,7 +6,7 @@
 #include "Plane.h"
 
 #include "../model/Color.h"
-#include "KeyChord.h"
+#include "KeyStroke.h"
 #include "Keymap.h"
 #include "CommandRegistry.h"
 
