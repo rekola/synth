@@ -454,7 +454,7 @@ InteractiveUI::initialize(std::shared_ptr<Controller> & controller) {
   root_plane_->setDisplayScale(display.display_scale);
   root_plane_->setSextants(display.sextants);
   root_plane_->setSmoothScroll(display.smooth_scroll);
-  root_plane_->setKeymapProfile(display.keymap_profile);
+  root_plane_->setKeymapProfile(keymap_profile_override_.value_or(display.keymap_profile));
   key_reader_.setEscapeAsMeta(display.escape_as_meta);
   root_plane_->setFlatChildren(true);
   root_plane_->setThemedBases(true);

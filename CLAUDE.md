@@ -440,7 +440,10 @@ rejecting it (`Command::getAzimuthSlidePerTick()`).
 
 Keymap profiles: a display declares its `cellui::KeymapProfile`
 (`DisplayInfo::keymap_profile`: the terminal `TERMINAL`, the GTK window `DESKTOP`),
-which reaches widgets through `Plane::keymapProfile()`. `Keymap::bind(stroke,
+which reaches widgets through `Plane::keymapProfile()`; `--keymap gui|terminal`
+(`InteractiveUI::setKeymapProfile()`) overrides it. Escape-as-Meta stays the
+display's (`DisplayInfo::escape_as_meta`): it is about how the display reports
+Alt, not about the keymap. `Keymap::bind(stroke,
 name)` works in both profiles; `bind(profile, stroke, name)` only in one and wins
 over a shared binding of the same shortcut. A binding is migrated by making it
 profile-specific; one that is not works everywhere. Migrated so far: the command

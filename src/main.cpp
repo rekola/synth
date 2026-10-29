@@ -26,6 +26,7 @@
 
 #include <cstring>
 #include <filesystem>
+#include <optional>
 #include <signal.h>
 #if defined(SYNTH_TERMINAL_UI) && !defined(_WIN32)
 #include <termios.h>
@@ -43,6 +44,7 @@
 #endif
 #endif
 #include <cellui/BackendChoice.h>
+#include <cellui/KeymapProfile.h>
 #include <cellui/term/ImageEncoder.h>
 #include <fmt/core.h>
 
@@ -63,6 +65,8 @@ int main(int argc, char *argv[]) {
   bool reduced_motion = getenv("SYNTH_REDUCED_MOTION") != nullptr && strcmp(getenv("SYNTH_REDUCED_MOTION"), "0") != 0;
   cellui::BackendKind ui_kind = cellui::BackendKind::AUTO; // --ui auto|terminal|raster|headless: which backend the UI runs on
   UI::View initial_view = UI::View::LIVE; // --view live|arrangement: which view the UI starts in
+  // --keymap gui|terminal: the keymap to use instead of the display's own.
+  std::optional<cellui::KeymapProfile> keymap_profile;
   // --dither nearest|ordered|floyd-steinberg: how what has to meet the
   // terminal's palette (Sixel images) is dithered.
   auto dither = cellui::term::Dither::Method::ORDERED;
@@ -89,6 +93,14 @@ int main(int argc, char *argv[]) {
       else {
 	fmt::print(stderr, "--view requires 'live' or 'arrangement'\n");
 	exit(1);
+      }
+      i++;
+    } else if (strcmp(argv[i], "--keymap") == 0) {
+      if (i + 1 < argc && strcmp(argv[i + 1], "gui") == 0) keymap_profile = cellui::KeymapProfile::DESKTOP;
+      else if (i + 1 < argc && strcmp(argv[i + 1], "terminal") == 0) keymap_profile = cellui::KeymapProfile::TERMINAL;
+      else {
+        fmt::print(stderr, "--keymap requires 'gui' or 'terminal'\n");
+        exit(1);
       }
       i++;
     } else if (strcmp(argv[i], "--ui") == 0) {
@@ -290,6 +302,7 @@ int main(int argc, char *argv[]) {
 #ifndef SYNTH_TERMINAL_UI
   (void)ui_kind;
   (void)initial_view;
+  (void)keymap_profile;
   (void)theme_name;
   (void)theme_given;
   (void)reduced_motion;
@@ -354,6 +367,7 @@ int main(int argc, char *argv[]) {
   if (!theme_given) theme_name = light ? "light" : "dark";
   InteractiveUI ui(*backend);
   ui.setInitialView(initial_view);
+  if (keymap_profile) ui.setKeymapProfile(*keymap_profile);
   ui.setTheme(theme_name);
   ui.setReducedMotion(reduced_motion);
   ui.initialize(controller);
