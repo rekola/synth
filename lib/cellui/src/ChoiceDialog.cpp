@@ -66,7 +66,7 @@ void ChoiceDialog::show(Plane & parent, int screen_rows, int screen_cols) {
   auto & styles = plane_->getStyles();
 
   auto bg = styles.picker_bg_color, fg = styles.window_fg_color, strong = styles.window_accent_fg_color;
-  auto cursor_fg = styles.highlight_fg_color, cursor_bg = styles.highlight_bg_color;
+  auto cursor_bg = styles.highlight_bg_color;
   auto set_on = [](Plane & plane, const Color & foreground, const Color & background) {
     plane.setFgColor(foreground);
     plane.setBgColor(background);
@@ -138,9 +138,7 @@ void ChoiceDialog::show(Plane & parent, int screen_rows, int screen_cols) {
   int drawn = rows + (list_.smooth() ? 1 : 0);
   for (int i = 0; i < drawn; i++) {
     int index = list_.firstShown() + i;
-    bool selected = !list_.smooth() && index == list_.selected();
-    if (selected) set_on(*list_plane_, cursor_fg, cursor_bg);
-    else set_on(*list_plane_, fg, bg);
+    set_on(*list_plane_, fg, bg);
     string text;
     if (index < count) {
       // A marker for the one in use, then the label, padded so the cursor
@@ -152,12 +150,7 @@ void ChoiceDialog::show(Plane & parent, int screen_rows, int screen_cols) {
     }
     list_plane_->putstr(i, 0, " " + utf8::padToWidth(text, inner));
   }
-  if (list_.smooth()) {
-    const auto & band = cursor_bg;
-    list_plane_->setBand(Band{ cursor_y_, 1.0, 0.0, static_cast<double>(width_ - 1), band, 0.45f });
-  } else {
-    list_plane_->clearBand();
-  }
+  list_plane_->setBand(Band{ cursor_y_, 1.0, 0.0, static_cast<double>(width_ - 1), cursor_bg, 0.45f });
   list_plane_->moveToTop();
 }
 

@@ -465,7 +465,7 @@ void OutlineView::drawRow(const StyleProvider & styles, Plane & plane, int displ
 
 bool
 OutlineView::cursorOnOwnLayer() const {
-  return tree_plane_ && viewport_.rows.smooth();
+  return tree_plane_ != nullptr;
 }
 
 double
