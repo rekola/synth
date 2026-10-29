@@ -477,6 +477,25 @@ UI::initializeCommands() {
       setStatus("Scale " + scaleLabel(scale) + (retuned > 0 ? fmt::format(", {} tuned notes retuned", retuned) : ""));
     });
   });
+  // Converts the song by pitch: notes move to the nearest step of the new
+  // tuning, and tuned notes keep what is left as their correction.
+  commands_.define("set-song-tuning", [this]() {
+    static const Tuning kTunings[] = {Tuning::EDO12, Tuning::EDO19, Tuning::EDO31, Tuning::EDO53};
+    std::vector<Choice> choices;
+    int current = -1;
+    for (auto tuning : kTunings) {
+      if (tuning == getController().getSong().getTuning()) current = static_cast<int>(choices.size());
+      choices.push_back({fmt::format("{}-EDO", edoStepsFor(tuning)), to_string(tuning)});
+    }
+    showChoiceDialog("Tuning", std::move(choices), current, [this, current](int index) {
+      if (index == current || index < 0 || index >= static_cast<int>(std::size(kTunings))) return;
+      auto tuning = kTunings[index];
+      auto & song = getController().getSong();
+      Song::Edit edit(song, "set tuning");
+      int converted = convertSongTuning(song, tuning);
+      setStatus(fmt::format("Tuning {}-EDO, {} notes converted", edoStepsFor(tuning), converted));
+    });
+  });
   // The colours: the modern look in dark or light, or the original one.
   commands_.define("select-theme", [this]() {
     static const char * const kNames[] = {"dark", "light", "original"};

@@ -163,6 +163,12 @@ void transposeSong(Song & song, SongScope scope, bool up);
 // a fresh one for the song's current scale and key, as when the scale changes;
 // untuned notes stay untuned. Returns how many were retuned.
 int retuneSong(Song & song);
+// Changes the song's tuning, moving every pitched note to the new tuning's
+// step nearest its pitch (its tuning correction counted) and the key to its
+// nearest step; notes keep their intervals to the key. A tuned note keeps a
+// correction, what is left between its new step and its old pitch. Both
+// scopes; percussion is untouched. Returns how many notes moved.
+int convertSongTuning(Song & song, Tuning to);
 void humanizeSong(Song & song, SongScope scope, const HumanizeAmount & amount, NoiseGenerator & rng);
 
 // Merges `block` into `grid` starting at (target_row, track_id, target_note_offset),

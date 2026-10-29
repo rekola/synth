@@ -69,6 +69,10 @@ The application draws on several traditions.
   (plus a comma `+`/`−` in 53-EDO, below), and a tuning can spell the same pitch in several ways. In 12-EDO, E♯ is F. In
   31-EDO, E♯ and F are different pitches, but D𝄪 and F𝄫 are the same one. Note numbers for each tuning
   are in `docs/`, for example [31edo_note_numbers.txt](docs/31edo_note_numbers.txt).
+  Changing a song's tuning (the Song menu) moves each note to the new
+  tuning's step nearest its pitch, so an otonal 7:4 written in 31-EDO lands
+  on 53-EDO's 7:4; editing `temperament` in the song file keeps the note
+  names instead.
 - **Notation.** In 12, 19 and 31-EDO the note names are a chain of fifths: the seven
   natural notes C D E F G A B are the usual seven consecutive fifths
   (F C G D A E B), and each further fifth up adds a sharp, each fifth down a

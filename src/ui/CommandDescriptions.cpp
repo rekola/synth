@@ -68,7 +68,7 @@ commandDescription(std::string_view name) {
       {"set-mark", "Start a selection at the cursor"},
       {"set-song-key", "Set the song's key"},
       {"set-song-scale", "Set the song's scale"},
-      {"set-song-tuning", "Set the song's tuning (12, 19, 31 or 53 notes per octave)"},
+      {"set-song-tuning", "Convert the song to another tuning (12, 19, 31 or 53 notes per octave), each note to its nearest step"},
       {"set-time-signature", "Set the song's time signature"},
       {"stop-all-clips", "Stop every launched clip at the next bar"},
       {"swing-decrease", "Decrease the swing"},
