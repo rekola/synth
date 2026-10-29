@@ -980,8 +980,9 @@ OutlineView::offerInput(const cellui::Input & input) {
     // PatternEditor's own identical guard.
     if (input.getKind() == InputEvent::Kind::REPEAT) return true;
 
-    auto midi_note = keyToMidiNote(input, getController().getGlobalOctave(), getController().getSong().getTuning());
-    if (midi_note < 0) return false;
+    auto input_note = keyToMidiNote(input, getController().getSong().getTuning(), getController().getSong().getScale());
+    if (input_note.empty()) return false;
+    auto midi_note = Note(input_note, getController().getSong().getTuning(), 0x28, 0, getController().getGlobalOctave()).getValue();
 
     auto & row = data_[static_cast<size_t>(new_cursor_row_)];
     if (row.kind == OutlineRowKind::LIBRARY_INSTRUMENT) {

@@ -2341,12 +2341,12 @@ PatternEditor::offerInputKey(const cellui::Input & input) {
 	bool is_off = input.getId() == 'a';
 	bool is_delete = input.getId() == Key::Delete || input.getId() == Key::Backspace;
 	auto note_column = track_info.getNoteNumber(new_cursor.col);
-	// A cursor that neither follows the transport nor a playing clip's
-  // playhead isn't on the transport's row, so its sub-row position says
-  // nothing about where a note belongs.
-  auto current_delay = source_->cursorFollowsTransport() || source_->cursorLocked() ? info.getCurrentDelay() : 0;
+        // A cursor that neither follows the transport nor a playing clip's
+        // playhead isn't on the transport's row, so its sub-row position says
+        // nothing about where a note belongs.
+        auto current_delay = source_->cursorFollowsTransport() || source_->cursorLocked() ? info.getCurrentDelay() : 0;
 
-	// A held note key's terminal-generated auto-repeat must not retrigger
+        // A held note key's terminal-generated auto-repeat must not retrigger
 	// a fresh note-on (holding a key should sustain one note, not restart
 	// its envelope over and over) - RELEASE itself is handled once, up
 	// front in this function (see offerInput()'s own top-of-function
@@ -2357,8 +2357,10 @@ PatternEditor::offerInputKey(const cellui::Input & input) {
 	if (!is_off) {
 	  auto track = song.getMasterTrack().getChildByInternalId(track_id);
 	  auto tuning = track ? song.getTuningForTrack(*track) : song.getTuning();
-	  midi_note = keyToMidiNote(input, getController().getGlobalOctave(), tuning);
-	}
+          if (auto input_note = keyToMidiNote(input, tuning, song.getScale()); !input_note.empty()) {
+            midi_note = Note(input_note, tuning, 0x28, 0, getController().getGlobalOctave()).getValue();
+          }
+        }
 
 	if (is_repeat && midi_note >= 0) return true; // already sounding - nothing to redo
 

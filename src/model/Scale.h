@@ -87,9 +87,9 @@ static inline std::vector<std::string_view> scaleDegreeNames(Scale scale) {
   case Scale::MAJOR: return { "C", "D", "E", "F", "G", "A", "B" };
   case Scale::MINOR: return { "C", "D", "E♭", "F", "G", "A♭", "B♭" };
   case Scale::OTONAL:
-    return {"C", "D", "D♯", "E", "F", "G", "A", "A𝄰", "B♭"};
+    return {"C", "D♭", "D", "D♯", "E", "F", "G", "A", "A𝄰", "C𝄫", "B"};
   case Scale::UTONAL:
-    return {"C", "D↓", "E𝄫", "E♭", "F", "G", "A♭", "B𝄫", "B𝄭"};
+    return {"C", "D𝄭", "C𝄪", "E𝄫", "E♭", "F", "G", "A♭", "B𝄫", "B𝄭", "B↓"};
   case Scale::NONE: return {};
   }
   return {};
@@ -104,9 +104,9 @@ static inline std::vector<Ratio> scaleDegreeRatios(Scale scale) {
 
   switch (scale) {
     case Scale::OTONAL:
-      return {1 / 1_r, 9 / 8_r, 7 / 6_r, 5 / 4_r, 4 / 3_r, 3 / 2_r, 5 / 3_r, 7 / 4_r, 9 / 5_r};
+      return {1 / 1_r, 13 / 12_r, 9 / 8_r, 7 / 6_r, 5 / 4_r, 4 / 3_r, 3 / 2_r, 5 / 3_r, 7 / 4_r, 11 / 6_r, 15 / 8_r};
     case Scale::UTONAL:
-      return {1 / 1_r, 10 / 9_r, 8 / 7_r, 6 / 5_r, 4 / 3_r, 3 / 2_r, 8 / 5_r, 12 / 7_r, 16 / 9_r};
+      return {1 / 1_r, 16 / 15_r, 12 / 11_r, 8 / 7_r, 6 / 5_r, 4 / 3_r, 3 / 2_r, 8 / 5_r, 12 / 7_r, 16 / 9_r, 24 / 13_r};
     case Scale::NONE:
     case Scale::MAJOR:
     case Scale::MINOR:

@@ -1382,11 +1382,11 @@ TEST(an_empty_slots_stop_button_round_trips_through_save_and_load) {
 
 TEST(c_flat_note_name_round_trips_with_its_own_octave_number) {
   for (auto tuning : {Tuning::EDO19, Tuning::EDO31}) {
-    auto c_flat = Note("C♭5", 100, 0, tuning);
-    auto b_natural = Note("B-4", 100, 0, tuning);
+    auto c_flat = Note("C♭5", tuning, 100, 0);
+    auto b_natural = Note("B-4", tuning, 100, 0);
     CHECK(c_flat.getValue() == b_natural.getValue() + 1);
     CHECK(c_flat.toString(tuning) == "C♭5");
-    CHECK(Note(c_flat.toString(tuning), 100, 0, tuning).getValue() == c_flat.getValue());
+    CHECK(Note(c_flat.toString(tuning), tuning, 100, 0).getValue() == c_flat.getValue());
   }
 }
 
@@ -1422,7 +1422,7 @@ TEST(note_names_round_trip_for_every_value_in_every_tuning) {
   for (auto tuning : {Tuning::EDO12, Tuning::EDO19, Tuning::EDO31, Tuning::EDO53}) {
     for (int v = 60; v < 400; ++v) {
       Note n(v, 100);
-      CHECK(Note(n.toString(tuning), 100, 0, tuning).getValue() == v);
+      CHECK(Note(n.toString(tuning), tuning, 100, 0).getValue() == v);
     }
   }
 }
