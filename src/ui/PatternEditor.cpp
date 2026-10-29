@@ -2565,8 +2565,8 @@ void PatternEditor::updateCursorBands(const StyleProvider & styles, const std::v
         strip(*cursor_border_plane_, at, cursor_x0_, cursor_x1_ - cursor_x0_, styles.highlight_bg_color, 0.0f, cellui::BlendMode::NORMAL, 1.0, sub ? cursor_sub_x0_ : 0.0, sub ? sub_cols : 0.0);
       else
         strip(*cursor_border_plane_, at, cursor_x0_, cursor_x1_ - cursor_x0_, styles.highlight_bg_color, 0.25f);
-      if (sub) {
-        // Both bands fade in together with the focus; a lone inversion would show black.
+      if (sub && focus_ > 0.01f) {
+        // The inversion fades in with the focus.
         strip(*cursor_plane_, at, cursor_sub_x0_, sub_cols, Color(255, 255, 255), focus_, cellui::BlendMode::DIFFERENCE);
         strip(*cursor_hue_plane_, at, cursor_sub_x0_, sub_cols, styles.highlight_bg_color, focus_, cellui::BlendMode::COLOR);
       } else {

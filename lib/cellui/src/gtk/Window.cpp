@@ -622,11 +622,19 @@ void Window::Impl::snapshot(GtkSnapshot * snap) {
             GskRenderNode * under = gtk_snapshot_free_to_node(s);
             s = gtk_snapshot_new();
             gtk_snapshot_append_node(s, under);
+            // The blend is drawn at full strength and cross-faded with what is
+            // below by the band's alpha: a blend node with a part-transparent
+            // top darkens instead of mixing.
+            tint.alpha = 1.0f;
             gtk_snapshot_push_clip(s, &strip);
+            gtk_snapshot_push_cross_fade(s, static_cast<double>(band.alpha));
+            gtk_snapshot_append_node(s, under);
+            gtk_snapshot_pop(s);
             gtk_snapshot_push_blend(s, gskBlendMode(band.blend));
             gtk_snapshot_append_node(s, under);
             gtk_snapshot_pop(s);
             gtk_snapshot_append_color(s, &tint, &strip);
+            gtk_snapshot_pop(s);
             gtk_snapshot_pop(s);
             appendBandBorder(s, band, content, cell_w, cell_h);
             gtk_snapshot_pop(s);
