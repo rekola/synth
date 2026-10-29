@@ -10,7 +10,6 @@
 #include <vector>
 
 class Logger;
-class Event;
 
 // Launchpad I/O: finds the devices among the MIDI ports, connects to them and
 // turns what they send into events and what we send into SysEx. The port

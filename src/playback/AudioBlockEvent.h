@@ -1,8 +1,6 @@
 #ifndef _AUDIOBLOCKEVENT_H_
 #define _AUDIOBLOCKEVENT_H_
 
-#include "Event.h"
-#include "EventHandler.h"
 #include "../audio/AudioBuffer.h"
 
 // Audio thread -> VisualizationThread: one block of audio per rendered
@@ -58,12 +56,10 @@
 // is a sentinel telling VisualizationThread::run() to stop - the same role
 // PlaybackControlEvent::TERMINATE plays for the audio thread's own loop
 // (see UI::start()); the other fields are irrelevant in that case.
-class AudioBlockEvent : public Event {
-public:
+class AudioBlockEvent {
+ public:
   AudioBlockEvent(AudioBuffer master, AudioBuffer raw_bus, AudioBuffer aux_a, AudioBuffer aux_b)
     : master_(std::move(master)), raw_bus_(std::move(raw_bus)), aux_a_(std::move(aux_a)), aux_b_(std::move(aux_b)) { }
-
-  void dispatch(EventHandler & evh) override { evh.handleAudioBlockEvent(*this); }
 
   const AudioBuffer & getMaster() const { return master_; }
   const AudioBuffer & getRawBus() const { return raw_bus_; }

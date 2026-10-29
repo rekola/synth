@@ -1,7 +1,7 @@
 #ifndef _VISUALIZATIONTHREAD_H_
 #define _VISUALIZATIONTHREAD_H_
 
-#include "EventHandler.h"
+#include "AudioBlockEvent.h"
 #include "../dsp/SpectrumAnalyzer.h"
 #include "../dsp/DiracAnalyzer.h"
 #include "../ambisonic/MixerType.h"
@@ -22,7 +22,7 @@ class Mixer;
 // (Controller::postToUI(), here -> UI thread) - the UI thread does
 // no analysis of its own, it only displays whatever this thread already
 // computed.
-class VisualizationThread : public EventHandler {
+class VisualizationThread {
  public:
   // How long silent blocks take to bring every scope to rest (the meter's
   // fall is the slowest); after that they change nothing.
@@ -55,7 +55,7 @@ class VisualizationThread : public EventHandler {
     rest_results_limit_ = kSettleSeconds * sample_rate / std::max(frame_count, 1);
   }
 
-  void handleAudioBlockEvent(AudioBlockEvent & ev) override;
+  void handleAudioBlockEvent(AudioBlockEvent & ev);
 
   // Poll loop over Controller::getVisualizationQueue(), mirroring
   // Player::play()'s own poll()+drain shape. Returns once an AudioBlockEvent

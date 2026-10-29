@@ -1,13 +1,10 @@
 #ifndef _PLAYBACKCONTROLEVENT_H_
 #define _PLAYBACKCONTROLEVENT_H_
 
-#include "Event.h"
-#include "EventHandler.h"
-
 #include <string>
 #include <utility>
 
-class PlaybackControlEvent : public Event {
+class PlaybackControlEvent {
  public:
   // SONG_CHANGED is gone - Player no longer keeps one global SongState
   // rebuilt from scratch on every buffer switch (that rebuild was also
@@ -154,8 +151,6 @@ class PlaybackControlEvent : public Event {
   // release tail survive the rename, same as any other buffer switch.
   PlaybackControlEvent(Type _type, std::string _old_buffer_name, std::string _new_buffer_name)
     : type(_type), buffer_name(std::move(_old_buffer_name)), new_buffer_name(std::move(_new_buffer_name)) { }
-
-  void dispatch(EventHandler & evh) override { evh.handlePlaybackControlEvent(*this); }
 
   Type getType() const { return type; }
   const std::string & getBufferName() const { return buffer_name; }

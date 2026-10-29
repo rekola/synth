@@ -1,7 +1,6 @@
 #include "TestFramework.h"
 
 #include "../src/model/Command.h"
-#include "../src/playback/EventHandler.h"
 #include "../src/playback/InputEvent.h"
 
 #include <cmath>
