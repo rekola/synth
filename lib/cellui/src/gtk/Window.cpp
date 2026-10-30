@@ -454,7 +454,17 @@ void Window::Impl::appendShadows(GtkSnapshot * snap, const Painted & top, GskRen
     return GRAPHENE_RECT_INIT(static_cast<float>(a.col * cell_w), static_cast<float>(a.row * cell_h), static_cast<float>(a.cols * cell_w),
                               static_cast<float>(a.rows * cell_h));
   };
-  auto shown = [&](const ElevatedArea & a) { return a.layer >= layers.size(); };
+  // Only a backdrop at or above an area's layer covers it (a plane scrolling
+  // by part of a cell is a layer too, and covers nothing).
+  std::vector<bool> covered(layers.size() + 1, false);
+  for (size_t j = layers.size(); j-- > 0;) covered[j] = covered[j + 1] || layers[j].backdrop.active();
+  auto shown = [&](const ElevatedArea & a) { return !covered[std::min(a.layer, layers.size())]; };
+  // An area's cells again: from the frame, or, when they were composed into a
+  // layer below it, from the stack so far with the frame over it.
+  auto redraw = [&](const ElevatedArea & a) {
+    if (a.layer < layers.size() && below) gtk_snapshot_append_node(snap, below);
+    appendTexture(snap, top);
+  };
   // The lifted bands of scrolled planes, which are drawn in the layers below.
   struct LiftedBand {
     graphene_rect_t rect;
@@ -513,7 +523,7 @@ void Window::Impl::appendShadows(GtkSnapshot * snap, const Painted & top, GskRen
         graphene_rect_t above = rectOf(elevations[j]), meet;
         if (!graphene_rect_intersection(&above, &reach, &meet)) continue;
         gtk_snapshot_push_clip(snap, &above);
-        appendTexture(snap, top);
+        redraw(elevations[j]);
         gtk_snapshot_pop(snap);
       }
       // A light top edge and a darker bottom one, so pieces side by side

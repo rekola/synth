@@ -527,3 +527,35 @@ TEST(gtk_window_shadows_raised_planes_that_nothing_blurs) {
   // the popup's under it.
   CHECK(w->stats().shadows == 1);
 }
+
+// A plane scrolling by part of a cell is a layer, but covers nothing: what
+// stands above the base below it still casts its shadow.
+TEST(gtk_window_keeps_the_shadows_of_planes_below_a_scroll_layer) {
+  gtk::Window * w = theWindow();
+  if (!w) return;
+  StyleProvider styles;
+  CellBuffer screen(w->rows(), w->cols());
+  BufferPlane root(screen, styles);
+  root.setSmoothScroll(true);
+  auto card = root.createChild();
+  card->resize(3, 10);
+  card->move(1, 2);
+  card->setLift(2.0f);
+  card->setBgColor(40, 40, 60);
+  card->putstr(1, 1, "card");
+  card->setLift(0);
+  auto list = root.createChild();
+  list->resize(3, 6);
+  list->move(6, 0);
+  list->setScrollOffset(0.25, 0);
+  list->putstr(0, 0, "item");
+  root.refresh();
+  FrameInfo info;
+  info.backdrops = root.takeBackdropLayers();
+  info.elevations = root.takeElevations();
+  CHECK(info.backdrops.size() == 1);
+  size_t before = w->stats().frames;
+  w->present(screen, {}, root.images(), &info);
+  CHECK(pumpUntil(*w, [&] { return w->stats().frames > before; }));
+  CHECK(w->stats().shadows == 1);
+}
