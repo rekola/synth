@@ -1422,6 +1422,16 @@ would otherwise resume showing.
     would lay out the parsed `Document` itself). The terminal one is modal
     and closes on Escape/Enter/q/C-g or a click.
 
+    Modal dialogs are made on the stack and shown with `showModal()`
+    (`cellui::ModalDialog`, `ChoiceModal`, `InfoModal`): it runs a nested
+    event loop and returns the dialog's result. The dialog owns its scrim,
+    takes every key and pointer event through capture handlers it puts on the
+    root while it is up, and ends itself with `done()`; `InteractiveUI` only
+    knows that one has the input (`Widget::activeModal()`) and so offers it
+    the events through the dispatcher alone. `showChoiceDialog()` and
+    `showInfoDialog()` therefore return once the dialog is closed (tests run
+    their checks in `UIFixture::inModal()`).
+
     Commands (`CommandRegistry`-named, dispatched by both a keybinding and
     M-x) default to living in `UI::initializeCommands()` (`ui/UI.cpp`),
     not `InteractiveUI`, since a future GUI backend shares the same command

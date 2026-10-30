@@ -782,7 +782,7 @@ void Window::Impl::appendShadows(GtkSnapshot * snap, const Painted & top, GskRen
       gtk_snapshot_push_clip(snap, &ear);
       // Without an opaque cell under it, the stack as it was before the area's
       // own cells were composed (never the final one, which holds them).
-      if (!under && a.layer > 0 && a.layer <= stacks.size()) {
+      if (a.layer > 0 && a.layer <= stacks.size()) {
         gtk_snapshot_append_node(snap, stacks[a.layer - 1]);
       } else {
         const Color & c = under ? *under : bg;
@@ -849,7 +849,7 @@ void Window::Impl::appendShadows(GtkSnapshot * snap, const Painted & top, GskRen
         gtk_snapshot_pop(snap);
       }
       for (size_t j = i; j < elevations.size(); j++) {
-        if (!shown(elevations[j])) continue;
+        if (!shown(elevations[j]) || elevations[j].scrim) continue;
         graphene_rect_t above = rectOf(elevations[j]), meet;
         if (!graphene_rect_intersection(&above, &reach, &meet)) continue;
         GskRoundedRect shape;
@@ -870,15 +870,16 @@ void Window::Impl::appendShadows(GtkSnapshot * snap, const Painted & top, GskRen
         gtk_snapshot_pop(snap);
       }
       // A light top edge and a darker bottom one, so pieces side by side
-      // or stacked read apart.
+      // or stacked read apart; a border that thins to nothing at the sides
+      // follows a rounded corner.
       for (size_t k = i; k < level_end; k++) {
         if (!shown(elevations[k]) || !elevations[k].shadow) continue;
         graphene_rect_t rect = rectOf(elevations[k]);
-        float r = radiusOf(elevations[k]);
-        graphene_rect_t top_edge = GRAPHENE_RECT_INIT(rect.origin.x + r, rect.origin.y, rect.size.width - 2 * r, 1);
-        graphene_rect_t bottom_edge = GRAPHENE_RECT_INIT(rect.origin.x + r, rect.origin.y + rect.size.height - 1, rect.size.width - 2 * r, 1);
-        gtk_snapshot_append_color(snap, &highlight, &top_edge);
-        gtk_snapshot_append_color(snap, &edge, &bottom_edge);
+        GskRoundedRect outline;
+        gsk_rounded_rect_init_from_rect(&outline, &rect, radiusOf(elevations[k]));
+        float widths[4] = { 1, 0, 1, 0 };
+        GdkRGBA colors[4] = { highlight, highlight, edge, edge };
+        gtk_snapshot_append_border(snap, &outline, widths, colors);
       }
     }
     i = level_end;

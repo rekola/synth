@@ -1,16 +1,15 @@
 #ifndef _TERMINALUI_H_
 #define _TERMINALUI_H_
 
-#include "ChoiceDialog.h"
+#include <cellui/ChoiceModal.h>
+#include <cellui/InfoModal.h>
 #include <cellui/InputDispatcher.h>
 #include <cellui/CommandPalette.h>
-#include "InfoDialog.h"
 #include "UI.h"
 #include "StyleProvider.h"
 #include "../playback/InputEvent.h"
 #include <cellui/KeyReader.h>
 #include <cellui/Signal.h>
-#include <cellui/Scrim.h>
 #include <cellui/Charts.h>
 #include <chrono>
 #include <memory>
@@ -172,14 +171,6 @@ class InteractiveUI : public UI {
   // time; only which ones are on screen changes.
   std::shared_ptr<ClipGrid> clip_grid_;
   std::shared_ptr<OutlineView> outline_view_;
-  // The modal dialog showInfoDialog() opens (About, ...); it takes all
-  // input until closed. Its source is kept to re-center it on resize.
-  InfoDialog info_dialog_;
-  std::string info_dialog_title_, info_dialog_markdown_;
-  void layoutInfoDialog();
-
-  // The modal list showChoiceDialog() opens (the device pickers, ...); like
-  // the info dialog it takes all input until it is chosen from or cancelled.
   // The command palette M-x and its desktop shortcut open: modal, across the
   // bottom of the screen where the status line is.
   cellui::CommandPalette command_palette_;
@@ -191,26 +182,6 @@ class InteractiveUI : public UI {
   bool offerKeyLayers(const cellui::Input & input);
   void handleCommandPaletteInput(const cellui::Input & input);
   std::string bindingFor(const std::string & command) const;
-  ChoiceDialog choice_dialog_;
-  std::function<void(int)> choice_callback_;
-  void layoutChoiceDialog();
-  void handleChoiceDialogInput(const cellui::Input & input);
-  void closeChoiceDialog() {
-    choice_dialog_.close();
-    choice_callback_ = nullptr;
-    layoutModalScrim();
-    force_next_render_ = true;
-  }
-  void closeInfoDialog() {
-    info_dialog_.close();
-    info_dialog_title_.clear();
-    layoutModalScrim();
-    force_next_render_ = true;
-  }
-  // Under whichever modal dialog is open, the rest of the screen shows
-  // through the theme's modal backdrop.
-  cellui::Scrim modal_scrim_;
-  void layoutModalScrim();
   void raiseOverlays();
   // Arrangement view's scope row (toggle-scopes); Live View never
   // shows it - see layout().

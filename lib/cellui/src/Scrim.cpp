@@ -12,6 +12,7 @@ void Scrim::show(Plane & parent, int rows, int cols, const Backdrop & backdrop) 
   if (!plane_) {
     plane_ = parent.createChild();
     plane_->setMouseCursor(MouseCursor::DEFAULT);
+    plane_->setScrim(true);
   }
   plane_->setName("scrim");
   // Under the modal dialog it is drawn for, which floats at the same height
