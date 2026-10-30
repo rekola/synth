@@ -1242,7 +1242,7 @@ void ClipGrid::putDialGroupRow(const StyleProvider & styles, int y, int x, int o
   // The caption stands in the free corner above B.
   if (offset == kSendsTop) {
     setFgColor(styles.window_accent_fg_color);
-    putstr(y, x + kDialX + kDialStride + 1, "Sends");
+    putstr(y, x + kDialX + kDialStride, "Sends");
   }
 }
 

@@ -179,18 +179,6 @@ Found 2026-07-11, not yet fixed.
   already fails a load, or skipping just that one `<sample>`/
   `<sampleBackground>` element with a diagnostic.
 
-- **`merge-clip-to-background` (note tracks) silences the notes it just
-  merged.** The command copies a placed clip's notes into the track's own
-  background pattern and then removes the clip's placement by writing a stop
-  marker there. During playback the background pattern is only read where a
-  track has no placement at all, and a stop marker counts as a placement, so
-  the merged rows play nothing. The pattern editor treats a stop marker like
-  no placement, so the notes look merged and the bug shows only when
-  playing. Not fixed. Either playback reads the background after a stop
-  marker too (as it already does for sample tracks), or the merge writes no
-  stop marker: the marker means both "silence this track here" and "this
-  placement was removed", and only the first should silence it.
-
 - **A pause leaves sustained voices ringing, and what survives it is an
   interim choice.** The transport toggle only pauses and resumes: launched
   clips keep their clip and row, queued changes and taken-over tracks stay,
