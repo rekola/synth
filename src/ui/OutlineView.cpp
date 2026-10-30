@@ -497,7 +497,8 @@ void
 OutlineView::renderCursor(const StyleProvider & styles, bool focused) {
   if (!tree_plane_) return;
   auto last = static_cast<double>(std::max(0, treeRows() - 1));
-  bool show = styles.window_focused && cursorOnOwnLayer() && new_cursor_row_ >= 0 && new_cursor_row_ < static_cast<int>(data_.size()) &&
+  // An outline that is not the focus shows no cursor.
+  bool show = styles.window_focused && focused && cursorOnOwnLayer() && new_cursor_row_ >= 0 && new_cursor_row_ < static_cast<int>(data_.size()) &&
               cursor_y_ >= 0 && cursor_y_ <= last;
   if (!show) {
     tree_plane_->clearBand();
@@ -505,8 +506,7 @@ OutlineView::renderCursor(const StyleProvider & styles, bool focused) {
   }
   // A translucent band over the tree, so the row shows through; it moves by
   // parts of a row independently of the content.
-  const auto & color = focused ? styles.highlight_bg_color : styles.highlight_unfocused_bg_color;
-  tree_plane_->setBand(cellui::Band{cursor_y_, 1.0, 0.0, static_cast<double>(getDim().second), color, focused ? 0.45f : 0.6f,
+  tree_plane_->setBand(cellui::Band{cursor_y_, 1.0, 0.0, static_cast<double>(getDim().second), styles.highlight_bg_color, 0.45f,
                                     cellui::BlendMode::NORMAL, styles.theme.elevation.card});
 }
 

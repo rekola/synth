@@ -391,7 +391,7 @@ active state, or the terminal's focus reports); a playhead is always shown. Ever
 grey bar/beat highlighting: dark on bright grey (`highlight_fg_color`/
 `highlight_bg_color`) while focused, plain text on a faint grey
 (`highlight_unfocused_bg_color`) otherwise - an unfocused widget still
-shows where its edits land (`ClipGrid` is the exception: unfocused, it shows no
+shows where its edits land (`ClipGrid` and `OutlineView` are the exceptions: unfocused, they show no
 cursor at all). A colored cell (a clip, an arrangement
 instance) brightens toward `cursor_tint_color` instead of taking either
 grey. A marked row - the pattern editor's cursor row (in Arrangement
