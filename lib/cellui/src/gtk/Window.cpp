@@ -542,9 +542,26 @@ void Window::Impl::snapshot(GtkSnapshot * snap) {
   auto appendBandBorder = [&](GtkSnapshot * target, const Band & band, const ScrollContent & content, double w, double h) {
     if (band.border_px <= 0) return;
     GdkRGBA edge = channel(band.border_color, band.border_alpha);
-    for (const BandBorderRect & r : bandBorderRects(band, (content.col + band.col) * w, (content.row + band.row) * h, (content.col + band.border_skip_col) * w, w, h)) {
+    double bx = (content.col + band.col) * w, by = (content.row + band.row) * h;
+    BandBorderShape shape = bandBorder(band, bx, by, (content.col + band.border_skip_col) * w, w, h);
+    for (const BandBorderRect & r : shape.rects) {
       graphene_rect_t rect = GRAPHENE_RECT_INIT(static_cast<float>(r.x), static_cast<float>(r.y), static_cast<float>(r.w), static_cast<float>(r.h));
       gtk_snapshot_append_color(target, &edge, &rect);
+    }
+    // A round corner is the band's rounded outline cut to the square the arc
+    // fills, so the pieces never overlap (a part-transparent border stays even).
+    graphene_rect_t whole = GRAPHENE_RECT_INIT(static_cast<float>(bx), static_cast<float>(by), static_cast<float>(band.cols * w), static_cast<float>(band.rows * h));
+    float widths[4] = { static_cast<float>(shape.thickness), static_cast<float>(shape.thickness), static_cast<float>(shape.thickness), static_cast<float>(shape.thickness) };
+    GdkRGBA colors[4] = { edge, edge, edge, edge };
+    for (const BandBorderCorner & corner : shape.corners) {
+      graphene_size_t none = GRAPHENE_SIZE_INIT(0, 0), arc = GRAPHENE_SIZE_INIT(static_cast<float>(corner.size), static_cast<float>(corner.size));
+      GskRoundedRect outline;
+      gsk_rounded_rect_init(&outline, &whole, corner.which == BandCorner::TOP_LEFT ? &arc : &none, corner.which == BandCorner::TOP_RIGHT ? &arc : &none,
+                            corner.which == BandCorner::BOTTOM_RIGHT ? &arc : &none, corner.which == BandCorner::BOTTOM_LEFT ? &arc : &none);
+      graphene_rect_t square = GRAPHENE_RECT_INIT(static_cast<float>(corner.x), static_cast<float>(corner.y), static_cast<float>(corner.size), static_cast<float>(corner.size));
+      gtk_snapshot_push_clip(target, &square);
+      gtk_snapshot_append_border(target, &outline, widths, colors);
+      gtk_snapshot_pop(target);
     }
   };
   Color fg = *display_info.default_fg, bg = *display_info.default_bg;

@@ -165,6 +165,10 @@ struct Theme {
     float overlay = 2;    // menus, pickers, popups
     float modal = 4;      // a modal dialog and its scrim
   } elevation;
+  // The corner radius in pixels of an outlined cell (the pattern editor's
+  // cursor), where the display draws outlines by pixels: a softening, not a
+  // shape, since a cell has no room for more. 0 is square.
+  double outline_radius_px = 2.0;
 
   static Theme original() {
     Theme t;
