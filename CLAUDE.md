@@ -1554,6 +1554,16 @@ would otherwise resume showing.
   cells redrawn only when what they show changed. `TestBackend` stacks the layers
   unblurred (`info().backdrops` has them) and shows them as a terminal does after
   `emulateBackdrops(true)`.
+  Text in a face of its own is the display's too: `Plane::putText(y, x, cols, text,
+  TextStyle)` gives the text a box of `cols` cells (to the plane's edge when negative)
+  and the display lays it out - the app never measures it, and what does not fit the
+  box is cut (`TextOverflow::CLIP`) or cut with an ellipsis (`ELLIPSIS`). A display that
+  can (`DisplayInfo::proportional_text`: the GTK window) marks the box's cells
+  (`Cell::text_run`) and reports the run (`FrameInfo::text_runs`, `TextRun`), which the window sets with
+  Pango in the system UI font sized to the cell height (`appendTextRuns()`), centred in the rows
+  and ellipsized by the layout itself; any other, and a `MONOSPACE` request, gets the same
+  text written as cells, cut or ellipsized to the box's width (`Plane::cutToCells()`). The clip
+  grid's clip names are the first use. Writing over a marked cell takes the text back.
   The pointer's shape is a plane attribute (`Plane::setMouseCursor()`,
   `MouseCursor`: `INHERIT` shows what is below, `DEFAULT`/`POINTER`/`TEXT`):
   `refresh()` lists the rectangles of the planes that asked for one, in drawing

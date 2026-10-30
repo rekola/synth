@@ -52,6 +52,9 @@ struct DisplayInfo {
   // Whether a plane's content can be shown shifted by a fraction of a cell
   // (Plane::setScrollOffset()), so a view can scroll smoothly.
   bool smooth_scroll = false;
+  // Whether the display lays out text itself, so Plane::putText() can set it
+  // in a proportional face; any other has the cells' own.
+  bool proportional_text = false;
   // The key shortcuts the application binds commands to here: the terminal's
   // are Emacs's, a window's the usual desktop ones.
   KeymapProfile keymap_profile = KeymapProfile::TERMINAL;

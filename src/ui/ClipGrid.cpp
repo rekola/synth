@@ -947,6 +947,10 @@ ClipGrid::render(const StyleProvider & styles, bool refresh, bool focused) {
         auto clip_row = static_cast<size_t>(physical_row);
         Color row_fg = styles.clip_text_color, row_bg = styles.grid_bg_color;
         string text;
+        // The clip's name, set by the display in its own face (in a window a
+        // proportional one) and cut to its box.
+        string clip_label;
+        int label_cols = 0;
         // Content-aware, not just in-bounds - holes are allowed (Song::
         // ensureClipAt()), so an in-bounds but still-empty filler renders
         // as the plain "nothing here" stop icon below, same as a row
@@ -979,8 +983,9 @@ ClipGrid::render(const StyleProvider & styles, bool refresh, bool focused) {
           // each: they may render two cells wide.
           auto trailing = std::max(2, 2 * ((is_edited_clip ? 1 : 0) + (clip.isLooping() ? 1 : 0)));
           auto clip_name_width = kColWidth - 3 - trailing; // marker + "▸ " + the trailing columns
-          auto name_field = Utf8::padToWidth(Utf8::truncateToWidth(name, clip_name_width), clip_name_width);
-          text = fmt::format("{}▸ {}", marker, name_field);
+          clip_label = name;
+          label_cols = clip_name_width;
+          text = fmt::format("{}▸ ", marker);
           row_bg = structure.getBaselineInfo(track_id).getColor(styles.tracks);
         } else {
           // Without a stop button, launching the slot does nothing.
@@ -1051,6 +1056,7 @@ ClipGrid::render(const StyleProvider & styles, bool refresh, bool focused) {
         setBgColor(row_bg);
         putstr(y, x, string(static_cast<size_t>(kColWidth), ' ')); // opaque row background first
         putstr(y, x, text);
+        if (!clip_label.empty()) putText(y, x + 3, label_cols, clip_label, cellui::TextStyle{cellui::TextFont::PROPORTIONAL, cellui::TextOverflow::ELLIPSIS});
         if (has_real_clip && clips[clip_row].isLooping()) putstr(y, x + kColWidth - 2, "↻");
         if (is_edited_clip) putstr(y, x + kColWidth - (has_real_clip && clips[clip_row].isLooping() ? 4 : 2), "✎");
         if (glyph) {

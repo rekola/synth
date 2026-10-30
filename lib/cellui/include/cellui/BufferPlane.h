@@ -92,8 +92,14 @@ class BufferPlane : public Plane {
     // Kept, so the same picture drawn again after erase() is not sent again.
     erased_images_ = std::move(images_);
     images_.clear();
+    texts_.clear();
   }
   void putstr(int y, int x, const std::string & s) override;
+  void putText(int y, int x, int cols, const std::string & text, const TextStyle & style = {}) override;
+  // Whether the display lays proportional text out itself (root only).
+  void setProportionalText(bool can) { proportional_text_ = can; }
+  // The text runs the frame's marked cells refer to (root only).
+  std::vector<TextRun> takeTextRuns() { return std::move(text_runs_); }
   std::unique_ptr<Plane> createChild() override;
   void drawBorder() override;
   // Feeds the reader or the picker, whichever is open.
@@ -236,6 +242,13 @@ class BufferPlane : public Plane {
   double display_scale_ = 1.0;
   KeymapProfile keymap_profile_ = KeymapProfile::TERMINAL;
   bool smooth_scroll_ = false;
+  bool proportional_text_ = false;
+  // The runs this plane's cells are marked with, by local index; the frame's,
+  // in the order composed (root only).
+  std::vector<TextRun> texts_;
+  mutable std::vector<TextRun> text_runs_;
+  // The frame's index + 1 of this plane's run `local` + 1.
+  int frameRun(std::vector<int> & map, int mark) const;
   mutable std::vector<BackdropLayer> layers_;
   mutable std::vector<ElevatedArea> elevations_;
   std::vector<CursorArea> mouse_cursors_;

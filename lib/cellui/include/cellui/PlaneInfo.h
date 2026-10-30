@@ -2,8 +2,10 @@
 
 #include <cellui/BackdropLayer.h>
 #include <cellui/MouseCursor.h>
+#include <cellui/TextStyle.h>
 
 #include <memory>
+#include <optional>
 #include <string>
 #include <vector>
 
@@ -23,6 +25,17 @@ struct PlaneInfo {
   bool reader = false;  // a text field is open on this plane
   bool picker = false;  // a picker is open on this plane
   std::vector<PlaneInfo> children;
+};
+
+// Text a display lays out itself (Plane::putText()): in cells marked with the
+// run's index + 1 (CellBuffer::Cell::text_run), the display draws it over the
+// cells it marks, in the font and cut as the style says.
+struct TextRun {
+  std::string text;
+  std::optional<Color> fg;  // unset = the display's own
+  bool bold = false, italic = false, underline = false;
+  TextFont font = TextFont::PROPORTIONAL;
+  TextOverflow overflow = TextOverflow::CLIP;
 };
 
 // The part of the screen a plane above the base covers, at its height above
@@ -65,6 +78,8 @@ struct FrameInfo {
   // Every shown plane above the base, in the order they are drawn (lowest
   // first). Always given.
   std::vector<ElevatedArea> elevations;
+  // The text runs the cells' marks refer to, by index. Always given.
+  std::vector<TextRun> text_runs;
   // The areas planes asked a pointer shape for, in the order they are drawn
   // (lowest first): the last one over a cell sets its shape, and a cell none
   // covers has the arrow. Always given.

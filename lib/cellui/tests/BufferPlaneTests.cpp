@@ -1051,3 +1051,69 @@ TEST(bufferplane_lifted_cells_below_a_scroll_layer_are_still_reported) {
   // Composed into the layer, not after it.
   CHECK(areas[0].layer == 0);
 }
+
+// A display that cannot lay text out sets it as cells, cut to the box, with an
+// ellipsis when asked.
+TEST(bufferplane_put_text_without_text_layout_cuts_to_the_box) {
+  StyleProvider styles;
+  CellBuffer b(2, 12);
+  BufferPlane root(b, styles);
+  root.putText(0, 0, 6, "a long clip name", TextStyle{ TextFont::PROPORTIONAL, TextOverflow::CLIP });
+  root.putText(1, 0, 6, "a long clip name", TextStyle{ TextFont::PROPORTIONAL, TextOverflow::ELLIPSIS });
+  root.refresh();
+  CHECK(b.at(0, 0).text == "a" && b.at(0, 5).text == "g" && b.at(0, 6).text == " ");
+  CHECK(b.at(1, 4).text == "n" && b.at(1, 5).text == "…");
+  // Short enough text is left as it is.
+  root.putText(0, 7, 5, "ab", TextStyle{ TextFont::PROPORTIONAL, TextOverflow::ELLIPSIS });
+  root.refresh();
+  CHECK(b.at(0, 7).text == "a" && b.at(0, 8).text == "b" && b.at(0, 9).text == " ");
+  // To the plane's right edge when no width is given.
+  root.putText(1, 6, -1, "abcdefgh", TextStyle{ TextFont::MONOSPACE, TextOverflow::CLIP });
+  root.refresh();
+  CHECK(b.at(1, 11).text == "f");
+}
+
+// A display that lays text out gets the run, and the cells of its box marked
+// with it; writing over a cell takes the mark back.
+TEST(bufferplane_put_text_with_text_layout_marks_the_box) {
+  StyleProvider styles;
+  CellBuffer b(1, 12);
+  BufferPlane root(b, styles);
+  root.setProportionalText(true);
+  root.setFgColor(Color(200, 100, 50));
+  root.setBgColor(Color(10, 20, 30));
+  root.putText(0, 2, 6, "Pizzicato strings", TextStyle{ TextFont::PROPORTIONAL, TextOverflow::ELLIPSIS });
+  root.putstr(0, 4, "x");
+  root.refresh();
+  auto runs = root.takeTextRuns();
+  CHECK(runs.size() == 1);
+  CHECK(runs[0].text == "Pizzicato strings" && runs[0].overflow == TextOverflow::ELLIPSIS && runs[0].fg);
+  CHECK(b.at(0, 1).text_run == 0 && b.at(0, 2).text_run == 1 && b.at(0, 3).text_run == 1);
+  CHECK(b.at(0, 4).text_run == 0 && b.at(0, 4).text == "x");
+  CHECK(b.at(0, 7).text_run == 1 && b.at(0, 8).text_run == 0);
+  // The box keeps the plane's colours.
+  CHECK(b.at(0, 2).bg && b.at(0, 2).text == " ");
+  // A monospace request is just cells, on any display.
+  root.putText(0, 8, 3, "abcdef", TextStyle{ TextFont::MONOSPACE, TextOverflow::CLIP });
+  root.refresh();
+  CHECK(b.at(0, 8).text == "a" && b.at(0, 8).text_run == 0);
+}
+
+// The runs of a plane scrolling by part of a cell are the frame's too.
+TEST(bufferplane_text_runs_survive_a_scroll_layer) {
+  StyleProvider styles;
+  CellBuffer b(6, 10);
+  BufferPlane root(b, styles);
+  root.setSmoothScroll(true);
+  root.setProportionalText(true);
+  auto list = root.createChild();
+  list->resize(3, 8);
+  list->move(1, 1);
+  list->setScrollOffset(0.5, 0);
+  list->putText(0, 0, 5, "name", TextStyle{});
+  root.refresh();
+  auto layers = root.takeBackdropLayers();
+  auto runs = root.takeTextRuns();
+  CHECK(layers.size() == 1 && layers[0].scroll && runs.size() == 1 && runs[0].text == "name");
+  CHECK(layers[0].scroll->cells.at(0, 0).text_run == 1);
+}
