@@ -27,15 +27,15 @@ TEST(keyboard_notes_scale_with_the_edo_per_octave) {
 }
 
 // The drum keys are the Launchpad's 4x4 rack: notes 36-51, left to right and
-// then bottom to top, on the z, s, w and 2 rows.
+// then bottom to top, on the x, s, w and 2 rows.
 TEST(keyboard_drums_are_the_launchpad_rack) {
-  const char keys[] = "zxcvsdfgwert2345";
+  const char keys[] = "xcvbsdfgwert2345";
   for (int i = 0; i < 16; i++) {
     Note note(keyToMidiNote(key(keys[i]), Tuning::PERCUSSION, Scale::NONE), Tuning::PERCUSSION);
     CHECK(note.getValue() == 36 + i);
   }
   CHECK(keyToMidiNote(key('a'), Tuning::PERCUSSION, Scale::NONE) == ""); // note-off
-  CHECK(keyToMidiNote(key('b'), Tuning::PERCUSSION, Scale::NONE) == "");
+  CHECK(keyToMidiNote(key('z'), Tuning::PERCUSSION, Scale::NONE) == "");
   CHECK(keyToMidiNote(key('1'), Tuning::PERCUSSION, Scale::NONE) == "");
 }
 

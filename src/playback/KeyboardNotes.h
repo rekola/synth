@@ -12,15 +12,15 @@
 inline const std::string_view keyToMidiNote(const cellui::Input & input, Tuning tuning, Scale scale) {
   if (tuning == Tuning::PERCUSSION) {
     // The 4x4 drum rack of the Launchpad: General MIDI notes 36-51, left to
-    // right and then bottom to top, on the four key rows z.., s.., w.., 2.. (not a, the note-off key)
+    // right and then bottom to top, on the four key rows x.., s.., w.., 2.. (not a, the note-off key)
     switch (input.getId()) {
-      case 'z':
-        return "BD"; // 36 Bass Drum
       case 'x':
-        return "RS"; // 37 Side Stick
+        return "BD"; // 36 Bass Drum
       case 'c':
-        return "SD"; // 38 Acoustic Snare
+        return "RS"; // 37 Side Stick
       case 'v':
+        return "SD"; // 38 Acoustic Snare
+      case 'b':
         return "CP"; // 39 Hand Clap
       case 's':
         return "SD2"; // 40 Electric Snare
