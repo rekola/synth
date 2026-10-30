@@ -1171,7 +1171,7 @@ ClipGrid::render(const StyleProvider & styles, bool refresh, bool focused) {
 
 void
 ClipGrid::renderMeter(const StyleProvider & styles, int x, int rows, int track_id, bool clipping) {
-  if (x < 0) return;
+  if (x + kColWidth - 1 < 0) return; // the meter's cell is scrolled out at the left
   auto & meter = meters_[track_id];
   auto top = clipRowCount() + kMainTop - first_row_; // the meter's top cell
   cellui::SparklineReading reading{meter.fraction, meter.peak_fraction, clipping};
@@ -1303,7 +1303,6 @@ void ClipGrid::putDialGroupRow(const StyleProvider & styles, int y, int x, int o
 }
 
 void ClipGrid::renderDials(const StyleProvider & styles, int x, int rows, int column, int track_id, const SendLevels & sends) {
-  if (x < 0) return; // cut off at the left: not drawn, and takes no input
   auto clip_rows = clipRowCount();
   bool cursor_column = focus_ > 0.0f && column == cursor_track_index_;
   auto kind = rowKindFor(cursor_row_);
@@ -1318,6 +1317,7 @@ void ClipGrid::renderDials(const StyleProvider & styles, int x, int rows, int co
       {0, kMainTop, kMainX, sends.main, cursor_column && kind == RowKind::MAIN},
   };
   for (auto & slot : slots) {
+    if (x + slot.dx + kDialWidth <= 0) continue; // scrolled out at the left: not drawn, and takes no input
     auto & dial = dialAt(track_id, slot.send);
     dial.setPosition(clip_rows + slot.offset - first_row_, x + slot.dx);
     dial.setClip(0, rows);

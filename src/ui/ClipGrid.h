@@ -79,6 +79,8 @@ class ClipGrid : public UIElement {
   bool wantsBareEscape() const override { return isReaderActive(); }
   // The focus level is still easing: the loop keeps drawing frames.
   bool isAnimating() const { return fades_.active() || focus_fade_drawn_; }
+  // The view is still easing toward where it was scrolled to.
+  bool scrolling() const { return row_axis_.animating() || col_axis_.animating(); }
   void cancelReaderEdit() {
     inline_editor_.cancel();
     for (auto & [key, dial] : dials_) dial->cancelEdit();
@@ -193,7 +195,7 @@ class ClipGrid : public UIElement {
   int cursor_row_ = 1; // logical row index - see physicalFor()'s own comment; starts on the first clip row, not the header
   static constexpr int kWheelCells = 4; // cells one sideways notch scrolls, before acceleration
   cellui::WheelAcceleration wheel_acceleration_x_;
-  static constexpr int kWheelRows = 3; // rows one wheel notch scrolls, before acceleration
+  static constexpr int kWheelRows = 2; // rows one wheel notch scrolls, before acceleration
   cellui::WheelAcceleration wheel_acceleration_;
   int scroll_x_ = 0, scroll_row_ = 0; // scroll_x_ is in cells, scroll_row_ in *physical* rows, like the on-screen content itself
 
