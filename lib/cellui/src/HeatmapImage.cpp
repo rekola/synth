@@ -46,7 +46,8 @@ std::vector<uint32_t> render(const std::vector<float> & brightness, const std::v
   image.setFormat(canvas::ChannelOrder::BGR, true);
   ctx.drawImage(image, -sx, -sy, sx * gw, sy * gh);
 
-  ctx.fillStyle = canvas::Color(1.0f, 1.0f, 1.0f, 1.0f);
+  auto ink = styles.window_fg_color.toSrgb8();
+  ctx.fillStyle = canvas::Color(static_cast<float>(ink[0]) / 255.0f, static_cast<float>(ink[1]) / 255.0f, static_cast<float>(ink[2]) / 255.0f, 1.0f);
   for (const auto & m : markers) {
     double mx = std::floor(static_cast<double>(m.u) * width), my = static_cast<double>(height) - 1.0 - std::floor(static_cast<double>(m.v) * height);
     ctx.fillRect(mx - 1.0, my - 1.0, 3.0, 3.0);
