@@ -1498,8 +1498,8 @@ InteractiveUI::offerInput(const cellui::Input & input) {
     force_next_render_ = true;
   } else if (input.hasCtrl() && input.getId() == 'l') {
     refresh();
-  } else if (input.getId() == Key::Button4 || input.getId() == Key::Button5) {
-    // The mouse wheel scrolls whichever shown widget is under the mouse,
+  } else if (input.getId() >= Key::Button4 && input.getId() <= Key::Button7) {
+    // The mouse wheel (sideways too) scrolls whichever shown widget is under the mouse,
     // without moving focus (Emacs's own mouse-wheel-follow-mouse default) -
     // each widget scrolls its view, never its cursor.
     // The widget under the pointer, or the shown one it sits in.
@@ -1512,7 +1512,7 @@ InteractiveUI::offerInput(const cellui::Input & input) {
     }
     return true;
   } else if (input.getId() == Key::Button1 && (octave_control_->arrowPressPending() ||
-                                                (input.getKind() != InputEvent::Kind::RELEASE && octave_control_->hitsArrow(input.getY(), input.getX())))) {
+                                               (input.getKind() != InputEvent::Kind::RELEASE && octave_control_->hitsArrow(input.getY(), input.getX())))) {
     // The octave arrows act on click without taking focus from the active element.
     octave_control_->offerInput(input);
     return true;

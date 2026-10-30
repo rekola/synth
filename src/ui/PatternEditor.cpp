@@ -2172,12 +2172,15 @@ PatternEditor::offerInputKey(const cellui::Input & input) {
 	if (source_->hasLocators()) new_cursor.scope = SelectionScope::LOCATOR;
       }
       return true;
-    } else if (input.getId() == Key::Button4 || input.getId() == Key::Button5) {
+    } else if (input.getId() >= Key::Button4 && input.getId() <= Key::Button7) {
       // The mouse wheel scrolls the view, never the cursor (which in
-      // arrangement mode is the transport); Shift scrolls tracks sideways.
+      // arrangement mode is the transport); Shift or a sideways wheel
+      // scrolls tracks.
       if (input.getKind() == InputEvent::Kind::RELEASE) return true;
-      int direction = input.getId() == Key::Button4 ? -1 : 1;
-      if (input.hasShift()) scrollViewTracks(direction);
+      bool sideways = input.getId() >= Key::Button6;
+      int direction = (input.getId() == Key::Button4 || input.getId() == Key::Button6) ? -1 : 1;
+      if (sideways || input.hasShift())
+        scrollViewTracks(direction);
       else scrollView(direction);
       return true;
     } else if (input.getId() == Key::PageUp) {

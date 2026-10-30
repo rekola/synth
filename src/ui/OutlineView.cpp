@@ -919,11 +919,12 @@ OutlineView::offerInput(const cellui::Input & input) {
   } else if (input.getId() == Key::Right) {
     scrollColumnsBy(kColumnScrollStep);
     return true;
-  } else if (input.getId() == Key::Button4 || input.getId() == Key::Button5) {
+  } else if (input.getId() >= Key::Button4 && input.getId() <= Key::Button7) {
     // The wheel scrolls the view, not the cursor (see scrollBy()); Shift
-    // scrolls sideways.
-    int direction = input.getId() == Key::Button4 ? -1 : 1;
-    if (input.hasShift()) scrollColumnsBy(direction * kColumnScrollStep);
+    // or a sideways wheel scrolls sideways.
+    int direction = (input.getId() == Key::Button4 || input.getId() == Key::Button6) ? -1 : 1;
+    if (input.hasShift() || input.getId() >= Key::Button6)
+      scrollColumnsBy(direction * kColumnScrollStep);
     else scrollBy(direction);
     return true;
   } else if (input.getId() == Key::PageUp) {

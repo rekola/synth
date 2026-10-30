@@ -106,10 +106,11 @@ ArrangementGrid::offerInput(const cellui::Input & input) {
   // The mouse wheel scrolls the view along the bars (Shift: tracks), not the
   // cursor, and detaches it from the cursor/playhead until the cursor next
   // moves.
-  if (input.getId() == Key::Button4 || input.getId() == Key::Button5) {
+  if (input.getId() >= Key::Button4 && input.getId() <= Key::Button7) {
     if (input.getKind() == cellui::Input::Kind::RELEASE) return true;
-    int direction = input.getId() == Key::Button4 ? -1 : 1;
-    viewport_.wheel(direction, !input.hasShift());
+    bool sideways = input.getId() >= Key::Button6;
+    int direction = (input.getId() == Key::Button4 || input.getId() == Key::Button6) ? -1 : 1;
+    viewport_.wheel(direction, sideways || !input.hasShift());
     return true;
   }
 
