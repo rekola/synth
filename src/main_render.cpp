@@ -46,15 +46,11 @@ utf8Arguments(int argc, char * argv[]) {
 static void
 printUsage() {
   fmt::print(stderr,
-             "usage: synth --render out.wav [options] song.xml\n"
-             "  --samplerate N       output sample rate (default 48000)\n"
-             "  --ambisonic [order]  ambisonic order, 1-{}\n"
-             "  --stereo             cardioid stereo decode instead of binaural\n"
-             "  --legacy-binaural    virtual-speaker binaural decoder\n"
-             "  --licenses           print third-party licences\n"
-             "  --help               this text\n"
-             "This build only renders; realtime playback and the UI are not available here.\n",
-             kAmbisonicOrder);
+             "usage: synth --render out.wav [options] song.xml\n");
+  printCommonOptionsUsage(stderr);
+  fmt::print(stderr,
+             "  --help, -h             this text\n"
+             "This build only renders; realtime playback and the UI are not available here.\n");
 }
 
 int main(int argc, char * argv[]) {

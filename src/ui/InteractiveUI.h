@@ -50,6 +50,9 @@ class InteractiveUI : public UI {
   void clearLastRow();
   void applyTheme(const Theme & theme) override;
   void setReducedMotion(bool reduced) override;
+  // Uses this keymap instead of the one the display declares (the --keymap
+  // option). Takes effect in initialize().
+  void setKeymapProfile(cellui::KeymapProfile profile) { keymap_profile_override_ = profile; }
   void render() override;
 
   bool offerInput(const cellui::Input & input) override;
@@ -127,6 +130,7 @@ class InteractiveUI : public UI {
 
  private:
   cellui::Backend & backend_;
+  std::optional<cellui::KeymapProfile> keymap_profile_override_;
   // A handler of something another thread posted wants the screen redrawn.
   bool redraw_requested_ = false;
   // What the planes compose into, the size of the terminal; the root plane

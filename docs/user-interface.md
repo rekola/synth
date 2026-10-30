@@ -6,7 +6,8 @@ Everything the program does is a named command (`kill-region`, `launch-scene`,
 keys to them.
 
 There are two keymaps, and a display uses one of them: the terminal the
-terminal keymap, the window the desktop one. The command names are the same in
+terminal keymap, the window the desktop one. `--keymap gui` or `--keymap
+terminal` picks one regardless of the display. The command names are the same in
 both. The terminal keymap is based on Emacs's keybindings (mark and point, kill
 and yank, M-x, the C-x prefix), but it is this program's own and not Emacs's:
 it adds shortcuts Emacs has no counterpart for. It is used in the terminal because a terminal can't send many of the

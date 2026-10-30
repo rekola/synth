@@ -251,7 +251,9 @@ error, and the choice is made once, at start (`cellui/BackendChoice.h`).
 `SYNTH_WINDOW_STATS=<file>` appends how long the window's frames took to draw
 when it exits. The e2e scripts pass `--ui terminal`.
 Options: `--samplerate N`, `--stereo`, `--ambisonic [order]`,
-`--legacy-binaural`, `--view live|arrangement`. Every song is always rendered through an
+`--legacy-binaural`, `--view live|arrangement`; `--help` lists them all
+(`printUsage()` in `main.cpp`, the shared ones from `printCommonOptionsUsage()`,
+which `main_render.cpp` uses too) - add a line there with a new option. Every song is always rendered through an
 ambisonic bus (ACN/SN3D, AmbiX convention) — there is no plain-stereo-pan
 mode at all any more, and `ChannelConfiguration::STEREO` doesn't exist as a
 type (see `ChannelConfiguration.h`); `--ambisonic [order]` just sets the
@@ -446,7 +448,10 @@ rejecting it (`Command::getAzimuthSlidePerTick()`).
 
 Keymap profiles: a display declares its `cellui::KeymapProfile`
 (`DisplayInfo::keymap_profile`: the terminal `TERMINAL`, the GTK window `DESKTOP`),
-which reaches widgets through `Plane::keymapProfile()`. `Keymap::bind(stroke,
+which reaches widgets through `Plane::keymapProfile()`; `--keymap gui|terminal`
+(`InteractiveUI::setKeymapProfile()`) overrides it. Escape-as-Meta stays the
+display's (`DisplayInfo::escape_as_meta`): it is about how the display reports
+Alt, not about the keymap. `Keymap::bind(stroke,
 name)` works in both profiles; `bind(profile, stroke, name)` only in one and wins
 over a shared binding of the same shortcut. A binding is migrated by making it
 profile-specific; one that is not works everywhere. Migrated so far: the command

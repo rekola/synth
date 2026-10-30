@@ -26,6 +26,7 @@
 
 #include <cstring>
 #include <filesystem>
+#include <optional>
 #include <signal.h>
 #if defined(SYNTH_TERMINAL_UI) && !defined(_WIN32)
 #include <termios.h>
@@ -43,10 +44,45 @@
 #endif
 #endif
 #include <cellui/BackendChoice.h>
+#include <cellui/KeymapProfile.h>
 #include <cellui/term/ImageEncoder.h>
 #include <fmt/core.h>
 
 using namespace std;
+
+static void
+printUsage() {
+  fmt::print("usage: synth [options] [song.xml]\n"
+             "       synth --render out.wav [options] song.xml\n"
+             "With no song, opens songs/welcome.xml, or an empty song if it is missing.\n"
+             "\n"
+             "Audio:\n");
+  printCommonOptionsUsage(stdout);
+  fmt::print("  --render FILE          render the song to a WAV file and exit\n"
+             "  --playback-device NAME output device for this run (see --list-devices)\n"
+             "  --capture-device NAME  input device for this run\n"
+             "  --midi-input NAME      MIDI source for this run\n"
+             "  --list-devices         print the devices that can be selected and exit\n"
+             "  --null-audio           no sound device; blocks are paced by the clock\n"
+             "\n"
+             "User interface:\n"
+             "  --ui MODE              auto, terminal, raster (a window) or headless (default auto)\n"
+             "  --view VIEW            live or arrangement: the view to start in (default live)\n"
+             "  --keymap KEYMAP        gui or terminal: the key bindings to use instead of the\n"
+             "                         display's own (the window uses gui, the terminal terminal)\n"
+             "  --theme THEME          dark, light or original (default: from the terminal's colours)\n"
+             "  --reduced-motion       no easing or pulsing (also SYNTH_REDUCED_MOTION=1)\n"
+             "  --dither METHOD        nearest, ordered or floyd-steinberg: Sixel image dithering\n"
+             "                         (default ordered)\n"
+             "\n"
+             "Headless:\n"
+             "  --autoplay             start the transport once running (needs --ui headless)\n"
+             "  --daemon               run headless, detached from the terminal\n"
+             "  --log-file FILE        where a daemon's output goes\n"
+             "  --pid-file FILE        where a daemon writes its process id\n"
+             "\n"
+             "  --help, -h             this text\n");
+}
 
 int main(int argc, char *argv[]) {
   // 48000, not 44100: the "default" ALSA device is commonly PipeWire's
@@ -63,6 +99,8 @@ int main(int argc, char *argv[]) {
   bool reduced_motion = getenv("SYNTH_REDUCED_MOTION") != nullptr && strcmp(getenv("SYNTH_REDUCED_MOTION"), "0") != 0;
   cellui::BackendKind ui_kind = cellui::BackendKind::AUTO; // --ui auto|terminal|raster|headless: which backend the UI runs on
   UI::View initial_view = UI::View::LIVE; // --view live|arrangement: which view the UI starts in
+  // --keymap gui|terminal: the keymap to use instead of the display's own.
+  std::optional<cellui::KeymapProfile> keymap_profile;
   // --dither nearest|ordered|floyd-steinberg: how what has to meet the
   // terminal's palette (Sixel images) is dithered.
   auto dither = cellui::term::Dither::Method::ORDERED;
@@ -82,13 +120,24 @@ int main(int argc, char *argv[]) {
   string pid_file; // --pid-file: where a daemon writes its pid
 
   for (int i = 1; i < argc; i++) {
-    if (parseCommonOption(argc, argv, i, common, channel_config)) {
+    if (strcmp(argv[i], "--help") == 0 || strcmp(argv[i], "-h") == 0) {
+      printUsage();
+      return 0;
+    } else if (parseCommonOption(argc, argv, i, common, channel_config)) {
     } else if (strcmp(argv[i], "--view") == 0) {
       if (i + 1 < argc && strcmp(argv[i + 1], "live") == 0) initial_view = UI::View::LIVE;
       else if (i + 1 < argc && strcmp(argv[i + 1], "arrangement") == 0) initial_view = UI::View::ARRANGEMENT;
       else {
 	fmt::print(stderr, "--view requires 'live' or 'arrangement'\n");
 	exit(1);
+      }
+      i++;
+    } else if (strcmp(argv[i], "--keymap") == 0) {
+      if (i + 1 < argc && strcmp(argv[i + 1], "gui") == 0) keymap_profile = cellui::KeymapProfile::DESKTOP;
+      else if (i + 1 < argc && strcmp(argv[i + 1], "terminal") == 0) keymap_profile = cellui::KeymapProfile::TERMINAL;
+      else {
+        fmt::print(stderr, "--keymap requires 'gui' or 'terminal'\n");
+        exit(1);
       }
       i++;
     } else if (strcmp(argv[i], "--ui") == 0) {
@@ -141,7 +190,7 @@ int main(int argc, char *argv[]) {
     } else if (strcmp(argv[i], "--list-devices") == 0) {
       list_devices = true;
     } else if (argv[i][0] == '-') {
-      fmt::print(stderr, "invalid parameter\n");
+      fmt::print(stderr, "invalid parameter {} (see --help)\n", argv[i]);
       exit(1);
     } else {
       input.push_back(argv[i]);
@@ -290,6 +339,7 @@ int main(int argc, char *argv[]) {
 #ifndef SYNTH_TERMINAL_UI
   (void)ui_kind;
   (void)initial_view;
+  (void)keymap_profile;
   (void)theme_name;
   (void)theme_given;
   (void)reduced_motion;
@@ -354,6 +404,7 @@ int main(int argc, char *argv[]) {
   if (!theme_given) theme_name = light ? "light" : "dark";
   InteractiveUI ui(*backend);
   ui.setInitialView(initial_view);
+  if (keymap_profile) ui.setKeymapProfile(*keymap_profile);
   ui.setTheme(theme_name);
   ui.setReducedMotion(reduced_motion);
   ui.initialize(controller);
