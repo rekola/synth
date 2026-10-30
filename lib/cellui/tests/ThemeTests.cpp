@@ -51,8 +51,8 @@ TEST(dark_theme_keeps_the_other_colours_too) {
   CHECK(same(s.level_lime_color, "#9ae02e"));
   CHECK(same(s.level_warn_color, "#f09020"));
   CHECK(same(s.level_hot_color, "#ff5a20"));
-  CHECK(same(s.spectrum_low_color, "#1e5fd0"));
-  CHECK(same(s.spectrum_high_color, "#7af0d8"));
+  CHECK(same(s.line_low_color, "#1e5fd0"));
+  CHECK(same(s.line_high_color, "#7af0d8"));
   CHECK(same(s.mute_color, "#ff5a5a"));
   CHECK(same(s.solo_color, "#ffdc5a"));
   CHECK(same(s.monitor_color, "#5ad2ff"));

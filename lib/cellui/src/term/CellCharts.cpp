@@ -165,35 +165,17 @@ void drawCellSparkline(Plane & plane, int row, int col, int rows, const Sparklin
   }
 }
 
-void CellSpectrumChart::drawBars(const std::vector<float> & levels) {
+void CellLineChart::drawSamples(const std::vector<float> & samples) {
   auto [rows, cols] = getDim();
   auto & styles = getPlane().getStyles();
   setBgColor(styles.window_bg_color);
   fill();
   for (int c = 0; c < cols; c++) {
-    auto column = [&](size_t bin) { return glyph_meter::BarColumn{glyph_meter::barSteps(levels[bin], rows), 0}; };
+    auto column = [&](size_t bin) { return glyph_meter::BarColumn{glyph_meter::barSteps(samples[bin], rows), 0}; };
     auto bar = glyph_meter::verticalBar(glyph_meter::Glyphs::BRAILLE, rows, column(static_cast<size_t>(2 * c)), column(static_cast<size_t>(2 * c + 1)));
     for (int i = 0; i < rows; i++) {
       // Shaded by the height of this cell; i = 0 is the top one.
-      setFgColor(styles.spectrumColor((static_cast<float>(rows - i) - 0.5f) / static_cast<float>(rows)));
-      putstr(i, c, bar[static_cast<size_t>(i)]);
-    }
-  }
-}
-
-void CellLevelBars::drawBars(int bar_rows, int cells) {
-  auto & styles = getPlane().getStyles();
-  for (int c = 0; c < cells; c++) {
-    auto & left = channels_[static_cast<size_t>(2 * c)];
-    auto & right = channels_[static_cast<size_t>(2 * c + 1)];
-    auto column = [&](const Channel & channel) {
-      return glyph_meter::BarColumn{glyph_meter::barSteps(channel.fraction, bar_rows), glyph_meter::barSteps(channel.peak_fraction, bar_rows)};
-    };
-    auto bar = glyph_meter::verticalBar(glyph_meter::Glyphs::BRAILLE, bar_rows, column(left), column(right));
-    bool saturated = left.saturated || right.saturated;
-    for (int i = 0; i < bar_rows; i++) {
-      // Shaded by the height of this cell; i = 0 is the top one.
-      setFgColor(saturated ? styles.level_full_color : styles.levelColor((static_cast<float>(bar_rows - i) - 0.5f) / static_cast<float>(bar_rows)));
+      setFgColor(styles.lineColor((static_cast<float>(rows - i) - 0.5f) / static_cast<float>(rows)));
       putstr(i, c, bar[static_cast<size_t>(i)]);
     }
   }
@@ -286,11 +268,10 @@ class CellCharts : public Charts {
  public:
   explicit CellCharts(bool sextants) : sextants_(sextants) { }
 
-  std::shared_ptr<SpectrumChart> spectrum(Plane & parent) const override { return std::make_shared<CellSpectrumChart>(parent); }
+  std::shared_ptr<LineChart> lineChart(Plane & parent) const override { return std::make_shared<CellLineChart>(parent); }
   std::shared_ptr<HeatmapChart> heatmap(Plane & parent, int grid_cols, int grid_rows) const override {
     return std::make_shared<CellHeatmapChart>(parent, grid_cols, grid_rows, sextants_);
   }
-  std::shared_ptr<LevelBars> levelBars(Plane & parent) const override { return std::make_shared<CellLevelBars>(parent); }
   void drawSparkline(Plane & plane, int row, int col, int rows, const SparklineReading & reading, const SparklineLook & look, int clip_top,
                    int clip_bottom, uint64_t) const override {
     drawCellSparkline(plane, row, col, rows, reading, look, clip_top, clip_bottom);

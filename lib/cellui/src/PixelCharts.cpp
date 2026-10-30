@@ -3,7 +3,7 @@
 #include "HeatmapGrid.h"
 
 #include <cellui/HeatmapImage.h>
-#include <cellui/SpectrumImage.h>
+#include <cellui/LineImage.h>
 #include <cellui/StyleProvider.h>
 #include <cellui/Plane.h>
 #include <cellui/SparklineImage.h>
@@ -115,27 +115,27 @@ private:
 
 // The spectrum as the plane's image: one level per pixel column, drawn
 // with canvas.
-class PixelSpectrumChart : public term::CellSpectrumChart {
+class PixelLineChart : public term::CellLineChart {
 public:
-  using term::CellSpectrumChart::CellSpectrumChart;
+  using term::CellLineChart::CellLineChart;
 
 protected:
-  size_t barCount(int cols) override {
+  size_t sampleCount(int cols) override {
     int pxy = 0, pxx = 0;
     if (getPlane().pixelSize(pxy, pxx)) return static_cast<size_t>(pxx);
-    return term::CellSpectrumChart::barCount(cols);
+    return term::CellLineChart::sampleCount(cols);
   }
 
-  void drawBars(const std::vector<float> & levels) override {
+  void drawSamples(const std::vector<float> & samples) override {
     int pxy = 0, pxx = 0;
-    if (!getPlane().pixelSize(pxy, pxx) || levels.size() != static_cast<size_t>(pxx)) {
-      term::CellSpectrumChart::drawBars(levels);
+    if (!getPlane().pixelSize(pxy, pxx) || samples.size() != static_cast<size_t>(pxx)) {
+      term::CellLineChart::drawSamples(samples);
       return;
     }
     // Pixels are made lazily: until a level is above zero, only the
     // background, in cells.
     if (!has_pixels_) {
-      if (std::all_of(levels.begin(), levels.end(), [](float v) { return v <= 0.0f; })) {
+      if (std::all_of(samples.begin(), samples.end(), [](float v) { return v <= 0.0f; })) {
         setBgColor(getPlane().getStyles().window_bg_color);
         fill();
         return;
@@ -143,7 +143,7 @@ protected:
       has_pixels_ = true;
     }
     // Opaque, so a pixel never composites against the raw terminal background.
-    auto buffer = spectrum_image::render(levels, static_cast<unsigned>(pxx), static_cast<unsigned>(pxy), getPlane().getStyles(),
+    auto buffer = line_image::render(samples, static_cast<unsigned>(pxx), static_cast<unsigned>(pxy), getPlane().getStyles(),
                                          static_cast<float>(getPlane().displayScale()));
     getPlane().drawImage(buffer, pxx, pxy);
   }
@@ -152,53 +152,12 @@ protected:
   bool has_pixels_ = false;
 };
 
-// The channel meter's bars as one image over its bar rows, two channels to
-// a cell; the legend below stays text.
-class PixelLevelBars : public term::CellLevelBars {
- public:
-  using term::CellLevelBars::CellLevelBars;
-
- protected:
-  void drawBars(int bar_rows, int cells) override {
-    int cell_h = 0, cell_w = 0;
-    if (!getPlane().cellPixelSize(cell_h, cell_w)) {
-      term::CellLevelBars::drawBars(bar_rows, cells);
-      return;
-    }
-    // Lazily, as the spectrum: the plane is already the background, which is
-    // all a silent meter is.
-    if (!has_pixels_) {
-      bool silent = true;
-      for (int i = 0; i < 2 * cells; i++) {
-        auto & channel = channels_[static_cast<size_t>(i)];
-        if (channel.fraction > 0.0f || channel.peak_fraction > 0.0f || channel.saturated) silent = false;
-      }
-      if (silent) return;
-      has_pixels_ = true;
-    }
-    std::vector<std::optional<SparklineReading>> columns;
-    for (int i = 0; i < 2 * cells; i++) {
-      auto & channel = channels_[static_cast<size_t>(i)];
-      columns.push_back(SparklineReading{channel.fraction, channel.peak_fraction, channel.saturated});
-    }
-    auto & styles = getPlane().getStyles();
-    unsigned width = static_cast<unsigned>(cells * cell_w), height = static_cast<unsigned>(bar_rows * cell_h);
-    auto pixels = sparkline_image::render(columns, SparklineLook{styles.window_bg_color, std::nullopt}, width, height, styles,
-                                         static_cast<float>(getPlane().displayScale()));
-    getPlane().drawImageAt(0, 0, pixels, static_cast<int>(width), static_cast<int>(height));
-  }
-
- private:
-  bool has_pixels_ = false;
-};
-
 class PixelCharts : public Charts {
  public:
-  std::shared_ptr<SpectrumChart> spectrum(Plane & parent) const override { return std::make_shared<PixelSpectrumChart>(parent); }
+  std::shared_ptr<LineChart> lineChart(Plane & parent) const override { return std::make_shared<PixelLineChart>(parent); }
   std::shared_ptr<HeatmapChart> heatmap(Plane & parent, int grid_cols, int grid_rows) const override {
     return std::make_shared<PixelHeatmapChart>(parent, grid_cols, grid_rows);
   }
-  std::shared_ptr<LevelBars> levelBars(Plane & parent) const override { return std::make_shared<PixelLevelBars>(parent); }
   void drawSparkline(Plane & plane, int row, int col, int rows, const SparklineReading & reading, const SparklineLook & look, int clip_top,
                    int clip_bottom, uint64_t id) const override {
     int cell_h = 0, cell_w = 0;

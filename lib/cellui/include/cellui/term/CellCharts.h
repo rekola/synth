@@ -1,8 +1,7 @@
 #pragma once
 
-#include <cellui/LevelBars.h>
 #include <cellui/Charts.h>
-#include <cellui/SpectrumChart.h>
+#include <cellui/LineChart.h>
 
 namespace cellui::term {
 
@@ -13,22 +12,13 @@ namespace cellui::term {
 // it can show.
 
 // Two bars to a cell.
-class CellSpectrumChart : public SpectrumChart {
+class CellLineChart : public LineChart {
  public:
-  using SpectrumChart::SpectrumChart;
+  using LineChart::LineChart;
 
  protected:
-  size_t barCount(int cols) override { return static_cast<size_t>(2 * cols); }
-  void drawBars(const std::vector<float> & levels) override;
-};
-
-// Two channels to a cell.
-class CellLevelBars : public LevelBars {
- public:
-  using LevelBars::LevelBars;
-
- protected:
-  void drawBars(int bar_rows, int cells) override;
+  size_t sampleCount(int cols) override { return static_cast<size_t>(2 * cols); }
+  void drawSamples(const std::vector<float> & samples) override;
 };
 
 void drawCellSparkline(Plane & plane, int row, int col, int rows, const SparklineReading & reading, const SparklineLook & look, int clip_top,

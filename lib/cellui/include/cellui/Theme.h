@@ -124,8 +124,8 @@ struct Theme {
   Color level_lime;
   Color level_warn;
   Color level_hot;
-  Color spectrum_low;
-  Color spectrum_high;
+  Color line_low;
+  Color line_high;
   Color mute;
   Color solo;
   Color monitor;
@@ -204,8 +204,8 @@ struct Theme {
     t.level_lime = Color("#9ae02e");
     t.level_warn = Color("#f09020");
     t.level_hot = Color("#ff5a20");
-    t.spectrum_low = Color("#1e5fd0");
-    t.spectrum_high = Color("#7af0d8");
+    t.line_low = Color("#1e5fd0");
+    t.line_high = Color("#7af0d8");
     t.mute = Color("#ff5a5a");
     t.solo = Color("#ffdc5a");
     t.monitor = Color("#5ad2ff");
@@ -260,8 +260,8 @@ struct Theme {
     t.reader_text = t.accent;
     t.info_line_fg = t.text_secondary;
     t.info_line_bg = t.surface_raised;
-    t.spectrum_low = Color("#2b5fa8");
-    t.spectrum_high = t.accent;
+    t.line_low = Color("#2b5fa8");
+    t.line_high = t.accent;
     t.mute = Color("#e8746a");
     t.solo = Color("#e6ad00");
     t.monitor = t.accent;
@@ -313,8 +313,8 @@ struct Theme {
     t.reader_text = t.accent;
     t.info_line_fg = t.text_secondary;
     t.info_line_bg = t.surface_raised;
-    t.spectrum_low = Color("#4f4dd0");
-    t.spectrum_high = Color("#0071e3");
+    t.line_low = Color("#4f4dd0");
+    t.line_high = Color("#0071e3");
     t.mute = Color("#ff3b30");
     t.solo = Color("#ff9500");
     t.monitor = t.accent;

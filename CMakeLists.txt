@@ -319,6 +319,7 @@ if(SYNTH_BUILD_INTERACTIVE)
     endif()
     target_sources(synth_ui PRIVATE
       src/ui/InteractiveUI.cpp
+      src/ui/ChannelMeter.cpp
       src/ui/OutlineView.cpp
       src/ui/PatternEditor.cpp
       src/ui/ArrangementGrid.cpp

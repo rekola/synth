@@ -9,6 +9,9 @@ add_executable(synth_tests
 	PatternViewTests.cpp
 	ClipArrangementViewTests.cpp
 	MetronomeTests.cpp
+	LevelMeterTests.cpp
+	SpectrumCurveTests.cpp
+	ChannelMeterTests.cpp
 	AudioBufferTests.cpp
 	ChannelBankTests.cpp
 	ChannelConfigurationTests.cpp

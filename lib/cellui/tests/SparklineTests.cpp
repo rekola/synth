@@ -3,7 +3,6 @@
 #include <cellui/BufferPlane.h>
 
 #include <cmath>
-#include <cellui/LevelMeter.h>
 #include <cellui/term/CellCharts.h>
 #include <cellui/term/GlyphMeter.h>
 #include <cellui/Charts.h>

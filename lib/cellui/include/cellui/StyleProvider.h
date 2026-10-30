@@ -56,8 +56,8 @@ class StyleProvider {
     level_lime_color = t.level_lime;
     level_warn_color = t.level_warn;
     level_hot_color = t.level_hot;
-    spectrum_low_color = t.spectrum_low;
-    spectrum_high_color = t.spectrum_high;
+    line_low_color = t.line_low;
+    line_high_color = t.line_high;
     mute_color = t.mute;
     solo_color = t.solo;
     monitor_color = t.monitor;
@@ -157,8 +157,8 @@ class StyleProvider {
   Color level_warn_color;
   Color level_hot_color;
   // The spectrum's bars shade from low to high.
-  Color spectrum_low_color;
-  Color spectrum_high_color;
+  Color line_low_color;
+  Color line_high_color;
 
   // The color of a level meter at `fraction` (0..1, level_meter::fraction())
   // of its height.
@@ -176,7 +176,7 @@ class StyleProvider {
     }
     return level_full_color;
   }
-  Color spectrumColor(float fraction) const { return spectrum_low_color.blend(std::clamp(fraction, 0.0f, 1.0f), spectrum_high_color); }
+  Color lineColor(float fraction) const { return line_low_color.blend(std::clamp(fraction, 0.0f, 1.0f), line_high_color); }
 
   // The clip grid header's track flags when on: Mute, Solo, and a Monitor
   // set to In (Auto shows in window_fg_color, Off in window_border_color).
