@@ -54,6 +54,49 @@ ArrangementGrid::ArrangementGrid(Plane & parent) : UIElement(parent) {
   commands_.define("move-row-down", []() {});
 
   assertCommandBindingsValid();
+
+  connections_.push_back(on<cellui::MouseDown>([this](const cellui::MouseDown & e, cellui::EventContext &) {
+    return e.button == 1 && pick(e.row, e.col) ? cellui::Handled::yes : cellui::Handled::no;
+  }));
+  // The release ends the click; nothing else to do with it.
+  connections_.push_back(on<cellui::MouseUp>([](const cellui::MouseUp & e, cellui::EventContext &) {
+    return e.button == 1 ? cellui::Handled::yes : cellui::Handled::no;
+  }));
+  // The wheel scrolls the view along the bars (Shift: tracks), not the
+  // cursor, and detaches it from the cursor/playhead until the cursor next moves.
+  connections_.push_back(on<cellui::Wheel>([this](const cellui::Wheel & e, cellui::EventContext &) {
+    bool sideways = e.dx != 0;
+    int direction = sideways ? (e.dx > 0 ? 1 : -1) : (e.dy > 0 ? -1 : 1);
+    bool along_bars = sideways || !e.mods.shift;
+    viewport_.wheel(direction, along_bars, along_bars ? wheel_acceleration_.step(kWheelBars) : 1);
+    return cellui::Handled::yes;
+  }));
+}
+
+// A left click picks the (bar, track) cell under it; Enter still commits it.
+bool ArrangementGrid::pick(int screen_row, int screen_col) {
+  auto & song = getController().getSong();
+  auto num_tracks = static_cast<int>(getVisibleTrackIds(song).size());
+  auto [pos_y, pos_x] = getPosition();
+  auto [rows, cols] = getDim();
+  auto y = screen_row - pos_y, x = screen_col - pos_x;
+  if (y < 0 || y >= rows || x < 0 || x >= cols) return false;
+  // Left of the bars is the track names, above the first track the
+  // bar ruler: each picks only its own axis.
+  if (y < kHeaderRows && x < kNameWidth) return true;
+  auto playing_bar = song.getArrangementBars().barIndex(getController().getPlaybackInfo().getAbsolutePosition());
+  if (y >= kHeaderRows) {
+    auto track = viewport_.rows.offset() + y - kHeaderRows;
+    if (track >= num_tracks) return true; // below the last track
+    cursor_track_index_ = track;
+  }
+  if (x >= kNameWidth) {
+    auto bar = viewport_.cols.indexAt(x - kNameWidth);
+    if (bar >= barCount(song, playing_bar)) return true; // past the last bar
+    cursor_bar_ = bar;
+  }
+  viewport_.attach();
+  return true;
 }
 
 void
@@ -74,47 +117,7 @@ ArrangementGrid::ensureCursorVisible(int bar_count, int visible_rows, int visibl
   viewport_.cols.reveal(cursor_bar_);
 }
 
-bool
-ArrangementGrid::offerInput(const cellui::Input & input) {
-  // A left click picks the (bar, track) cell under it; Enter still commits it.
-  if (input.getId() == Key::Button1) {
-    if (input.getKind() == cellui::Input::Kind::RELEASE) return true;
-    auto & song = getController().getSong();
-    auto num_tracks = static_cast<int>(getVisibleTrackIds(song).size());
-    auto [ pos_y, pos_x ] = getPosition();
-    auto [ rows, cols ] = getDim();
-    auto y = input.getY() - pos_y, x = input.getX() - pos_x;
-    if (y < 0 || y >= rows || x < 0 || x >= cols) return false;
-    // Left of the bars is the track names, above the first track the
-    // bar ruler: each picks only its own axis.
-    if (y < kHeaderRows && x < kNameWidth) return true;
-    auto playing_bar = song.getArrangementBars().barIndex(getController().getPlaybackInfo().getAbsolutePosition());
-    if (y >= kHeaderRows) {
-      auto track = viewport_.rows.offset() + y - kHeaderRows;
-      if (track >= num_tracks) return true; // below the last track
-      cursor_track_index_ = track;
-    }
-    if (x >= kNameWidth) {
-      auto bar = viewport_.cols.indexAt(x - kNameWidth);
-      if (bar >= barCount(song, playing_bar)) return true; // past the last bar
-      cursor_bar_ = bar;
-    }
-    viewport_.attach();
-    return true;
-  }
-
-  // The mouse wheel scrolls the view along the bars (Shift: tracks), not the
-  // cursor, and detaches it from the cursor/playhead until the cursor next
-  // moves.
-  if (input.getId() >= Key::Button4 && input.getId() <= Key::Button7) {
-    if (input.getKind() == cellui::Input::Kind::RELEASE) return true;
-    bool sideways = input.getId() >= Key::Button6;
-    int direction = (input.getId() == Key::Button4 || input.getId() == Key::Button6) ? -1 : 1;
-    bool along_bars = sideways || !input.hasShift();
-    viewport_.wheel(direction, along_bars, along_bars ? wheel_acceleration_.step(kWheelBars) : 1);
-    return true;
-  }
-
+bool ArrangementGrid::offerInput(const cellui::Input & input) {
   if (dispatchCommand(input)) return true;
   if (input.getKind() == cellui::Input::Kind::RELEASE) return false;
 

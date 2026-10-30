@@ -185,6 +185,7 @@ class InteractiveUI : public UI {
   cellui::CommandPalette command_palette_;
   void showCommandPalette();
   void layoutCommandPalette();
+  bool anyModalOpen() const;
   bool modalLayerOpen(const cellui::Input & input) const;
   bool offerModal(const cellui::Input & input);
   bool offerKeyLayers(const cellui::Input & input);

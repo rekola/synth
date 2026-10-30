@@ -703,6 +703,13 @@ InteractiveUI::initializeWidgets() {
   auto modal = [this](const cellui::Input * input) {
     return input && (offerModal(*input) || offerKeyLayers(*input)) ? cellui::Handled::yes : cellui::Handled::no;
   };
+  // While a modal layer or the menu is open the pointer is theirs: it is
+  // handled in offerInput(), and must not reach the widgets underneath.
+  auto swallow = [this] { return anyModalOpen() || menu_->isOpen() ? cellui::Handled::yes : cellui::Handled::no; };
+  key_connections_.push_back(on<cellui::MouseDown>([swallow](const cellui::MouseDown &, cellui::EventContext &) { return swallow(); }, cellui::Phase::capture));
+  key_connections_.push_back(on<cellui::MouseMove>([swallow](const cellui::MouseMove &, cellui::EventContext &) { return swallow(); }, cellui::Phase::capture));
+  key_connections_.push_back(on<cellui::MouseUp>([swallow](const cellui::MouseUp &, cellui::EventContext &) { return swallow(); }, cellui::Phase::capture));
+  key_connections_.push_back(on<cellui::Wheel>([swallow](const cellui::Wheel &, cellui::EventContext &) { return swallow(); }, cellui::Phase::capture));
   key_connections_.push_back(on<cellui::KeyDown>([modal](const cellui::KeyDown & e, cellui::EventContext &) { return modal(e.input); }, cellui::Phase::capture));
   key_connections_.push_back(on<cellui::KeyUp>([modal](const cellui::KeyUp & e, cellui::EventContext &) { return modal(e.input); }, cellui::Phase::capture));
   for (cellui::Widget * widget : std::initializer_list<cellui::Widget *>{pattern_editor_.get(), arrangement_grid_.get(), clip_grid_.get(), outline_view_.get()}) {
@@ -1425,6 +1432,10 @@ InteractiveUI::viewChanged() {
 
 bool InteractiveUI::modalLayerOpen(const cellui::Input & input) const {
   if (input.getId() == Key::Resize || (input.hasCtrl() && input.getId() == 'l')) return false;
+  return anyModalOpen();
+}
+
+bool InteractiveUI::anyModalOpen() const {
   return command_palette_.isOpen() || choice_dialog_.isOpen() || info_dialog_.isOpen() || (outline_view_ && outline_view_->isModal());
 }
 
@@ -1486,7 +1497,7 @@ InteractiveUI::offerInput(const cellui::Input & input) {
   // down" is asked before this event is counted.
   bool pointer = input.getId() >= Key::Motion && input.getId() <= Key::Button11;
   bool button1_held = dispatcher_.pressedButtons() & 1;
-  if (pointer) dispatcher_.offer(input);
+  bool pointer_taken = pointer && dispatcher_.offer(input) == cellui::Handled::yes;
 
   // A key goes to the dispatcher alone: the modal layers and the layers in
   // offerKeyLayers() are capture handlers on the root, ahead of the focused widget.
@@ -1555,6 +1566,7 @@ InteractiveUI::offerInput(const cellui::Input & input) {
     // without moving focus (Emacs's own mouse-wheel-follow-mouse default) -
     // each widget scrolls its view, never its cursor.
     // The widget under the pointer, or the shown one it sits in.
+    if (pointer_taken) return true;
     auto elements = focusableElements();
     for (cellui::Widget * hit = dispatcher_.hitTest(input.getY(), input.getX()); hit; hit = hit->parent()) {
       auto element = std::find_if(elements.begin(), elements.end(), [hit](const auto & e) { return e.get() == hit; });
@@ -1658,7 +1670,8 @@ InteractiveUI::offerInput(const cellui::Input & input) {
     auto el = active_element_.lock();
     if (pointer || input.getId() == Key::Resize) {
       // The dispatcher has the pointer already; the widgets still take it as an Input.
-      if (el) handled |= el->offerInput(input);
+      if (el && !pointer_taken) handled |= el->offerInput(input);
+      handled |= pointer_taken;
     } else {
       // A key goes to the focused widget through the dispatcher.
       dispatcher_.setFocus(el.get());
