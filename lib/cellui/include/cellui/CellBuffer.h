@@ -47,6 +47,9 @@ class CellBuffer {
     // A lifted cell that casts no shadow (a cursor): it only stands above
     // the shadows of what is no higher.
     bool lift_shadow = true;
+    // A cell a run of text laid out by the display covers (Plane::putText()):
+    // the run's index + 1 (see TextRun). The cell keeps its colours.
+    int text_run = 0;
   };
 
   struct Style {
@@ -76,7 +79,7 @@ class CellBuffer {
   // plane is drawn over another.
   static bool isBlank(const Cell & c) {
     return c.text == " " && !c.fg && !c.bg && !c.bold && !c.italic && !c.underline && !c.continuation &&
-           !c.bg_blend && !c.fg_contrast && !c.image && !c.backdrop.active();
+           !c.bg_blend && !c.fg_contrast && !c.image && !c.text_run && !c.backdrop.active();
   }
 
   // Writes `text` from (row, col) in `style`, clipped to the rectangle

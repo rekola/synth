@@ -6,7 +6,10 @@
 #include <cellui/KeymapProfile.h>
 #include <cellui/MouseCursor.h>
 #include <cellui/StyleProvider.h>
+#include <cellui/TextStyle.h>
+#include <cellui/Utf8.h>
 
+#include <algorithm>
 #include <climits>
 #include <cstdint>
 #include <string>
@@ -170,6 +173,24 @@ class Plane {
   virtual void setBlend(BlendMode mode, float alpha = 1.0f) { (void)mode; (void)alpha; }
   virtual void erase() = 0;
   virtual void putstr(int y, int x, const std::string & s) = 0;
+  // Text in a box of `cols` cells from (y, x) (to the plane's right edge when
+  // `cols` is negative), set in the plane's current style and the font and
+  // overflow of `style`. The display lays it out, so how wide it comes out is
+  // its business, never the caller's; what does not fit the box is cut or
+  // ellipsized as `style.overflow` says. A display that cannot lay text out
+  // itself writes it as cells, cut or ellipsized to the box's width, so the
+  // caller need not know which it is.
+  virtual void putText(int y, int x, int cols, const std::string & text, const TextStyle & style = {}) {
+    if (cols < 0) cols = std::max(0, getDim().second - x);
+    putstr(y, x, cutToCells(text, cols, style.overflow));
+  }
+  // `text` fitted into `cols` cells as `overflow` says.
+  static std::string cutToCells(const std::string & text, int cols, TextOverflow overflow) {
+    if (cols <= 0) return "";
+    if (utf8::displayWidth(text) <= cols) return text;
+    if (overflow == TextOverflow::ELLIPSIS) return utf8::truncateToWidth(text, cols - 1) + "…";
+    return utf8::truncateToWidth(text, cols);
+  }
   virtual std::unique_ptr<Plane> createChild() = 0;
   virtual void drawBorder() = 0;
   virtual bool offerInput(const Input & input) = 0;

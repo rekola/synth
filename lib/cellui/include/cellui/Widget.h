@@ -156,6 +156,11 @@ class Widget {
     if (plane_) plane_->putstr(y, x, s);
     return *this;
   }
+  // See Plane::putText().
+  Widget & putText(int y, int x, int cols, const std::string & text, const TextStyle & style = {}) {
+    if (plane_) plane_->putText(y, x, cols, text, style);
+    return *this;
+  }
   Widget & putstr(int y, int x, char c) {
     if (plane_) {
       std::string s;

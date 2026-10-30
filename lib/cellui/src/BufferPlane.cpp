@@ -103,6 +103,61 @@ void BufferPlane::putstr(int y, int x, const std::string & s) {
   local_.write(y, x, s, style_);
 }
 
+void BufferPlane::putText(int y, int x, int cols, const std::string & text, const TextStyle & style) {
+  if (!root().proportional_text_ || style.font != TextFont::PROPORTIONAL) {
+    Plane::putText(y, x, cols, text, style);
+    return;
+  }
+  if (cols < 0) cols = std::max(0, getDim().second - x);
+  if (cols == 0) return;
+  // The box in the plane's own style, as blank cells, each marked with the
+  // run: the display draws the text over them, and writing over a cell
+  // takes it back.
+  putstr(y, x, std::string(static_cast<size_t>(cols), ' '));
+  TextRun run;
+  run.text = text;
+  run.fg = style_.fg;
+  run.bold = style_.bold;
+  run.italic = style_.italic;
+  run.underline = style_.underline;
+  run.font = style.font;
+  run.overflow = style.overflow;
+  // The same run again (a widget redrawing without an erase) is the same one.
+  auto same = [&](const TextRun & o) {
+    return o.text == run.text && o.fg == run.fg && o.bold == run.bold && o.italic == run.italic && o.underline == run.underline &&
+           o.font == run.font && o.overflow == run.overflow;
+  };
+  int mark = 0;
+  for (size_t i = texts_.size(); i-- > 0 && texts_.size() - i <= 64;) {
+    if (same(texts_[i])) {
+      mark = static_cast<int>(i) + 1;
+      break;
+    }
+  }
+  if (mark == 0) {
+    texts_.push_back(std::move(run));
+    mark = static_cast<int>(texts_.size());
+  }
+  for (int c = x; c < x + cols; c++) {
+    if (y < 0 || y >= local_.rows() || c < 0 || c >= local_.cols()) continue;
+    CellBuffer::Cell cell = local_.at(y, c);
+    cell.text_run = mark;
+    local_.put(y, c, cell);
+  }
+}
+
+int BufferPlane::frameRun(std::vector<int> & map, int mark) const {
+  if (mark <= 0 || static_cast<size_t>(mark) > texts_.size()) return 0;
+  map.resize(texts_.size(), 0);
+  int & mapped = map[static_cast<size_t>(mark - 1)];
+  if (mapped == 0) {
+    const BufferPlane & top = root();
+    top.text_runs_.push_back(texts_[static_cast<size_t>(mark - 1)]);
+    mapped = static_cast<int>(top.text_runs_.size());
+  }
+  return mapped;
+}
+
 std::unique_ptr<Plane> BufferPlane::createChild() {
   BufferPlane & parent = root().flat_ ? root() : *this;
   auto child = std::unique_ptr<BufferPlane>(new BufferPlane(parent));
@@ -130,6 +185,7 @@ void BufferPlane::refresh() {
   top.placements_.clear();
   top.layers_.clear();
   top.elevations_.clear();
+  top.text_runs_.clear();
   top.mouse_cursors_.clear();
   top.hit_areas_.clear();
   // Lower planes first, whatever their place in the tree; planes of one
@@ -218,6 +274,18 @@ void BufferPlane::compose(CellBuffer & out, int row, int col, int clip_row, int 
       col_hi == col + plane_cols) {
     ScrollContent content;
     content.cells = local_;
+    {
+      std::vector<int> map;
+      for (int r = 0; r < content.cells.rows(); r++) {
+        for (int c = 0; c < content.cells.cols(); c++) {
+          int mark = content.cells.at(r, c).text_run;
+          if (mark <= 0) continue;
+          CellBuffer::Cell cell = content.cells.at(r, c);
+          cell.text_run = frameRun(map, mark);
+          content.cells.put(r, c, cell);
+        }
+      }
+    }
     if (base_bg_) {
       for (int r = 0; r < content.cells.rows(); r++) {
         for (int c = 0; c < content.cells.cols(); c++) {
@@ -264,6 +332,7 @@ void BufferPlane::compose(CellBuffer & out, int row, int col, int clip_row, int 
       out.clear(0, 0, out.rows(), out.cols());
     }
   }
+  std::vector<int> run_map;
   for (int r = row_lo; r < row_hi; r++) {
     for (int c = col_lo; c < col_hi; c++) {
       const CellBuffer::Cell * shown = &local_.at(r - row, c - col);
@@ -311,6 +380,7 @@ void BufferPlane::compose(CellBuffer & out, int row, int col, int clip_row, int 
         put.fg_contrast = false;
       }
       put.lift = cell.lift > 0.0f ? height + cell.lift : 0.0f;
+      if (cell.text_run > 0) put.text_run = frameRun(run_map, cell.text_run);
       out.put(r, c, put);
     }
   }

@@ -559,3 +559,25 @@ TEST(gtk_window_keeps_the_shadows_of_planes_below_a_scroll_layer) {
   CHECK(pumpUntil(*w, [&] { return w->stats().frames > before; }));
   CHECK(w->stats().shadows == 1);
 }
+
+// Text the display lays out is drawn over its marked cells, cut to the box.
+TEST(gtk_window_draws_text_runs_in_its_own_face) {
+  gtk::Window * w = theWindow();
+  if (!w) return;
+  CHECK(w->display().proportional_text);
+  StyleProvider styles;
+  CellBuffer screen(w->rows(), w->cols());
+  BufferPlane root(screen, styles);
+  root.setProportionalText(true);
+  root.setBgColor(40, 40, 60);
+  root.setFgColor(230, 230, 230);
+  root.putText(1, 2, 8, "A rather long clip name", TextStyle{ TextFont::PROPORTIONAL, TextOverflow::ELLIPSIS });
+  root.putText(2, 2, 8, "Short", TextStyle{ TextFont::PROPORTIONAL, TextOverflow::CLIP });
+  root.refresh();
+  FrameInfo info;
+  info.text_runs = root.takeTextRuns();
+  CHECK(info.text_runs.size() == 2);
+  size_t before = w->stats().frames;
+  w->present(screen, {}, root.images(), &info);
+  CHECK(pumpUntil(*w, [&] { return w->stats().frames > before; }));
+}

@@ -452,6 +452,7 @@ InteractiveUI::initialize(std::shared_ptr<Controller> & controller) {
   if (display.default_fg && display.default_bg) root_plane_->setDefaultColors(*display.default_fg, *display.default_bg);
   root_plane_->setDisplayScale(display.display_scale);
   root_plane_->setSmoothScroll(display.smooth_scroll);
+  root_plane_->setProportionalText(display.proportional_text);
   root_plane_->setKeymapProfile(keymap_profile_override_.value_or(display.keymap_profile));
   key_reader_.setEscapeAsMeta(display.escape_as_meta);
   root_plane_->setFlatChildren(true);
@@ -521,6 +522,7 @@ InteractiveUI::render() {
   cellui::FrameInfo info;
   info.backdrops = root_plane_->takeBackdropLayers();
   info.elevations = root_plane_->takeElevations();
+  info.text_runs = root_plane_->takeTextRuns();
   info.mouse_cursors = root_plane_->takeMouseCursors();
   if (backend_.wantsFrameInfo()) {
     info.planes = root_plane_->describe();

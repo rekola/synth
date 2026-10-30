@@ -128,6 +128,10 @@ struct Window::Impl {
   std::vector<ImagePlacement> images;
   std::vector<BackdropLayer> layers;
   std::vector<ElevatedArea> elevations;
+  // The runs of text the display lays out, which cells are marked with.
+  std::vector<TextRun> text_runs;
+  // The proportional face: the system's own UI font, sized to a cell's height.
+  PangoFontDescription * proportional = nullptr;
   // The areas planes asked a pointer shape for, and the one now set.
   std::vector<CursorArea> mouse_cursors;
   MouseCursor shown_cursor = MouseCursor::DEFAULT;
@@ -200,6 +204,7 @@ struct Window::Impl {
   // none), then the text; at cell (row, col) of the screen.
   void appendPainted(GtkSnapshot * snapshot, const Painted & painted, const CellBuffer * cells, int row = 0, int col = 0);
   void appendImages(GtkSnapshot * snapshot, const CellBuffer & cells);
+  void appendTextRuns(GtkSnapshot * snapshot, const CellBuffer & cells);
   GdkTexture * imageTexture(const ImagePlacement & placement);
   static void release(Painted & p) {
     for (Painted::Band & band : p.bands) releaseBand(band);
@@ -303,6 +308,24 @@ void Window::Impl::measure(const WindowOptions & options) {
   g_object_unref(context);
   pango_font_description_free(desc);
 
+  // The proportional face, sized so that a line of it fits a cell's height.
+  {
+    PangoContext * ui = gtk_widget_get_pango_context(view);
+    proportional = pango_font_description_copy(pango_context_get_font_description(ui));
+    PangoLayout * probe = pango_layout_new(ui);
+    pango_layout_set_text(probe, "Mgjy", -1);
+    double px = cell_h * 0.72;
+    for (int i = 0; i < 12; i++) {
+      pango_font_description_set_absolute_size(proportional, px * PANGO_SCALE);
+      pango_layout_set_font_description(probe, proportional);
+      int w = 0, h = 0;
+      pango_layout_get_pixel_size(probe, &w, &h);
+      if (h <= cell_h) break;
+      px *= 0.92;
+    }
+    g_object_unref(probe);
+  }
+
   // The colours cells without one are drawn in follow the theme's text; the
   // background is dark when that text is light.
   GdkRGBA text;
@@ -318,6 +341,7 @@ void Window::Impl::measure(const WindowOptions & options) {
   display_info.default_bg = bg;
   display_info.display_scale = 1.0;
   display_info.smooth_scroll = true;
+  display_info.proportional_text = true;
   display_info.keymap_profile = KeymapProfile::DESKTOP;
   display_info.escape_as_meta = false;
   display_info.key_release = true;
@@ -503,30 +527,39 @@ GdkTexture * Window::Impl::imageTexture(const ImagePlacement & placement) {
   return entry.texture;
 }
 
-// The pictures the cells show, each over the cells marked with it: the whole
-// texture at its place, cut to those cells.
-void Window::Impl::appendImages(GtkSnapshot * snap, const CellBuffer & cells) {
-  struct Run {
-    int row, col, rows, cols;
-  };
-  std::map<int, std::vector<Run>> runs;
+// The rectangles of cells marked by `mark` (an image's or a text run's index +
+// 1), by mark: runs along a row, the same run right below one growing it.
+namespace {
+struct MarkedRun {
+  int row, col, rows, cols;
+};
+template <typename Mark>
+std::map<int, std::vector<MarkedRun>> markedRuns(const CellBuffer & cells, Mark mark) {
+  std::map<int, std::vector<MarkedRun>> runs;
   for (int r = 0; r < cells.rows(); r++) {
     for (int c = 0; c < cells.cols();) {
-      int index = cells.at(r, c).image;
+      int index = mark(cells.at(r, c));
       if (index <= 0) {
         c++;
         continue;
       }
       int end = c + 1;
-      while (end < cells.cols() && cells.at(r, end).image == index) end++;
-      // The same run right above grows downward.
+      while (end < cells.cols() && mark(cells.at(r, end)) == index) end++;
       auto & list = runs[index];
-      auto above = std::find_if(list.begin(), list.end(), [&](const Run & run) { return run.col == c && run.cols == end - c && run.row + run.rows == r; });
+      auto above = std::find_if(list.begin(), list.end(), [&](const MarkedRun & run) { return run.col == c && run.cols == end - c && run.row + run.rows == r; });
       if (above != list.end()) above->rows++;
-      else list.push_back(Run{ r, c, 1, end - c });
+      else list.push_back(MarkedRun{ r, c, 1, end - c });
       c = end;
     }
   }
+  return runs;
+}
+}  // namespace
+
+// The pictures the cells show, each over the cells marked with it: the whole
+// texture at its place, cut to those cells.
+void Window::Impl::appendImages(GtkSnapshot * snap, const CellBuffer & cells) {
+  auto runs = markedRuns(cells, [](const CellBuffer::Cell & cell) { return cell.image; });
   for (const auto & [index, list] : runs) {
     if (static_cast<size_t>(index) > images.size()) continue;
     const ImagePlacement & placement = images[static_cast<size_t>(index - 1)];
@@ -548,13 +581,59 @@ void Window::Impl::appendImages(GtkSnapshot * snap, const CellBuffer & cells) {
       filter = GSK_SCALING_FILTER_LINEAR;
     }
     graphene_rect_t bounds = GRAPHENE_RECT_INIT(x, y, w, h);
-    for (const Run & run : list) {
+    for (const MarkedRun & run : list) {
       graphene_rect_t clip = GRAPHENE_RECT_INIT(static_cast<float>(run.col * cell_w), static_cast<float>(run.row * cell_h),
                                                 static_cast<float>(run.cols * cell_w), static_cast<float>(run.rows * cell_h));
       gtk_snapshot_push_clip(snap, &clip);
       gtk_snapshot_append_scaled_texture(snap, texture, filter, &bounds);
       gtk_snapshot_pop(snap);
     }
+  }
+}
+
+// The text the display lays out, each run over the cells marked with it: set
+// in the proportional face, centred in the rows, cut to the box (with an
+// ellipsis when asked, by the layout itself).
+void Window::Impl::appendTextRuns(GtkSnapshot * snap, const CellBuffer & cells) {
+  if (text_runs.empty() || !proportional) return;
+  auto runs = markedRuns(cells, [](const CellBuffer::Cell & cell) { return cell.text_run; });
+  for (const auto & [index, list] : runs) {
+    if (static_cast<size_t>(index) > text_runs.size()) continue;
+    const TextRun & run = text_runs[static_cast<size_t>(index - 1)];
+    auto rgb = run.fg.value_or(*display_info.default_fg).toSrgb8();
+    GdkRGBA color = { rgb[0] / 255.0f, rgb[1] / 255.0f, rgb[2] / 255.0f, 1.0f };
+    PangoFontDescription * font = pango_font_description_copy(proportional);
+    if (run.bold) pango_font_description_set_weight(font, PANGO_WEIGHT_BOLD);
+    if (run.italic) pango_font_description_set_style(font, PANGO_STYLE_ITALIC);
+    for (const MarkedRun & box : list) {
+      float x = static_cast<float>(box.col * cell_w), y = static_cast<float>(box.row * cell_h);
+      float w = static_cast<float>(box.cols * cell_w), h = static_cast<float>(box.rows * cell_h);
+      PangoLayout * layout = gtk_widget_create_pango_layout(view, run.text.c_str());
+      pango_layout_set_font_description(layout, font);
+      pango_layout_set_single_paragraph_mode(layout, TRUE);
+      if (run.overflow == TextOverflow::ELLIPSIS) {
+        pango_layout_set_width(layout, static_cast<int>(w) * PANGO_SCALE);
+        pango_layout_set_ellipsize(layout, PANGO_ELLIPSIZE_END);
+      }
+      if (run.underline) {
+        PangoAttrList * attrs = pango_attr_list_new();
+        pango_attr_list_insert(attrs, pango_attr_underline_new(PANGO_UNDERLINE_SINGLE));
+        pango_layout_set_attributes(layout, attrs);
+        pango_attr_list_unref(attrs);
+      }
+      int text_w = 0, text_h = 0;
+      pango_layout_get_pixel_size(layout, &text_w, &text_h);
+      graphene_rect_t clip = GRAPHENE_RECT_INIT(x, y, w, h);
+      graphene_point_t at = GRAPHENE_POINT_INIT(x, y + std::max(0.0f, (h - static_cast<float>(text_h)) / 2.0f));
+      gtk_snapshot_push_clip(snap, &clip);
+      gtk_snapshot_save(snap);
+      gtk_snapshot_translate(snap, &at);
+      gtk_snapshot_append_layout(snap, layout, &color);
+      gtk_snapshot_restore(snap);
+      gtk_snapshot_pop(snap);
+      g_object_unref(layout);
+    }
+    pango_font_description_free(font);
   }
 }
 
@@ -575,6 +654,7 @@ void Window::Impl::appendPainted(GtkSnapshot * snap, const Painted & p, const Ce
                                                 static_cast<float>(gdk_texture_get_width(band.text)), static_cast<float>(gdk_texture_get_height(band.text)));
     gtk_snapshot_append_scaled_texture(snap, band.text, GSK_SCALING_FILTER_NEAREST, &bounds);
   }
+  if (cells) appendTextRuns(snap, *cells);
   if (shifted) gtk_snapshot_restore(snap);
 }
 
@@ -1064,6 +1144,7 @@ Window::~Window() {
   if (impl_->view) reinterpret_cast<CelluiView *>(impl_->view)->impl = nullptr;
   if (impl_->window) gtk_window_destroy(GTK_WINDOW(impl_->window));
   impl_->forgetTextures();
+  if (impl_->proportional) pango_font_description_free(impl_->proportional);
   if (impl_->input_fd >= 0) ::close(impl_->input_fd);
   if (impl_->wake_fd >= 0) ::close(impl_->wake_fd);
 }
@@ -1090,6 +1171,7 @@ void Window::present(const CellBuffer & frame, const CursorRequest & cursor, con
   impl_->images = images;
   impl_->layers = info ? info->backdrops : std::vector<BackdropLayer>();
   impl_->elevations = info ? info->elevations : std::vector<ElevatedArea>();
+  impl_->text_runs = info ? info->text_runs : std::vector<TextRun>();
   std::stable_sort(impl_->elevations.begin(), impl_->elevations.end(),
                    [](const ElevatedArea & a, const ElevatedArea & b) { return a.elevation < b.elevation; });
   if (info) {
