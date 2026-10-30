@@ -1519,15 +1519,12 @@ would otherwise resume showing.
   `snapshot()` draws the presented frame from what each layer's cells are made of,
   kept in bands of 4 rows and redone only for a band whose own part changed: the cell
   backgrounds as one render node of colour rectangles per band (`backgroundNode()`),
-  the text with `canvasRasterizer()`'s `renderText()` (glyphs and underlines on a
-  see-through texture, only the columns the text spans, at scale 1), and the pictures
+  the text as a render node of Pango glyphs and underlines (`textNode()`: a cell at a time, so each glyph sits on the grid; one node per glyph, colour and face is shaped once and shared, `glyphNode()`), and the pictures
   cells show (`Image`s, from the charts) as `GdkTexture`s of their own, uploaded when a
   picture is new or has a new version (`imageTexture()`) and laid over the backgrounds
   each frame, so a chart changing every frame redoes no text (the text is drawn in the system's monospace font; a character that font
-  lacks, such as the musical accidentals of the 31- and 53-EDO note names, is drawn from
-  the best installed font that has it, found with fontconfig - the drawing library's own
-  text has no fallback - and shrunk to its cell if wider; fontconfig comes with
-  `libcairo2-dev`). It reports `DisplayInfo` with the cell size from the font's Pango metrics,
+  lacks, such as the musical accidentals of the 31- and 53-EDO note names, is drawn by Pango
+  from another font and shrunk to its cell if wider). It reports `DisplayInfo` with the cell size from the font's Pango metrics,
   pictures always available, and turns GTK's key (taken in the capture
   phase, with real press/repeat/release), click, drag (the held button's press again at
   each new cell), wheel (buttons 4-7) and paste (Ctrl+Shift+V, Shift+Insert) events into

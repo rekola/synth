@@ -197,33 +197,6 @@ class CanvasRasterizer : public CellRasterizer {
     return out;
   }
 
-
-  Image renderText(const CellBuffer & cells, int row, int col, int rows, int cols, int cell_h, int cell_w, Color default_fg) override {
-    Image out;
-    out.width = std::max(1, cols * cell_w);
-    out.height = std::max(1, rows * cell_h);
-    auto context = cellui::nativeContext(static_cast<unsigned>(out.width), static_cast<unsigned>(out.height));
-    if (!context) return {};
-    canvas::Context & ctx = *context;
-    int r_lo = std::max(row, 0), r_hi = std::min(row + rows, cells.rows());
-    int c_lo = std::max(col, 0), c_hi = std::min(col + cols, cells.cols());
-    drawTextRuns(ctx, cells, row, col, r_lo, r_hi, c_lo, c_hi, 1.0, cell_h, cell_w, default_fg);
-    // The surface's own layout is premultiplied bytes B, G, R, A.
-    auto result = ctx.getDefaultSurface().createImage(1.0f);
-    const canvas::ImageData & data = result->getData();
-    if (data.getNumChannels() != 4 || static_cast<int>(data.getWidth()) < out.width || static_cast<int>(data.getHeight()) < out.height) return {};
-    const unsigned char * src = data.getData();
-    const size_t stride = static_cast<size_t>(data.getWidth()) * 4;
-    out.pixels.resize(static_cast<size_t>(out.width) * static_cast<size_t>(out.height));
-    for (int y = 0; y < out.height; y++) {
-      for (int x = 0; x < out.width; x++) {
-        const unsigned char * p = src + static_cast<size_t>(y) * stride + static_cast<size_t>(x) * 4;
-        out.pixels[static_cast<size_t>(y) * static_cast<size_t>(out.width) + static_cast<size_t>(x)] = Image::pack(p[2], p[1], p[0], p[3]);
-      }
-    }
-    return out;
-  }
-
  private:
   // The part of a picture one cell shows, sampled at each pixel's centre.
   static void drawImageCell(Pixels & px, const ImagePlacement & p, int r, int c, double x, double y, double w, double h, double s,
