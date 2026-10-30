@@ -196,7 +196,7 @@ class BufferPlane : public Plane {
     int row, col, clip_row, clip_col, clip_rows, clip_cols;
     float elevation;
   };
-  void collectLifts();
+  void collectLifts(const CellBuffer & cells, size_t layer) const;
   void collect(std::vector<Paint> & paints, int row, int col, int clip_row, int clip_col, int clip_rows, int clip_cols, float base) const;
   bool shown() const;
   void drawReader();
@@ -237,7 +237,7 @@ class BufferPlane : public Plane {
   KeymapProfile keymap_profile_ = KeymapProfile::TERMINAL;
   bool smooth_scroll_ = false;
   mutable std::vector<BackdropLayer> layers_;
-  std::vector<ElevatedArea> elevations_;
+  mutable std::vector<ElevatedArea> elevations_;
   std::vector<CursorArea> mouse_cursors_;
   std::vector<HitArea> hit_areas_;
   bool flat_ = false;

@@ -1023,3 +1023,31 @@ TEST(cellbuffer_ansi_shows_a_wide_colour_clipped_to_srgb) {
   CHECK(ansi.find(";48;2;255;255;255") != std::string::npos);
   CHECK(bg[0] == 255 && bg[1] == 255 && bg[2] == 255);
 }
+
+// Lifted cells composed before a plane that scrolls by part of a cell are
+// moved into that plane's layer; they still stand above the base, and a later
+// backdrop is the only thing that covers them.
+TEST(bufferplane_lifted_cells_below_a_scroll_layer_are_still_reported) {
+  StyleProvider styles;
+  CellBuffer b(8, 10);
+  BufferPlane root(b, styles);
+  root.setSmoothScroll(true);
+  auto cards = root.createChild();
+  cards->resize(2, 10);
+  cards->setLift(0.5f);
+  cards->putstr(0, 0, "card");
+  cards->setLift(0);
+  auto list = root.createChild();
+  list->resize(3, 6);
+  list->move(4, 0);
+  list->setScrollOffset(0.25, 0);
+  list->putstr(0, 0, "item");
+  root.refresh();
+  auto layers = root.takeBackdropLayers();
+  CHECK(layers.size() == 1 && layers[0].scroll);
+  auto areas = root.takeElevations();
+  CHECK(areas.size() == 1);
+  CHECK(areas[0].row == 0 && areas[0].col == 0 && areas[0].rows == 1 && areas[0].cols == 4 && areas[0].elevation == 0.5f);
+  // Composed into the layer, not after it.
+  CHECK(areas[0].layer == 0);
+}

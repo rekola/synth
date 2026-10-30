@@ -152,13 +152,14 @@ void BufferPlane::refresh() {
     }
     if (elevated) top.elevations_.push_back(ElevatedArea{ r0, c0, r1 - r0, c1 - c0, p.elevation, p.plane->name_, top.layers_.size() });
   }
-  top.collectLifts();
+  top.collectLifts(*top.target_, top.layers_.size());
 }
 
-// The lifted cells still showing, as rectangles: a run of one height in a row,
-// with the same run right below it while that one joins it.
-void BufferPlane::collectLifts() {
-  const CellBuffer & out = *target_;
+// The lifted cells of `out` still showing, as rectangles: a run of one height
+// in a row, with the same run right below it while that one joins it. `layer`
+// is the layer `out` is (or will be) set aside as: the cells of a layer stand
+// above the base just as the frame's do.
+void BufferPlane::collectLifts(const CellBuffer & out, size_t layer) const {
   std::vector<ElevatedArea> open;
   for (int r = 0; r < out.rows(); r++) {
     std::vector<ElevatedArea> next;
@@ -176,7 +177,7 @@ void BufferPlane::collectLifts() {
           next.push_back(*above);
           open.erase(above);
         } else {
-          next.push_back(ElevatedArea{ r, c, 1, end - c, first.lift, "", layers_.size(), first.lift_shadow });
+          next.push_back(ElevatedArea{ r, c, 1, end - c, first.lift, "", layer, first.lift_shadow });
         }
       }
       c = end;
@@ -237,6 +238,7 @@ void BufferPlane::compose(CellBuffer & out, int row, int col, int clip_row, int 
     content.elevation = height;
     content.blend = blend_;
     content.blend_alpha = blend_alpha_;
+    top.collectLifts(out, top.layers_.size());
     top.layers_.push_back(BackdropLayer{ out, Backdrop{}, row, col, plane_rows, plane_cols, std::move(content) });
     out.clear(0, 0, out.rows(), out.cols());
     return;
@@ -257,6 +259,7 @@ void BufferPlane::compose(CellBuffer & out, int row, int col, int clip_row, int 
       }
     }
     if (found) {
+      top.collectLifts(out, top.layers_.size());
       top.layers_.push_back(BackdropLayer{ out, *found, r_min, c_min, r_max - r_min, c_max - c_min, std::nullopt });
       out.clear(0, 0, out.rows(), out.cols());
     }

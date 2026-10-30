@@ -31,8 +31,8 @@ struct ElevatedArea {
   int row = 0, col = 0, rows = 0, cols = 0;
   float elevation = 0;
   std::string name;
-  // How many of the frame's backdrop layers lie below it: one fewer than
-  // FrameInfo::backdrops has means a later backdrop covers it.
+  // The layer its cells were composed into (the frame's own cells are one
+  // past the last layer): a backdrop at or above that layer covers it.
   size_t layer = 0;
   // False for lifted cells that only stand above lower shadows and cast none.
   bool shadow = true;
