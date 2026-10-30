@@ -275,40 +275,6 @@ classifyPad(const vector<PadClassification> & levels, const Basis & basis, int e
   return levels[static_cast<size_t>(pitch_class)];
 }
 
-// Rows numbered bottom (y=0) to top (y=7), matching Programmer-mode
-// addressing. Kit on the left half (x=0..3), hand/latin percussion on
-// the right (x=4..7). Every named family (see percussionFamilyForPad)
-// occupies a contiguous rectangle and never wraps across a row boundary
-// - the defect the earlier row-linear table had. Kick/snare sit in the
-// bottom-left corner (easiest reach) in the order they're actually
-// played; toms ascend left-to-right then bottom-to-top so a fill is a
-// diagonal sweep; bongos/timbales share row 0 as low-to-high pairs.
-// Cowbell (56) sits with the agogos rather than the kit, since in
-// practice it's played as part of a latin cluster far more often than as
-// a kit accessory. A perfect bijection onto Note.h's percussion_names[]
-// range (GM values 27-82, 56 sounds) - unlike the standard 47-note GM
-// percussion range (35-81) this covers, it also places the 8 Roland-GS
-// electronic-kit hits (27-34) and Shaker (82) that this engine has
-// always supported, so switching to this family-clustered layout doesn't
-// drop any previously-playable sound. 8 pads remain unassigned, as
-// small gaps between families rather than confined to one row.
-static const int PERCUSSION_TABLE[8][8] = {
-  { 35, 36, 37, 38, 61, 60, 66, 65 },
-  { 40, 39, -1, -1, 64, 62, 63, -1 },
-  { 42, 44, 46, -1, 68, 67, 56, -1 },
-  { 41, 43, 45, 82, 69, 70, 73, 74 },
-  { 47, 48, 50, -1, 75, 76, 77, -1 },
-  { 49, 57, 55, 52, 78, 79, 71, 72 },
-  { 51, 59, 53, -1, 80, 81, 33, 34 },
-  { 54, 58, 27, 28, 29, 30, 31, 32 },
-};
-
-int
-percussionNoteForPad(int x, int y) {
-  if (x < 0 || x > 7 || y < 0 || y > 7) return -1;
-  return PERCUSSION_TABLE[y][x];
-}
-
 // General MIDI notes 36-51 in order, left to right then bottom to top: the
 // usual default window of a sampler or drum rack (docs/drums-and-sequencer.md).
 static const int DRUM_PAD_TABLE[4][4] = {
@@ -328,11 +294,6 @@ int
 stepForPad(int x, int y) {
   if (x < 0 || x > 7 || y < kPlayRows || y > 7) return -1;
   return x + 8 * (y - kPlayRows);
-}
-
-PercussionFamily
-percussionFamilyForPad(int x, int y) {
-  return percussionFamilyForNote(percussionNoteForPad(x, y));
 }
 
 PercussionFamily

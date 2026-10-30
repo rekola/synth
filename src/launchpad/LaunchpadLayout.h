@@ -142,16 +142,6 @@ namespace LaunchpadLayout {
   // once and reuse it here, not recompute it per pad).
   PadClassification classifyPad(const std::vector<PadClassification> & levels, const Basis & basis, int edo_steps, int x, int y, int base_note);
 
-  // Fixed General MIDI percussion layout (GM values 27-82, the range this
-  // engine actually supports - see Note.h's percussion_names table).
-  // Every named family occupies a contiguous rectangle and never wraps
-  // across a row boundary (kit on the left half - x=0..3, hand/latin
-  // percussion on the right - x=4..7), unlike the earlier row-linear
-  // table this replaced. Returns -1 for the 8 pads that remain
-  // unassigned (scattered as small gaps between families, not confined
-  // to one row - see PERCUSSION_TABLE's own comment).
-  int percussionNoteForPad(int x, int y);
-
   enum class PercussionFamily { CORE, HI_HAT, TOMS, CYMBALS, KIT_ACCESSORIES, LATIN_DRUMS, LATIN_METAL, SHAKERS, WOODS, CUICA_WHISTLE, ELECTRONIC, UNUSED };
 
   // The 4x4 drum rack in the bottom-left corner (x, y in 0..3, row 0 at the
@@ -170,11 +160,6 @@ namespace LaunchpadLayout {
   constexpr int kStepsPerView = 32;
   // The step a pad in the step rows stands for, or -1 outside them.
   int stepForPad(int x, int y);
-
-  // Classifies a percussion pad for LED-coloring purposes - a separate
-  // concern from percussionNoteForPad's placement (hi-hats get their own
-  // color regardless of which row they physically sit in).
-  PercussionFamily percussionFamilyForPad(int x, int y);
 
   // Clamps an absolute octave shifted by delta (+1/-1) to
   // [constants::MIN_OCTAVE, constants::MAX_OCTAVE] - pure arithmetic used

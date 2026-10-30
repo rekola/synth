@@ -12,39 +12,39 @@
 inline const std::string_view keyToMidiNote(const cellui::Input & input, Tuning tuning, Scale scale) {
   if (tuning == Tuning::PERCUSSION) {
     // The 4x4 drum rack of the Launchpad: General MIDI notes 36-51, left to
-    // right and then bottom to top, on the four key rows z.., a.., q.., 1..
+    // right and then bottom to top, on the four key rows x.., s.., w.., 2.. (not a, the note-off key)
     switch (input.getId()) {
-      case 'z':
-        return "BD"; // 36 Bass Drum
       case 'x':
-        return "RS"; // 37 Side Stick
+        return "BD"; // 36 Bass Drum
       case 'c':
-        return "SD"; // 38 Acoustic Snare
+        return "RS"; // 37 Side Stick
       case 'v':
+        return "SD"; // 38 Acoustic Snare
+      case 'b':
         return "CP"; // 39 Hand Clap
-      case 'a':
-        return "SD2"; // 40 Electric Snare
       case 's':
-        return "TFL"; // 41 Low Floor Tom
+        return "SD2"; // 40 Electric Snare
       case 'd':
-        return "CH"; // 42 Closed Hi-hat
+        return "TFL"; // 41 Low Floor Tom
       case 'f':
+        return "CH"; // 42 Closed Hi-hat
+      case 'g':
         return "TFH"; // 43 High Floor Tom
-      case 'q':
-        return "PH"; // 44 Pedal Hi-hat
       case 'w':
-        return "LT"; // 45 Low Tom
+        return "PH"; // 44 Pedal Hi-hat
       case 'e':
-        return "OH"; // 46 Open Hi-hat
+        return "LT"; // 45 Low Tom
       case 'r':
+        return "OH"; // 46 Open Hi-hat
+      case 't':
         return "MT"; // 47 Low-Mid Tom
-      case '1':
-        return "MT2"; // 48 Hi-Mid Tom
       case '2':
-        return "CR"; // 49 Crash Cymbal 1
+        return "MT2"; // 48 Hi-Mid Tom
       case '3':
-        return "HT"; // 50 High Tom
+        return "CR"; // 49 Crash Cymbal 1
       case '4':
+        return "HT"; // 50 High Tom
+      case '5':
         return "RD"; // 51 Ride Cymbal 1
     }
   } else {
