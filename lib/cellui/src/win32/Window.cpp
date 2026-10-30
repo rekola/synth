@@ -231,7 +231,7 @@ struct Window::Impl {
   void drawCells(const CellBuffer & cells, bool transparent, int origin_row, int origin_col, double shift_x, double shift_y,
                  const CellRange * only = nullptr);
   // A proportional-text run in the box of `cols` cells at (x, y).
-  void drawTextRun(const TextRun & run, float x, float y, int cols, const Color & fg);
+  void drawTextRun(const TextRun & run, float x, float y, int box_cols, const Color & fg);
   // A blend laid over a region: the target has no blend modes, so what is
   // below is drawn again there with every colour blended (blendRegion()).
   struct Tint {
@@ -361,10 +361,10 @@ ID2D1Bitmap * Window::Impl::bitmapFor(const ImagePlacement & placement) {
   return b.bitmap.get();
 }
 
-void Window::Impl::drawTextRun(const TextRun & run, float x, float y, int cols, const Color & fg) {
+void Window::Impl::drawTextRun(const TextRun & run, float x, float y, int box_cols, const Color & fg) {
   IDWriteTextFormat * format = (run.font == TextFont::PROPORTIONAL ? proportional : formats)[(run.bold ? 1 : 0) | (run.italic ? 2 : 0)].get();
   if (!format) return;
-  const float w = static_cast<float>(cols * cell_w), h = static_cast<float>(cell_h);
+  const float w = static_cast<float>(box_cols * cell_w), h = static_cast<float>(cell_h);
   std::wstring text = widen(run.text);
   Com<IDWriteTextLayout> layout;
   if (FAILED(dwrite->CreateTextLayout(text.c_str(), static_cast<UINT32>(text.size()), format, w, h, layout.put()))) return;
