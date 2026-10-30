@@ -246,20 +246,22 @@ ClipGrid::physicalFor(int logical_row) const {
   return clip_rows + kDirectionValue;
 }
 
-void
-ClipGrid::ensureCursorVisible(int visible_rows, int visible_cols, int num_tracks) {
+void ClipGrid::ensureCursorVisible(int visible_rows, int visible_cols, int view_cols, int num_tracks) {
   // Column num_tracks is the master's, the last one.
   auto num_columns = num_tracks + 1;
   cursor_track_index_ = clamp(cursor_track_index_, 0, num_tracks);
   cursor_row_ = clamp(cursor_row_, 1, logicalRowCount() - 1); // never the header row
 
-  scroll_col_ = clamp(scroll_col_, 0, max(0, num_columns - visible_cols));
+  const int pitch = kColWidth + 1;
+  const int max_x = max(0, num_columns * pitch - max(view_cols, visible_cols * pitch));
+  scroll_x_ = clamp(scroll_x_, 0, max_x);
   scroll_row_ = clamp(scroll_row_, 0, max(0, physicalRowCount() - visible_rows));
   if (view_detached_) return; // the mouse wheel scrolled away from the cursor
 
-  if (cursor_track_index_ < scroll_col_) scroll_col_ = cursor_track_index_;
-  if (visible_cols > 0 && cursor_track_index_ >= scroll_col_ + visible_cols) scroll_col_ = cursor_track_index_ - visible_cols + 1;
-  scroll_col_ = clamp(scroll_col_, 0, max(0, num_columns - visible_cols));
+  // The cursor's column is kept whole in view.
+  if (cursor_track_index_ * pitch < scroll_x_) scroll_x_ = cursor_track_index_ * pitch;
+  if (visible_cols > 0 && cursor_track_index_ * pitch + kColWidth > scroll_x_ + view_cols) scroll_x_ = cursor_track_index_ * pitch + kColWidth - view_cols;
+  scroll_x_ = clamp(scroll_x_, 0, max_x);
 
   auto cursor_physical = physicalFor(cursor_row_);
   if (cursor_physical < scroll_row_) scroll_row_ = cursor_physical;
@@ -282,9 +284,8 @@ ClipGrid::startClipRename(const Song & song, const std::vector<int> & track_ids)
   auto physical_row = clip_row - scroll_row_ + 1; // +1 for the header row
   auto [ rows, cols ] = getDim();
   if (physical_row < 0 || physical_row >= rows) return; // off-screen - shouldn't happen given ensureCursorVisible(), a cosmetic nuisance if it ever does
-  auto x = cursor_track_index_ - scroll_col_;
-  if (x < 0) return; // column itself scrolled off - same defensive case
-  auto col_x = x * (kColWidth + 1);
+  auto col_x = columnX(cursor_track_index_);
+  if (col_x < 0) return; // column itself scrolled off - same defensive case
 
   // The editable span is the name only: the leading marker, "▸ " and clip
   // number are structural, and the trailing loop/edited icons stay too,
@@ -319,8 +320,8 @@ void ClipGrid::startSceneRename() {
   if (inline_editor_.isOpen()) return;
   auto scene = physicalFor(cursor_row_);
   auto row = scene - scroll_row_ + 1; // +1 for the header row
-  auto column = cursor_track_index_ - scroll_col_;
-  if (row < 1 || row >= getDim().first || column < 0) return;
+  auto column_x = columnX(cursor_track_index_);
+  if (row < 1 || row >= getDim().first || column_x < 0) return;
 
   // The editable span follows the " ▸ " launch glyph. Typing "90 BPM" or
   // "3/4" sets the scene's tempo or time signature (shown at the right of
@@ -332,7 +333,7 @@ void ClipGrid::startSceneRename() {
   auto width = min(kSceneFieldWidth, cols);
   InlineEditor::Field field;
   field.row = row;
-  field.col = clamp(column * (kColWidth + 1) + 3, 0, max(0, cols - width));
+  field.col = clamp(column_x + 3, 0, max(0, cols - width));
   field.width = width;
   field.initial_text = getController().getSong().getSceneName(scene);
   inline_editor_.open(field, [this, scene](std::string text) {
@@ -350,9 +351,8 @@ ClipGrid::startTrackRename(const Song & song, const std::vector<int> & track_ids
   auto * track = song.getMasterTrack().getChildByInternalId(track_id);
   if (!track) return;
 
-  auto x = cursor_track_index_ - scroll_col_;
-  if (x < 0) return; // column itself scrolled off
-  auto col_x = x * (kColWidth + 1);
+  auto col_x = columnX(cursor_track_index_);
+  if (col_x < 0) return; // column itself scrolled off
 
   // The editable span excludes the leading "T<N> " structural label
   // (N = color_ordinal_) - PatternEditor's own startTrackNameEdit() draws
@@ -653,7 +653,7 @@ ClipGrid::offerInput(const cellui::Input & input) {
     if (!sideways && dialMouse(input)) return true;
     int direction = (input.getId() == Key::Button4 || input.getId() == Key::Button6) ? -1 : 1;
     if (sideways || input.hasShift())
-      scroll_col_ += direction;
+      scroll_x_ += direction * wheel_acceleration_x_.step(kWheelCells);
     else
       scroll_row_ += direction * wheel_acceleration_.step(kWheelRows);
     view_detached_ = true;
@@ -739,7 +739,7 @@ ClipGrid::render(const StyleProvider & styles, bool refresh, bool focused) {
 
   // A moved cursor reattaches a view the mouse wheel detached.
   if (view_detached_ && (cursor_track_index_ != current_cursor_track_index_ || cursor_row_ != current_cursor_row_)) view_detached_ = false;
-  ensureCursorVisible(visible_rows, visible_cols, num_tracks);
+  ensureCursorVisible(visible_rows, visible_cols, max(0, cols), num_tracks);
 
   // The rows below the header scroll by parts of a row where the display can.
   row_axis_.setSmooth(getPlane().smoothScroll());
@@ -756,8 +756,8 @@ ClipGrid::render(const StyleProvider & styles, bool refresh, bool focused) {
   // The columns scroll sideways by cells, by parts of one too.
   const int pitch = kColWidth + 1;
   col_axis_.setSmooth(getPlane().smoothScroll());
-  col_axis_.setExtent((num_tracks + 1) * pitch, visible_cols * pitch);
-  col_axis_.scrollTo(scroll_col_ * pitch);
+  col_axis_.setExtent((num_tracks + 1) * pitch, max(0, cols));
+  col_axis_.scrollTo(scroll_x_);
   col_axis_.tick(scroll_dt_);
   first_col_ = col_axis_.firstShown() / pitch;
   col_shift_ = col_axis_.firstShown() - first_col_ * pitch;

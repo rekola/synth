@@ -674,7 +674,7 @@ void Window::Impl::appendShadows(GtkSnapshot * snap, const Painted & top, GskRen
   GdkRGBA highlight = { 1, 1, 1, dark ? 0.14f : 0.55f };
   GdkRGBA edge = { 0, 0, 0, dark ? 0.3f : 0.1f };
   auto rectOf = [&](const ElevatedArea & a) {
-    return GRAPHENE_RECT_INIT(static_cast<float>(a.col * cell_w), static_cast<float>(a.row * cell_h), static_cast<float>(a.cols * cell_w),
+    return GRAPHENE_RECT_INIT(static_cast<float>((a.col - a.shift_col) * cell_w), static_cast<float>((a.row - a.shift_row) * cell_h), static_cast<float>(a.cols * cell_w),
                               static_cast<float>(a.rows * cell_h));
   };
   // Only a backdrop at or above an area's layer covers it (a plane scrolling
@@ -840,7 +840,7 @@ void Window::Impl::snapshot(GtkSnapshot * snap) {
             gtk_snapshot_push_opacity(s, content.blend_alpha);
             gtk_snapshot_save(s);
             gtk_snapshot_translate(s, &shift);
-            appendPainted(s, paint(layers.size() + 1 + scrolls++, content.cells, true), nullptr, content.row, content.col);
+            appendPainted(s, paint(layers.size() + 1 + scrolls++, content.cells, true), &content.cells, content.row, content.col);
             gtk_snapshot_restore(s);
             gtk_snapshot_pop(s);
             gtk_snapshot_pop(s);
@@ -850,7 +850,7 @@ void Window::Impl::snapshot(GtkSnapshot * snap) {
           gtk_snapshot_push_clip(s, &shown);
           gtk_snapshot_save(s);
           gtk_snapshot_translate(s, &shift);
-          appendPainted(s, paint(layers.size() + 1 + scrolls++, content.cells, true), nullptr, content.row, content.col);
+          appendPainted(s, paint(layers.size() + 1 + scrolls++, content.cells, true), &content.cells, content.row, content.col);
           gtk_snapshot_restore(s);
           if (content.band && content.band->blend == BlendMode::NORMAL) {
             const Band & band = *content.band;
