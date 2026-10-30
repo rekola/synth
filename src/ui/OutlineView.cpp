@@ -716,14 +716,8 @@ OutlineView::deleteSelectedRow() {
   auto & song = getController().getSong();
 
   if (row.kind == OutlineRowKind::TRACK) {
-    // Never remove the last remaining root track - render() and several
-    // sibling call sites elsewhere in the UI index a root-track list with
-    // no bounds check at all on the assumption at least one always exists
-    // (docs/known_bugs.md's zero-root-tracks entry) - same floor
-    // PatternEditor's own "delete-track" command holds.
-    if (song.getRootTrackIds().size() <= 1) return;
-    if (getController().getRecordingTrackId() == row.ref_id) getController().setRecordingTrackId(0);
-    song.removeTrack(row.ref_id);
+    // The last playable track stays (Song::removeTrack() refuses it).
+    if (song.removeTrack(row.ref_id) && getController().getRecordingTrackId() == row.ref_id) getController().setRecordingTrackId(0);
   } else if (row.kind == OutlineRowKind::POOL_INSTRUMENT) {
     song.removeInstrument(row.ref_id);
   }

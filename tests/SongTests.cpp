@@ -1461,3 +1461,25 @@ TEST(a_track_finds_its_instrument_by_id_wherever_the_pool_lists_it) {
   CHECK(reloaded.getInstrumentPool().getInstrument(0).getId() == "pad");
   fs::remove(path);
 }
+
+// The last playable track cannot be removed, alone or inside a group: the
+// editor needs one to stand on.
+TEST(removing_the_last_playable_track_is_refused) {
+  Song song;
+  auto group = song.addTrack(std::make_unique<Group>()).getInternalId();
+  for (auto id : song.getPlayableTrackIds()) song.removeTrack(id);
+  song.addTrack(std::make_unique<InstrumentTrack>(0));
+  for (auto id : song.getPlayableTrackIds()) song.removeTrack(id);
+  CHECK(song.getPlayableTrackIds().size() == 1);
+  CHECK(!song.removeTrack(song.getPlayableTrackIds()[0]));
+  CHECK(song.removeTrack(group)); // an empty group may go
+  CHECK(song.getPlayableTrackIds().size() == 1);
+}
+
+// A file without tracks opens with one.
+TEST(opening_a_song_without_tracks_gives_it_one) {
+  InstrumentProvider provider;
+  Song song(Tuning::EDO12);
+  CHECK(song.open(std::string(TESTS_FIXTURES_DIR) + "/terminal_ui_no_tracks.xml", provider));
+  CHECK(song.getPlayableTrackIds().size() == 1);
+}

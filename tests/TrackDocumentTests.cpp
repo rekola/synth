@@ -50,14 +50,15 @@ TEST(adding_a_track_is_one_undoable_edit_and_keeps_the_object_it_was_given) {
 
 TEST(a_removed_track_comes_back_as_the_same_object_when_the_edit_is_undone) {
   Song song;
+  song.addTrack(std::make_unique<InstrumentTrack>(0)); // the last track stays, so another one goes
   auto id = song.addTrack(std::make_unique<InstrumentTrack>(0)).getInternalId();
   auto * object = song.getMasterTrack().getChildByInternalId(id);
   CHECK(song.removeTrack(id));
-  CHECK(song.getMasterTrack().getChildren().empty());
+  CHECK(song.getMasterTrack().getChildren().size() == 1);
   CHECK(!song.removeTrack(id)); // already gone
 
   song.document().apply(doc::Document::inverse(song.document().journal().back()));
-  CHECK(song.getMasterTrack().getChildren().size() == 1);
+  CHECK(song.getMasterTrack().getChildren().size() == 2);
   CHECK(song.getMasterTrack().getChildByInternalId(id) == object); // nothing was rebuilt
 }
 

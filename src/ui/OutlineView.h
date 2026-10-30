@@ -247,9 +247,7 @@ protected:
   void applyTargetPickerSelection(const std::string & selection);
   // Key::Delete/Key::Backspace on a Track or pool Instruments row - see
   // this class's own header comment. A no-op on any other row, and on a
-  // song's own last remaining root track (same floor PatternEditor's
-  // "delete-track" command holds - docs/known_bugs.md's own
-  // zero-root-tracks entry).
+  // song's own last remaining playable track (Song::removeTrack()'s floor).
   void deleteSelectedRow();
 
   // The target-track picker's own "create a fresh PercussionTrack instead

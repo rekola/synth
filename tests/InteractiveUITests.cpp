@@ -255,3 +255,23 @@ TEST(terminal_ui_ctrl_keypad_operators_change_the_track_instrument) {
   f.press(cellui::Key::KpDivide, kModCtrl);
   CHECK(instrument_id() == before);
 }
+
+// A song file with no tracks still opens, draws in both views and takes keys.
+TEST(terminal_ui_song_without_tracks_does_not_crash) {
+  for (auto view : {UI::View::LIVE, UI::View::ARRANGEMENT}) {
+    UIFixture f(fixture("terminal_ui_no_tracks.xml"), view);
+    for (int key : {cellui::Key::Down, cellui::Key::Up, cellui::Key::Right, cellui::Key::Left, static_cast<int>('c'), cellui::Key::Enter}) f.press(key);
+    f.press('\t');
+    f.otherWindow();
+    for (int key : {cellui::Key::Down, cellui::Key::Right, static_cast<int>('c'), cellui::Key::Delete}) f.press(key);
+    CHECK(f.terminal.frameCount() >= 1);
+  }
+}
+
+// delete-track keeps the last track.
+TEST(terminal_ui_delete_track_keeps_the_last_track) {
+  UIFixture f;
+  f.execute("delete-track");
+  f.execute("delete-track");
+  CHECK(f.controller->getSong().getPlayableTrackIds().size() == 1);
+}

@@ -504,7 +504,14 @@ bool
 Song::removeTrack(int id) {
   Edit edit(*this, "remove track");
   auto node = trackNode(id);
-  if (node == doc::kNoNode || node == masterNode()) {
+  // The last playable track stays: the editor has nothing to stand on without one.
+  std::function<int(const Track &)> leaves = [&](const Track & track) {
+    int count = dynamic_cast<const LeafTrack *>(&track) ? 1 : 0;
+    for (auto & child : track.getChildren()) count += leaves(*child);
+    return count;
+  };
+  auto removed = getMasterTrack().getChildByInternalId(id);
+  if (node == doc::kNoNode || node == masterNode() || (removed && leaves(*removed) >= leaves(getMasterTrack()))) {
     edit.discard();
     return false;
   }
@@ -882,7 +889,9 @@ Song::open(const std::string & filename, const InstrumentProvider & provider) {
 	addTrack(move(track));
       }
     }
-    
+    // The editor needs a track to stand on: a file with none gets one.
+    if (getPlayableTrackIds().empty()) addTrack(make_unique<InstrumentTrack>(0));
+
     if (auto locators = song->FirstChildElement("locators")) {
       for (auto it = locators->FirstChildElement("locator"); it; it = it->NextSiblingElement("locator")) {
         auto row_text = it->Attribute("row");
