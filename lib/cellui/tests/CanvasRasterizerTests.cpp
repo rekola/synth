@@ -178,3 +178,21 @@ TEST(canvas_rasterizer_draws_underlines_and_italics) {
   CHECK(plain.pixels != underlined.pixels);
   CHECK(plain.pixels != italic.pixels);
 }
+
+TEST(canvas_rasterizer_text_only_is_see_through_around_the_glyphs) {
+  auto rasterizer = canvasRasterizer();
+  if (!rasterizer) return;
+  CellBuffer cells(1, 4);
+  cells.put(0, 1, [] { CellBuffer::Cell c; c.text = "M"; c.fg = Color(255, 255, 255); return c; }());
+  Image image = rasterizer->renderText(cells, 0, 0, 1, 4, 16, 8, Color(200, 200, 200));
+  CHECK(image.width == 32 && image.height == 16);
+  CHECK(image.pixels.size() == 32u * 16u);
+  // The first cell holds nothing; the second has ink.
+  int ink_in_first = 0, ink_in_second = 0;
+  for (int y = 0; y < 16; y++) {
+    for (int x = 0; x < 8; x++) ink_in_first += Image::alpha(image.pixels[static_cast<size_t>(y * 32 + x)]) > 0;
+    for (int x = 8; x < 16; x++) ink_in_second += Image::alpha(image.pixels[static_cast<size_t>(y * 32 + x)]) > 0;
+  }
+  CHECK(ink_in_first == 0);
+  CHECK(ink_in_second > 0);
+}

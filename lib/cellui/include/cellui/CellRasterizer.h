@@ -24,6 +24,15 @@ class CellRasterizer {
   // refer to.
   virtual Image render(const CellBuffer & cells, const std::vector<ImagePlacement> & images, int row, int col, int rows, int cols,
                        int cell_h, int cell_w, int scale, Color default_fg, Color default_bg) = 0;
+  // Only the text of cells [row, row + rows) x [col, col + cols) - glyphs and
+  // underlines - on a see-through picture of rows * cell_h by cols * cell_w
+  // pixels, at the display's own scale: premultiplied bytes R, G, B, A. Cell
+  // backgrounds and pictures are the caller's. An empty picture (width 0) where
+  // the rasterizer cannot.
+  virtual Image renderText(const CellBuffer & cells, int row, int col, int rows, int cols, int cell_h, int cell_w, Color default_fg) {
+    (void)cells; (void)row; (void)col; (void)rows; (void)cols; (void)cell_h; (void)cell_w; (void)default_fg;
+    return {};
+  }
 };
 
 // A rasterizer drawing with canvas, its glyphs in the font family `family`
