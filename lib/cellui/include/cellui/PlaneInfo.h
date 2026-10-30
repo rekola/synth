@@ -4,6 +4,7 @@
 #include <cellui/MouseCursor.h>
 #include <cellui/TextStyle.h>
 
+#include <array>
 #include <memory>
 #include <optional>
 #include <string>
@@ -52,6 +53,12 @@ struct ElevatedArea {
   // The cells of a plane drawn shifted by part of a cell sit this far up and
   // to the left of the rows and columns above.
   double shift_row = 0, shift_col = 0;
+  // The outer corners' radius in pixels at 96 dpi (Plane::setCornerRadius()),
+  // and what lay under each corner cell before the area was composed over it
+  // (top left, top right, bottom left, bottom right; unset = the display's
+  // own colour): what shows in the corners the radius cuts away.
+  double radius = 0;
+  std::array<std::optional<Color>, 4> corner_bg{};
 };
 
 // The part of the screen a plane asked a pointer shape for.

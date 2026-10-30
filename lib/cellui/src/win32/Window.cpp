@@ -566,7 +566,13 @@ void Window::Impl::drawShadows() {
     return D2D1::RectF(static_cast<float>(a.col * cell_w), static_cast<float>(a.row * cell_h), static_cast<float>((a.col + a.cols) * cell_w),
                        static_cast<float>((a.row + a.rows) * cell_h));
   };
-  auto ring = [&](const D2D1_RECT_F & r, float dx, float dy, float reach, float alpha) {
+  // An area's corner radius in pixels: its logical one by the display's scale,
+  // at most half the shorter side.
+  auto radiusOf = [&](const ElevatedArea & a) {
+    float limit = 0.5f * static_cast<float>(std::min(a.cols * cell_w, a.rows * cell_h));
+    return std::clamp(static_cast<float>(a.radius * display_info.display_scale), 0.0f, limit);
+  };
+  auto ring = [&](const D2D1_RECT_F & r, float radius, float dx, float dy, float reach, float alpha) {
     // Steps of about 1.5 px; the strength falls off as a smooth bell.
     int steps = std::clamp(static_cast<int>(reach / 1.5f), 1, 40);
     float step = reach / static_cast<float>(steps);
@@ -575,7 +581,9 @@ void Window::Impl::drawShadows() {
       float a = alpha * (1.0f - t) * (1.0f - t) / static_cast<float>(steps) * 2.2f;
       brush->SetColor(D2D1::ColorF(0, 0, 0, std::min(a, 1.0f)));
       float grow = static_cast<float>(j) * step - step / 2;
-      rt_->DrawRectangle(D2D1::RectF(r.left + dx - grow, r.top + dy - grow, r.right + dx + grow, r.bottom + dy + grow), brush.get(), step);
+      float arc = radius + grow;
+      rt_->DrawRoundedRectangle(D2D1::RoundedRect(D2D1::RectF(r.left + dx - grow, r.top + dy - grow, r.right + dx + grow, r.bottom + dy + grow), arc, arc),
+                                brush.get(), step);
     }
   };
   // The lifted bands of scrolled planes, which are drawn in the layers below.
@@ -612,7 +620,16 @@ void Window::Impl::drawShadows() {
   // layer below it, from the stack so far with the frame over it.
   auto redraw = [&](const ElevatedArea & a) {
     CellRange range = { a.row, a.col, a.rows, a.cols };
-    rt_->PushAxisAlignedClip(rectOf(a), D2D1_ANTIALIAS_MODE_ALIASED);
+    float radius = radiusOf(a);
+    Com<ID2D1RoundedRectangleGeometry> shape;
+    Com<ID2D1Layer> layer;
+    if (radius > 0.0f && SUCCEEDED(d2d->CreateRoundedRectangleGeometry(D2D1::RoundedRect(rectOf(a), radius, radius), shape.put())) &&
+        SUCCEEDED(rt_->CreateLayer(nullptr, layer.put()))) {
+      rt_->PushLayer(D2D1::LayerParameters(D2D1::InfiniteRect(), shape.get()), layer.get());
+    } else {
+      radius = 0.0f;
+      rt_->PushAxisAlignedClip(rectOf(a), D2D1_ANTIALIAS_MODE_ALIASED);
+    }
     if (a.layer < layers.size()) {
       rt_->Clear(colorOf(bg));
       for (size_t k = 0; k < layers.size(); k++) {
@@ -621,7 +638,8 @@ void Window::Impl::drawShadows() {
       }
     }
     drawCells(frame, !layers.empty(), 0, 0, 0, 0, &range);
-    rt_->PopAxisAlignedClip();
+    if (radius > 0.0f) rt_->PopLayer();
+    else rt_->PopAxisAlignedClip();
   };
   size_t i = 0;
   while (i < elevations.size()) {
@@ -635,8 +653,18 @@ void Window::Impl::drawShadows() {
       if (!shown(elevations[k])) continue;                  // a later backdrop covers it
       if (!elevations[k].shadow) continue;                  // stands above lower shadows, casts none
       D2D1_RECT_F r = rectOf(elevations[k]);
-      ring(r, 0, 0, std::max(2.0f, 0.25f * px), ambient_alpha);
-      ring(r, dx, dy, px, key_alpha);
+      float radius = radiusOf(elevations[k]);
+      if (radius > 0.0f) {
+        // What shows in the corners the radius cuts away, under the shadow.
+        for (int c = 0; c < 4; c++) {
+          const auto & under = elevations[k].corner_bg[static_cast<size_t>(c)];
+          brush->SetColor(colorOf(under ? *under : bg));
+          float x = c % 2 ? r.right - radius : r.left, y = c / 2 ? r.bottom - radius : r.top;
+          rt_->FillRectangle(D2D1::RectF(x, y, x + radius, y + radius), brush.get());
+        }
+      }
+      ring(r, radius, 0, 0, std::max(2.0f, 0.25f * px), ambient_alpha);
+      ring(r, radius, dx, dy, px, key_alpha);
       any = true;
     }
     if (any) {
@@ -661,9 +689,10 @@ void Window::Impl::drawShadows() {
         if (!shown(elevations[k]) || !elevations[k].shadow) continue;
         D2D1_RECT_F r = rectOf(elevations[k]);
         brush->SetColor(D2D1::ColorF(1, 1, 1, dark ? 0.14f : 0.55f));
-        rt_->FillRectangle(D2D1::RectF(r.left, r.top, r.right, r.top + 1), brush.get());
+        float inset = radiusOf(elevations[k]);
+        rt_->FillRectangle(D2D1::RectF(r.left + inset, r.top, r.right - inset, r.top + 1), brush.get());
         brush->SetColor(D2D1::ColorF(0, 0, 0, dark ? 0.3f : 0.1f));
-        rt_->FillRectangle(D2D1::RectF(r.left, r.bottom - 1, r.right, r.bottom), brush.get());
+        rt_->FillRectangle(D2D1::RectF(r.left + inset, r.bottom - 1, r.right - inset, r.bottom), brush.get());
       }
     }
     i = level_end;
