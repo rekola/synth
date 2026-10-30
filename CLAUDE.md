@@ -1512,9 +1512,14 @@ would otherwise resume showing.
   The window backend is `cellui/gtk/`: `GlibEventLoop` (a turn is one
   `g_main_context_iteration()`, the app's descriptors are GSources on the same
   context as GTK's own) and `Window`, a `GtkWindow` with one custom widget whose
-  `snapshot()` rasterizes the presented frame (cells and the images over them) with
-  `canvasRasterizer()` at scale 1 into one `GdkTexture`, only when something was
-  presented (its text is drawn in the system's monospace font; a character that font
+  `snapshot()` draws the presented frame from what each layer's cells are made of,
+  kept in bands of 4 rows and redone only for a band whose own part changed: the cell
+  backgrounds as one render node of colour rectangles per band (`backgroundNode()`),
+  the text with `canvasRasterizer()`'s `renderText()` (glyphs and underlines on a
+  see-through texture, only the columns the text spans, at scale 1), and the pictures
+  cells show (`Image`s, from the charts) as `GdkTexture`s of their own, uploaded when a
+  picture is new or has a new version (`imageTexture()`) and laid over the backgrounds
+  each frame, so a chart changing every frame redoes no text (the text is drawn in the system's monospace font; a character that font
   lacks, such as the musical accidentals of the 31- and 53-EDO note names, is drawn from
   the best installed font that has it, found with fontconfig - the drawing library's own
   text has no fallback - and shrunk to its cell if wider; fontconfig comes with
@@ -1534,8 +1539,7 @@ would otherwise resume showing.
   `BackdropLayer` (cells, blur, dim, tint and the rectangle it covers; `takeBackdropLayers()`,
   handed to the backend in `FrameInfo::backdrops`, always given, bottom first) and leaves the
   frame with only what is above it, so no backend's work shows in the application or in
-  `BufferPlane`. `Window` draws each layer as a texture (kept while a fingerprint of its cells
-  and pictures is unchanged), then the stack so far again under a GSK blur node and a dim
+  `BufferPlane`. `Window` draws each layer so (backgrounds, pictures, text), then the stack so far again under a GSK blur node and a dim
   colour inside the backdrop's cells; it never makes the blur itself, whatever the renderer.
   Over the frame it draws two GSK outset shadows around every area of `FrameInfo::elevations`
   that no later backdrop covers (`ElevatedArea::layer`) - a key light from the upper left,
