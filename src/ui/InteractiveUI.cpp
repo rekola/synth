@@ -700,6 +700,11 @@ InteractiveUI::initializeWidgets() {
 
   // The dispatcher sends keys to the focused widget, which still takes them
   // as an Input.
+  auto modal = [this](const cellui::Input * input) {
+    return input && (offerModal(*input) || offerKeyLayers(*input)) ? cellui::Handled::yes : cellui::Handled::no;
+  };
+  key_connections_.push_back(on<cellui::KeyDown>([modal](const cellui::KeyDown & e, cellui::EventContext &) { return modal(e.input); }, cellui::Phase::capture));
+  key_connections_.push_back(on<cellui::KeyUp>([modal](const cellui::KeyUp & e, cellui::EventContext &) { return modal(e.input); }, cellui::Phase::capture));
   for (cellui::Widget * widget : std::initializer_list<cellui::Widget *>{pattern_editor_.get(), arrangement_grid_.get(), clip_grid_.get(), outline_view_.get()}) {
     auto offer = [widget](const cellui::Input * input) {
       return input && widget->offerInput(*input) ? cellui::Handled::yes : cellui::Handled::no;
@@ -1418,6 +1423,59 @@ InteractiveUI::viewChanged() {
   force_next_render_ = true;
 }
 
+bool InteractiveUI::modalLayerOpen(const cellui::Input & input) const {
+  if (input.getId() == Key::Resize || (input.hasCtrl() && input.getId() == 'l')) return false;
+  return command_palette_.isOpen() || choice_dialog_.isOpen() || info_dialog_.isOpen() || (outline_view_ && outline_view_->isModal());
+}
+
+// Hands `input` to the topmost modal layer; true when one took it.
+bool InteractiveUI::offerModal(const cellui::Input & input) {
+  if (!modalLayerOpen(input)) return false;
+  if (command_palette_.isOpen()) {
+    handleCommandPaletteInput(input);
+    return true;
+  }
+  if (choice_dialog_.isOpen()) {
+    handleChoiceDialogInput(input);
+    return true;
+  }
+  // The info dialog closes on its own keys and swallows everything else. The
+  // mouse is the terminal's while it is open (raiseOverlays()), so its text
+  // can be selected.
+  if (info_dialog_.isOpen()) {
+    auto id = input.getId();
+    // Not a release: the Enter that opened it, from the command palette, is
+    // released after it is open.
+    if (input.getKind() != InputEvent::Kind::RELEASE &&
+        (id == Key::Escape || id == Key::Enter || id == 'q' || (input.hasCtrl() && id == 'g'))) {
+      closeInfoDialog();
+    }
+    return true;
+  }
+  outline_view_->offerInput(input);
+  return true;
+}
+
+// What sees a key before the focused widget: the octave editor, the commands
+// bound on the active widget and the app, the menu, the status line.
+bool InteractiveUI::offerKeyLayers(const cellui::Input & input) {
+  if (octave_control_->isEditing() && octave_control_->offerInput(input)) return true;
+  // A command (undo, save, ...) must see a half-typed velocity or delay.
+  if (input.getKind() != InputEvent::Kind::RELEASE && (input.hasCtrl() || input.hasAlt())) pattern_editor_->commitPendingValue();
+  // No open reader (a StatusLine prompt, any widget's inline editor) may let a
+  // global keybinding steal a keystroke meant for it.
+  bool reader_active = status_line_->isReaderActive() || pattern_editor_->isReaderActive() || clip_grid_->isReaderActive();
+  if (!reader_active && dispatchCommand(input)) return true;
+  if (menu_->offerInput(input)) {
+    // Through sendCommand() so Controller-level commands run too.
+    if (auto cmd = menu_->takeActivatedCommand(); !cmd.empty()) {
+      if (!getController().sendCommand(cmd)) setStatus("Invalid command");
+    }
+    return true;
+  }
+  return status_line_->offerInput(input);
+}
+
 bool
 InteractiveUI::offerInput(const cellui::Input & input) {
   bool handled = false;
@@ -1430,38 +1488,30 @@ InteractiveUI::offerInput(const cellui::Input & input) {
   bool button1_held = dispatcher_.pressedButtons() & 1;
   if (pointer) dispatcher_.offer(input);
 
+  // A key goes to the dispatcher alone: the modal layers and the layers in
+  // offerKeyLayers() are capture handlers on the root, ahead of the focused widget.
+  if (!pointer && input.getId() != Key::Resize && !(input.hasCtrl() && input.getId() == 'l')) {
+    dispatcher_.setFocus(active_element_.lock().get());
+    bool taken = dispatcher_.offer(input) == cellui::Handled::yes;
+    return taken || modalLayerOpen(input);
+  }
+
   // No open reader (a StatusLine prompt, any widget's inline
   // editor - see PatternEditor::isReaderActive()'s own comment) may let a
   // global keybinding (Space/toggle-playing, C-x C-c/quit, ...) steal a
   // keystroke meant for it.
   bool reader_active = status_line_->isReaderActive() || pattern_editor_->isReaderActive() ||
     clip_grid_->isReaderActive();
-  // The choice dialog is modal too, and owns its keys until it is chosen
-  // from or cancelled.
-  if (command_palette_.isOpen() && input.getId() != Key::Resize && !(input.hasCtrl() && input.getId() == 'l')) {
-    handleCommandPaletteInput(input);
-    return true;
-  }
-  if (choice_dialog_.isOpen() && input.getId() != Key::Resize && !(input.hasCtrl() && input.getId() == 'l')) {
-    handleChoiceDialogInput(input);
-    return true;
-  }
-  // The info dialog is modal: it closes on its own keys and swallows
-  // everything else but a resize or redraw. The mouse is the terminal's
-  // while it is open (raiseOverlays()), so its text can be selected.
-  if (info_dialog_.isOpen() && input.getId() != Key::Resize && !(input.hasCtrl() && input.getId() == 'l')) {
-    auto id = input.getId();
-    // Not a release: the Enter that opened it, from the command palette, is
-    // released after it is open.
-    if (input.getKind() != InputEvent::Kind::RELEASE &&
-        (id == Key::Escape || id == Key::Enter || id == 'q' || (input.hasCtrl() && id == 'g'))) {
-      closeInfoDialog();
+  // The modal layers (command palette, choice dialog, info dialog, outline
+  // popup) own the keys: they take them as capture handlers on the root, ahead
+  // of the focused widget. The pointer reaches them directly.
+  if (modalLayerOpen(input)) {
+    if (!pointer) {
+      dispatcher_.setFocus(active_element_.lock().get());
+      dispatcher_.offer(input);
+    } else {
+      offerModal(input);
     }
-    return true;
-  }
-  // A modal popup takes everything but a resize or redraw.
-  if (outline_view_ && outline_view_->isModal() && input.getId() != Key::Resize && !(input.hasCtrl() && input.getId() == 'l')) {
-    outline_view_->offerInput(input);
     return true;
   }
   // An open menu owns the mouse: its dropdown is drawn over the widgets, and
