@@ -388,18 +388,19 @@ class SongState : public TrackState {
 	  }
 
 	  for (auto track_id : scheduled_track_ids) {
-	    // What's actually active here: a real clip's own leaf Pattern,
-	    // read at the row relative to when that instance started
-	    // (wrapped by the clip's own length, not this track's
-	    // background Pattern's own - Clip.h's own comment on why those
-	    // are different fields now), if the arrangement layer covers
-	    // this row; this track's own background Pattern otherwise
-	    // (ArrangementOps.h's own resolveInstanceAt()). An explicit
-	    // stop resolves to neither - silence, nothing plays here. None
-	    // of this applies to a SampleTrack's own background bed, handled
-	    // entirely separately below - it isn't part of this resolution
-	    // at all.
-	    const Pattern * active_pattern = nullptr;
+            // What's actually active here: a real clip's own leaf Pattern,
+            // read at the row relative to when that instance started
+            // (wrapped by the clip's own length, not this track's
+            // background Pattern's own - Clip.h's own comment on why those
+            // are different fields now), if the arrangement layer covers
+            // this row; this track's own background Pattern otherwise
+            // (ArrangementOps.h's own resolveInstanceAt()). An explicit
+            // stop ends the clips above it and leaves the track's own pattern
+            // playing, as the pattern editor edits it there. None of this
+            // applies to a SampleTrack's own background bed, handled
+            // entirely separately below - it isn't part of this resolution
+            // at all.
+            const Pattern * active_pattern = nullptr;
 	    bool from_clip = false; // active_pattern is a placed clip's own, not the background
 	    int effective_row = row_idx;
 
@@ -551,14 +552,17 @@ class SongState : public TrackState {
 	      from_clip = true;
 	      auto length = clip.getLength() > 0 ? clip.getLength() : 1;
 	      effective_row = active_pattern->getEffectiveRow(rows_since_start, length);
-	    } else if (active.clip_index == Arrangement::kNoInstance) {
-	      auto it = arrangement.getPatternsByTrack().find(track_id);
+            } else if (active.clip_index == Arrangement::kNoInstance || (active.clip_index == Arrangement::kStopInstance && !taken_over)) {
+              // A stop ends the clips above it; the track's own pattern plays on, as
+              // the pattern editor edits it there. A taken-over track's silence is
+              // not a stop and stays silent.
+              auto it = arrangement.getPatternsByTrack().find(track_id);
 	      if (it != arrangement.getPatternsByTrack().end()) {
 		active_pattern = &it->second;
 		effective_row = active_pattern->getEffectiveRow(row_idx, 0);
 	      }
-	    }
-	    if (!active_pattern) continue;
+            }
+            if (!active_pattern) continue;
 
 	    auto & notes = active_pattern->getNotes(effective_row);
 	    auto track = content.tracks->master->getChildByInternalId(track_id);
