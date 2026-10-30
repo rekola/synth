@@ -76,6 +76,7 @@ inline std::array<AmbisonicDirection, 8> cubeVertexDirections() {
 // values for all 26 points; no approximated/hand-rounded coordinates.
 inline std::vector<AmbisonicDirection> lebedev26Directions() {
   std::vector<AmbisonicDirection> result;
+  result.reserve(26);
   // a1: front/back/right/left/up/down.
   result.insert(result.end(), {
     { 0.0f, 0.0f }, { 180.0f, 0.0f }, { 90.0f, 0.0f }, { -90.0f, 0.0f },

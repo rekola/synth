@@ -2,6 +2,7 @@
 #define _TERMINALUI_H_
 
 #include "ChoiceDialog.h"
+#include <cellui/InputDispatcher.h>
 #include <cellui/CommandPalette.h>
 #include "InfoDialog.h"
 #include "UI.h"
@@ -123,7 +124,6 @@ class InteractiveUI : public UI {
   // ArrangementGrid.h's own comment on why ArrangementGrid itself never
   // calls this directly.
   void commitOverviewCell(int track_id, int row);
-  bool tryActivate(int y, int x, std::shared_ptr<cellui::Widget> element);
   // The widgets the current view shows that can take focus, in C-x o
   // (other-window) order.
   std::vector<std::shared_ptr<cellui::Widget>> focusableElements() const;
@@ -252,6 +252,8 @@ class InteractiveUI : public UI {
   // getGlobalOctave(). Lives inline in the info bar's own row (see
   // layout()), always-on and click-activatable like pattern_editor_.
   std::shared_ptr<SpinBox> octave_control_;
+  // Finds the widget under the pointer from the last frame's hit areas.
+  cellui::InputDispatcher dispatcher_{*this};
   std::weak_ptr<cellui::Widget> active_element_;
 
   // launchpad_manager_ itself is UI's own now (set once in UI::start(),
@@ -267,6 +269,8 @@ class InteractiveUI : public UI {
   bool escape_indicator_shown_ = false;
   // Declared last so the handlers disconnect before the members they use go.
   std::vector<cellui::Connection> controller_connections_;
+  // Gives a widget the keys the dispatcher sends it, as the Input they came from.
+  std::vector<cellui::Connection> key_connections_;
 };
 
 #endif

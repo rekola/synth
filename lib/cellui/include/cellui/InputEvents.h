@@ -4,6 +4,8 @@
 
 namespace cellui {
 
+class Input;
+
 // The events a display's input becomes (see InputDispatcher). Plain structs,
 // posted to widgets like any other event (Widget::post()).
 
@@ -19,12 +21,16 @@ struct KeyDown {
   Modifiers mods;
   std::string text;
   bool repeat = false;
+  // The Input this came from when it was offered as one (InputDispatcher::offer()),
+  // valid while the event is handled: for a widget that still takes an Input.
+  const Input * input = nullptr;
 };
 
 // Only where DisplayInfo::key_release.
 struct KeyUp {
   int key = 0;
   Modifiers mods;
+  const Input * input = nullptr;  // as KeyDown::input
 };
 
 // A pointer position: x and y in cells from the top left, with a fraction

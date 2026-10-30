@@ -462,6 +462,23 @@ void clickCell(UIFixture & f, int y, int x) {
 }
 } // namespace
 
+// A press that starts on the arrangement grid stays with it while the pointer
+// drags over the pattern editor; a fresh click there takes the focus.
+TEST(terminal_ui_a_drag_stays_with_the_widget_the_press_started_on) {
+  UIFixture f(repoSong("demo3.xml"), UI::View::ARRANGEMENT);
+  f.terminal.pushMouse(3, 20, cellui::Key::Button1);
+  f.ui->step();
+  CHECK(f.terminal.info().focus == "arrangement-grid");
+  // The terminal reports the drag as the press again.
+  f.terminal.pushMouse(20, 50, cellui::Key::Button1);
+  f.ui->step();
+  CHECK(f.terminal.info().focus == "arrangement-grid");
+  f.terminal.pushMouse(20, 50, cellui::Key::Button1, 0, cellui::Input::Kind::RELEASE);
+  f.ui->step();
+  clickCell(f, 20, 50);
+  CHECK(f.terminal.info().focus == "pattern-editor");
+}
+
 // A click on a dial opens its editor, on that dial.
 TEST(terminal_ui_clip_grid_click_on_a_send_opens_its_editor) {
   UIFixture f(repoSong("demo3.xml"), UI::View::LIVE);

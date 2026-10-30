@@ -516,6 +516,7 @@ void
 InteractiveUI::render() {
   raiseOverlays();
   root_plane_->refresh();
+  dispatcher_.setHitAreas(root_plane_->takeHitAreas());
   cellui::CursorRequest cursor;
   if (auto at = root_plane_->cursorPosition()) cursor = { true, at->first, at->second };
   cellui::FrameInfo info;
@@ -689,6 +690,23 @@ InteractiveUI::initializeWidgets() {
     [this] { return getController().getGlobalOctave(); },
     [this](int v) { getController().setGlobalOctave(v); },
     styles_.info_line_bg_color, styles_.info_line_fg_color);
+
+  // Children of this root, so the dispatcher's hit test finds them and
+  // events posted to the root reach them.
+  for (cellui::Widget * widget : std::initializer_list<cellui::Widget *>{pattern_editor_.get(), arrangement_grid_.get(), clip_grid_.get(),
+                                                                         outline_view_.get(), info_line_.get(), status_line_.get(), octave_control_.get()}) {
+    widget->attach(*this);
+  }
+
+  // The dispatcher sends keys to the focused widget, which still takes them
+  // as an Input.
+  for (cellui::Widget * widget : std::initializer_list<cellui::Widget *>{pattern_editor_.get(), arrangement_grid_.get(), clip_grid_.get(), outline_view_.get()}) {
+    auto offer = [widget](const cellui::Input * input) {
+      return input && widget->offerInput(*input) ? cellui::Handled::yes : cellui::Handled::no;
+    };
+    key_connections_.push_back(widget->on<cellui::KeyDown>([offer](const cellui::KeyDown & e, cellui::EventContext &) { return offer(e.input); }));
+    key_connections_.push_back(widget->on<cellui::KeyUp>([offer](const cellui::KeyUp & e, cellui::EventContext &) { return offer(e.input); }));
+  }
 
   // An overview first, not pattern editing - the arrangement grid when
   // starting in Arrangement view; initialize() moves it to the clip grid
@@ -1400,21 +1418,17 @@ InteractiveUI::viewChanged() {
   force_next_render_ = true;
 }
 
-bool InteractiveUI::tryActivate(int y, int x, std::shared_ptr<cellui::Widget> element) {
-  auto [pos_y, pos_x] = element->getPosition();
-  auto [rows, cols] = element->getDim();
-
-  if (y >= pos_y && y < pos_y + rows && x >= pos_x && x < pos_x + cols) {
-    active_element_ = element;
-    return true;
-  } else {
-    return false;
-  }
-}
-
 bool
 InteractiveUI::offerInput(const cellui::Input & input) {
   bool handled = false;
+
+  // Every pointer event goes through the dispatcher first, whatever takes it
+  // below: it keeps the held buttons and which widget the press went down on.
+  // A terminal reports a drag as the press again, so "was the button already
+  // down" is asked before this event is counted.
+  bool pointer = input.getId() >= Key::Motion && input.getId() <= Key::Button11;
+  bool button1_held = dispatcher_.pressedButtons() & 1;
+  if (pointer) dispatcher_.offer(input);
 
   // No open reader (a StatusLine prompt, any widget's inline
   // editor - see PatternEditor::isReaderActive()'s own comment) may let a
@@ -1490,13 +1504,13 @@ InteractiveUI::offerInput(const cellui::Input & input) {
     // The mouse wheel scrolls whichever shown widget is under the mouse,
     // without moving focus (Emacs's own mouse-wheel-follow-mouse default) -
     // each widget scrolls its view, never its cursor.
-    for (auto & element : focusableElements()) {
-      auto [pos_y, pos_x] = element->getPosition();
-      auto [rows, cols] = element->getDim();
-      if (input.getY() >= pos_y && input.getY() < pos_y + rows && input.getX() >= pos_x && input.getX() < pos_x + cols) {
-	element->offerInput(input);
-	break;
-      }
+    // The widget under the pointer, or the shown one it sits in.
+    auto elements = focusableElements();
+    for (cellui::Widget * hit = dispatcher_.hitTest(input.getY(), input.getX()); hit; hit = hit->parent()) {
+      auto element = std::find_if(elements.begin(), elements.end(), [hit](const auto & e) { return e.get() == hit; });
+      if (element == elements.end()) continue;
+      (*element)->offerInput(input);
+      break;
     }
     return true;
   } else if (input.getId() == Key::Button1 && (octave_control_->arrowPressPending() ||
@@ -1504,7 +1518,7 @@ InteractiveUI::offerInput(const cellui::Input & input) {
     // The octave arrows act on click without taking focus from the active element.
     octave_control_->offerInput(input);
     return true;
-  } else if (input.getId() == Key::Button1 && (input.getKind() == InputEvent::Kind::RELEASE || clip_grid_->isMouseDown() || pattern_editor_->isMouseDown())) {
+  } else if (input.getId() == Key::Button1 && (input.getKind() == InputEvent::Kind::RELEASE || button1_held)) {
     // A release, or a press repeating as a drag moves, belongs to the
     // widget the button went down on - it must not hand focus to whatever
     // the pointer is over now. The release also ends the press everywhere,
@@ -1517,7 +1531,7 @@ InteractiveUI::offerInput(const cellui::Input & input) {
     auto previous_active_element = active_element_.lock();
     active_element_.reset();
 
-    // status_line_ deliberately isn't a tryActivate() candidate: its own
+    // status_line_ deliberately isn't a click-activation candidate: its own
     // input handling (the M-x trigger, and its reader while one's open) is
     // already reached unconditionally a few lines below, regardless of
     // active_element_ - becoming the active element bought it nothing, and
@@ -1530,11 +1544,16 @@ InteractiveUI::offerInput(const cellui::Input & input) {
     // Only the widgets the current view shows - a hidden one can share a
     // visible one's rect (see layout()), and a click must activate
     // whichever is visible.
+    // The widget under the pointer, or the shown one it sits in.
     bool activated = false;
-    for (auto & element : focusableElements()) {
-      if (!activated) activated = tryActivate(input.getY(), input.getX(), element);
+    auto candidates = focusableElements();
+    candidates.push_back(octave_control_);
+    for (cellui::Widget * hit = dispatcher_.hitTest(input.getY(), input.getX()); hit && !activated; hit = hit->parent()) {
+      auto candidate = std::find_if(candidates.begin(), candidates.end(), [hit](const auto & e) { return e.get() == hit; });
+      if (candidate == candidates.end()) continue;
+      active_element_ = *candidate;
+      activated = true;
     }
-    activated = tryActivate(input.getY(), input.getX(), octave_control_) || activated;
 
     // Fall back to the pattern editor (in every view) if the click landed
     // somewhere no widget claims (e.g.
@@ -1586,8 +1605,14 @@ InteractiveUI::offerInput(const cellui::Input & input) {
   }
 
   if (!handled) {
-    if (auto el = active_element_.lock()) {
-      handled |= el->offerInput(input);
+    auto el = active_element_.lock();
+    if (pointer || input.getId() == Key::Resize) {
+      // The dispatcher has the pointer already; the widgets still take it as an Input.
+      if (el) handled |= el->offerInput(input);
+    } else {
+      // A key goes to the focused widget through the dispatcher.
+      dispatcher_.setFocus(el.get());
+      handled |= dispatcher_.offer(input) == cellui::Handled::yes;
     }
   }
 
