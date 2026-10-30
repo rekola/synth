@@ -92,7 +92,7 @@ public:
         putstr(sy, sx, utf8::encodeCodepoint(use_sextants_ ? sextantCodepoint(mask) : kQuadrantCodepoints[mask]));
       }
     }
-    setFgColor(255, 255, 255);
+    setFgColor(getPlane().getStyles().window_fg_color);
     setBgColor(background); // don't leave the last cell's colors "stuck" for whatever draws next (e.g. the footer label below)
 
     for (auto & marker : markers_) {

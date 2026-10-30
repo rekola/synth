@@ -165,7 +165,7 @@ static vector<MenuSectionSpec> menuSpec(vector<MenuItemSpec> buffer_items) {
                         {"Redo", "C-M-_", "undo-redo", "C-S-Z"},
                         {nullptr, nullptr, nullptr},
                         {"Select All", "C-x h", "mark-whole-buffer", "C-a"},
-                        {"Set Mark", "C-SPC", "set-mark"},
+                        {"Set Mark", "C-SPC", "set-mark", "S-Arrows"},
                         {"Kill Region", "C-w", "kill-region", "C-x"},
                         {"Copy", "M-w", "kill-ring-save", "C-c"},
                         {"Yank", "C-y", "yank", "C-v"},
@@ -239,7 +239,7 @@ static vector<MenuSectionSpec> menuSpec(vector<MenuItemSpec> buffer_items) {
                         {nullptr, nullptr, nullptr},
                         {"Outline", "", "outline-view"},
                         {"Toggle Outline", "", "toggle-outline"},
-                        {"Toggle Charts", "", "toggle-scopes"},
+                        {"Toggle Scopes", "", "toggle-scopes"},
                     }},
       // Machine-wide, not per song - the choice is remembered across runs.
       {"Devices", 'd', {
@@ -452,7 +452,7 @@ InteractiveUI::initialize(std::shared_ptr<Controller> & controller) {
   if (display.default_fg && display.default_bg) root_plane_->setDefaultColors(*display.default_fg, *display.default_bg);
   root_plane_->setDisplayScale(display.display_scale);
   root_plane_->setSmoothScroll(display.smooth_scroll);
-  root_plane_->setKeymapProfile(display.keymap_profile);
+  root_plane_->setKeymapProfile(keymap_profile_override_.value_or(display.keymap_profile));
   key_reader_.setEscapeAsMeta(display.escape_as_meta);
   root_plane_->setFlatChildren(true);
   root_plane_->setThemedBases(true);
@@ -1255,7 +1255,7 @@ InteractiveUI::renderComponents(bool refresh) {
   refresh = refresh || force_next_render_;
   force_next_render_ = false;
   bool render = false;
-  // Charts coming back on screen start empty at once: a silent analysis sends
+  // Scopes coming back on screen start empty at once: a silent analysis sends
   // nothing more to replace what they held.
   if (scopes_stale_ && scopes_on_screen_) {
     blankScopes();
@@ -1823,7 +1823,7 @@ void InteractiveUI::handleVisualizationResultEvent(const VisualizationResultEven
   // catches up faster instead of falling further behind.
   bool superseded = eventsPending();
   bool changed = superseded; // a superseded event is redrawn by the one behind it
-  // Charts that are off screen aren't updated at all.
+  // Scopes that are off screen aren't updated at all.
   if (!superseded && scopes_on_screen_) {
     if (scopes_stale_) {
       blankScopes();

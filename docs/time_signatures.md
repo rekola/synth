@@ -6,7 +6,12 @@ A row is a sixteenth note. A time signature n/d is stored as its numerator
 and denominator and gives whole rows:
 
 - rows per bar = n x 16 / d
-- rows per beat = 16 / d
+- rows per beat = 16 / d, or 3 x 16 / d in a compound meter
+
+A compound meter is one whose numerator is a multiple of 3 above 3 over an
+eighth or a sixteenth (6/8, 9/8, 12/8, 6/16, ...): its beat is a dotted note
+of three units, as usually counted. 3/8 and the meters over a quarter or
+longer (6/4 included) count their units.
 
 The denominator is therefore 1, 2, 4, 8 or 16, and the numerator at most 32.
 Anything else (`2/3`, `100/4`) is refused wherever a signature is typed.
@@ -17,14 +22,16 @@ Anything else (`2/3`, `100/4`) is refused wherever a signature is typed.
 | 3/4 | 12 | 4 |
 | 4/4 | 16 | 4 |
 | 5/4 | 20 | 4 |
-| 6/8 | 12 | 2 |
+| 3/8 | 6 | 2 |
+| 6/8 | 12 | 6 |
 | 7/8 | 14 | 2 |
-| 12/8 | 24 | 2 |
+| 9/8 | 18 | 6 |
+| 12/8 | 24 | 6 |
 
-3/4 and 6/8 are both 12 rows and differ in the beat only: the metronome and
-the beat accents fall every 4 rows in 3/4 and every 2 in 6/8. A beat is
-always a plain division of the bar; there is no grouping such as 3+2 or
-2+2+3.
+3/4 and 6/8 are both 12 rows and differ in how they group them: three beats
+of 4 rows in 3/4, two of 6 in 6/8. The metronome and the beat accents follow
+the beat. A beat is always a plain division of the bar; there is no grouping
+such as 3+2 or 2+2+3.
 
 ## 2. The song's time signature
 

@@ -7,7 +7,8 @@
 #include <string>
 
 // A row is a sixteenth note, so a signature needs a whole number of rows
-// per beat: the denominator is 1, 2, 4, 8 or 16.
+// per beat: the denominator is 1, 2, 4, 8 or 16. A compound meter (6/8, 9/8,
+// 12/8, 6/16, ...) is counted in dotted beats of three of its units.
 struct TimeSignature {
   int numerator = 0; // 0: none
   int denominator = 0;
@@ -19,7 +20,8 @@ struct TimeSignature {
 
   bool isSet() const { return numerator > 0; }
   int rowsPerBar() const { return numerator * 16 / denominator; }
-  int rowsPerBeat() const { return 16 / denominator; }
+  bool isCompound() const { return denominator >= 8 && numerator > 3 && numerator % 3 == 0; }
+  int rowsPerBeat() const { return (isCompound() ? 3 : 1) * 16 / denominator; }
   bool operator==(const TimeSignature & other) const { return numerator == other.numerator && denominator == other.denominator; }
   bool operator!=(const TimeSignature & other) const { return !(*this == other); }
 

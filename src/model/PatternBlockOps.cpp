@@ -504,6 +504,46 @@ void transposeSong(Song & song, SongScope scope, bool up) {
   if (move_key) song.setKey(new_key);
 }
 
+// The step of an EDO of `edo` steps nearest `cents`; an exact tie takes the
+// lower one.
+static int nearestStep(double cents, int edo) {
+  return static_cast<int>(std::ceil(cents * edo / 1200.0 - 0.5 - 1e-9));
+}
+
+int convertSongTuning(Song & song, Tuning to) {
+  Tuning from = song.getTuning();
+  int from_edo = edoStepsFor(from), to_edo = edoStepsFor(to);
+  if (from == to || from_edo <= 0 || to_edo <= 0) return 0;
+  double from_step = 1200.0 / from_edo, to_step = 1200.0 / to_edo;
+  // The key moves to its nearest step and every note keeps its interval to
+  // it, so the song's harmony is kept rather than the exact concert pitch.
+  int key = song.getKey();
+  int anchor = std::max(key, 0);
+  int new_anchor = nearestStep(anchor * from_step, to_edo);
+  int converted = 0;
+  for (auto & entry : songPatterns(song)) {
+    if (isPercussionTrack(song, entry.track_id)) continue;
+    forEachNoteRow(entry.pattern, [&](vector<Note> & notes) {
+      bool changed = false;
+      for (auto & note : notes) {
+        if (note.getValue() < 0) continue; // aftertouch
+        double interval = (note.getValue() - anchor) * from_step + note.getTuningCorrectionCents();
+        int steps = nearestStep(interval, to_edo);
+        Note moved(std::max(new_anchor + steps, 0), note.getVelocity(), note.getDelay());
+        moved.setFx(note.getFx());
+        if (note.hasTuningCorrection()) moved.setTuningCorrection(static_cast<int>(std::lround(interval - steps * to_step)));
+        note = moved;
+        changed = true;
+        converted++;
+      }
+      return changed;
+    });
+  }
+  song.setTuning(to);
+  if (key >= 0) song.setKey(new_anchor);
+  return converted;
+}
+
 int retuneSong(Song & song) {
   auto context = intonationContextOf(song);
   TuningSummary summary;

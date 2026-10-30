@@ -8,37 +8,11 @@ a spelling means roughly the same interval in 31 and 53-EDO (C-E is a major
 third in both). The otonal scale spells its 7:4 as A𝄰, because 53-EDO's A♯ is
 26:15 (42 steps); the other tunings ignore the arrow.
 
-## 1. `set-song-tuning` (planned)
+## 1. Open: yanking notes between tunings
 
-Today a song's tuning changes only by editing `temperament` in the file, and
-the notes are read back by name, so a note keeps its spelling rather than its
-pitch. `set-song-tuning` is an empty stub (`Controller.cpp`).
-
-Make it convert by pitch: every pitched note, in the arrangement's background
-patterns and every clip, moves to the new tuning's step nearest its pitch,
-counting its tuning correction if it has one. A tuned note keeps a correction:
-the residual from its new step to its old pitch, rounded to whole cents, `+00`
-if none. The key moves to the nearest step too; the scale stays. Percussion is
-untouched. One `Song::Edit`, so one undo.
-
-- Otonal and utonal songs convert right without any just intonation: from
-  31-EDO, 7:4 lands on 43 (A𝄰), 8:7 on 10, 12:7 on 41.
-- A whole tone is ambiguous: 31-EDO's D (193.5 cents) is between 10:9 and
-  9:8, and nearest-pitch picks 9:8. A song that needs 10:9 in a ii chord gets
-  it if `apply-just-intonation-region` ran first, since the correction says
-  which one was meant.
-- 53 to 31-EDO is lossy: a comma pair (D↓ and D) lands on one step. Tuned
-  notes keep the difference in their corrections.
-- Ties: decide which way and test it.
-
-Tests: an otonal and a utonal song from 31 to 53-EDO land on the steps above;
-a tuned ii chord from 31-EDO gets D↓; 53 to 31 and back again is the identity
-for tuned notes. README: say that editing `temperament` renames and the
-command converts.
-
-Related: yanking notes from a buffer in one tuning into one in another copies
-note values, not pitches. Check it and decide whether it converts the same
-way.
+`set-song-tuning` converts a song by pitch (`convertSongTuning()`). Yanking
+notes from a buffer in one tuning into one in another still copies note
+values, not pitches. Decide whether a yank converts the same way.
 
 ## 2. Open: double sharp and flat in 53-EDO, 35:32 or two sharps
 
@@ -52,7 +26,8 @@ says and what Johnston's notation gives. It was tried in an earlier revision
 of the 53-EDO PR and dropped, because it breaks exactly that: E𝄫 becomes 11
 steps (about 15:13) and B𝄫 42 (26:15). The scales would then have to be given
 as ratios rather than names, and a 31-EDO utonal song would no longer rename
-to 53-EDO. With item 1 built, renaming matters less, which could reopen this.
+to 53-EDO. Now that `set-song-tuning` converts by pitch, renaming matters
+less, which could reopen this.
 
 ## 3. Open: should 31-EDO spell 7:4 with an arrow?
 
@@ -76,11 +51,11 @@ augmented sixth; and it is not the only note that renames badly. Reading each
 | 25 | A♯ | 7:4 | 42 steps, -16.8 c | no, 7:4 is A𝄰 (43) |
 | 26 | B♭ | 9:5 | 45 steps, +12.4 c | yes (31-EDO's B♭ is a wide 9:5) |
 
-D (+10.2 c) is just inside the limit; it is the 9:8/10:9 ambiguity of item 1.
+D (+10.2 c) is just inside the limit: 31-EDO's D lies between 9:8 and 10:9.
 So arrows in 31-EDO's display would be needed at least for D♭, F♯, G♭ and A♯,
-and the D♭ one (16:15, the diatonic semitone) is not septimal at all. If item
-1 is built, the display question is only about how 31-EDO reads, not about
-conversion.
+and the D♭ one (16:15, the diatonic semitone) is not septimal at all. Since
+`set-song-tuning` converts by pitch, the display question is only about how
+31-EDO reads, not about conversion.
 
 ## 4. Considered: 41-EDO for the large tuning
 

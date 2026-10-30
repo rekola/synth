@@ -165,6 +165,10 @@ struct Theme {
     float overlay = 2;    // menus, pickers, popups
     float modal = 4;      // a modal dialog and its scrim
   } elevation;
+  // The corner radius in pixels of an outlined cell (the pattern editor's
+  // cursor), where the display draws outlines by pixels: a softening, not a
+  // shape, since a cell has no room for more. 0 is square.
+  double outline_radius_px = 2.0;
 
   static Theme original() {
     Theme t;
@@ -287,40 +291,42 @@ struct Theme {
 
   static Theme light() {
     Theme t = dark();
-    t.surface_base = Color("#f0f4f7");
-    t.surface_panel = Color("#e2e7eb");
-    t.surface_raised = Color("#cfd5db");
-    t.surface_overlay = Color("#fcfeff");
-    t.text_primary = Color("#11171d");
-    t.text_secondary = Color("#3a4148");
-    t.text_disabled = Color("#5e646a");
-    t.text_on_accent = Color("#f7fbfd");
-    t.accent = Color("#006185");
-    t.accent_dim = Color("#a2ccdd");
+    // Elevation lightens here too: the window is a soft grey and what stands
+    // above it (headers, cards, menus) is white.
+    t.surface_base = Color("#f2f3f7");
+    t.surface_panel = Color("#e9ebf0");
+    t.surface_raised = Color("#ffffff");
+    t.surface_overlay = Color("#ffffff");
+    t.text_primary = Color("#1c1c1e");
+    t.text_secondary = Color("#55575d");
+    t.text_disabled = Color("#85858b");
+    t.text_on_accent = Color("#ffffff");
+    t.accent = Color("#0071e3");
+    t.accent_dim = Color("#c7e0ff");
     t.focus = t.accent;
     t.grid_beat_fg = t.text_secondary;
     t.grid_beat_bg = t.surface_panel;
     t.grid_bar_fg = t.text_primary;
-    t.grid_bar_bg = t.surface_raised;
+    t.grid_bar_bg = Color("#dde0e7");
     t.cursor_tint = t.accent;
     t.cursor_row_tint = t.accent;
-    t.command_column = Color("#8a5200");
+    t.command_column = Color("#c76a00");
     t.reader_text = t.accent;
     t.info_line_fg = t.text_secondary;
     t.info_line_bg = t.surface_raised;
-    t.spectrum_low = Color("#2b5fa8");
-    t.spectrum_high = Color("#00849e");
-    t.mute = Color("#b3261e");
-    t.solo = Color("#8a6400");
+    t.spectrum_low = Color("#4f4dd0");
+    t.spectrum_high = Color("#0071e3");
+    t.mute = Color("#ff3b30");
+    t.solo = Color("#ff9500");
     t.monitor = t.accent;
-    t.clip_override = Color("#a35a00");
+    t.clip_override = Color("#d97706");
     t.locator = t.text_primary;
     t.locator_bg = t.surface_raised;
     t.locator_mark = t.text_secondary;
     t.button_fg = t.text_on_accent;
     t.button_bg = t.accent;
-    t.button_pressed_bg = Color("#004a66");
-    t.row_pressed_bg = Color("#8ab8cc");
+    t.button_pressed_bg = Color("#0058b8");
+    t.row_pressed_bg = Color("#b9d8ff");
     t.master_track = t.surface_overlay;
     t.menu_fg = t.text_primary;
     t.menu_bg = t.surface_raised;
@@ -329,9 +335,9 @@ struct Theme {
     t.plane_base_bg = t.surface_base;
     t.picker_bg = t.surface_overlay;
     t.picker_fg = t.text_primary;
-    t.data_fx = Color("#8a3fa8");
-    t.data_velocity = Color("#7a5c00");
-    t.data_delay = Color("#00607f");
+    t.data_fx = Color("#9b3fc7");
+    t.data_velocity = Color("#8a5a00");
+    t.data_delay = Color("#0070a0");
     t.modal_backdrop = Backdrop{ 2, 0.3f, t.surface_base };
     return t;
   }

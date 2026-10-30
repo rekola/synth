@@ -67,18 +67,7 @@ PatternEditor::PatternEditor(Plane & parent)
   // from moving it into a constructor-time closure.
 
   commands_.define("set-mark", [this]() {
-    auto point = source_->cursor();
-    selection_start_pattern_ = point.block;
-    selection_start_row_ = point.row;
-    selection_start_track_ = current_cursor.track;
-    // A fresh mark starts scoped to just the column it's set on; moving
-    // sideways afterward widens/narrows the touched range (see
-    // getEffectiveSelectionBounds) - to select the whole track, widen past
-    // every note column (and the effect column, if reached too), and past
-    // the locator to select the whole row.
-    selection_start_col_ = current_cursor.col;
-    selection_start_scope_ = current_cursor.scope;
-    setSelectionActive(true);
+    setMarkAtPoint();
     getController().log("Mark set");
   });
 
@@ -655,7 +644,8 @@ PatternEditor::PatternEditor(Plane & parent)
 
   keymap_.bind(KeyStroke::pack('+', true, false, false, false), "edit-step-increase");
   keymap_.bind(KeyStroke::pack('-', true, false, false, false), "edit-step-decrease");
-  keymap_.bind(KeyStroke::pack(' ', true, false, false, false), "set-mark"); // Ctrl-Space
+  // The desktop keymap selects with Shift+arrows (see offerInputKey()).
+  keymap_.bind(KeymapProfile::TERMINAL, KeyStroke::pack(' ', true, false, false, false), "set-mark"); // Ctrl-Space
   // Cut, copy and paste: the terminal keymap's shortcuts, the usual
   // desktop ones elsewhere.
   keymap_.bind(KeymapProfile::TERMINAL, KeyStroke::pack('w', true, false, false, false), "kill-region");
@@ -752,6 +742,21 @@ PatternEditor::tuningsForTrackRange(const Song & song, const vector<int> & track
     tunings.push_back(track ? song.getTuningForTrack(*track) : song.getTuning());
   }
   return tunings;
+}
+
+void PatternEditor::setMarkAtPoint() {
+  auto point = source_->cursor();
+  selection_start_pattern_ = point.block;
+  selection_start_row_ = point.row;
+  selection_start_track_ = current_cursor.track;
+  // A fresh mark starts scoped to just the column it's set on; moving
+  // sideways afterward widens/narrows the touched range (see
+  // getEffectiveSelectionBounds) - to select the whole track, widen past
+  // every note column (and the effect column, if reached too), and past
+  // the locator to select the whole row.
+  selection_start_col_ = current_cursor.col;
+  selection_start_scope_ = current_cursor.scope;
+  setSelectionActive(true);
 }
 
 void
@@ -1945,6 +1950,17 @@ PatternEditor::offerInputKey(const cellui::Input & input) {
 
   if (dispatchCommand(input)) return true;
 
+  // Desktop selection: Shift+arrow sets the mark where the cursor is, then
+  // moves like the plain arrow, extending the region.
+  if (keymapProfile() == KeymapProfile::DESKTOP && input.hasShift() && !input.hasCtrl() && !input.hasAlt() && !input.hasMeta() &&
+      input.getKind() != InputEvent::Kind::RELEASE &&
+      (input.getId() == Key::Up || input.getId() == Key::Down || input.getId() == Key::Left || input.getId() == Key::Right)) {
+    if (!selection_active_) setMarkAtPoint();
+    if (input.getId() == Key::Up) return commands_.execute("move-row-up");
+    if (input.getId() == Key::Down) return commands_.execute("move-row-down");
+    // Left and Right move through the plain branch below.
+  }
+
   auto & song = getController().getSong();
   auto & info = getController().getPlaybackInfo();
   // Playback owns the cursor row only where the cursor is the transport's
@@ -2485,15 +2501,15 @@ void PatternEditor::updateCursorBands(const StyleProvider & styles, const std::v
   // still while the rows scroll under them.
   int visible = rows - heading_height;
   std::vector<double> shown;
-  auto strip = [&](Plane & plane, double line, double col, double cols, const Color & color, float alpha, cellui::BlendMode blend = cellui::BlendMode::NORMAL, double border_px = 0.0, double skip_col = 0.0, double skip_cols = 0.0) {
+  auto strip = [&](Plane & plane, double line, double col, double cols, const Color & color, float alpha, cellui::BlendMode blend = cellui::BlendMode::NORMAL, double border_px = 0.0, double skip_col = 0.0, double skip_cols = 0.0, double border_radius = 0.0) {
     double first = heading_height + line;
     double height = std::min(1.0, static_cast<double>(rows) - first);
     if (height <= 0.0 || cols <= 0.0) {
       plane.clearBand();
       return;
     }
-    plane.setBand(cellui::Band{first, height, col, cols, color, alpha, blend, styles.theme.elevation.card, color, 1.0f, border_px, skip_col, skip_cols});
-    for (double v : {first, height, col, cols, static_cast<double>(alpha), static_cast<double>(blend), border_px, skip_col, skip_cols}) shown.push_back(v);
+    plane.setBand(cellui::Band{first, height, col, cols, color, alpha, blend, styles.theme.elevation.card, color, 1.0f, border_px, skip_col, skip_cols, border_radius});
+    for (double v : {first, height, col, cols, static_cast<double>(alpha), static_cast<double>(blend), border_px, skip_col, skip_cols, border_radius}) shown.push_back(v);
   };
   auto cursor_track = current_cursor.track >= 0 && current_cursor.track < static_cast<int>(track_ids.size()) ? track_ids[static_cast<size_t>(current_cursor.track)] : -1;
   std::optional<double> cursor_line;
@@ -2561,7 +2577,7 @@ void PatternEditor::updateCursorBands(const StyleProvider & styles, const std::v
       // colours alone turns the hue round).
       // The border leaves out the field, which stands alone as the inverted block.
       if (smooth_cursor_)
-        strip(*cursor_border_plane_, at, cursor_x0_, cursor_x1_ - cursor_x0_, styles.highlight_bg_color, 0.0f, cellui::BlendMode::NORMAL, 1.0, sub ? cursor_sub_x0_ : 0.0, sub ? sub_cols : 0.0);
+        strip(*cursor_border_plane_, at, cursor_x0_, cursor_x1_ - cursor_x0_, styles.highlight_bg_color, 0.0f, cellui::BlendMode::NORMAL, 1.0, sub ? cursor_sub_x0_ : 0.0, sub ? sub_cols : 0.0, styles.theme.outline_radius_px);
       else
         strip(*cursor_border_plane_, at, cursor_x0_, cursor_x1_ - cursor_x0_, styles.highlight_bg_color, 0.25f);
       if (sub && focus_ > 0.01f) {

@@ -384,3 +384,84 @@ TEST(transposing_a_just_scale_song_keeps_its_scale_ratios) {
   CHECK(view.getLeafPattern().getNote(0, 3).getFx() == "-01"); // still 5/4, not the chord tuner's -17
   CHECK(view.getLeafPattern().getNote(0, 0).getFx() == "-05");
 }
+
+namespace {
+
+// The steps above the key of the notes on row 0, after a conversion.
+vector<int> stepsAboveKey(const Song & song, PatternView pattern) {
+  vector<int> steps;
+  for (auto & note : pattern.getNotes(0)) steps.push_back(note.getValue() - song.getKey());
+  return steps;
+}
+
+} // namespace
+
+TEST(converting_a_septimal_song_to_53_edo_keeps_its_ratios_without_tuning) {
+  Song song(Tuning::EDO31, kKey);
+  song.setScale(Scale::UTONAL);
+  auto track_id = song.addTrack(make_unique<InstrumentTrack>(0)).getInternalId();
+  auto arrangement = song.getArrangement();
+  arrangement.setNote(0, track_id, 0, Note(kKey + 25, 100)); // A𝄰, 7:4
+  arrangement.setNote(0, track_id, 1, Note(kKey + 6, 100));  // E𝄫, 8:7
+  arrangement.setNote(0, track_id, 2, Note(kKey + 24, 100)); // B𝄫, 12:7
+  CHECK(convertSongTuning(song, Tuning::EDO53) == 3);
+  CHECK(song.getTuning() == Tuning::EDO53);
+  CHECK(song.getKey() == 53 * 5); // C stays C
+  CHECK((stepsAboveKey(song, arrangement.findPattern(track_id)) == vector<int>{43, 10, 41}));
+  CHECK(!arrangement.getNotes(0, track_id)[0].hasFx()); // an untuned note stays untuned
+}
+
+TEST(converting_a_tuned_chord_keeps_its_pure_intervals) {
+  Song song(Tuning::EDO31, kKey);
+  auto track_id = song.addTrack(make_unique<InstrumentTrack>(0)).getInternalId();
+  auto arrangement = song.getArrangement();
+  arrangement.setNote(0, track_id, 0, Note(kKey + 5, 100));  // D
+  arrangement.setNote(0, track_id, 1, Note(kKey + 13, 100)); // F
+  arrangement.setNote(0, track_id, 2, Note(kKey + 23, 100)); // A
+  applyJustIntonationToSong(song, SongScope::ARRANGEMENT);
+  convertSongTuning(song, Tuning::EDO53);
+  auto steps = stepsAboveKey(song, arrangement.findPattern(track_id));
+  CHECK(steps.size() == 3);
+  if (steps.size() != 3) return;
+  CHECK(steps[1] - steps[0] == 14); // 6:5
+  CHECK(steps[2] - steps[0] == 31); // 3:2
+  for (auto & note : arrangement.getNotes(0, track_id)) {
+    CHECK(note.hasTuningCorrection() && std::abs(note.getTuningCorrectionCents()) <= 11);
+  }
+}
+
+TEST(converting_tuned_notes_there_and_back_is_the_identity) {
+  const int key = 53 * 5;
+  Song song(Tuning::EDO53, key);
+  song.setScale(Scale::OTONAL);
+  auto track_id = song.addTrack(make_unique<InstrumentTrack>(0)).getInternalId();
+  Clip clip(track_id);
+  clip.setLength(4);
+  int column = 0;
+  for (int steps : {0, 9, 12, 17, 22, 31, 39, 43, 48}) clip.getLeafPattern().setNote(0, column++, Note(key + steps, 100));
+  auto view = song.addClip(move(clip));
+  applyJustIntonationToSong(song, SongScope::SCENES);
+  auto before = view.getLeafPattern().getNotes(0);
+  convertSongTuning(song, Tuning::EDO31);
+  convertSongTuning(song, Tuning::EDO53);
+  auto after = view.getLeafPattern().getNotes(0);
+  CHECK(song.getKey() == key);
+  CHECK(after.size() == before.size());
+  for (size_t i = 0; i < before.size() && i < after.size(); i++) {
+    CHECK(after[i].getValue() == before[i].getValue());
+    CHECK(after[i].getFx() == before[i].getFx());
+  }
+}
+
+TEST(converting_a_tie_takes_the_lower_step_and_leaves_percussion_alone) {
+  const int key = 60;
+  Song song(Tuning::EDO12, key);
+  auto track_id = song.addTrack(make_unique<InstrumentTrack>(0)).getInternalId();
+  auto drums_id = song.addTrack(make_unique<PercussionTrack>()).getInternalId();
+  auto arrangement = song.getArrangement();
+  arrangement.setNote(0, track_id, 0, Note(key + 6, 100)); // the tritone, halfway between two 31-EDO steps
+  arrangement.setNote(0, drums_id, 0, Note(38, 100));
+  convertSongTuning(song, Tuning::EDO31);
+  CHECK(arrangement.getNotes(0, track_id)[0].getValue() == 31 * 5 + 15); // F♯, not G♭
+  CHECK(arrangement.getNotes(0, drums_id)[0].getValue() == 38);
+}

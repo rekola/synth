@@ -665,6 +665,65 @@ TEST(band_border_leaves_out_a_skipped_span) {
   CHECK(middle.size() == 6);
 }
 
+static double coveredArea(const BandBorderShape & shape) {
+  double area = 0;
+  for (const auto & r : shape.rects) area += r.w * r.h;
+  return area;
+}
+
+// A round corner takes over the square the straight pieces stop short of, so
+// together they cover the outline once: the pieces shrink by the radius, and
+// with no radius nothing changes.
+TEST(band_border_rounds_its_corners) {
+  Band band{ 0.0, 1.0, 2, 10, Color(255, 0, 0), 0.0f, BlendMode::NORMAL, 0.0f, Color(0, 255, 0), 1.0f, 1.0 };
+  // 100 x 20 pixels, a pixel wide, at (20, 0).
+  auto square = bandBorder(band, 20, 0, 0, 10, 20);
+  CHECK(square.corners.empty() && square.rects.size() == 4);
+  band.border_radius = 3;
+  auto round = bandBorder(band, 20, 0, 0, 10, 20);
+  CHECK(round.corners.size() == 4 && round.rects.size() == 4);
+  CHECK(round.thickness == 1.0);
+  for (const auto & c : round.corners) CHECK(c.size == 3);
+  // Top and bottom lose 3 at each end, the sides 3 at each end instead of the 1 the edges took.
+  CHECK(std::abs(coveredArea(round) - (2 * (100 - 6) * 1.0 + 2 * (20 - 6) * 1.0)) < 1e-9);
+  CHECK(std::abs(coveredArea(square) - (2 * 100 * 1.0 + 2 * (20 - 2) * 1.0)) < 1e-9);
+  // No more than half the height, so the two corners of a side do not overlap.
+  band.border_radius = 50;
+  auto clamped = bandBorder(band, 20, 0, 0, 10, 20);
+  CHECK(clamped.corners.size() == 4);
+  for (const auto & c : clamped.corners) CHECK(c.size == 10);
+  for (const auto & r : clamped.rects) CHECK(r.w > 0 && r.h > 0);
+  // The square version never has corners, whatever the radius.
+  CHECK(bandBorderRects(band, 20, 0, 0, 10, 20).size() == 4);
+}
+
+// A corner is round only where the border runs on both sides of it.
+TEST(band_border_rounds_only_corners_it_has) {
+  Band band{ 0.0, 1.0, 2, 10, Color(255, 0, 0), 0.0f, BlendMode::NORMAL, 0.0f, Color(0, 255, 0), 1.0f, 1.0 };
+  band.border_radius = 3;
+  // A span from the left edge: no left side, so only the right corners.
+  band.border_skip_col = 2;
+  band.border_skip_cols = 3;
+  auto left = bandBorder(band, 20, 0, 20, 10, 20);
+  CHECK(left.corners.size() == 2);
+  for (const auto & c : left.corners) CHECK(c.which == BandCorner::TOP_RIGHT || c.which == BandCorner::BOTTOM_RIGHT);
+  // In the middle: both sides, and each run of the top and bottom rounds its outer end only.
+  band.border_skip_col = 5;
+  auto middle = bandBorder(band, 20, 0, 50, 10, 20);
+  CHECK(middle.corners.size() == 4 && middle.rects.size() == 6);
+  // The ends beside the span stay square: no piece comes within the span.
+  for (const auto & r : middle.rects) CHECK(r.x + r.w <= 50 + 1e-9 || r.x >= 80 - 1e-9);
+  // A run shorter than the arc (here 8 pixels against 10) stays square.
+  band.border_radius = 40;
+  auto tight = bandBorder(band, 20, 0, 28, 10, 20);
+  CHECK(tight.corners.size() == 2);
+  for (const auto & c : tight.corners) CHECK(c.which == BandCorner::TOP_RIGHT || c.which == BandCorner::BOTTOM_RIGHT);
+  // Where the border does not reach, nothing is rounded.
+  band.border_px = 0;
+  auto none = bandBorder(band, 20, 0, 50, 10, 20);
+  CHECK(none.rects.empty() && none.corners.empty());
+}
+
 // Where the display cannot draw a band by parts of a cell, it is laid over the
 // cells it reaches, blended: a difference with white inverts text and background.
 TEST(bufferplane_a_band_on_a_display_without_smooth_scrolling_blends_the_cells) {

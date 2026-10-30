@@ -11,13 +11,23 @@ TEST(time_signature_parses_and_gives_its_rows) {
   auto waltz = TimeSignature::parse("3/4");
   CHECK(waltz && waltz->rowsPerBar() == 12 && waltz->rowsPerBeat() == 4);
   auto spaced = TimeSignature::parse(" 6 / 8 ");
-  CHECK(spaced && spaced->rowsPerBar() == 12 && spaced->rowsPerBeat() == 2);
+  CHECK(spaced && spaced->rowsPerBar() == 12 && spaced->rowsPerBeat() == 6);
   CHECK(!TimeSignature::parse("2/3"));
   CHECK(!TimeSignature::parse("100/4"));
   CHECK(!TimeSignature::parse("3"));
   CHECK(!TimeSignature::parse("33/4"));
   auto none = TimeSignature::parse("0/4");
   CHECK(none && !none->isSet());
+}
+
+TEST(a_compound_meter_is_counted_in_dotted_beats) {
+  CHECK((TimeSignature{6, 8}.rowsPerBeat() == 6));  // two dotted quarters
+  CHECK((TimeSignature{9, 8}.rowsPerBeat() == 6));  // three
+  CHECK((TimeSignature{12, 8}.rowsPerBeat() == 6)); // four
+  CHECK((TimeSignature{6, 16}.rowsPerBeat() == 3)); // two dotted eighths
+  CHECK((TimeSignature{3, 8}.rowsPerBeat() == 2));  // simple: eighths
+  CHECK((TimeSignature{7, 8}.rowsPerBeat() == 2));
+  CHECK((TimeSignature{6, 4}.rowsPerBeat() == 4)); // quarters
 }
 
 TEST(bar_grid_counts_bars_from_its_origin) {
@@ -62,7 +72,8 @@ TEST(position_counts_bars_in_the_bars_in_force) {
   CHECK(song.formatPosition(12) == "2.1.1" && song.formatPosition(23) == "2.3.4");
   song.setRunningBars({{6, 8}, 24});         // two bars of 3/4 in, 12 rows of 6/8 a bar from here
   CHECK(song.formatPosition(24) == "3.1.1"); // numbering carries on from the bar the origin sits in
-  CHECK(song.formatPosition(26) == "3.2.1"); // a beat is two rows in 6/8
+  CHECK(song.formatPosition(26) == "3.1.3"); // a beat is a dotted quarter, six rows, in 6/8
+  CHECK(song.formatPosition(30) == "3.2.1");
   CHECK(song.formatPosition(36) == "4.1.1");
 }
 

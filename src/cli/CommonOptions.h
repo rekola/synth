@@ -3,6 +3,7 @@
 
 #include "../ambisonic/ChannelConfiguration.h"
 
+#include <cstdio>
 #include <string>
 
 class Controller;
@@ -20,6 +21,9 @@ struct CommonOptions {
 // (i then names the last argv used). False if it is not one; exits with a
 // message on a malformed one.
 bool parseCommonOption(int argc, char * argv[], int & i, CommonOptions & options, ChannelConfiguration & channel_config);
+
+// The --help lines for the shared options, one per option.
+void printCommonOptionsUsage(std::FILE * out);
 
 void printLicenses();
 

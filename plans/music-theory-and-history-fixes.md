@@ -30,15 +30,3 @@ Rules tried on every step of the four tunings:
 
   user-interface.md's "31-EDO reaches 7/6 and 11/10" becomes 7/6 and 12/11,
   and the just-intonation tests need their expected ratios checked.
-
-## 2. 6/8 and the beat
-
-The rows-per-beat rule is 16/d, so 6/8 has six beats of 2 rows, and
-time_signatures.md says 3/4 and 6/8 "differ in the beat only".
-Conventionally 6/8 is two beats of a dotted quarter (6 rows each), and 3/4
-and 6/8 differ in grouping (3 x 2 against 2 x 3); the same for 9/8 and 12/8.
-
-Options: count compound meters (numerator a multiple of 3 above 3,
-denominator 8 or 16) in dotted beats, which changes the metronome and the
-beat accents; or keep the plain rule and say in the doc that 6/8 is counted
-in eighths here.

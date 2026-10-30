@@ -120,7 +120,7 @@ TEST(themes_are_found_by_name) {
   CHECK(Theme::byName("dark", t));
   CHECK(same(t.surface_base, Theme::dark().surface_base));
   CHECK(Theme::byName("light", t));
-  CHECK(same(t.surface_base, "#f0f4f7"));
+  CHECK(same(t.surface_base, "#f2f3f7"));
   CHECK(!Theme::byName("neon", t));
 }
 
@@ -236,7 +236,7 @@ TEST(the_header_slice_is_a_shade_of_the_track_colour_toward_the_text) {
 
 TEST(a_modern_widget_plane_shows_the_base_surface_where_it_draws_nothing) {
   CHECK(same(StyleProvider(Theme::dark()).plane_base_bg_color, Theme::dark().surface_base));
-  CHECK(same(StyleProvider(Theme::light()).plane_base_bg_color, "#f0f4f7"));
+  CHECK(same(StyleProvider(Theme::light()).plane_base_bg_color, "#f2f3f7"));
 }
 
 TEST(only_the_original_theme_draws_lines_between_grid_columns) {

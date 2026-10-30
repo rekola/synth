@@ -690,6 +690,25 @@ TEST(terminal_ui_command_prompt_shortcut_follows_the_keymap_profile) {
   CHECK(!opens(desktop, 'x', kModAlt));
 }
 
+// The --keymap option overrides the keymap the display declares, both ways.
+TEST(terminal_ui_keymap_override_replaces_the_display_keymap) {
+  auto opens = [](UIFixture & f, int key, unsigned mods) {
+    f.press(key, mods);
+    bool open = f.terminal.info().focus == "command-palette";
+    if (open) f.ctrl('g');
+    return open;
+  };
+  UIFixture gui_on_terminal("", UI::View::LIVE, {}, cellui::KeymapProfile::DESKTOP);
+  CHECK(opens(gui_on_terminal, 'p', kModCtrl | cellui::kModShift));
+  CHECK(!opens(gui_on_terminal, 'x', kModAlt));
+
+  cellui::DisplayInfo desktop_display;
+  desktop_display.keymap_profile = cellui::KeymapProfile::DESKTOP;
+  UIFixture terminal_on_window("", UI::View::LIVE, desktop_display, cellui::KeymapProfile::TERMINAL);
+  CHECK(opens(terminal_on_window, 'x', kModAlt));
+  CHECK(!opens(terminal_on_window, 'p', kModCtrl | cellui::kModShift));
+}
+
 // Ctrl-X is the cut chord on the desktop keymap, not a prefix that swallows
 // the next key.
 TEST(terminal_ui_desktop_ctrl_x_is_not_a_prefix) {
