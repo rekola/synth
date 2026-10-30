@@ -368,6 +368,27 @@ TEST(offer_translates_keys_with_their_text) {
   CHECK(ups.size() == 1 && ups[0].key == 'a');
 }
 
+TEST(offer_gives_a_key_handler_the_input_it_came_from) {
+  Screen s;
+  const Input * seen_down = nullptr;
+  const Input * seen_up = nullptr;
+  s.keep.push_back(s.top.on<KeyDown>([&](const KeyDown & e, EventContext &) {
+    seen_down = e.input;
+    return Handled::no;
+  }));
+  s.keep.push_back(s.top.on<KeyUp>([&](const KeyUp & e, EventContext &) {
+    seen_up = e.input;
+    return Handled::no;
+  }));
+  using K = Input::Kind;
+  Input down = keyInput('a', 0, K::PRESS);
+  Input up = keyInput('a', 0, K::RELEASE);
+  s.dispatcher.offer(down);
+  s.dispatcher.offer(up);
+  CHECK(seen_down == &down);
+  CHECK(seen_up == &up);
+}
+
 TEST(a_handler_may_destroy_widgets_during_hover_changes) {
   Screen s;
   auto a = std::make_unique<Panel>(s.top.plane(), 0, 0, 4, 10);
