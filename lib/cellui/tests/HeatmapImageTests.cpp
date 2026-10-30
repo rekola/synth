@@ -57,13 +57,14 @@ TEST(heatmap_image_edge_cells_keep_their_strength) {
   CHECK(std::abs(corner.r - middle.r) <= 2 && std::abs(corner.g - middle.g) <= 2 && std::abs(corner.b - middle.b) <= 2);
 }
 
-TEST(heatmap_image_marker_is_a_white_square_and_v_points_up) {
+TEST(heatmap_image_marker_is_a_text_coloured_square_and_v_points_up) {
   StyleProvider styles;
   std::vector<float> z(8 * 4, 0.0f);
   auto img = heatmap_image::render(z, z, 8, 4, { { 0.5f, 0.75f } }, 80, 40, styles);
   // u = 0.5 -> x 40; v = 0.75 -> 30 px up -> y = 40 - 1 - 30 = 9.
   Px p = at(img, 80, 40, 9);
-  CHECK(p.r == 255 && p.g == 255 && p.b == 255);
+  auto ink = styles.window_fg_color.toSrgb8();
+  CHECK(p.r == ink[0] && p.g == ink[1] && p.b == ink[2]);
   CHECK(isBackground(at(img, 80, 40, 20), styles));
 }
 
