@@ -201,7 +201,7 @@ TEST(a_scene_without_a_signature_is_shown_in_the_running_bars) {
   song.setRunningBars({{3, 4}, 0});
   CHECK(song.getSceneBarRows(5) == 12 && song.getSceneBeatRows(5) == 4);
   song.setSceneFromText(5, "6/8");
-  CHECK(song.getSceneBarRows(5) == 12 && song.getSceneBeatRows(5) == 2);
+  CHECK(song.getSceneBarRows(5) == 12 && song.getSceneBeatRows(5) == 6);
   song.setSceneFromText(5, "4/4");
   CHECK(song.getSceneBarRows(5) == 16);
 }
