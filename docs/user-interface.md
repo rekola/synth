@@ -30,6 +30,7 @@ works in both. The commands that have one so far:
 | `add-instrument-track` | Ctrl+Shift+T | C-c T |
 | `add-group-track` | Ctrl+G | C-c g |
 | `add-percussion-track` | Ctrl+Shift+D | C-c d |
+| `set-mark` (start a selection; on the desktop Shift+arrows set it and extend it) | Shift+Up/Down/Left/Right | C-SPC |
 | `keyboard-quit` (cancel the selection) | Escape | C-g |
 | `mark-whole-buffer` (select all) | Ctrl+A | C-x h |
 | `toggle-stop-button` (clip grid) | Ctrl+E | |
