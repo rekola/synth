@@ -2,6 +2,7 @@
 #define _TERMINALUI_H_
 
 #include "ChoiceDialog.h"
+#include <cellui/InputDispatcher.h>
 #include <cellui/CommandPalette.h>
 #include "InfoDialog.h"
 #include "UI.h"
@@ -248,6 +249,8 @@ class InteractiveUI : public UI {
   // getGlobalOctave(). Lives inline in the info bar's own row (see
   // layout()), always-on and click-activatable like pattern_editor_.
   std::shared_ptr<SpinBox> octave_control_;
+  // Finds the widget under the pointer from the last frame's hit areas.
+  cellui::InputDispatcher dispatcher_{*this};
   std::weak_ptr<cellui::Widget> active_element_;
 
   // launchpad_manager_ itself is UI's own now (set once in UI::start(),

@@ -515,6 +515,7 @@ void
 InteractiveUI::render() {
   raiseOverlays();
   root_plane_->refresh();
+  dispatcher_.setHitAreas(root_plane_->takeHitAreas());
   cellui::CursorRequest cursor;
   if (auto at = root_plane_->cursorPosition()) cursor = { true, at->first, at->second };
   cellui::FrameInfo info;
@@ -687,6 +688,13 @@ InteractiveUI::initializeWidgets() {
     [this] { return getController().getGlobalOctave(); },
     [this](int v) { getController().setGlobalOctave(v); },
     styles_.info_line_bg_color, styles_.info_line_fg_color);
+
+  // Children of this root, so the dispatcher's hit test finds them and
+  // events posted to the root reach them.
+  for (cellui::Widget * widget : std::initializer_list<cellui::Widget *>{pattern_editor_.get(), arrangement_grid_.get(), clip_grid_.get(),
+                                                                         outline_view_.get(), info_line_.get(), status_line_.get(), octave_control_.get()}) {
+    widget->attach(*this);
+  }
 
   // An overview first, not pattern editing - the arrangement grid when
   // starting in Arrangement view; initialize() moves it to the clip grid
@@ -1488,13 +1496,13 @@ InteractiveUI::offerInput(const cellui::Input & input) {
     // The mouse wheel scrolls whichever shown widget is under the mouse,
     // without moving focus (Emacs's own mouse-wheel-follow-mouse default) -
     // each widget scrolls its view, never its cursor.
-    for (auto & element : focusableElements()) {
-      auto [pos_y, pos_x] = element->getPosition();
-      auto [rows, cols] = element->getDim();
-      if (input.getY() >= pos_y && input.getY() < pos_y + rows && input.getX() >= pos_x && input.getX() < pos_x + cols) {
-	element->offerInput(input);
-	break;
-      }
+    // The widget under the pointer, or the shown one it sits in.
+    auto elements = focusableElements();
+    for (cellui::Widget * hit = dispatcher_.hitTest(input.getY(), input.getX()); hit; hit = hit->parent()) {
+      auto element = std::find_if(elements.begin(), elements.end(), [hit](const auto & e) { return e.get() == hit; });
+      if (element == elements.end()) continue;
+      (*element)->offerInput(input);
+      break;
     }
     return true;
   } else if (input.getId() == Key::Button1 && (octave_control_->arrowPressPending() ||
