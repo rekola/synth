@@ -114,18 +114,18 @@ class InputDispatcher {
     int row = input.getY(), col = input.getX();
     float x = input.getFx(), y = input.getFy();
     auto kind = input.getKind();
-    if (id == Key::Motion) return mouseMove(MouseMove{ x, y, row, col, pressed_, mods });
+    if (id == Key::Motion) return mouseMove(MouseMove{ x, y, row, col, pressed_, mods, &input });
     if (id >= Key::Button1 && id <= Key::Button11) {
       int button = id - Key::Button1 + 1;
       if (button <= 3) {
-        if (kind == Input::Kind::RELEASE) return mouseUp(MouseUp{ x, y, row, col, button, mods });
+        if (kind == Input::Kind::RELEASE) return mouseUp(MouseUp{ x, y, row, col, button, mods, &input });
         // A held button's press again is the pointer dragging.
-        if (kind == Input::Kind::REPEAT) return mouseMove(MouseMove{ x, y, row, col, pressed_, mods });
-        return mouseDown(MouseDown{ x, y, row, col, button, mods });
+        if (kind == Input::Kind::REPEAT) return mouseMove(MouseMove{ x, y, row, col, pressed_, mods, &input });
+        return mouseDown(MouseDown{ x, y, row, col, button, mods, &input });
       }
       if (button <= 7 && kind != Input::Kind::RELEASE) {
         // Wheel: 4 up, 5 down, 6 left, 7 right.
-        Wheel wheel{ x, y, row, col, button == 7 ? 1 : button == 6 ? -1 : 0, button == 4 ? 1 : button == 5 ? -1 : 0, mods };
+        Wheel wheel{ x, y, row, col, button == 7 ? 1 : button == 6 ? -1 : 0, button == 4 ? 1 : button == 5 ? -1 : 0, mods, &input };
         return this->wheel(wheel);
       }
       return Handled::no;
