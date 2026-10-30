@@ -65,12 +65,6 @@ class Plane {
   // A name for the plane in a test's or an inspector's view of the tree
   // (PlaneInfo); default no-op.
   virtual void setName(const std::string &) {}
-  // Whether the display can draw the 2x3 sextant glyphs (Symbols for Legacy
-  // Computing, U+1FB00+). The default is false, the safe answer for a plane
-  // with no display to ask; a backend answers once from what it detected.
-  // Every widget that paints sub-character-resolution content asks the plane
-  // instead of guessing for itself.
-  virtual bool canRenderSextants() const { return false; }
   // How much larger than at 96 dpi to draw anything sized in pixels
   // (icons, text, line widths; hairlines stay one pixel). A terminal
   // reports no DPI, so its backend guesses from the cell size.

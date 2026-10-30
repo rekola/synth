@@ -1043,7 +1043,6 @@ std::unique_ptr<Window> Window::open(const WindowOptions & options, std::string 
   impl.display_info.cell_px_width = impl.cell_w;
   impl.display_info.pictures = true;
   impl.display_info.display_scale = impl.dpi / 96.0;
-  impl.display_info.sextants = false;
   impl.display_info.smooth_scroll = true;
   impl.display_info.keymap_profile = KeymapProfile::DESKTOP;
   impl.display_info.escape_as_meta = false;

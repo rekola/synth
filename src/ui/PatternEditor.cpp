@@ -21,7 +21,6 @@
 #include "PatternScroll.h"
 #include "../model/ArrangementOps.h"
 #include "../model/Clip.h"
-#include "SubcellGlyphs.h"
 #include "../util/Utf8.h"
 
 #include <string>
@@ -1540,7 +1539,7 @@ PatternEditor::render(const StyleProvider & styles, bool refresh, bool focused) 
     renderRow(styles, heading_height, track_ids, track_info, score_playing_row - current_scroll_.row, true, sel_bounds, focused);
     need_redraw = true;
   } else if (info.getVoiceCount() != current_voice_count_ || meters_showing_ || anyMeterLive(info, track_ids)) {
-    // The per-track VU meter lives in the heading row and needs to keep
+    // The per-track sparkline lives in the heading row and needs to keep
     // animating every block a voice is actually sounding - including a
     // manually-auditioned note or its note-off release tail, with the
     // sequencer stopped, not just while the transport is playing (the
@@ -2892,7 +2891,7 @@ PatternEditor::renderHeadingOnPlane(const StyleProvider & styles, const std::vec
       }
       draw_edge(row, col, segment_color(left), next_segment_color(idx));
     };
-    // The per-track VU meter next to a leaf's instrument name - a single
+    // The per-track sparkline next to a leaf's instrument name - a single
     // vertical cell, filling bottom-up in the right part of the cell (flush
     // with the row's own right edge), in whichever version the backend's
     // scopes draw. meter_fraction() gives a track's smoothed, dB-mapped
@@ -2904,14 +2903,14 @@ PatternEditor::renderHeadingOnPlane(const StyleProvider & styles, const std::vec
       auto dt = std::min(std::chrono::duration<float>(now - smoothing.last_update).count(), 0.25f);
       smoothing.last_update = now;
       auto fraction = level_meter::fraction(smoothing.ballistics.update(track_info.getMeterValue(), dt));
-      if (level_meter::barSteps(fraction, 1) > 0) meters_showing_ = true;
+      if (fraction > 0.0f) meters_showing_ = true;
       return fraction;
     };
     auto draw_vu_meter = [&](int row, int col, float fraction, bool clipping, const Color & background, int track_id) {
-      cellui::VuReading reading{fraction, 0.0f, clipping};
-      cellui::VuMeterLook look{background, styles.meter_active_color};
-      if (scopes_) scopes_->drawVuMeter(getPlane(), row, col, 1, reading, look, row, row + 1, static_cast<uint64_t>(track_id) + 2);
-      else cellui::drawCellVuMeter(getPlane(), row, col, 1, reading, look, row, row + 1);
+      cellui::SparklineReading reading{fraction, 0.0f, clipping};
+      cellui::SparklineLook look{background, styles.meter_active_color};
+      static const auto fallback = cellui::cellCharts();
+      (charts_ ? charts_ : fallback.get())->drawSparkline(getPlane(), row, col, 1, reading, look, row, row + 1, static_cast<uint64_t>(track_id) + 2);
     };
 
     // Whether the left-edge marker (below) has been drawn yet for this
@@ -3129,7 +3128,7 @@ PatternEditor::renderHeadingOnPlane(const StyleProvider & styles, const std::vec
 
 	    auto instrument_name_width = std::max(0, actual_width - 1 - chip_width);
 	    // Reserve exactly 1 column at the right for the single-cell
-	    // vertical VU meter, but never shrinking the name below
+	    // vertical sparkline, but never shrinking the name below
 	    // kMinNameWidth - a narrow column just goes without a meter
 	    // rather than leaving no room to read the name at all. Reserved
 	    // by track type (has_meter), not by whether TrackInfo actually
@@ -3364,156 +3363,17 @@ PatternEditor::renderRow(const StyleProvider & styles, int heading_height, const
   };
   auto clip_digit = [&](int clip_index) { return string(kSuperscriptHexDigits[clip_index % 16]); };
 
-  // A sample clip's own waveform box (SAMPLE track placeholder, below):
-  // sextants (2x3 sub-cells) when this terminal actually supports Unicode
-  // 13's sextant range (Plane::canRenderSextants()), else quadrants
-  // (2x2, always supported) - the capability figured out once at
-  // TerminalPlane construction, not re-queried per row. Reuses
-  // SubcellGlyphs.h's exact tables rather than a second copy of them, the
-  // same ones TerminalHeatmapChart's 2D field already uses.
-  auto waveform_subrows = getPlane().canRenderSextants() ? 3 : 2;
-  // Oversamples WaveformPeaks by this factor along its own row-vs-time
-  // axis (see WaveformPeaks::at()'s own indexing comment) - more input
-  // time-buckets than the glyph's own output sub-row count, averaged down
-  // per output sub-row below, rather than reading one bucket per output
-  // sub-row directly. Smooths amplitude changes between adjacent
-  // sub-rows the same way the horizontal coverage math below smooths a
-  // bar's own edge - 4 chosen as a reasonable smooth-without-excessive-
-  // cost tradeoff (WaveformPeaks::build()'s own cost scales with the
-  // total bucket count this multiplies into), not a value with any
-  // particular significance of its own.
-  constexpr int kWaveformSupersample = 4;
-  // Renders one pattern row's own slice of a sample clip's waveform,
-  // directly into `width` character cells starting at current_pos (not
-  // returning a string the caller draws with one shared color pair - see
-  // below) - each of `waveform_subrows` independent, supersampled
-  // per-row time-buckets gets its own centered, symmetric fill across the
-  // *whole row's own width*, not read left-to-right as a sub-timeline;
-  // it's a small bar-graph reading, the same convention a horizontal VU
-  // meter already uses (value 0.5 over an 8-wide block centers 4 filled
-  // slots in the middle, leaving 2 empty on each side).
-  //
-  // Antialiased two ways, both from the actual floating-point amplitude
-  // values rather than a rounded/quantized fill count: horizontally, a
-  // bar's own edge is a continuous, fractional position - slotCoverage()
-  // below computes the exact overlap between a half-column slot's own
-  // [gc, gc+1) span and the bar's own continuous span, so an edge landing
-  // mid-slot shades that slot proportionally instead of snapping to
-  // whichever side it's closer to. Vertically, kWaveformSupersample
-  // independent time-buckets are averaged into each output sub-row's own
-  // coverage rather than reading a single, coarser bucket directly. Each
-  // sub-position's own coverage then picks a color by linearly blending
-  // `bg_color` (coverage 0) toward `fg_color` (coverage 1) - so a
-  // partially-covered sub-position gets a partially-blended color, not a
-  // flat on/off pick either. Finally, since a character cell can only
-  // ever show two actual colors at once, quantizeToTwoColors()
-  // (SubcellGlyphs.h, shared with TerminalHeatmapChart's own DirAC field)
-  // picks the best-fit "on"/"off" color pair and bitmask for this one
-  // cell's own handful of already-blended sub-samples - smoothly varying
-  // per cell as the underlying coverage does, rather than a single fixed
-  // fg/bg pair for the whole row.
+  // One pattern row's slice of a sample clip's waveform, drawn by the
+  // display's scopes across `width` cells from start_col: each time slice of
+  // the row (WaveformPeaks, cellui::kWaveformSlices to a row) is a bar
+  // centred across the width, a small bar-graph reading like a horizontal
+  // sparkline's. Not read as a sub-timeline left to right.
+  static const auto fallback_scopes = cellui::cellCharts();
   auto renderWaveformRow = [&](const WaveformPeaks & peaks, int row, int width, Color fg_color, Color bg_color, int start_col) {
     if (width <= 0) return;
-    auto bg8 = bg_color.toSrgb8(), fg8 = fg_color.toSrgb8();
-    SubcellRgb bg_rgb{static_cast<float>(bg8[0]), static_cast<float>(bg8[1]), static_cast<float>(bg8[2])};
-    SubcellRgb fg_rgb{static_cast<float>(fg8[0]), static_cast<float>(fg8[1]), static_cast<float>(fg8[2])};
-    auto total_slots = width * 2;
-    auto slotCoverage = [&](float value, int gc) {
-      value = std::clamp(value, 0.0f, 1.0f);
-      double fill_count = static_cast<double>(value) * total_slots;
-      double fill_start = (total_slots - fill_count) / 2.0;
-      double fill_end = fill_start + fill_count;
-      double overlap = std::min(static_cast<double>(gc + 1), fill_end) - std::max(static_cast<double>(gc), fill_start);
-      return std::clamp(overlap, 0.0, 1.0);
-    };
-    vector<SubcellRgb> samples(static_cast<size_t>(waveform_subrows * 2));
-    for (int c = 0; c < width; c++) {
-      float max_coverage = 0.0f;
-      for (int s = 0; s < waveform_subrows; s++) {
-	for (int h = 0; h < 2; h++) {
-	  auto gc = c * 2 + h;
-	  double coverage_sum = 0.0;
-	  for (int m = 0; m < kWaveformSupersample; m++) {
-	    coverage_sum += slotCoverage(peaks.at(row, s * kWaveformSupersample + m), gc);
-	  }
-	  auto coverage = static_cast<float>(coverage_sum / kWaveformSupersample);
-	  max_coverage = std::max(max_coverage, coverage);
-	  samples[static_cast<size_t>(s * 2 + h)] = SubcellRgb{
-	    bg_rgb.r * (1.0f - coverage) + fg_rgb.r * coverage,
-	    bg_rgb.g * (1.0f - coverage) + fg_rgb.g * coverage,
-	    bg_rgb.b * (1.0f - coverage) + fg_rgb.b * coverage,
-	  };
-	}
-      }
-      // Genuinely no coverage anywhere in this cell - checked directly
-      // against the coverage values themselves, not quantizeToTwoColors()'s
-      // own returned mask: a *fully saturated* cell (every sub-position at
-      // 100% coverage) also ties at mask 0 there (every possible split
-      // costs the same when all samples are already identical, and mask 0
-      // is the first one tried - see quantizeToTwoColors()'s own tests),
-      // which would otherwise draw a quiet dot right over the waveform's
-      // own loudest, fully-filled cells instead of a solid block.
-      constexpr float kQuietCoverageThreshold = 0.05f;
-      if (max_coverage < kQuietCoverageThreshold) {
-	// Reference lines - 0 amplitude at the exact center (every row's
-	// own bar is centered here, see slotCoverage() above), and 0.5
-	// amplitude at the quarter/three-quarter columns (where a
-	// half-amplitude bar's own two edges would sit, by the same
-	// centered-fill geometry) - roughly -6dBFS, a genuinely meaningful
-	// level reference rather than an arbitrary column. Only drawn where
-	// coverage is already known to be ~0 (this branch), same as the
-	// quiet dot below - a fixed line cutting through real, antialiased
-	// waveform content elsewhere read as visual clutter rather than a
-	// helpful reference (see the fallback fill's own identical marks,
-	// always shown there since nothing real is ever competing with them).
-	if (c == width / 2) {
-	  setFgColor(styles.window_border_color);
-	  setBgColor(bg_color);
-	  putstr(display_row, start_col + c, "│");
-	  continue;
-	}
-	if (c == width / 4 || c == 3 * width / 4) {
-	  // The two 0.5-amplitude lines read as secondary to the 0-amplitude
-	  // one - half its opacity (blended toward bg_color, the same way a
-	  // half-opacity layer would read against whatever's under it) and
-	  // tinted with this clip's own color (fg_color, already blended
-	  // with the track's identity color at the call site) rather than
-	  // plain border gray, so they visibly belong to *this* clip.
-	  auto tinted_border = styles.window_border_color.blend(0.5f, fg_color);
-	  setFgColor(bg_color.blend(0.5f, tinted_border));
-	  setBgColor(bg_color);
-	  putstr(display_row, start_col + c, "│");
-	  continue;
-	}
-	// No sextant/quadrant blocks actually placed in this cell - the
-	// amplitude bar doesn't reach this column at all, at any of its own
-	// sub-rows. A faint dot, tinted toward this clip's own color -
-	// darkened first (for faintness), then mixed in at a stronger ratio
-	// than a plain wash would use, so the result reads as a dim but
-	// clearly colored dot rather than a pale, washed-out one - instead
-	// of a flat, undifferentiated fill of the plain background. The
-	// same regular dotting a track with no clip instance at all shows
-	// (see the fallback fill above), so a quiet stretch of real audio
-	// still reads as "this clip is here, just faint." Blended mostly
-	// toward bg_color deliberately, not away from it - "faint" means
-	// close to whatever the row's own current background actually is
-	// (plain window background, playhead tint, or selection highlight
-	// alike), not a fixed contrast level fighting to stay visible
-	// against it.
-	constexpr float kQuietDotTint = 0.35f;
-	auto darkened_fg = fg_color.blend(0.5f, Color());
-	setFgColor(bg_color.blend(kQuietDotTint, darkened_fg));
-	setBgColor(bg_color);
-	putstr(display_row, start_col + c, "·");
-      } else {
-	SubcellRgb on_color, off_color;
-	int mask = quantizeToTwoColors(samples, on_color, off_color);
-	setFgColor(Color(static_cast<int>(on_color.r), static_cast<int>(on_color.g), static_cast<int>(on_color.b)));
-	setBgColor(Color(static_cast<int>(off_color.r), static_cast<int>(off_color.g), static_cast<int>(off_color.b)));
-	auto codepoint = waveform_subrows == 3 ? sextantCodepoint(mask) : kQuadrantCodepoints[mask];
-	putstr(display_row, start_col + c, Utf8::encodeCodepoint(codepoint));
-      }
-    }
+    std::vector<float> slices(static_cast<size_t>(cellui::kWaveformSlices));
+    for (int i = 0; i < cellui::kWaveformSlices; i++) slices[static_cast<size_t>(i)] = peaks.at(row, i);
+    (charts_ ? charts_ : fallback_scopes.get())->drawWaveformRow(getPlane(), display_row, start_col, width, slices, cellui::WaveformLook{fg_color, bg_color, styles.window_border_color});
   };
 
   auto current_pos = 0;
@@ -3862,7 +3722,7 @@ PatternEditor::renderRow(const StyleProvider & styles, int heading_height, const
 	  auto background_rows = background ? background->getRowCount(song.getTempo()) : 0;
 	  if (background && pattern_row >= background_rows) background = nullptr; // past the bed's end
 	  if (sample_clip && sample_clip->hasSample()) {
-	    auto & peaks = sample_clip->getWaveformPeaks(waveform_subrows * kWaveformSupersample);
+	    auto & peaks = sample_clip->getWaveformPeaks(cellui::kWaveformSlices);
 	    // A looping clip's own later laps wrap back into its own row
 	    // range; a one-shot instance whose placed length outran its own
 	    // audio (padding rows past what the recording actually covers)
@@ -3910,7 +3770,7 @@ PatternEditor::renderRow(const StyleProvider & styles, int heading_height, const
 	    // arrangement's own row (unlike a clip's own instance-relative
 	    // wf_row above) - the bed starts at row 0 and has no trim/loop/
 	    // instance-offset concept of its own to account for.
-	    auto & peaks = background->getWaveformPeaks(background_rows, waveform_subrows * kWaveformSupersample);
+	    auto & peaks = background->getWaveformPeaks(background_rows, cellui::kWaveformSlices);
 	    auto wf_row = pattern_row;
 	    if (peaks.rowCount() > 0) wf_row = std::min(wf_row, peaks.rowCount() - 1);
 	    if (wf_row < 0) wf_row = 0;

@@ -10,6 +10,7 @@
 
 #include <cctype>
 #include <memory>
+#include <optional>
 #include <sstream>
 
 #ifndef TESTS_FIXTURES_DIR
@@ -32,7 +33,8 @@ struct UIFixture {
   cellui::test::TestBackend terminal;
   std::unique_ptr<InteractiveUI> ui;
 
-  explicit UIFixture(const std::string & song = "", UI::View view = UI::View::LIVE, cellui::DisplayInfo display = {})
+  explicit UIFixture(const std::string & song = "", UI::View view = UI::View::LIVE, cellui::DisplayInfo display = {},
+                     std::optional<cellui::KeymapProfile> keymap = {})
       : terminal(40, 120, std::move(display)) {
     if (song.empty()) controller->switchToBuffer(controller->freshBufferName());
     else CHECK(controller->openSong(song));
@@ -40,6 +42,7 @@ struct UIFixture {
     ui->setTheme("dark");
     ui->setReducedMotion(true); // states change at once, so a test sees exact frames
     ui->setInitialView(view);
+    if (keymap) ui->setKeymapProfile(*keymap);
     ui->initialize(controller);
     ui->step();  // the loop's first frame is a full one
   }

@@ -113,4 +113,7 @@ class Color {
   float r_ = 0.0f, g_ = 0.0f, b_ = 0.0f;
 };
 
+// A colour as three floats (0..255 scale), for sums and means at full precision.
+struct FloatRgb { float r, g, b; };
+
 }  // namespace cellui

@@ -1,7 +1,7 @@
 #ifndef _PLAYER_H_
 #define _PLAYER_H_
 
-#include "EventHandler.h"
+#include "PlaybackControlEvent.h"
 #include "PlaybackEvent.h"
 #include "../state/SongState.h"
 #include "../state/VoiceState.h"
@@ -24,14 +24,14 @@ class Song;
 class Instrument;
 class Track;
 
-class Player : public EventHandler {
+class Player {
  public:
   Player(ChannelConfiguration channel_config, Controller * controller)
     : channel_config_(channel_config), controller_(controller),
       threshold_ring_buffer_(static_cast<int>(kThresholdRingBufferSeconds * channel_config.getAudioOutSampleRate())),
       metronome_click_(channel_config.getAudioOutSampleRate()) { }
 
-  void handlePlaybackControlEvent(PlaybackControlEvent & ev) override;
+  void handlePlaybackControlEvent(PlaybackControlEvent & ev);
 
   // Test-only introspection - the actual real-time render loop (play())
   // never calls this. -1 when `name` has no live SongState (whether it's
@@ -160,8 +160,8 @@ private:
   std::unordered_map<std::string, PendingPosition> pending_positions_;
   // Events between a BATCH_BEGIN and its BATCH_END, handled together at the end.
   bool batch_open_ = false;
-  std::deque<std::unique_ptr<Event>> batch_events_;
-  void handleQueuedEvent(std::unique_ptr<Event> event);
+  std::deque<std::unique_ptr<PlaybackControlEvent>> batch_events_;
+  void handleQueuedEvent(std::unique_ptr<PlaybackControlEvent> event);
 
   // Get-or-creates buffer `name`'s own live SongState against `song`,
   // constructing and initializing a fresh one the first time any event

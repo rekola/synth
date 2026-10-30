@@ -41,7 +41,7 @@ VisualizationThread::handleAudioBlockEvent(AudioBlockEvent & ev) {
                               : ev.getRawBus().calculateLoudness();
 
   // Meter legend - each *character* lines up with one meter *column* (2
-  // samples/braille-column), so the label reads as an actual legend for
+  // samples per meter column), so the label reads as an actual legend for
   // the bars beneath it rather than just a compact tag: the "A" for
   // AuxA/AuxB is always placed at the exact column index where the aux
   // channels themselves start (padded with spaces to get there), never
@@ -67,7 +67,7 @@ VisualizationThread::handleAudioBlockEvent(AudioBlockEvent & ev) {
   default: result->setMeterLabel(""); break;
   }
 
-  // Pad to an even count before appending AuxA/AuxB - the braille meter
+  // Pad to an even count before appending AuxA/AuxB - the channel meter
   // packs 2 samples per character cell, so the aux channels only land
   // together in the *same* cell (rather than the last regular channel
   // pairing with AuxA, leaving AuxB alone) when they start at an even
@@ -144,10 +144,10 @@ VisualizationThread::run() {
   while (!terminate_) {
     if (queue.wait(1000)) {
       auto event = queue.pop();
-      handleEvent(*event);
+      handleAudioBlockEvent(*event);
       while (queue.hasEvents()) {
         auto event2 = queue.pop();
-        handleEvent(*event2);
+        handleAudioBlockEvent(*event2);
       }
     }
   }

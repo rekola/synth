@@ -27,8 +27,10 @@ class CellRasterizer {
 };
 
 // A rasterizer drawing with canvas, its glyphs in the font family `family`
-// ("monospace": the system's own monospace font). nullptr where canvas has no
-// pixel backend built.
-std::unique_ptr<CellRasterizer> canvasRasterizer(const std::string & family = "monospace");
+// ("monospace": the system's own monospace font). `cell_shapes`: the cells
+// may hold a terminal's fallback charts (block and braille glyphs), which are
+// then drawn as exact shapes rather than as text; a display that gets its
+// charts as pictures has none. nullptr where canvas has no pixel backend built.
+std::unique_ptr<CellRasterizer> canvasRasterizer(const std::string & family = "monospace", bool cell_shapes = false);
 
 }  // namespace cellui

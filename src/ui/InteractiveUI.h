@@ -10,7 +10,7 @@
 #include <cellui/KeyReader.h>
 #include <cellui/Signal.h>
 #include <cellui/Scrim.h>
-#include <cellui/Scopes.h>
+#include <cellui/Charts.h>
 #include <chrono>
 #include <memory>
 #include <optional>
@@ -50,6 +50,9 @@ class InteractiveUI : public UI {
   void clearLastRow();
   void applyTheme(const Theme & theme) override;
   void setReducedMotion(bool reduced) override;
+  // Uses this keymap instead of the one the display declares (the --keymap
+  // option). Takes effect in initialize().
+  void setKeymapProfile(cellui::KeymapProfile profile) { keymap_profile_override_ = profile; }
   void render() override;
 
   bool offerInput(const cellui::Input & input) override;
@@ -127,6 +130,7 @@ class InteractiveUI : public UI {
 
  private:
   cellui::Backend & backend_;
+  std::optional<cellui::KeymapProfile> keymap_profile_override_;
   // A handler of something another thread posted wants the screen redrawn.
   bool redraw_requested_ = false;
   // What the planes compose into, the size of the terminal; the root plane
@@ -141,7 +145,7 @@ class InteractiveUI : public UI {
   std::shared_ptr<ChannelMeter> volume_meter_;
   std::shared_ptr<HeatmapChart> heatmap_;
   // The scopes in the versions this terminal shows.
-  std::unique_ptr<cellui::Scopes> scopes_;
+  std::unique_ptr<cellui::Charts> charts_;
   std::shared_ptr<StatusLine> status_line_;
 
   StyleProvider styles_;

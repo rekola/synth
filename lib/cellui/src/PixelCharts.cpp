@@ -1,4 +1,4 @@
-#include <cellui/Scopes.h>
+#include <cellui/Charts.h>
 
 #include "HeatmapGrid.h"
 
@@ -6,7 +6,9 @@
 #include <cellui/SpectrumImage.h>
 #include <cellui/StyleProvider.h>
 #include <cellui/Plane.h>
-#include <cellui/VuMeterImage.h>
+#include <cellui/SparklineImage.h>
+#include <cellui/WaveformImage.h>
+#include <cellui/term/CellCharts.h>
 
 #include <algorithm>
 #include <set>
@@ -113,21 +115,21 @@ private:
 
 // The spectrum as the plane's image: one level per pixel column, drawn
 // with canvas.
-class PixelSpectrumMeter : public SpectrumMeter {
+class PixelSpectrumMeter : public term::CellSpectrumMeter {
 public:
-  using SpectrumMeter::SpectrumMeter;
+  using term::CellSpectrumMeter::CellSpectrumMeter;
 
 protected:
   size_t barCount(int cols) override {
     int pxy = 0, pxx = 0;
     if (getPlane().pixelSize(pxy, pxx)) return static_cast<size_t>(pxx);
-    return SpectrumMeter::barCount(cols);
+    return term::CellSpectrumMeter::barCount(cols);
   }
 
   void drawBars(const std::vector<float> & levels) override {
     int pxy = 0, pxx = 0;
     if (!getPlane().pixelSize(pxy, pxx) || levels.size() != static_cast<size_t>(pxx)) {
-      SpectrumMeter::drawBars(levels);
+      term::CellSpectrumMeter::drawBars(levels);
       return;
     }
     // Pixels are made lazily: until a level is above zero, only the
@@ -152,15 +154,15 @@ protected:
 
 // The channel meter's bars as one image over its bar rows, two channels to
 // a cell; the legend below stays text.
-class PixelChannelMeter : public ChannelMeter {
+class PixelChannelMeter : public term::CellChannelMeter {
  public:
-  using ChannelMeter::ChannelMeter;
+  using term::CellChannelMeter::CellChannelMeter;
 
  protected:
   void drawBars(int bar_rows, int cells) override {
     int cell_h = 0, cell_w = 0;
     if (!getPlane().cellPixelSize(cell_h, cell_w)) {
-      ChannelMeter::drawBars(bar_rows, cells);
+      term::CellChannelMeter::drawBars(bar_rows, cells);
       return;
     }
     // Lazily, as the spectrum: the plane is already the background, which is
@@ -174,14 +176,14 @@ class PixelChannelMeter : public ChannelMeter {
       if (silent) return;
       has_pixels_ = true;
     }
-    std::vector<std::optional<VuReading>> columns;
+    std::vector<std::optional<SparklineReading>> columns;
     for (int i = 0; i < 2 * cells; i++) {
       auto & channel = channels_[static_cast<size_t>(i)];
-      columns.push_back(VuReading{channel.fraction, channel.peak_fraction, channel.clipping});
+      columns.push_back(SparklineReading{channel.fraction, channel.peak_fraction, channel.clipping});
     }
     auto & styles = getPlane().getStyles();
     unsigned width = static_cast<unsigned>(cells * cell_w), height = static_cast<unsigned>(bar_rows * cell_h);
-    auto pixels = vu_meter_image::render(columns, VuMeterLook{styles.window_bg_color, std::nullopt}, width, height, styles,
+    auto pixels = sparkline_image::render(columns, SparklineLook{styles.window_bg_color, std::nullopt}, width, height, styles,
                                          static_cast<float>(getPlane().displayScale()));
     getPlane().drawImageAt(0, 0, pixels, static_cast<int>(width), static_cast<int>(height));
   }
@@ -190,20 +192,20 @@ class PixelChannelMeter : public ChannelMeter {
   bool has_pixels_ = false;
 };
 
-class PixelScopes : public Scopes {
+class PixelCharts : public Charts {
  public:
   std::shared_ptr<SpectrumMeter> spectrum(Plane & parent) const override { return std::make_shared<PixelSpectrumMeter>(parent); }
   std::shared_ptr<HeatmapChart> heatmap(Plane & parent, int grid_cols, int grid_rows) const override {
     return std::make_shared<PixelHeatmapChart>(parent, grid_cols, grid_rows);
   }
   std::shared_ptr<ChannelMeter> channelMeter(Plane & parent) const override { return std::make_shared<PixelChannelMeter>(parent); }
-  void drawVuMeter(Plane & plane, int row, int col, int rows, const VuReading & reading, const VuMeterLook & look, int clip_top,
+  void drawSparkline(Plane & plane, int row, int col, int rows, const SparklineReading & reading, const SparklineLook & look, int clip_top,
                    int clip_bottom, uint64_t id) const override {
     int cell_h = 0, cell_w = 0;
     int top = std::max(row, clip_top), bottom = std::min(row + rows, clip_bottom);
     if (rows <= 0 || top >= bottom) return;
     if (!plane.cellPixelSize(cell_h, cell_w)) {
-      drawCellVuMeter(plane, row, col, rows, reading, look, clip_top, clip_bottom);
+      term::drawCellSparkline(plane, row, col, rows, reading, look, clip_top, clip_bottom);
       return;
     }
     // Pixels are made lazily: a meter that has never sounded is only its
@@ -212,7 +214,7 @@ class PixelScopes : public Scopes {
     auto key = std::make_pair(&plane, id);
     if (!drawn_.count(key)) {
       if (reading.fraction <= 0.0f && reading.peak <= 0.0f && !reading.clipping) {
-        drawCellVuMeter(plane, row, col, rows, reading, look, clip_top, clip_bottom);
+        term::drawCellSparkline(plane, row, col, rows, reading, look, clip_top, clip_bottom);
         return;
       }
       drawn_.insert(key);
@@ -220,8 +222,18 @@ class PixelScopes : public Scopes {
     // The whole meter, wherever it is scrolled to; the plane shows the rows
     // from clip_top to clip_bottom.
     unsigned width = static_cast<unsigned>(cell_w), height = static_cast<unsigned>(rows * cell_h);
-    auto pixels = vu_meter_image::render({std::nullopt, reading}, look, width, height, plane.getStyles(), static_cast<float>(plane.displayScale()));
+    auto pixels = sparkline_image::render({std::nullopt, reading}, look, width, height, plane.getStyles(), static_cast<float>(plane.displayScale()));
     plane.drawImageAt(row, col, pixels, static_cast<int>(width), static_cast<int>(height), id, clip_top, clip_bottom);
+  }
+  void drawWaveformRow(Plane & plane, int row, int col, int width, const std::vector<float> & slices, const WaveformLook & look) const override {
+    int cell_h = 0, cell_w = 0;
+    if (width <= 0 || !plane.cellPixelSize(cell_h, cell_w)) {
+      term::drawCellWaveformRow(plane, row, col, width, slices, look, false);
+      return;
+    }
+    unsigned pixel_w = static_cast<unsigned>(width * cell_w), pixel_h = static_cast<unsigned>(cell_h);
+    auto pixels = waveform_image::render(slices, look.fg, look.bg, look.guide, pixel_w, pixel_h, static_cast<float>(plane.displayScale()));
+    plane.drawImageAt(row, col, pixels, static_cast<int>(pixel_w), static_cast<int>(pixel_h));
   }
 
  private:
@@ -231,6 +243,6 @@ class PixelScopes : public Scopes {
 
 }  // namespace
 
-std::unique_ptr<Scopes> pixelScopes() { return std::make_unique<PixelScopes>(); }
+std::unique_ptr<Charts> pixelCharts() { return std::make_unique<PixelCharts>(); }
 
 }  // namespace cellui

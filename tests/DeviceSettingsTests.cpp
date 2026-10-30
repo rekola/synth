@@ -21,7 +21,7 @@ std::string scratchPath(const std::string & name) {
   return path.string();
 }
 
-PlaybackControlEvent popControl(EventQueue & queue) {
+PlaybackControlEvent popControl(MessageQueue<PlaybackControlEvent> & queue) {
   auto ptr = queue.pop();
   auto * ev = dynamic_cast<PlaybackControlEvent *>(ptr.get());
   CHECK(ev != nullptr);

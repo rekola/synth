@@ -1112,11 +1112,11 @@ void
 ClipGrid::renderMeter(const StyleProvider & styles, int x, int rows, int track_id, bool clipping) {
   auto & meter = meters_[track_id];
   auto top = clipRowCount() + kMainTop - scroll_row_ + 1; // the meter's top cell; +1 for the header row
-  cellui::VuReading reading{meter.fraction, meter.peak_fraction, clipping};
-  cellui::VuMeterLook look{styles.grid_bg_color, std::nullopt};
+  cellui::SparklineReading reading{meter.fraction, meter.peak_fraction, clipping};
+  cellui::SparklineLook look{styles.grid_bg_color, std::nullopt};
   // Below the header row, inside the plane.
-  if (scopes_) scopes_->drawVuMeter(getPlane(), top, x + kColWidth - 1, kMeterRows, reading, look, 1, rows, static_cast<uint64_t>(track_id) + 2);
-  else cellui::drawCellVuMeter(getPlane(), top, x + kColWidth - 1, kMeterRows, reading, look, 1, rows);
+  static const auto fallback = cellui::cellCharts();
+  (charts_ ? charts_ : fallback.get())->drawSparkline(getPlane(), top, x + kColWidth - 1, kMeterRows, reading, look, 1, rows, static_cast<uint64_t>(track_id) + 2);
 }
 
 void
