@@ -1,8 +1,8 @@
 #pragma once
 
-#include <cellui/ChannelMeter.h>
+#include <cellui/LevelBars.h>
 #include <cellui/Charts.h>
-#include <cellui/SpectrumMeter.h>
+#include <cellui/SpectrumChart.h>
 
 namespace cellui::term {
 
@@ -13,9 +13,9 @@ namespace cellui::term {
 // it can show.
 
 // Two bars to a cell.
-class CellSpectrumMeter : public SpectrumMeter {
+class CellSpectrumChart : public SpectrumChart {
  public:
-  using SpectrumMeter::SpectrumMeter;
+  using SpectrumChart::SpectrumChart;
 
  protected:
   size_t barCount(int cols) override { return static_cast<size_t>(2 * cols); }
@@ -23,9 +23,9 @@ class CellSpectrumMeter : public SpectrumMeter {
 };
 
 // Two channels to a cell.
-class CellChannelMeter : public ChannelMeter {
+class CellLevelBars : public LevelBars {
  public:
-  using ChannelMeter::ChannelMeter;
+  using LevelBars::LevelBars;
 
  protected:
   void drawBars(int bar_rows, int cells) override;

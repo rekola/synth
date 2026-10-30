@@ -44,13 +44,13 @@ TEST(dark_theme_keeps_the_other_colours_too) {
   CHECK(same(s.reader_text_color, "#c080c0"));
   CHECK(same(s.info_line_fg_color, "#1e1e1e"));
   CHECK(same(s.info_line_bg_color, "#787878"));
-  CHECK(same(s.meter_clip_color, "#e01040"));
-  CHECK(same(s.meter_active_color, "#10e040"));
-  CHECK(same(s.meter_low_color, "#0b5f2a"));
-  CHECK(same(s.meter_mid_color, "#0f9a3a"));
-  CHECK(same(s.meter_lime_color, "#9ae02e"));
-  CHECK(same(s.meter_warn_color, "#f09020"));
-  CHECK(same(s.meter_hot_color, "#ff5a20"));
+  CHECK(same(s.level_full_color, "#e01040"));
+  CHECK(same(s.level_active_color, "#10e040"));
+  CHECK(same(s.level_low_color, "#0b5f2a"));
+  CHECK(same(s.level_mid_color, "#0f9a3a"));
+  CHECK(same(s.level_lime_color, "#9ae02e"));
+  CHECK(same(s.level_warn_color, "#f09020"));
+  CHECK(same(s.level_hot_color, "#ff5a20"));
   CHECK(same(s.spectrum_low_color, "#1e5fd0"));
   CHECK(same(s.spectrum_high_color, "#7af0d8"));
   CHECK(same(s.mute_color, "#ff5a5a"));
@@ -85,10 +85,10 @@ TEST(applying_a_theme_changes_what_its_tokens_cover) {
 
 TEST(a_theme_changes_the_ramps_and_flags_too) {
   Theme t = Theme::original();
-  t.meter_low = Color("#010203");
+  t.level_low = Color("#010203");
   t.mute = Color("#040506");
   StyleProvider s(t);
-  CHECK(same(s.meterColor(0.0f), "#010203"));
+  CHECK(same(s.levelColor(0.0f), "#010203"));
   CHECK(same(s.mute_color, "#040506"));
 }
 
@@ -177,7 +177,7 @@ TEST(the_clip_states_are_the_same_in_every_modern_theme) {
   CHECK(same(d.state_playing, l.state_playing));
   CHECK(same(d.state_recording, l.state_recording));
   CHECK(same(d.text_on_track, l.text_on_track));
-  CHECK(same(d.meter_low, l.meter_low));
+  CHECK(same(d.level_low, l.level_low));
 }
 
 TEST(the_first_modern_tracks_differ_from_each_other_and_on_the_pads) {

@@ -1,4 +1,4 @@
-#include <cellui/ChannelMeter.h>
+#include <cellui/LevelBars.h>
 
 #include <cellui/Plane.h>
 #include <cellui/StyleProvider.h>
@@ -8,14 +8,14 @@
 namespace cellui {
 
 void
-ChannelMeter::setLevels(const std::vector<float> & rms, const std::string & label) {
+LevelBars::setLevels(const std::vector<float> & rms, const std::string & label) {
   auto now = std::chrono::steady_clock::now();
   auto dt = std::min(std::chrono::duration<float>(now - last_update_).count(), 0.25f);
   last_update_ = now;
   for (size_t i = 0; i < kMaxChannels; i++) {
     auto & channel = channels_[i];
     float level = i < rms.size() ? rms[i] : 0.0f;
-    channel.clipping = level >= 1.0f;
+    channel.saturated = level >= 1.0f;
     channel.fraction = level_meter::fraction(channel.ballistics.update(level, dt));
     channel.peak_fraction = channel.peak_hold.update(channel.fraction, dt);
   }

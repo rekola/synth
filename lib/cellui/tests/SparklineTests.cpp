@@ -34,11 +34,11 @@ TEST(sparkline_image_fills_its_slot_from_the_bottom) {
   CHECK(same(at(img, 20, 15, 39), *look.color));   // low in the right slot
   CHECK(same(at(img, 20, 15, 5), look.background)); // above the level
   CHECK(same(at(img, 20, 5, 39), look.background));  // the empty left slot
-  // A peak line, and the clip colour while clipping.
+  // A peak line, and the clip colour while saturated.
   img = sparkline_image::render({SparklineReading{0.0f, 0.75f, false}}, look, 10, 40, styles);
   CHECK(same(at(img, 10, 5, 10), *look.color) && same(at(img, 10, 5, 30), look.background));
   img = sparkline_image::render({SparklineReading{1.0f, 0.0f, true}}, look, 10, 40, styles);
-  CHECK(same(at(img, 10, 5, 20), styles.meter_clip_color));
+  CHECK(same(at(img, 10, 5, 20), styles.level_full_color));
 }
 
 TEST(sparkline_image_spaces_its_bars_evenly_with_the_rest_at_the_edges) {

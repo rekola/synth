@@ -14,14 +14,14 @@ namespace cellui {
 // The raw per-channel volume meter of the scope row: one vertical bar per
 // channel, two channels sharing each cell, each with its own smoothing and
 // peak marker. A legend lines up with the cells along the bottom row. How
-// the bars are drawn is the display's (Charts::channelMeter()).
-class ChannelMeter : public Widget {
+// the bars are drawn is the display's (Charts::levelBars()).
+class LevelBars : public Widget {
 public:
   // The channels the meter has room for: order-3 ambisonic plus AuxA/AuxB.
   static constexpr size_t kMaxChannels = 18;
 
-  explicit ChannelMeter(Plane & parent) : Widget(parent) { }
-  ~ChannelMeter() override = default;
+  explicit LevelBars(Plane & parent) : Widget(parent) { }
+  ~LevelBars() override = default;
 
   // A fresh reading, one linear RMS per channel (missing ones are
   // silent), and the legend for it. Redraws.
@@ -32,7 +32,7 @@ public:
   // being called for the bars to keep falling.
   bool atRest() const {
     return std::all_of(channels_.begin(), channels_.end(), [](const Channel & c) {
-      return c.fraction == 0.0f && c.peak_fraction == 0.0f && !c.clipping;
+      return c.fraction == 0.0f && c.peak_fraction == 0.0f && !c.saturated;
     });
   }
 
@@ -48,7 +48,7 @@ protected:
     level_meter::PeakHold peak_hold;
     float fraction = 0.0f;
     float peak_fraction = 0.0f;
-    bool clipping = false;
+    bool saturated = false;
   };
   // Draws the bars in the top `bar_rows` rows of the first `cells` cells,
   // two channels to a cell, over the background setLevels() filled in.

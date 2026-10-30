@@ -3,6 +3,6 @@
 // The implementation lives in lib/cellui; this keeps the old name.
 #include "UIElement.h"
 
-#include <cellui/SpectrumMeter.h>
+#include <cellui/LevelBars.h>
 
-using cellui::SpectrumMeter;
+using cellui::LevelBars;

@@ -166,7 +166,7 @@ Gallery::Gallery(Plane & plane, const Theme & theme) {
 
   page.heading("Level meter ramp");
   for (int i = 0; i < 32; i++) {
-    Color c = styles.meterColor(static_cast<float>(i) / 31.0f);
+    Color c = styles.levelColor(static_cast<float>(i) / 31.0f);
     page.colors(c, theme.surface_base);
     page.text(i, "█");
   }
@@ -252,7 +252,7 @@ Gallery::Gallery(Plane & plane, const Theme & theme) {
     spectrum_->move(page.row(), 0);
     spectrum_->setSpectrum(db, 86.0f);
 
-    channels_ = cellCharts()->channelMeter(plane);
+    channels_ = cellCharts()->levelBars(plane);
     channels_->resize(5, 10);
     channels_->move(page.row(), 44);
     channels_->setLevels({0.7f, 0.3f, 0.12f, 0.5f, 0.02f, 0.9f, 1.2f, 0.0f}, "W Y Z X");

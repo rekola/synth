@@ -10,8 +10,8 @@
 #include "PatternEditor.h"
 #include "ArrangementGrid.h"
 #include "ClipGrid.h"
-#include "ChannelMeter.h"
-#include "SpectrumMeter.h"
+#include "LevelBars.h"
+#include "SpectrumChart.h"
 #include "OutlineView.h"
 #include "SpinBox.h"
 #include "../dsp/DiracAnalyzer.h"
@@ -478,7 +478,7 @@ InteractiveUI::initialize(std::shared_ptr<Controller> & controller) {
 
   charts_ = cellui::chartsFor(display);
   chart_ = charts_->spectrum(getPlane());
-  volume_meter_ = charts_->channelMeter(getPlane());
+  volume_meter_ = charts_->levelBars(getPlane());
   heatmap_ = charts_->heatmap(getPlane(), DiracAnalyzer::kAzimuthBins, DiracAnalyzer::kElevationBins);
 
   // No footer legend on either scope: the heatmap's axis extremes are

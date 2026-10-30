@@ -27,9 +27,9 @@ class Backend;
 }
 
 #include "UIMenu.h"
-#include "SpectrumMeter.h"
+#include "SpectrumChart.h"
 #include "HeatmapChart.h"
-#include "ChannelMeter.h"
+#include "LevelBars.h"
 class InfoLine;
 class StatusLine;
 class PatternEditor;
@@ -141,8 +141,8 @@ class InteractiveUI : public UI {
   void resizeScreen();
 
   std::shared_ptr<UIMenu> menu_;
-  std::shared_ptr<SpectrumMeter> chart_;
-  std::shared_ptr<ChannelMeter> volume_meter_;
+  std::shared_ptr<SpectrumChart> chart_;
+  std::shared_ptr<LevelBars> volume_meter_;
   std::shared_ptr<HeatmapChart> heatmap_;
   // The scopes in the versions this terminal shows.
   std::unique_ptr<cellui::Charts> charts_;

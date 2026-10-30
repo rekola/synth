@@ -1,11 +1,11 @@
 #pragma once
 
-#include <cellui/ChannelMeter.h>
+#include <cellui/LevelBars.h>
 #include <cellui/ChoiceDialog.h>
 #include <cellui/CoverArt.h>
 #include <cellui/Dial.h>
 #include <cellui/InfoDialog.h>
-#include <cellui/SpectrumMeter.h>
+#include <cellui/SpectrumChart.h>
 #include <cellui/SpinBox.h>
 #include <cellui/Theme.h>
 #include <cellui/Plane.h>
@@ -33,8 +33,8 @@ class Gallery {
   InfoDialog dialog_;
   ChoiceDialog choice_;
   int octave_ = 4;
-  std::shared_ptr<SpectrumMeter> spectrum_;
-  std::shared_ptr<ChannelMeter> channels_;
+  std::shared_ptr<SpectrumChart> spectrum_;
+  std::shared_ptr<LevelBars> channels_;
   std::unique_ptr<SpinBox> spin_;
   std::unique_ptr<CoverArt> cover_;
   std::vector<std::unique_ptr<Dial>> dials_;

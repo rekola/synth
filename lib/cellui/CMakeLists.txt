@@ -59,7 +59,7 @@ add_library(cellui STATIC
   src/CellBuffer.cpp
   src/BlendMode.cpp
   src/Color.cpp
-  src/ChannelMeter.cpp
+  src/LevelBars.cpp
   src/ChoiceDialog.cpp
   src/CommandPalette.cpp
   src/FuzzyMatch.cpp
@@ -77,7 +77,7 @@ add_library(cellui STATIC
   src/MenuBar.cpp
   src/Charts.cpp
   src/term/CellCharts.cpp
-  src/SpectrumMeter.cpp
+  src/SpectrumChart.cpp
   src/Scrim.cpp
   src/term/SubcellGlyphs.cpp
   src/Utf8.cpp

@@ -8,10 +8,10 @@ namespace cellui {
 
 // The scope row's live spectrum: log-frequency bars. How they are drawn is
 // the display's (Charts::spectrum()). No peak hold.
-class SpectrumMeter : public Widget {
+class SpectrumChart : public Widget {
 public:
-  explicit SpectrumMeter(Plane & parent) : Widget(parent) { }
-  ~SpectrumMeter() override = default;
+  explicit SpectrumChart(Plane & parent) : Widget(parent) { }
+  ~SpectrumChart() override = default;
 
   // A fresh spectrum, dBFS per linear frequency bin `bin_hz` apart from DC.
   // Redraws, unless the curve is where it was drawn; returns whether it did.

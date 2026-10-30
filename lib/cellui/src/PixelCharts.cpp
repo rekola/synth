@@ -115,21 +115,21 @@ private:
 
 // The spectrum as the plane's image: one level per pixel column, drawn
 // with canvas.
-class PixelSpectrumMeter : public term::CellSpectrumMeter {
+class PixelSpectrumChart : public term::CellSpectrumChart {
 public:
-  using term::CellSpectrumMeter::CellSpectrumMeter;
+  using term::CellSpectrumChart::CellSpectrumChart;
 
 protected:
   size_t barCount(int cols) override {
     int pxy = 0, pxx = 0;
     if (getPlane().pixelSize(pxy, pxx)) return static_cast<size_t>(pxx);
-    return term::CellSpectrumMeter::barCount(cols);
+    return term::CellSpectrumChart::barCount(cols);
   }
 
   void drawBars(const std::vector<float> & levels) override {
     int pxy = 0, pxx = 0;
     if (!getPlane().pixelSize(pxy, pxx) || levels.size() != static_cast<size_t>(pxx)) {
-      term::CellSpectrumMeter::drawBars(levels);
+      term::CellSpectrumChart::drawBars(levels);
       return;
     }
     // Pixels are made lazily: until a level is above zero, only the
@@ -154,15 +154,15 @@ protected:
 
 // The channel meter's bars as one image over its bar rows, two channels to
 // a cell; the legend below stays text.
-class PixelChannelMeter : public term::CellChannelMeter {
+class PixelLevelBars : public term::CellLevelBars {
  public:
-  using term::CellChannelMeter::CellChannelMeter;
+  using term::CellLevelBars::CellLevelBars;
 
  protected:
   void drawBars(int bar_rows, int cells) override {
     int cell_h = 0, cell_w = 0;
     if (!getPlane().cellPixelSize(cell_h, cell_w)) {
-      term::CellChannelMeter::drawBars(bar_rows, cells);
+      term::CellLevelBars::drawBars(bar_rows, cells);
       return;
     }
     // Lazily, as the spectrum: the plane is already the background, which is
@@ -171,7 +171,7 @@ class PixelChannelMeter : public term::CellChannelMeter {
       bool silent = true;
       for (int i = 0; i < 2 * cells; i++) {
         auto & channel = channels_[static_cast<size_t>(i)];
-        if (channel.fraction > 0.0f || channel.peak_fraction > 0.0f || channel.clipping) silent = false;
+        if (channel.fraction > 0.0f || channel.peak_fraction > 0.0f || channel.saturated) silent = false;
       }
       if (silent) return;
       has_pixels_ = true;
@@ -179,7 +179,7 @@ class PixelChannelMeter : public term::CellChannelMeter {
     std::vector<std::optional<SparklineReading>> columns;
     for (int i = 0; i < 2 * cells; i++) {
       auto & channel = channels_[static_cast<size_t>(i)];
-      columns.push_back(SparklineReading{channel.fraction, channel.peak_fraction, channel.clipping});
+      columns.push_back(SparklineReading{channel.fraction, channel.peak_fraction, channel.saturated});
     }
     auto & styles = getPlane().getStyles();
     unsigned width = static_cast<unsigned>(cells * cell_w), height = static_cast<unsigned>(bar_rows * cell_h);
@@ -194,11 +194,11 @@ class PixelChannelMeter : public term::CellChannelMeter {
 
 class PixelCharts : public Charts {
  public:
-  std::shared_ptr<SpectrumMeter> spectrum(Plane & parent) const override { return std::make_shared<PixelSpectrumMeter>(parent); }
+  std::shared_ptr<SpectrumChart> spectrum(Plane & parent) const override { return std::make_shared<PixelSpectrumChart>(parent); }
   std::shared_ptr<HeatmapChart> heatmap(Plane & parent, int grid_cols, int grid_rows) const override {
     return std::make_shared<PixelHeatmapChart>(parent, grid_cols, grid_rows);
   }
-  std::shared_ptr<ChannelMeter> channelMeter(Plane & parent) const override { return std::make_shared<PixelChannelMeter>(parent); }
+  std::shared_ptr<LevelBars> levelBars(Plane & parent) const override { return std::make_shared<PixelLevelBars>(parent); }
   void drawSparkline(Plane & plane, int row, int col, int rows, const SparklineReading & reading, const SparklineLook & look, int clip_top,
                    int clip_bottom, uint64_t id) const override {
     int cell_h = 0, cell_w = 0;
@@ -213,7 +213,7 @@ class PixelCharts : public Charts {
     // zero.
     auto key = std::make_pair(&plane, id);
     if (!drawn_.count(key)) {
-      if (reading.fraction <= 0.0f && reading.peak <= 0.0f && !reading.clipping) {
+      if (reading.fraction <= 0.0f && reading.peak <= 0.0f && !reading.saturated) {
         term::drawCellSparkline(plane, row, col, rows, reading, look, clip_top, clip_bottom);
         return;
       }

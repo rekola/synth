@@ -1,9 +1,9 @@
 #pragma once
 
-#include <cellui/ChannelMeter.h>
+#include <cellui/LevelBars.h>
 #include <cellui/DisplayInfo.h>
 #include <cellui/HeatmapChart.h>
-#include <cellui/SpectrumMeter.h>
+#include <cellui/SpectrumChart.h>
 #include <cellui/SparklineImage.h>
 
 #include <memory>
@@ -30,10 +30,10 @@ class Charts {
  public:
   virtual ~Charts() = default;
 
-  virtual std::shared_ptr<SpectrumMeter> spectrum(Plane & parent) const = 0;
+  virtual std::shared_ptr<SpectrumChart> spectrum(Plane & parent) const = 0;
   // A heatmap of a grid_cols x grid_rows grid.
   virtual std::shared_ptr<HeatmapChart> heatmap(Plane & parent, int grid_cols, int grid_rows) const = 0;
-  virtual std::shared_ptr<ChannelMeter> channelMeter(Plane & parent) const = 0;
+  virtual std::shared_ptr<LevelBars> levelBars(Plane & parent) const = 0;
   // A sparkline drawn into a widget's own plane: a bar `rows` cells tall from
   // (row, col), one cell wide, showing a value and a mark above it, drawn only
   // in the plane rows from clip_top up to clip_bottom (one partly scrolled out

@@ -1,4 +1,4 @@
-#include <cellui/SpectrumMeter.h>
+#include <cellui/SpectrumChart.h>
 
 #include <cellui/Plane.h>
 #include <cellui/StyleProvider.h>
@@ -9,7 +9,7 @@
 namespace cellui {
 
 bool
-SpectrumMeter::setSpectrum(const std::vector<float> & db, float bin_hz) {
+SpectrumChart::setSpectrum(const std::vector<float> & db, float bin_hz) {
   auto [ rows, cols ] = getDim();
   if (rows <= 0 || cols <= 0 || db.empty()) return false;
 
@@ -63,7 +63,7 @@ SpectrumMeter::setSpectrum(const std::vector<float> & db, float bin_hz) {
 // Samples a Catmull-Rom spline through `knots` (evenly spaced) at `count`
 // evenly spaced positions, clamped to 0..1.
 std::vector<float>
-SpectrumMeter::splineSample(const std::vector<float> & knots, size_t count) {
+SpectrumChart::splineSample(const std::vector<float> & knots, size_t count) {
   std::vector<float> out(count, 0.0f);
   if (knots.empty() || count == 0) return out;
   auto at = [&](long i) { return knots[static_cast<size_t>(std::clamp<long>(i, 0, static_cast<long>(knots.size()) - 1))]; };
@@ -79,7 +79,7 @@ SpectrumMeter::splineSample(const std::vector<float> & knots, size_t count) {
   return out;
 }
 
-void SpectrumMeter::clear() {
+void SpectrumChart::clear() {
   auto [rows, cols] = getDim();
   last_knots_.clear(); // what is drawn is no longer the last curve
   if (rows <= 0 || cols <= 0) return;
