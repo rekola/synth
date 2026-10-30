@@ -1872,7 +1872,7 @@ would otherwise resume showing.
   command, a pad press, a whole live take's single note. The scope is the
   only thing that bumps the version (`incVersion()` no longer exists), and it
   publishes the audio thread's copy (below) when the outermost one closes, so
-  an action's writes become visible together. Charts nest; `discard()` is for
+  an action's writes become visible together. Scopes nest; `discard()` is for
   a scope that wrote nothing. `CONTENT` edits (note/command/velocity/delay)
   count in the minor version, everything else in the major one. A write
   outside any scope is a bug that leaves the audio thread on stale content;

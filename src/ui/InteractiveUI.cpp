@@ -239,7 +239,7 @@ static vector<MenuSectionSpec> menuSpec(vector<MenuItemSpec> buffer_items) {
                         {nullptr, nullptr, nullptr},
                         {"Outline", "", "outline-view"},
                         {"Toggle Outline", "", "toggle-outline"},
-                        {"Toggle Charts", "", "toggle-scopes"},
+                        {"Toggle Scopes", "", "toggle-scopes"},
                     }},
       // Machine-wide, not per song - the choice is remembered across runs.
       {"Devices", 'd', {
@@ -1237,7 +1237,7 @@ InteractiveUI::renderComponents(bool refresh) {
   refresh = refresh || force_next_render_;
   force_next_render_ = false;
   bool render = false;
-  // Charts coming back on screen start empty at once: a silent analysis sends
+  // Scopes coming back on screen start empty at once: a silent analysis sends
   // nothing more to replace what they held.
   if (scopes_stale_ && scopes_on_screen_) {
     blankScopes();
@@ -1798,7 +1798,7 @@ void InteractiveUI::handleVisualizationResultEvent(const VisualizationResultEven
   // catches up faster instead of falling further behind.
   bool superseded = eventsPending();
   bool changed = superseded; // a superseded event is redrawn by the one behind it
-  // Charts that are off screen aren't updated at all.
+  // Scopes that are off screen aren't updated at all.
   if (!superseded && scopes_on_screen_) {
     if (scopes_stale_) {
       blankScopes();
