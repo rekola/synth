@@ -158,13 +158,13 @@ class PixelCharts : public Charts {
   std::shared_ptr<HeatmapChart> heatmap(Plane & parent, int grid_cols, int grid_rows) const override {
     return std::make_shared<PixelHeatmapChart>(parent, grid_cols, grid_rows);
   }
-  void drawSparkline(Plane & plane, int row, int col, int rows, const SparklineReading & reading, const SparklineLook & look, int clip_top,
-                   int clip_bottom, uint64_t id) const override {
+  void drawSparkline(Plane & plane, int row, int col, int rows, const std::vector<SparklineReading> & readings, const SparklineLook & look,
+                     int clip_top, int clip_bottom, uint64_t id) const override {
     int cell_h = 0, cell_w = 0;
     int top = std::max(row, clip_top), bottom = std::min(row + rows, clip_bottom);
-    if (rows <= 0 || top >= bottom) return;
+    if (rows <= 0 || top >= bottom || readings.empty()) return;
     if (!plane.cellPixelSize(cell_h, cell_w)) {
-      term::drawCellSparkline(plane, row, col, rows, reading, look, clip_top, clip_bottom);
+      term::drawCellSparkline(plane, row, col, rows, readings, look, clip_top, clip_bottom);
       return;
     }
     // Pixels are made lazily: a meter that has never sounded is only its
@@ -172,16 +172,22 @@ class PixelCharts : public Charts {
     // zero.
     auto key = std::make_pair(&plane, id);
     if (!drawn_.count(key)) {
-      if (reading.fraction <= 0.0f && reading.peak <= 0.0f && !reading.saturated) {
-        term::drawCellSparkline(plane, row, col, rows, reading, look, clip_top, clip_bottom);
+      bool silent = std::all_of(readings.begin(), readings.end(), [](const SparklineReading & r) { return r.fraction <= 0.0f && r.peak <= 0.0f && !r.saturated; });
+      if (silent) {
+        term::drawCellSparkline(plane, row, col, rows, readings, look, clip_top, clip_bottom);
         return;
       }
       drawn_.insert(key);
     }
     // The whole meter, wherever it is scrolled to; the plane shows the rows
     // from clip_top to clip_bottom.
-    unsigned width = static_cast<unsigned>(cell_w), height = static_cast<unsigned>(rows * cell_h);
-    auto pixels = sparkline_image::render({std::nullopt, reading}, look, width, height, plane.getStyles(), static_cast<float>(plane.displayScale()));
+    // A lone bar in a cell's right slot, otherwise two to a cell.
+    std::vector<std::optional<SparklineReading>> slots;
+    if (readings.size() == 1) slots = {std::nullopt, readings[0]};
+    else slots.assign(readings.begin(), readings.end());
+    if (slots.size() % 2) slots.push_back(std::nullopt);
+    unsigned width = static_cast<unsigned>(slots.size() / 2 * static_cast<size_t>(cell_w)), height = static_cast<unsigned>(rows * cell_h);
+    auto pixels = sparkline_image::render(slots, look, width, height, plane.getStyles(), static_cast<float>(plane.displayScale()));
     plane.drawImageAt(row, col, pixels, static_cast<int>(width), static_cast<int>(height), id, clip_top, clip_bottom);
   }
   void drawWaveformRow(Plane & plane, int row, int col, int width, const std::vector<float> & slices, const WaveformLook & look) const override {

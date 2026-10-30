@@ -258,9 +258,7 @@ Gallery::Gallery(Plane & plane, const Theme & theme) {
     const std::vector<SparklineReading> readings = {
       { 0.7f, 0.8f, false }, { 0.3f, 0.5f, false }, { 0.12f, 0.2f, false }, { 0.5f, 0.6f, false },
       { 0.02f, 0.05f, false }, { 1.0f, 1.0f, true }, { 0.0f, 0.0f, false } };
-    for (size_t i = 0; i < readings.size(); i++) {
-      charts->drawSparkline(plane, page.row(), 44 + static_cast<int>(i), 5, readings[i], look, 0, plane.getDim().first, 0);
-    }
+    charts->drawSparkline(plane, page.row(), 44, 5, readings, look, 0, plane.getDim().first, 0);
   }
   page.skip(5);
 

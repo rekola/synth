@@ -20,7 +20,7 @@ TEST(channel_meter_draws_bars_and_a_legend_then_falls_to_rest) {
   CHECK(!meter.atRest());
   std::string text = b.toPlainText();
   CHECK(text.find("WYZX") != std::string::npos);
-  CHECK(text.find("\xe2\xa2\xb8") != std::string::npos); // a full right braille column: the loud channel's bar
+  CHECK(b.at(3, 0).text != " "); // the loud channels' bar reaches the bottom row
   meter.clear("");
   CHECK(meter.atRest());
 }

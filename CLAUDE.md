@@ -63,7 +63,7 @@ drawn with canvas (`cellui/LineImage.h`, `cellui/HeatmapImage.h`,
 tagged otherwise (`setFormat(ChannelOrder::BGR, true)` for bytes B, G, R, A,
 premultiplied, as we build them); what is read back
 is the same layout, and the renderers return RGBA. The sparklines have pixel
-versions too: the scope row's channel meter (`ui/ChannelMeter.h`, a sparkline per channel) and
+versions too: the scope row's channel meter (`ui/ChannelMeter.h`, one sparkline of a bar per channel) and
 the clip grid's and pattern editor's level meters are drawn through
 `Charts::drawSparkline()` into the widget's own plane (`cellui/SparklineImage.h`;
 `term::drawCellSparkline()` is the cell version), as images at cell positions
@@ -1175,7 +1175,7 @@ would otherwise resume showing.
   (`StyleProvider::levelColor()`), and a
   `PeakHold` marker floating above the bar in its right dot column). The
   pattern editor's one-cell track meters and the scope row's
-  `ChannelMeter` (`ui/ChannelMeter.h`, a sparkline for each of up to 18 channels from
+  `ChannelMeter` (`ui/ChannelMeter.h`, one sparkline of up to 18 bars, two to a cell, from
   `getChannelLoudness()`, a per-channel RMS, with the legend below) share all of it; the master's reads
   the master track's output - the dry mix plus the returns, after the
   master's levels (`SongState::getMasterMeterValue()`) - which each

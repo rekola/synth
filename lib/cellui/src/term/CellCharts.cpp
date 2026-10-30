@@ -147,21 +147,33 @@ private:
 
 }  // namespace
 
-void drawCellSparkline(Plane & plane, int row, int col, int rows, const SparklineReading & reading, const SparklineLook & look, int clip_top,
-                     int clip_bottom) {
-  if (rows <= 0) return;
+void drawCellSparkline(Plane & plane, int row, int col, int rows, const std::vector<SparklineReading> & readings, const SparklineLook & look,
+                       int clip_top, int clip_bottom) {
+  if (rows <= 0 || readings.empty()) return;
   auto & styles = plane.getStyles();
-  auto cells = glyph_meter::verticalBar(reading.fraction, rows, reading.peak);
   plane.setBgColor(look.background);
-  for (int i = 0; i < rows; i++) {
-    int y = row + i;
-    if (y < clip_top || y >= clip_bottom) continue;
-    // Shaded by the height of this cell; i = 0 is the top one.
-    Color fg = reading.saturated ? styles.level_full_color
-               : look.color     ? *look.color
-                                : styles.levelColor((static_cast<float>(rows - i) - 0.5f) / static_cast<float>(rows));
-    plane.setFgColor(fg);
-    plane.putstr(y, col, cells[static_cast<size_t>(i)]);
+  auto column = [&](const SparklineReading & r) {
+    return glyph_meter::BarColumn{glyph_meter::barSteps(r.fraction, rows), glyph_meter::barSteps(r.peak, rows)};
+  };
+  // A lone bar stands in a cell's right dot column; more are two to a cell.
+  const bool lone = readings.size() == 1;
+  const int cells_wide = lone ? 1 : static_cast<int>((readings.size() + 1) / 2);
+  for (int c = 0; c < cells_wide; c++) {
+    SparklineReading none;
+    const SparklineReading & left = lone ? none : readings[static_cast<size_t>(2 * c)];
+    const SparklineReading & right = lone ? readings[0] : (static_cast<size_t>(2 * c + 1) < readings.size() ? readings[static_cast<size_t>(2 * c + 1)] : none);
+    auto glyphs = glyph_meter::verticalBar(glyph_meter::Glyphs::BRAILLE, rows, lone ? glyph_meter::BarColumn{} : column(left), column(right));
+    bool saturated = left.saturated || right.saturated;
+    for (int i = 0; i < rows; i++) {
+      int y = row + i;
+      if (y < clip_top || y >= clip_bottom) continue;
+      // Shaded by the height of this cell; i = 0 is the top one.
+      Color fg = saturated    ? styles.level_full_color
+                 : look.color ? *look.color
+                              : styles.levelColor((static_cast<float>(rows - i) - 0.5f) / static_cast<float>(rows));
+      plane.setFgColor(fg);
+      plane.putstr(y, col + c, glyphs[static_cast<size_t>(i)]);
+    }
   }
 }
 
@@ -272,9 +284,9 @@ class CellCharts : public Charts {
   std::shared_ptr<HeatmapChart> heatmap(Plane & parent, int grid_cols, int grid_rows) const override {
     return std::make_shared<CellHeatmapChart>(parent, grid_cols, grid_rows, sextants_);
   }
-  void drawSparkline(Plane & plane, int row, int col, int rows, const SparklineReading & reading, const SparklineLook & look, int clip_top,
-                   int clip_bottom, uint64_t) const override {
-    drawCellSparkline(plane, row, col, rows, reading, look, clip_top, clip_bottom);
+  void drawSparkline(Plane & plane, int row, int col, int rows, const std::vector<SparklineReading> & readings, const SparklineLook & look,
+                     int clip_top, int clip_bottom, uint64_t) const override {
+    drawCellSparkline(plane, row, col, rows, readings, look, clip_top, clip_bottom);
   }
   void drawWaveformRow(Plane & plane, int row, int col, int width, const std::vector<float> & slices, const WaveformLook & look) const override {
     drawCellWaveformRow(plane, row, col, width, slices, look, sextants_);

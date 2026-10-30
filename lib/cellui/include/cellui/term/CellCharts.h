@@ -21,7 +21,7 @@ class CellLineChart : public LineChart {
   void drawSamples(const std::vector<float> & samples) override;
 };
 
-void drawCellSparkline(Plane & plane, int row, int col, int rows, const SparklineReading & reading, const SparklineLook & look, int clip_top,
+void drawCellSparkline(Plane & plane, int row, int col, int rows, const std::vector<SparklineReading> & readings, const SparklineLook & look, int clip_top,
                      int clip_bottom);
 
 void drawCellWaveformRow(Plane & plane, int row, int col, int width, const std::vector<float> & slices, const WaveformLook & look,

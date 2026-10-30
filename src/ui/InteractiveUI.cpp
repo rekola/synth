@@ -1166,7 +1166,7 @@ InteractiveUI::layout() {
   // grid's height follows the song's track count (see arrangementScopeRows()).
   int scope_rows = arrangementScopeRows();
   laid_out_scope_rows_ = scope_rows;
-  constexpr int kMeterWidth = static_cast<int>(ChannelMeter::kMaxChannels);
+  constexpr int kMeterWidth = static_cast<int>(ChannelMeter::kMaxChannels / 2);
   int column_x = cols - kHeatmapWidth - 1 - kMeterWidth;
   int meter_x = column_x + kHeatmapWidth + 1;
   int matrix_divider_x = column_x - 1;

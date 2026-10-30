@@ -25,9 +25,10 @@ void ChannelMeter::setLevels(const std::vector<float> & rms, const std::string &
 
   int bar_rows = label.empty() ? rows : rows - 1;
   cellui::SparklineLook look{styles.window_bg_color, std::nullopt};
-  for (int c = 0; c < std::min(cols, static_cast<int>(kMaxChannels)) && bar_rows > 0; c++) {
-    charts_.drawSparkline(getPlane(), 0, c, bar_rows, channels_[static_cast<size_t>(c)].reading, look, 0, bar_rows, static_cast<uint64_t>(c) + 1);
-  }
+  // One sparkline, two bars to a cell, as many as fit.
+  std::vector<cellui::SparklineReading> readings;
+  for (size_t i = 0; i < std::min(kMaxChannels, static_cast<size_t>(2 * cols)); i++) readings.push_back(channels_[i].reading);
+  if (bar_rows > 0) charts_.drawSparkline(getPlane(), 0, 0, bar_rows, readings, look, 0, bar_rows, 1);
   if (!label.empty()) {
     setFgColor(styles.window_fg_color);
     putstr(rows - 1, 0, label);
