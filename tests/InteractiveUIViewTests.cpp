@@ -367,16 +367,19 @@ TEST(terminal_ui_smooth_scroll_moves_the_clip_grid_rows_under_their_header) {
   auto header = f.line(1);
   CHECK(!shift());
   f.wheel(10, kOutlineCols + 3);
-  bool between = false;
+  bool between = false, shadows_shift = false;
   for (int i = 0; i < 100; i++) {
     std::this_thread::sleep_for(std::chrono::milliseconds(16));
     f.ui->step();
     if (auto s = shift()) {
       between = true;
       CHECK(*s > 0.0 && *s < 1.0);
+      // The clips' shadows move with them.
+      for (const auto & area : f.terminal.info().elevations) shadows_shift = shadows_shift || area.shift_row > 0.0;
     }
   }
   CHECK(between);
+  CHECK(shadows_shift);
   CHECK(!shift());
   CHECK(f.line(1) == header); // the header stayed
 }

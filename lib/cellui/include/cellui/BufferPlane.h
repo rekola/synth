@@ -202,7 +202,8 @@ class BufferPlane : public Plane {
     int row, col, clip_row, clip_col, clip_rows, clip_cols;
     float elevation;
   };
-  void collectLifts(const CellBuffer & cells, size_t layer) const;
+  void collectLifts(const CellBuffer & cells, size_t layer, int row = 0, int col = 0, float base = 0.0f, double shift_row = 0.0,
+                    double shift_col = 0.0, int max_rows = -1, int max_cols = -1) const;
   void collect(std::vector<Paint> & paints, int row, int col, int clip_row, int clip_col, int clip_rows, int clip_cols, float base) const;
   bool shown() const;
   void drawReader();
