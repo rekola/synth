@@ -581,14 +581,10 @@ UI::initializeCommands() {
   // A plain container track with no audio of its own.
   commands_.define("add-group-track", [add_track]() { add_track(std::make_unique<Group>()); });
 
-  // Refuses to remove the last remaining root track: several pattern
-  // editor code paths index the root track list with no bounds check, on
-  // the assumption that at least one root track always exists (see
-  // docs/known_bugs.md's zero-root-tracks entry).
+  // The last playable track stays (Song::removeTrack() refuses it).
   commands_.define("delete-track", [this]() {
     auto & controller = getController();
     auto & song = controller.getSong();
-    if (song.getRootTrackIds().size() <= 1) return;
     auto track_id = controller.consumePendingCommandTrack(song.getCurrentTrackId());
     auto ids = song.getRootTrackIds();
     auto position = std::find(ids.begin(), ids.end(), track_id) - ids.begin();

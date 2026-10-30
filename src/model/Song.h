@@ -532,12 +532,8 @@ class Song : public SongObject {
   // track any more - callers should treat "already gone" the same as
   // "successfully gone", not as an error. The master itself is never
   // anyone's child, so `id` naming it can structurally never remove it.
-  // Does *not* guard against removing the last remaining root track -
-  // PatternEditor::render() and several sibling call sites index
-  // getRootTrackIds()[cursor.track] with no bounds check at all
-  // (docs/known_bugs.md's zero-root-tracks entry), so a caller that can
-  // reach zero root tracks this way must refuse before ever getting here,
-  // the way PatternEditor's "delete-track" command does.
+  // The last remaining playable (leaf) track is never removed, nor a group
+  // holding it (false, nothing done): the editor needs one to stand on.
   bool removeTrack(int id);
 
   // Changes a track's own settings (mute, sends, position, name, ...): `edit`
