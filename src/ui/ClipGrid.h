@@ -191,9 +191,11 @@ class ClipGrid : public UIElement {
   // Which of the Sends row's dials the cursor is on (0: A, 1: B).
   int cursor_send_ = 0;
   int cursor_row_ = 1; // logical row index - see physicalFor()'s own comment; starts on the first clip row, not the header
+  static constexpr int kWheelCells = 4; // cells one sideways notch scrolls, before acceleration
+  cellui::WheelAcceleration wheel_acceleration_x_;
   static constexpr int kWheelRows = 3; // rows one wheel notch scrolls, before acceleration
   cellui::WheelAcceleration wheel_acceleration_;
-  int scroll_col_ = 0, scroll_row_ = 0; // scroll_row_ is in *physical* row space, like the on-screen content itself
+  int scroll_x_ = 0, scroll_row_ = 0; // scroll_x_ is in cells, scroll_row_ in *physical* rows, like the on-screen content itself
 
   int current_song_version_ = -1;
   int current_cursor_track_index_ = -1, current_cursor_row_ = -1, current_cursor_send_ = -1;
@@ -249,7 +251,7 @@ class ClipGrid : public UIElement {
   std::unique_ptr<cellui::Plane> body_plane_;
   cellui::Plane & body();
   // The header row is one too, and scrolls sideways with the columns, whose
-  // position is in cells: col_axis_ follows scroll_col_ * a column's pitch,
+  // position is in cells: col_axis_ follows scroll_x_,
   // first_col_ is the first column drawn and col_shift_ how many cells of it
   // are cut off at the left.
   std::unique_ptr<cellui::Plane> header_plane_;
@@ -258,7 +260,7 @@ class ClipGrid : public UIElement {
   int first_col_ = 0, col_shift_ = 0;
   // The cell of the grid's content shown `x` cells from the left edge.
   int contentCell(int x) const {
-    return (col_axis_.smooth() ? static_cast<int>(std::floor(col_axis_.shown() + 0.5)) : scroll_col_ * (kColWidth + 1)) + x;
+    return (col_axis_.smooth() ? static_cast<int>(std::floor(col_axis_.shown() + 0.5)) : scroll_x_) + x;
   }
   cellui::ScrollAxis row_axis_;
   std::chrono::steady_clock::time_point last_scroll_tick_;
@@ -270,7 +272,9 @@ class ClipGrid : public UIElement {
   // Clip and track rename share one editor; only one can be open at a time.
   InlineEditor inline_editor_{getPlane()};
 
-  void ensureCursorVisible(int visible_rows, int visible_cols, int num_tracks);
+  void ensureCursorVisible(int visible_rows, int visible_cols, int view_cols, int num_tracks);
+  // Where a column starts on screen, in cells (negative: cut off at the left).
+  int columnX(int column) const { return column * (kColWidth + 1) - scroll_x_; }
   void renderMasterColumn(const StyleProvider & styles, int x, int rows, bool focused, int num_tracks,
                           const std::function<ClipHighlight(int clip_row)> & scene_state);
   // A column's Sends and Main dials, from the track's (or the master's) send

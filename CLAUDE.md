@@ -1224,8 +1224,11 @@ would otherwise resume showing.
   wheel scrolls tracks, and the next cursor move brings the view back. A notch
   moves three rows, more while notches come quickly (`cellui::WheelAcceleration`),
   and the clip grid's rows and columns, on planes of their own (the header one
-  scrolls sideways with the columns), ease to the new position like the other
-  scrolling widgets.
+  scrolls sideways with the columns, by cells, not a column at a time), ease to the
+  new position like the other scrolling widgets. A plane shifted by part of a cell
+  keeps its pictures, proportional text and the shadows of its raised cells
+  (`ElevatedArea::shift_row`/`shift_col`) in the GTK window; the Win32 one does not
+  draw them shifted yet.
   The left button picks cells: in `ClipGrid` a press shows the cell under
   it pressed (`StyleProvider::row_pressed_bg_color`) and the release moves the
   cursor and track there and presses the slot like Enter does (a clip launches, the master's
