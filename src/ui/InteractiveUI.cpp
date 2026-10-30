@@ -720,12 +720,11 @@ InteractiveUI::initializeWidgets() {
     key_connections_.push_back(widget->on<cellui::KeyUp>([offer](const cellui::KeyUp & e, cellui::EventContext &) { return offer(e.input); }));
   }
 
-  // The clip grid and the outline take the left button and the wheel as
-  // dispatcher events, handing the Input they came from to offerInput(). The
-  // dispatcher's grab keeps a drag and its release with the widget the press
-  // went down on. The pattern editor still takes the pointer through
-  // offerInput() directly.
-  for (cellui::Widget * widget : std::initializer_list<cellui::Widget *>{clip_grid_.get(), outline_view_.get()}) {
+  // The clip grid, the outline and the pattern editor take the left button
+  // and the wheel as dispatcher events, handing the Input they came from to
+  // offerInput(). The dispatcher's grab keeps a drag and its release with the
+  // widget the press went down on.
+  for (cellui::Widget * widget : std::initializer_list<cellui::Widget *>{clip_grid_.get(), outline_view_.get(), pattern_editor_.get()}) {
     auto offer = [widget](const cellui::Input * input) {
       return input && widget->offerInput(*input) ? cellui::Handled::yes : cellui::Handled::no;
     };
