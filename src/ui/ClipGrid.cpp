@@ -643,7 +643,8 @@ ClipGrid::offerInput(const cellui::Input & input) {
     int direction = (input.getId() == Key::Button4 || input.getId() == Key::Button6) ? -1 : 1;
     if (sideways || input.hasShift())
       scroll_col_ += direction;
-    else scroll_row_ += direction;
+    else
+      scroll_row_ += direction * wheel_acceleration_.step(kWheelRows);
     view_detached_ = true;
     return true;
   }

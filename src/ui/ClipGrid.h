@@ -7,6 +7,7 @@
 
 #include <cellui/Dial.h>
 #include <cellui/Fade.h>
+#include <cellui/WheelAcceleration.h>
 #include <cellui/Charts.h>
 #include "../launchpad/ClipHighlight.h"
 #include "../model/Clip.h"
@@ -189,6 +190,8 @@ class ClipGrid : public UIElement {
   // Which of the Sends row's dials the cursor is on (0: A, 1: B).
   int cursor_send_ = 0;
   int cursor_row_ = 1; // logical row index - see physicalFor()'s own comment; starts on the first clip row, not the header
+  static constexpr int kWheelRows = 3; // rows one wheel notch scrolls, before acceleration
+  cellui::WheelAcceleration wheel_acceleration_;
   int scroll_col_ = 0, scroll_row_ = 0; // scroll_row_ is in *physical* row space, like the on-screen content itself
 
   int current_song_version_ = -1;
