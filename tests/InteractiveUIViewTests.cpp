@@ -413,6 +413,33 @@ TEST(terminal_ui_smooth_scroll_moves_the_clip_grid_columns_sideways) {
   CHECK(f.line(1) != header); // the columns, header with them, moved
 }
 
+// A column scrolled partly out at the left still shows the dials that are in view.
+TEST(terminal_ui_clip_grid_keeps_the_dials_of_a_column_cut_at_the_left) {
+  cellui::DisplayInfo display;
+  display.smooth_scroll = true;
+  display.pictures = true;
+  display.cell_px_height = 16;
+  display.cell_px_width = 8;
+  UIFixture f(repoSong("demo3.xml"), UI::View::LIVE, display);
+  for (int i = 0; i < 20; i++) f.ui->step();
+  auto sendsRow = [&]() {
+    for (int y = 0; y < 30; y++) {
+      if (f.line(static_cast<size_t>(y)).find("Sends", kOutlineCols) != std::string::npos) return y;
+    }
+    return -1;
+  };
+  int caption = sendsRow();
+  CHECK(caption >= 0);
+  CHECK(f.terminal.frame().at(caption + 1, kOutlineCols + 1).image > 0);
+  f.wheelSideways(10, kOutlineCols + 3);
+  for (int i = 0; i < 100; i++) {
+    std::this_thread::sleep_for(std::chrono::milliseconds(16));
+    f.ui->step();
+  }
+  // The first column is cut by a few cells, its A dial partly: still drawn.
+  CHECK(f.terminal.frame().at(sendsRow() + 1, kOutlineCols).image > 0);
+}
+
 // The outline's cursor is a layer of its own: once it is on the last row in
 // view and the keys go on, it stays where it is and only the content moves.
 TEST(terminal_ui_smooth_scroll_keeps_the_outline_cursor_in_place_at_the_edge) {

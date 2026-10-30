@@ -2154,7 +2154,7 @@ InteractiveUI::startUI(AudioAPI &, MidiInput & midi, LaunchpadIO & launchpad_io)
   constexpr auto kSteadyFrameInterval = std::chrono::milliseconds(25);
   // A view that scrolls smoothly is shown at the display's pace, not the steady one.
   constexpr auto kAnimatedFrameInterval = std::chrono::milliseconds(16);
-  auto animating = [&]() { return (arrangement_grid_ && arrangement_grid_->animating()) || (outline_view_ && outline_view_->animating()) || choice_dialog_.animating(); };
+  auto animating = [&]() { return (clip_grid_ && getView() == View::LIVE && clip_grid_->scrolling()) || (arrangement_grid_ && arrangement_grid_->animating()) || (outline_view_ && outline_view_->animating()) || choice_dialog_.animating(); };
   auto min_frame_interval = [&]() { return animating() ? kAnimatedFrameInterval : kSteadyFrameInterval; };
   auto last_frame = std::chrono::steady_clock::now() - kSteadyFrameInterval;
   bool frame_pending = false;
