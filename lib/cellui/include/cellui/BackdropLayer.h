@@ -5,7 +5,9 @@
 #include <cellui/CellBuffer.h>
 
 #include <algorithm>
+#include <array>
 #include <optional>
+#include <span>
 #include <vector>
 
 namespace cellui {
@@ -88,17 +90,18 @@ inline BandBorderShape bandBorder(const Band & band, double x, double y, double 
     double a, b;
     bool round_left = false, round_right = false;
   };
-  std::vector<Run> runs;
+  std::array<Run, 2> runs{};
+  size_t run_count = 0;
   if (!skips) {
-    runs.push_back({ x, x + w });
+    runs[run_count++] = { x, x + w };
   } else {
-    if (skip_x > x) runs.push_back({ x, std::min(skip_x, x + w) });
-    if (skip_end < x + w) runs.push_back({ std::max(skip_end, x), x + w });
+    if (skip_x > x) runs[run_count++] = { x, std::min(skip_x, x + w) };
+    if (skip_end < x + w) runs[run_count++] = { std::max(skip_end, x), x + w };
   }
   // At most half the height, so the two corners of a side meet at most.
   double r = std::max(0.0, std::min(band.border_radius, h / 2));
   bool round_left = false, round_right = false;
-  for (Run & run : runs) {
+  for (Run & run : std::span(runs).first(run_count)) {
     if (r <= 0) break;
     bool l = left_side && run.a <= x + eps, rr = right_side && run.b >= x + w - eps;
     if (run.b - run.a < (l ? r : 0.0) + (rr ? r : 0.0)) l = rr = false;
@@ -108,7 +111,7 @@ inline BandBorderShape bandBorder(const Band & band, double x, double y, double 
     round_right |= rr;
   }
   for (double at : { y, y + h - t }) {
-    for (const Run & run : runs) {
+    for (const Run & run : std::span(runs).first(run_count)) {
       double a = run.a + (run.round_left ? r : 0.0), b = run.b - (run.round_right ? r : 0.0);
       if (b > a) out.rects.push_back({ a, at, b - a, t });
     }
