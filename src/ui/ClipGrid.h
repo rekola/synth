@@ -7,6 +7,7 @@
 
 #include <cellui/Dial.h>
 #include <cellui/Fade.h>
+#include <cellui/Viewport.h>
 #include <cellui/WheelAcceleration.h>
 #include <cellui/Charts.h>
 #include "../launchpad/ClipHighlight.h"
@@ -196,7 +197,8 @@ class ClipGrid : public UIElement {
 
   int current_song_version_ = -1;
   int current_cursor_track_index_ = -1, current_cursor_row_ = -1, current_cursor_send_ = -1;
-  int current_scroll_col_ = -1, current_scroll_row_ = -1;
+  int current_scroll_col_ = -1;
+  double current_shown_row_ = -1;
   // Set by the mouse wheel, which scrolls the view without the cursor;
   // cleared when the cursor next moves.
   bool view_detached_ = false;
@@ -242,6 +244,17 @@ class ClipGrid : public UIElement {
   const cellui::Charts * charts_ = nullptr;
   std::chrono::steady_clock::time_point last_meter_update_;
 
+  // The rows below the header are a plane of their own, so that only they
+  // shift by parts of a row. row_axis_ follows scroll_row_ with an animation
+  // where the display scrolls smoothly; first_row_ is the first row drawn.
+  std::unique_ptr<cellui::Plane> body_plane_;
+  cellui::Plane & body();
+  cellui::ScrollAxis row_axis_;
+  std::chrono::steady_clock::time_point last_scroll_tick_;
+  int first_row_ = 0;
+  // The physical row shown `cell` cells below the header.
+  int rowAtCell(int cell) const { return row_axis_.smooth() ? row_axis_.indexAt(cell) : scroll_row_ + cell; }
+
   // Clip and track rename share one editor; only one can be open at a time.
   InlineEditor inline_editor_{getPlane()};
 
@@ -260,7 +273,7 @@ class ClipGrid : public UIElement {
   void renderMeter(const StyleProvider & styles, int x, int rows, int track_id, bool clipping);
   // Edits the send of the column under the cursor - 0: Main, 1: A, 2: B - a
   // track's, or the master's (the dry mix and the send bus's returns).
-  void putDivider(const StyleProvider & styles, int y, int x, bool header);
+  void putDivider(cellui::Plane & plane, const StyleProvider & styles, int y, int x, bool header);
   // What Enter or a click does on the
   // cell under the cursor.
   void activateCell(const Song & song, const std::vector<int> & track_ids);

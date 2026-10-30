@@ -345,6 +345,42 @@ TEST(terminal_ui_smooth_scroll_moves_the_outline_tree_under_its_heading) {
   CHECK(f.line(static_cast<size_t>(heading + 1)).find("Song") == std::string::npos);
 }
 
+// The clip grid's rows scroll by parts of a row under its header on a smooth
+// display, and a click once settled picks the row it is on.
+TEST(terminal_ui_smooth_scroll_moves_the_clip_grid_rows_under_their_header) {
+  cellui::DisplayInfo display;
+  display.smooth_scroll = true;
+  UIFixture f(repoSong("demo3.xml"), UI::View::LIVE, display);
+  {
+    // More clip rows than the grid is tall, so there is something to scroll to.
+    auto & song = f.controller->getSong();
+    Song::Edit edit(song, "many clips");
+    song.ensureClipAt(song.getPlayableTrackIds()[0], 80);
+  }
+  f.ui->step();
+  auto shift = [&]() -> std::optional<double> {
+    for (const auto & layer : f.terminal.info().backdrops) {
+      if (layer.scroll && layer.scroll->shift_rows > 0 && layer.scroll->col >= kOutlineCols) return layer.scroll->shift_rows;
+    }
+    return std::nullopt;
+  };
+  auto header = f.line(1);
+  CHECK(!shift());
+  f.wheel(10, kOutlineCols + 3);
+  bool between = false;
+  for (int i = 0; i < 100; i++) {
+    std::this_thread::sleep_for(std::chrono::milliseconds(16));
+    f.ui->step();
+    if (auto s = shift()) {
+      between = true;
+      CHECK(*s > 0.0 && *s < 1.0);
+    }
+  }
+  CHECK(between);
+  CHECK(!shift());
+  CHECK(f.line(1) == header); // the header stayed
+}
+
 // The outline's cursor is a layer of its own: once it is on the last row in
 // view and the keys go on, it stays where it is and only the content moves.
 TEST(terminal_ui_smooth_scroll_keeps_the_outline_cursor_in_place_at_the_edge) {
