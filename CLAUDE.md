@@ -1558,7 +1558,7 @@ would otherwise resume showing.
   TextStyle)` gives the text a box of `cols` cells (to the plane's edge when negative)
   and the display lays it out - the app never measures it, and what does not fit the
   box is cut (`TextOverflow::CLIP`) or cut with an ellipsis (`ELLIPSIS`). A display that
-  can (`DisplayInfo::proportional_text`: the GTK window) marks the box's cells
+  can (`DisplayInfo::proportional_text`: the GTK window, and the Win32 one with DirectWrite layouts, compiled but never run) marks the box's cells
   (`Cell::text_run`) and reports the run (`FrameInfo::text_runs`, `TextRun`), which the window sets with
   Pango in the system UI font sized to the cell height (`appendTextRuns()`), centred in the rows
   and ellipsized by the layout itself; any other, and a `MONOSPACE` request, gets the same
