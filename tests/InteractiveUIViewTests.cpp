@@ -66,6 +66,11 @@ TEST(terminal_ui_wheel_scrolls_the_view_not_the_cursor_or_focus) {
   f.wheel(20, 50, true, true);
   CHECK(firstTrackTitle(f) != "T0");
 
+  f.wheel(20, 50, true, true);
+  auto shifted = firstTrackTitle(f);
+  f.wheelSideways(20, 50, false);
+  CHECK(firstTrackTitle(f) != shifted); // the sideways wheel scrolls tracks like Shift
+
   f.wheel(3, 20);  // over the arrangement grid
   f.press(Key::Down);  // still reaches the pattern editor
   CHECK(transportRow(f) == "1.1.2");

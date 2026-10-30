@@ -85,6 +85,11 @@ struct UIFixture {
     terminal.pushMouse(y, x, down ? cellui::Key::Button5 : cellui::Key::Button4, shift ? cellui::kModShift : 0);
     ui->step();
   }
+  // The sideways wheel at (y, x), one notch.
+  void wheelSideways(int y, int x, bool right = true) {
+    terminal.pushMouse(y, x, right ? cellui::Key::Button7 : cellui::Key::Button6, 0);
+    ui->step();
+  }
   // The background of the cell at (y, x) as "rrggbb", "" when it has none.
   std::string bg(int y, int x) const {
     const auto & cell = terminal.frame().at(y, x);

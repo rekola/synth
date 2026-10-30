@@ -624,7 +624,7 @@ ClipGrid::offerInput(const cellui::Input & input) {
         dial->cancelEdit();
       else
         return true;
-    } else if (input.getId() == Key::Button4 || input.getId() == Key::Button5) {
+    } else if (input.getId() >= Key::Button4 && input.getId() <= Key::Button7) {
       return true;
     } else {
       return dial->offerInput(input);
@@ -635,12 +635,14 @@ ClipGrid::offerInput(const cellui::Input & input) {
 
   // The mouse wheel scrolls the view (Shift: tracks), not the cursor, until
   // the cursor next moves.
-  if (input.getId() == Key::Button4 || input.getId() == Key::Button5) {
+  if (input.getId() >= Key::Button4 && input.getId() <= Key::Button7) {
     if (input.getKind() == InputEvent::Kind::RELEASE) return true;
-    // Over a dial the wheel turns it.
-    if (dialMouse(input)) return true;
-    int direction = input.getId() == Key::Button4 ? -1 : 1;
-    if (input.hasShift()) scroll_col_ += direction;
+    bool sideways = input.getId() >= Key::Button6;
+    // Over a dial the vertical wheel turns it.
+    if (!sideways && dialMouse(input)) return true;
+    int direction = (input.getId() == Key::Button4 || input.getId() == Key::Button6) ? -1 : 1;
+    if (sideways || input.hasShift())
+      scroll_col_ += direction;
     else scroll_row_ += direction;
     view_detached_ = true;
     return true;
