@@ -20,6 +20,7 @@ InfoDialog::show(Plane & parent, const string & title, const string & source, in
     plane_ = parent.createChild();
     plane_->setMouseCursor(MouseCursor::DEFAULT);
     plane_->setElevation(elevation_.value_or(plane_->getStyles().theme.elevation.overlay));
+    plane_->setCornerRadius(plane_->getStyles().theme.dialog_radius_px);
   }
   auto & styles = plane_->getStyles();
   rows_ = rows;

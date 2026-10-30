@@ -751,6 +751,12 @@ void Window::Impl::appendShadows(GtkSnapshot * snap, const Painted & top, GskRen
     return GRAPHENE_RECT_INIT(static_cast<float>(a.col * cell_w), static_cast<float>(a.row * cell_h), static_cast<float>(a.cols * cell_w),
                               static_cast<float>(a.rows * cell_h));
   };
+  // An area's corner radius in pixels: its logical one by the display's scale,
+  // at most half the shorter side.
+  auto radiusOf = [&](const ElevatedArea & a) {
+    float limit = 0.5f * static_cast<float>(std::min(a.cols * cell_w, a.rows * cell_h));
+    return std::clamp(static_cast<float>(a.radius * display_info.display_scale), 0.0f, limit);
+  };
   // Only a backdrop at or above an area's layer covers it (a plane scrolling
   // by part of a cell is a layer too, and covers nothing).
   std::vector<bool> covered(layers.size() + 1, false);
@@ -761,6 +767,27 @@ void Window::Impl::appendShadows(GtkSnapshot * snap, const Painted & top, GskRen
   auto redraw = [&](const ElevatedArea & a) {
     if (a.layer < layers.size() && below) gtk_snapshot_append_node(snap, below);
     appendPainted(snap, top, &frame);
+  };
+  // What shows in the corners a radius cuts away: what lay under them (the
+  // stack below, or the cell's colour), under the shadow drawn next.
+  auto fillCorners = [&](const ElevatedArea & a) {
+    float r = radiusOf(a);
+    if (r <= 0.0f) return;
+    graphene_rect_t rect = rectOf(a);
+    for (int k = 0; k < 4; k++) {
+      graphene_rect_t ear = GRAPHENE_RECT_INIT(k % 2 ? rect.origin.x + rect.size.width - r : rect.origin.x,
+                                               k / 2 ? rect.origin.y + rect.size.height - r : rect.origin.y, r, r);
+      if (a.layer < layers.size() && below) {
+        gtk_snapshot_push_clip(snap, &ear);
+        gtk_snapshot_append_node(snap, below);
+        gtk_snapshot_pop(snap);
+      } else {
+        const Color & c = a.corner_bg[static_cast<size_t>(k)] ? *a.corner_bg[static_cast<size_t>(k)] : bg;
+        auto rgb = c.toSrgb8();
+        GdkRGBA fill = { rgb[0] / 255.0f, rgb[1] / 255.0f, rgb[2] / 255.0f, 1.0f };
+        gtk_snapshot_append_color(snap, &fill, &ear);
+      }
+    }
   };
   // The lifted bands of scrolled planes, which are drawn in the layers below.
   struct LiftedBand {
@@ -794,8 +821,9 @@ void Window::Impl::appendShadows(GtkSnapshot * snap, const Painted & top, GskRen
     for (size_t k = i; k < level_end; k++) {
       if (!shown(elevations[k]) || !elevations[k].shadow) continue;
       graphene_rect_t rect = rectOf(elevations[k]);
+      fillCorners(elevations[k]);
       GskRoundedRect outline;
-      gsk_rounded_rect_init_from_rect(&outline, &rect, 0);
+      gsk_rounded_rect_init_from_rect(&outline, &rect, radiusOf(elevations[k]));
       gtk_snapshot_append_outset_shadow(snap, &outline, &ambient, 0, 0, 0, ambient_blur);
       gtk_snapshot_append_outset_shadow(snap, &outline, &key, dx, dy, 0, blur);
       stats.shadows++;
@@ -819,7 +847,9 @@ void Window::Impl::appendShadows(GtkSnapshot * snap, const Painted & top, GskRen
         if (!shown(elevations[j])) continue;
         graphene_rect_t above = rectOf(elevations[j]), meet;
         if (!graphene_rect_intersection(&above, &reach, &meet)) continue;
-        gtk_snapshot_push_clip(snap, &above);
+        GskRoundedRect shape;
+        gsk_rounded_rect_init_from_rect(&shape, &above, radiusOf(elevations[j]));
+        gtk_snapshot_push_rounded_clip(snap, &shape);
         redraw(elevations[j]);
         gtk_snapshot_pop(snap);
       }
@@ -828,8 +858,9 @@ void Window::Impl::appendShadows(GtkSnapshot * snap, const Painted & top, GskRen
       for (size_t k = i; k < level_end; k++) {
         if (!shown(elevations[k]) || !elevations[k].shadow) continue;
         graphene_rect_t rect = rectOf(elevations[k]);
-        graphene_rect_t top_edge = GRAPHENE_RECT_INIT(rect.origin.x, rect.origin.y, rect.size.width, 1);
-        graphene_rect_t bottom_edge = GRAPHENE_RECT_INIT(rect.origin.x, rect.origin.y + rect.size.height - 1, rect.size.width, 1);
+        float r = radiusOf(elevations[k]);
+        graphene_rect_t top_edge = GRAPHENE_RECT_INIT(rect.origin.x + r, rect.origin.y, rect.size.width - 2 * r, 1);
+        graphene_rect_t bottom_edge = GRAPHENE_RECT_INIT(rect.origin.x + r, rect.origin.y + rect.size.height - 1, rect.size.width - 2 * r, 1);
         gtk_snapshot_append_color(snap, &highlight, &top_edge);
         gtk_snapshot_append_color(snap, &edge, &bottom_edge);
       }
