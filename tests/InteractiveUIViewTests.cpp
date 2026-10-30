@@ -381,6 +381,35 @@ TEST(terminal_ui_smooth_scroll_moves_the_clip_grid_rows_under_their_header) {
   CHECK(f.line(1) == header); // the header stayed
 }
 
+// The clip grid's columns, header included, scroll sideways by parts of a cell
+// on a smooth display, and settle on a whole column.
+TEST(terminal_ui_smooth_scroll_moves_the_clip_grid_columns_sideways) {
+  cellui::DisplayInfo display;
+  display.smooth_scroll = true;
+  UIFixture f(repoSong("demo3.xml"), UI::View::LIVE, display);
+  auto shift = [&]() -> std::optional<double> {
+    for (const auto & layer : f.terminal.info().backdrops) {
+      if (layer.scroll && layer.scroll->shift_cols > 0 && layer.scroll->col >= kOutlineCols) return layer.scroll->shift_cols;
+    }
+    return std::nullopt;
+  };
+  auto header = f.line(1);
+  CHECK(!shift());
+  f.wheelSideways(10, kOutlineCols + 3);
+  bool between = false;
+  for (int i = 0; i < 100; i++) {
+    std::this_thread::sleep_for(std::chrono::milliseconds(16));
+    f.ui->step();
+    if (auto s = shift()) {
+      between = true;
+      CHECK(*s > 0.0 && *s < 1.0);
+    }
+  }
+  CHECK(between);
+  CHECK(!shift());
+  CHECK(f.line(1) != header); // the columns, header with them, moved
+}
+
 // The outline's cursor is a layer of its own: once it is on the last row in
 // view and the keys go on, it stays where it is and only the content moves.
 TEST(terminal_ui_smooth_scroll_keeps_the_outline_cursor_in_place_at_the_edge) {

@@ -197,8 +197,7 @@ class ClipGrid : public UIElement {
 
   int current_song_version_ = -1;
   int current_cursor_track_index_ = -1, current_cursor_row_ = -1, current_cursor_send_ = -1;
-  int current_scroll_col_ = -1;
-  double current_shown_row_ = -1;
+  double current_shown_row_ = -1, current_shown_col_ = -1;
   // Set by the mouse wheel, which scrolls the view without the cursor;
   // cleared when the cursor next moves.
   bool view_detached_ = false;
@@ -249,9 +248,22 @@ class ClipGrid : public UIElement {
   // where the display scrolls smoothly; first_row_ is the first row drawn.
   std::unique_ptr<cellui::Plane> body_plane_;
   cellui::Plane & body();
+  // The header row is one too, and scrolls sideways with the columns, whose
+  // position is in cells: col_axis_ follows scroll_col_ * a column's pitch,
+  // first_col_ is the first column drawn and col_shift_ how many cells of it
+  // are cut off at the left.
+  std::unique_ptr<cellui::Plane> header_plane_;
+  cellui::Plane & header();
+  cellui::ScrollAxis col_axis_;
+  int first_col_ = 0, col_shift_ = 0;
+  // The cell of the grid's content shown `x` cells from the left edge.
+  int contentCell(int x) const {
+    return (col_axis_.smooth() ? static_cast<int>(std::floor(col_axis_.shown() + 0.5)) : scroll_col_ * (kColWidth + 1)) + x;
+  }
   cellui::ScrollAxis row_axis_;
   std::chrono::steady_clock::time_point last_scroll_tick_;
   int first_row_ = 0;
+  double scroll_dt_ = 0;
   // The physical row shown `cell` cells below the header.
   int rowAtCell(int cell) const { return row_axis_.smooth() ? row_axis_.indexAt(cell) : scroll_row_ + cell; }
 
