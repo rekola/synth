@@ -1,6 +1,7 @@
 #include "TestFramework.h"
 
 #include "../src/model/Song.h"
+#include "../src/model/ArrangementOps.h"
 #include "../src/model/Clip.h"
 #include "../src/model/InstrumentTrack.h"
 #include "../src/instruments/Oscillator.h"
@@ -302,4 +303,18 @@ TEST(an_unrelated_song_edit_does_not_undo_a_scene_tempo) {
   }
   s.play(1);
   CHECK(s.state->getTempo() == 100);
+}
+
+// A clip merged into the background leaves a stop where it was placed; the
+// merged notes still play.
+TEST(merged_clip_plays_from_the_background_after_its_stop) {
+  LiveSong s;
+  placeClipInstance(s.song, s.a, 4, 0);
+  CHECK(mergeClipToBackground(s.song, s.a, 4, s.config));
+  CHECK(resolveInstanceAt(s.song, s.a, 4).clip_index == Arrangement::kStopInstance);
+  s.play(5); // row 4
+  CHECK(s.plays(s.a, 100));
+  CHECK(!s.plays(s.a, 44));
+  s.play(1); // row 5
+  CHECK(s.plays(s.a, 101));
 }
