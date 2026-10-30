@@ -11,6 +11,7 @@
 #include <vector>
 
 #include <cellui/Fade.h>
+#include <cellui/WheelAcceleration.h>
 #include <cellui/Input.h>
 #include <cellui/Viewport.h>
 #include "StyleProvider.h"
@@ -141,6 +142,8 @@ class ArrangementGrid : public UIElement {
   // sync with the cursor by ensureCursorVisible() rather than tracked
   // independently, so the cursor is always on screen.
   cellui::Viewport viewport_;
+  static constexpr int kWheelBars = 2; // bars one wheel notch scrolls, before acceleration
+  cellui::WheelAcceleration wheel_acceleration_;
 
   // What render() last drew, so it can skip redrawing when nothing this
   // widget actually shows has changed - same dirty-check shape InfoLine's

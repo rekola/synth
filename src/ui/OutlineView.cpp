@@ -925,7 +925,8 @@ OutlineView::offerInput(const cellui::Input & input) {
     int direction = (input.getId() == Key::Button4 || input.getId() == Key::Button6) ? -1 : 1;
     if (input.hasShift() || input.getId() >= Key::Button6)
       scrollColumnsBy(direction * kColumnScrollStep);
-    else scrollBy(direction);
+    else
+      scrollBy(direction * wheel_acceleration_.step(kWheelRows));
     return true;
   } else if (input.getId() == Key::PageUp) {
     moveCursorBy(-cursorRows());

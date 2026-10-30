@@ -2181,7 +2181,8 @@ PatternEditor::offerInputKey(const cellui::Input & input) {
       int direction = (input.getId() == Key::Button4 || input.getId() == Key::Button6) ? -1 : 1;
       if (sideways || input.hasShift())
         scrollViewTracks(direction);
-      else scrollView(direction);
+      else
+        scrollView(direction * wheel_acceleration_.step(kWheelRows));
       return true;
     } else if (input.getId() == Key::PageUp) {
       if (!transport_owns_row) {

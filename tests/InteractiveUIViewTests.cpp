@@ -60,7 +60,7 @@ TEST(terminal_ui_wheel_scrolls_the_view_not_the_cursor_or_focus) {
   UIFixture f(repoSong("demo3.xml"), UI::View::ARRANGEMENT);
   f.otherWindow();  // the pattern editor
   for (int i = 0; i < 2; i++) f.wheel(20, 50);
-  CHECK(!rowsOf(f).empty() && rowsOf(f)[0] == 2);
+  CHECK(!rowsOf(f).empty() && rowsOf(f)[0] == 6); // three rows a notch
   CHECK(transportRow(f) == "1.1.1");
 
   f.wheel(20, 50, true, true);
@@ -343,6 +343,71 @@ TEST(terminal_ui_smooth_scroll_moves_the_outline_tree_under_its_heading) {
   CHECK(!shift());
   // It moved: the tree's first rows are not the first any more.
   CHECK(f.line(static_cast<size_t>(heading + 1)).find("Song") == std::string::npos);
+}
+
+// The clip grid's rows scroll by parts of a row under its header on a smooth
+// display, and a click once settled picks the row it is on.
+TEST(terminal_ui_smooth_scroll_moves_the_clip_grid_rows_under_their_header) {
+  cellui::DisplayInfo display;
+  display.smooth_scroll = true;
+  UIFixture f(repoSong("demo3.xml"), UI::View::LIVE, display);
+  {
+    // More clip rows than the grid is tall, so there is something to scroll to.
+    auto & song = f.controller->getSong();
+    Song::Edit edit(song, "many clips");
+    song.ensureClipAt(song.getPlayableTrackIds()[0], 80);
+  }
+  f.ui->step();
+  auto shift = [&]() -> std::optional<double> {
+    for (const auto & layer : f.terminal.info().backdrops) {
+      if (layer.scroll && layer.scroll->shift_rows > 0 && layer.scroll->col >= kOutlineCols) return layer.scroll->shift_rows;
+    }
+    return std::nullopt;
+  };
+  auto header = f.line(1);
+  CHECK(!shift());
+  f.wheel(10, kOutlineCols + 3);
+  bool between = false;
+  for (int i = 0; i < 100; i++) {
+    std::this_thread::sleep_for(std::chrono::milliseconds(16));
+    f.ui->step();
+    if (auto s = shift()) {
+      between = true;
+      CHECK(*s > 0.0 && *s < 1.0);
+    }
+  }
+  CHECK(between);
+  CHECK(!shift());
+  CHECK(f.line(1) == header); // the header stayed
+}
+
+// The clip grid's columns, header included, scroll sideways by parts of a cell
+// on a smooth display, and settle on a whole column.
+TEST(terminal_ui_smooth_scroll_moves_the_clip_grid_columns_sideways) {
+  cellui::DisplayInfo display;
+  display.smooth_scroll = true;
+  UIFixture f(repoSong("demo3.xml"), UI::View::LIVE, display);
+  auto shift = [&]() -> std::optional<double> {
+    for (const auto & layer : f.terminal.info().backdrops) {
+      if (layer.scroll && layer.scroll->shift_cols > 0 && layer.scroll->col >= kOutlineCols) return layer.scroll->shift_cols;
+    }
+    return std::nullopt;
+  };
+  auto header = f.line(1);
+  CHECK(!shift());
+  f.wheelSideways(10, kOutlineCols + 3);
+  bool between = false;
+  for (int i = 0; i < 100; i++) {
+    std::this_thread::sleep_for(std::chrono::milliseconds(16));
+    f.ui->step();
+    if (auto s = shift()) {
+      between = true;
+      CHECK(*s > 0.0 && *s < 1.0);
+    }
+  }
+  CHECK(between);
+  CHECK(!shift());
+  CHECK(f.line(1) != header); // the columns, header with them, moved
 }
 
 // The outline's cursor is a layer of its own: once it is on the last row in

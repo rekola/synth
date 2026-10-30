@@ -18,6 +18,7 @@
 #include "LevelMeter.h"
 
 #include <cellui/Fade.h>
+#include <cellui/WheelAcceleration.h>
 #include <cellui/Charts.h>
 
 #include <chrono>
@@ -541,6 +542,8 @@ private:
   int view_block_ = 0;
   bool view_detached_ = false;
   // Scroll the view (not the cursor) by rows, or by whole tracks sideways.
+  static constexpr int kWheelRows = 3; // rows one wheel notch scrolls, before acceleration
+  cellui::WheelAcceleration wheel_acceleration_;
   void scrollView(int delta_rows);
   void scrollViewTracks(int delta_tracks);
 
