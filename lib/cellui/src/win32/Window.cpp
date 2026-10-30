@@ -249,6 +249,7 @@ struct Window::Impl {
   void drawLayerAgain(size_t index, const CellRange & range);
   void blendRegion(size_t index, const D2D1_RECT_F & rect, BlendMode mode, const Color & color, float alpha);
   void drawShadows();
+  bool blurring_ = false;  // a backdrop blurs in the frame being drawn
   void drawLayer(size_t i, const CellRange * only);
   void drawLayerDim(size_t i);
   void blurRegion(Com<ID2D1BitmapRenderTarget> & below, const D2D1_RECT_F & region, float radius);
@@ -597,6 +598,31 @@ void Window::Impl::drawShadows() {
     int r1 = (static_cast<int>(std::ceil(bottom)) + cell_h - 1) / cell_h, c1 = (static_cast<int>(std::ceil(right)) + cell_w - 1) / cell_w;
     bands.push_back(LiftedBand{ D2D1::RectF(left, top, right, bottom), { r0, c0, r1 - r0, c1 - c0 }, content.elevation + band.lift });
   }
+  // Only a backdrop at or above an area's layer covers it (a plane scrolling
+  // by part of a cell is a layer too, and covers nothing). With a blur the
+  // stack cannot be drawn again as it is, so an area below the frame stays as
+  // it was drawn.
+  std::vector<bool> covered(layers.size() + 1, false);
+  for (size_t j = layers.size(); j-- > 0;) covered[j] = covered[j + 1] || layers[j].backdrop.active();
+  auto shown = [&](const ElevatedArea & a) {
+    if (blurring_ && a.layer < layers.size()) return false;
+    return !covered[std::min(a.layer, layers.size())];
+  };
+  // An area's cells again: from the frame, or, when they were composed into a
+  // layer below it, from the stack so far with the frame over it.
+  auto redraw = [&](const ElevatedArea & a) {
+    CellRange range = { a.row, a.col, a.rows, a.cols };
+    rt_->PushAxisAlignedClip(rectOf(a), D2D1_ANTIALIAS_MODE_ALIASED);
+    if (a.layer < layers.size()) {
+      rt_->Clear(colorOf(bg));
+      for (size_t k = 0; k < layers.size(); k++) {
+        drawLayer(k, &range);
+        drawLayerDim(k);
+      }
+    }
+    drawCells(frame, !layers.empty(), 0, 0, 0, 0, &range);
+    rt_->PopAxisAlignedClip();
+  };
   size_t i = 0;
   while (i < elevations.size()) {
     float e = elevations[i].elevation;
@@ -606,7 +632,7 @@ void Window::Impl::drawShadows() {
     float dx = 0.3f * px, dy = 0.5f * px;
     bool any = false;
     for (size_t k = i; k < level_end; k++) {
-      if (elevations[k].layer < layers.size()) continue;  // a later backdrop covers it
+      if (!shown(elevations[k])) continue;                  // a later backdrop covers it
       if (!elevations[k].shadow) continue;                  // stands above lower shadows, casts none
       D2D1_RECT_F r = rectOf(elevations[k]);
       ring(r, 0, 0, std::max(2.0f, 0.25f * px), ambient_alpha);
@@ -628,16 +654,11 @@ void Window::Impl::drawShadows() {
       }
       // Everything as high or higher is drawn again over the shadows.
       for (size_t j = i; j < elevations.size(); j++) {
-        const ElevatedArea & a = elevations[j];
-        if (a.layer < layers.size()) continue;
-        rt_->PushAxisAlignedClip(rectOf(a), D2D1_ANTIALIAS_MODE_ALIASED);
-        CellRange range = { a.row, a.col, a.rows, a.cols };
-        drawCells(frame, !layers.empty(), 0, 0, 0, 0, &range);
-        rt_->PopAxisAlignedClip();
+        if (shown(elevations[j])) redraw(elevations[j]);
       }
       // A light top edge and a darker bottom one.
       for (size_t k = i; k < level_end; k++) {
-        if (elevations[k].layer < layers.size() || !elevations[k].shadow) continue;
+        if (!shown(elevations[k]) || !elevations[k].shadow) continue;
         D2D1_RECT_F r = rectOf(elevations[k]);
         brush->SetColor(D2D1::ColorF(1, 1, 1, dark ? 0.14f : 0.55f));
         rt_->FillRectangle(D2D1::RectF(r.left, r.top, r.right, r.top + 1), brush.get());
@@ -747,6 +768,7 @@ void Window::Impl::paint() {
     blurs = false;
     rt_ = target.get();
   }
+  blurring_ = blurs;
   rt_->BeginDraw();
   rt_->SetTransform(D2D1::Matrix3x2F::Identity());
   rt_->Clear(colorOf(bg));
