@@ -696,6 +696,16 @@ InteractiveUI::initializeWidgets() {
     widget->attach(*this);
   }
 
+  // The dispatcher sends keys to the focused widget, which still takes them
+  // as an Input.
+  for (cellui::Widget * widget : std::initializer_list<cellui::Widget *>{pattern_editor_.get(), arrangement_grid_.get(), clip_grid_.get(), outline_view_.get()}) {
+    auto offer = [widget](const cellui::Input * input) {
+      return input && widget->offerInput(*input) ? cellui::Handled::yes : cellui::Handled::no;
+    };
+    key_connections_.push_back(widget->on<cellui::KeyDown>([offer](const cellui::KeyDown & e, cellui::EventContext &) { return offer(e.input); }));
+    key_connections_.push_back(widget->on<cellui::KeyUp>([offer](const cellui::KeyUp & e, cellui::EventContext &) { return offer(e.input); }));
+  }
+
   // An overview first, not pattern editing - the arrangement grid when
   // starting in Arrangement view; initialize() moves it to the clip grid
   // when starting in Live View.
@@ -1593,8 +1603,14 @@ InteractiveUI::offerInput(const cellui::Input & input) {
   }
 
   if (!handled) {
-    if (auto el = active_element_.lock()) {
-      handled |= el->offerInput(input);
+    auto el = active_element_.lock();
+    if (pointer || input.getId() == Key::Resize) {
+      // The dispatcher has the pointer already; the widgets still take it as an Input.
+      if (el) handled |= el->offerInput(input);
+    } else {
+      // A key goes to the focused widget through the dispatcher.
+      dispatcher_.setFocus(el.get());
+      handled |= dispatcher_.offer(input) == cellui::Handled::yes;
     }
   }
 

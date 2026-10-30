@@ -131,8 +131,8 @@ class InputDispatcher {
       return Handled::no;
     }
     if (id == Key::Resize) return Handled::no;
-    if (kind == Input::Kind::RELEASE) return keyUp(KeyUp{ id, mods });
-    KeyDown down{ id, mods, "", kind == Input::Kind::REPEAT };
+    if (kind == Input::Kind::RELEASE) return keyUp(KeyUp{ id, mods, &input });
+    KeyDown down{ id, mods, "", kind == Input::Kind::REPEAT, &input };
     int ch = input.getTrueCaseId();
     if (!mods.ctrl && !mods.alt && !mods.meta && ch >= 0x20 && ch != 0x7f && ch < Key::First) appendUtf8(down.text, ch);
     return keyDown(down);

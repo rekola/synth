@@ -265,6 +265,8 @@ class InteractiveUI : public UI {
   bool escape_indicator_shown_ = false;
   // Declared last so the handlers disconnect before the members they use go.
   std::vector<cellui::Connection> controller_connections_;
+  // Gives a widget the keys the dispatcher sends it, as the Input they came from.
+  std::vector<cellui::Connection> key_connections_;
 };
 
 #endif
