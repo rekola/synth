@@ -158,6 +158,7 @@ struct Window::Impl {
   Com<IDWriteFactory> dwrite;
   Com<ID2D1HwndRenderTarget> target;
   Com<IDWriteTextFormat> formats[4];  // by bold | italic << 1
+  Com<IDWriteTextFormat> proportional[4];  // the same in the system UI font
   Com<ID2D1SolidColorBrush> brush;
 
   WindowOptions options;
@@ -178,6 +179,7 @@ struct Window::Impl {
   std::vector<BackdropLayer> layers;
   std::vector<ElevatedArea> elevations;
   std::vector<CursorArea> mouse_cursors;
+  std::vector<TextRun> text_runs;
 
   // The Direct2D bitmaps of pictures, by plane key, kept while the version
   // is the same.
@@ -228,6 +230,8 @@ struct Window::Impl {
   ID2D1RenderTarget * rt_ = nullptr;
   void drawCells(const CellBuffer & cells, bool transparent, int origin_row, int origin_col, double shift_x, double shift_y,
                  const CellRange * only = nullptr);
+  // A proportional-text run in the box of `cols` cells at (x, y).
+  void drawTextRun(const TextRun & run, float x, float y, int cols, const Color & fg);
   // A blend laid over a region: the target has no blend modes, so what is
   // below is drawn again there with every colour blended (blendRegion()).
   struct Tint {
@@ -279,6 +283,8 @@ void Window::Impl::makeFonts() {
     if (formats[i]) {
       formats[i]->SetWordWrapping(DWRITE_WORD_WRAPPING_NO_WRAP);
     }
+    dwrite->CreateTextFormat(L"Segoe UI", nullptr, weight, style, DWRITE_FONT_STRETCH_NORMAL, size, L"", proportional[i].put());
+    if (proportional[i]) proportional[i]->SetWordWrapping(DWRITE_WORD_WRAPPING_NO_WRAP);
   }
   cell_w = 8;
   cell_h = 16;
@@ -355,6 +361,30 @@ ID2D1Bitmap * Window::Impl::bitmapFor(const ImagePlacement & placement) {
   return b.bitmap.get();
 }
 
+void Window::Impl::drawTextRun(const TextRun & run, float x, float y, int cols, const Color & fg) {
+  IDWriteTextFormat * format = (run.font == TextFont::PROPORTIONAL ? proportional : formats)[(run.bold ? 1 : 0) | (run.italic ? 2 : 0)].get();
+  if (!format) return;
+  const float w = static_cast<float>(cols * cell_w), h = static_cast<float>(cell_h);
+  std::wstring text = widen(run.text);
+  Com<IDWriteTextLayout> layout;
+  if (FAILED(dwrite->CreateTextLayout(text.c_str(), static_cast<UINT32>(text.size()), format, w, h, layout.put()))) return;
+  if (run.underline) layout->SetUnderline(TRUE, DWRITE_TEXT_RANGE{ 0, static_cast<UINT32>(text.size()) });
+  if (run.overflow == TextOverflow::ELLIPSIS) {
+    Com<IDWriteInlineObject> sign;
+    if (SUCCEEDED(dwrite->CreateEllipsisTrimmingSign(layout.get(), sign.put()))) {
+      DWRITE_TRIMMING trimming = { DWRITE_TRIMMING_GRANULARITY_CHARACTER, 0, 0 };
+      layout->SetTrimming(&trimming, sign.get());
+    }
+  }
+  DWRITE_TEXT_METRICS metrics;
+  float top = 0;
+  if (SUCCEEDED(layout->GetMetrics(&metrics))) top = std::max(0.0f, (h - metrics.height) / 2.0f);
+  brush->SetColor(colorOf(tinted(fg, x, y, w, h)));
+  rt_->PushAxisAlignedClip(D2D1::RectF(x, y, x + w, y + h), D2D1_ANTIALIAS_MODE_ALIASED);
+  rt_->DrawTextLayout(D2D1::Point2F(x, y + top), layout.get(), brush.get(), D2D1_DRAW_TEXT_OPTIONS_ENABLE_COLOR_FONT);
+  rt_->PopAxisAlignedClip();
+}
+
 void Window::Impl::drawCells(const CellBuffer & cells, bool transparent, int origin_row, int origin_col, double shift_x, double shift_y, const CellRange * only) {
   const Color default_fg = *display_info.default_fg;
   const float w = static_cast<float>(cell_w), h = static_cast<float>(cell_h);
@@ -391,6 +421,18 @@ void Window::Impl::drawCells(const CellBuffer & cells, bool transparent, int ori
       }
       if (cell.continuation) continue;
       Color fg = cell.fg ? *cell.fg : default_fg;
+      if (cell.text_run > 0) {
+        // The run is laid out once, from its first cell over all it marks.
+        if (c == c0 || cells.at(r, c - 1).text_run != cell.text_run) {
+          int end = c + 1;
+          while (end < cells.cols() && cells.at(r, end).text_run == cell.text_run) end++;
+          if (static_cast<size_t>(cell.text_run) <= text_runs.size()) {
+            const TextRun & run = text_runs[static_cast<size_t>(cell.text_run - 1)];
+            drawTextRun(run, x, y, end - c, run.fg.value_or(default_fg));
+          }
+        }
+        continue;
+      }
       bool blank = cell.text.empty() || cell.text == " ";
       if (!blank) {
         // A double-width character spans its continuation cell too.
@@ -1044,6 +1086,7 @@ std::unique_ptr<Window> Window::open(const WindowOptions & options, std::string 
   impl.display_info.pictures = true;
   impl.display_info.display_scale = impl.dpi / 96.0;
   impl.display_info.smooth_scroll = true;
+  impl.display_info.proportional_text = true;
   impl.display_info.keymap_profile = KeymapProfile::DESKTOP;
   impl.display_info.escape_as_meta = false;
   impl.display_info.key_release = true;
@@ -1120,6 +1163,7 @@ void Window::present(const CellBuffer & frame, const CursorRequest & cursor, con
   std::stable_sort(impl_->elevations.begin(), impl_->elevations.end(),
                    [](const ElevatedArea & a, const ElevatedArea & b) { return a.elevation < b.elevation; });
   if (info) impl_->mouse_cursors = info->mouse_cursors;
+  impl_->text_runs = info ? info->text_runs : std::vector<TextRun>();
   InvalidateRect(impl_->hwnd, nullptr, FALSE);
 }
 
