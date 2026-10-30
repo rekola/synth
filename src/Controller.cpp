@@ -394,13 +394,9 @@ Controller::Controller(ChannelConfiguration _channel_config) : channel_config(_c
     }
   });
   commands_.define("add-filter", [this]() { });
-  // Placeholder stubs (menu-visible, TerminalMenu's Song section) for
-  // Song::getKey()/setKey() and getTuning()/setTuning(), which already
-  // exist on the model but have no UI path to reach them yet - a prompt
-  // for the key/tuning value itself (e.g. picking among Tuning's 12/19/
-  // 31/53-EDO values) is separate, not-yet-scheduled work.
-  commands_.define("set-song-key", [this]() { });
-  commands_.define("set-song-tuning", [this]() { });
+  // A placeholder stub (menu-visible) for Song::getKey()/setKey(), which
+  // has no UI path to reach it yet.
+  commands_.define("set-song-key", [this]() {});
   commands_.define("toggle-mixer-type", [this]() {
     // "Bypass HRTF entirely" toggle: AMBISONIC_STEREO <-> AMBISONIC_BINAURAL.
     // A no-op for a MONO config - MixerFactory never attempts binaural

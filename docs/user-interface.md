@@ -233,6 +233,12 @@ the selection, so the corrections stay as they were; otherwise the key stays
 and the notes are retuned against it. Changing the song's scale
 (`set-song-scale`) retunes every tuned note of the song for the new scale, in
 the same undo step; untuned notes stay untuned.
+Changing the tuning (`set-song-tuning`, Song menu) converts the song by
+pitch: the key moves to the new tuning's nearest step, every other pitched
+note to the step nearest its interval to the key (a tuning correction
+counted; a tie takes the lower step), and a tuned note keeps what is left
+over as its correction, so a tuned chord stays pure and converting there
+and back gives the same notes. Percussion is untouched; one undo step.
 `undo` takes any of these back. Not on the Launchpad.
 
 ## Humanize
