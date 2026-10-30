@@ -86,6 +86,9 @@ void GlibEventLoop::addSource(const std::vector<int> & fds, Handler handler) {
   s->handler = new Handler(std::move(handler));
   s->ran = &impl_->ran;
   for (int fd : fds) s->tags->push_back(g_source_add_unix_fd(source, fd, G_IO_IN));
+  // A handler may run a nested loop (a modal dialog); the source it was
+  // called from must still be dispatched in it, or no input would arrive.
+  g_source_set_can_recurse(source, TRUE);
   g_source_attach(source, nullptr);
   impl_->sources.push_back(source);
 }
