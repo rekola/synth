@@ -187,6 +187,7 @@ class InteractiveUI : public UI {
   void layoutCommandPalette();
   bool modalLayerOpen(const cellui::Input & input) const;
   bool offerModal(const cellui::Input & input);
+  bool offerKeyLayers(const cellui::Input & input);
   void handleCommandPaletteInput(const cellui::Input & input);
   std::string bindingFor(const std::string & command) const;
   ChoiceDialog choice_dialog_;

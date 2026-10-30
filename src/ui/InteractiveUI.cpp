@@ -699,7 +699,7 @@ InteractiveUI::initializeWidgets() {
   // The dispatcher sends keys to the focused widget, which still takes them
   // as an Input.
   auto modal = [this](const cellui::Input * input) {
-    return input && offerModal(*input) ? cellui::Handled::yes : cellui::Handled::no;
+    return input && (offerModal(*input) || offerKeyLayers(*input)) ? cellui::Handled::yes : cellui::Handled::no;
   };
   key_connections_.push_back(on<cellui::KeyDown>([modal](const cellui::KeyDown & e, cellui::EventContext &) { return modal(e.input); }, cellui::Phase::capture));
   key_connections_.push_back(on<cellui::KeyUp>([modal](const cellui::KeyUp & e, cellui::EventContext &) { return modal(e.input); }, cellui::Phase::capture));
@@ -1454,6 +1454,26 @@ bool InteractiveUI::offerModal(const cellui::Input & input) {
   return true;
 }
 
+// What sees a key before the focused widget: the octave editor, the commands
+// bound on the active widget and the app, the menu, the status line.
+bool InteractiveUI::offerKeyLayers(const cellui::Input & input) {
+  if (octave_control_->isEditing() && octave_control_->offerInput(input)) return true;
+  // A command (undo, save, ...) must see a half-typed velocity or delay.
+  if (input.getKind() != InputEvent::Kind::RELEASE && (input.hasCtrl() || input.hasAlt())) pattern_editor_->commitPendingValue();
+  // No open reader (a StatusLine prompt, any widget's inline editor) may let a
+  // global keybinding steal a keystroke meant for it.
+  bool reader_active = status_line_->isReaderActive() || pattern_editor_->isReaderActive() || clip_grid_->isReaderActive();
+  if (!reader_active && dispatchCommand(input)) return true;
+  if (menu_->offerInput(input)) {
+    // Through sendCommand() so Controller-level commands run too.
+    if (auto cmd = menu_->takeActivatedCommand(); !cmd.empty()) {
+      if (!getController().sendCommand(cmd)) setStatus("Invalid command");
+    }
+    return true;
+  }
+  return status_line_->offerInput(input);
+}
+
 bool
 InteractiveUI::offerInput(const cellui::Input & input) {
   bool handled = false;
@@ -1465,6 +1485,14 @@ InteractiveUI::offerInput(const cellui::Input & input) {
   bool pointer = input.getId() >= Key::Motion && input.getId() <= Key::Button11;
   bool button1_held = dispatcher_.pressedButtons() & 1;
   if (pointer) dispatcher_.offer(input);
+
+  // A key goes to the dispatcher alone: the modal layers and the layers in
+  // offerKeyLayers() are capture handlers on the root, ahead of the focused widget.
+  if (!pointer && input.getId() != Key::Resize && !(input.hasCtrl() && input.getId() == 'l')) {
+    dispatcher_.setFocus(active_element_.lock().get());
+    bool taken = dispatcher_.offer(input) == cellui::Handled::yes;
+    return taken || modalLayerOpen(input);
+  }
 
   // No open reader (a StatusLine prompt, any widget's inline
   // editor - see PatternEditor::isReaderActive()'s own comment) may let a
