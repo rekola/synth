@@ -1691,8 +1691,9 @@ InteractiveUI::setStatus(std::string s) {
 
 void
 InteractiveUI::showInfoDialog(const std::string & title, const std::string & markdown) {
+  redraw_requested_ = true;
   cellui::InfoModal dialog(*this, getPlane(), eventLoop(), title, markdown);
-  dialog.exec();
+  dialog.showModal();
   force_next_render_ = true;
 }
 
@@ -1706,8 +1707,9 @@ void InteractiveUI::showChoiceDialog(const std::string & title, std::vector<Choi
   for (auto & choice : choices) labels.push_back(choice.label);
   int index;
   {
+    redraw_requested_ = true;
     cellui::ChoiceModal dialog(*this, getPlane(), eventLoop(), title, std::move(labels), current);
-    index = dialog.exec();
+    index = dialog.showModal();
   }
   force_next_render_ = true;
   // Called once the dialog is gone: it may report on the status line.

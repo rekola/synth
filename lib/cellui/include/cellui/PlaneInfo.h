@@ -59,6 +59,8 @@ struct ElevatedArea {
   // own colour): what shows in the corners the radius cuts away.
   double radius = 0;
   std::array<std::optional<Color>, 4> corner_bg{};
+  // A scrim: blank cells with a backdrop, never drawn again over a shadow.
+  bool scrim = false;
 };
 
 // The part of the screen a plane asked a pointer shape for.

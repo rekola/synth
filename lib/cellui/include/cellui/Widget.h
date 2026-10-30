@@ -77,7 +77,7 @@ class Widget {
   }
 
   // The modal dialog that has the input, kept on the root of the tree
-  // (ModalDialog::exec() sets and clears it). Null when there is none.
+  // (ModalDialog::showModal() sets and clears it). Null when there is none.
   ModalDialog * activeModal() { return root().modal_; }
   void setActiveModal(ModalDialog * dialog) { root().modal_ = dialog; }
 

@@ -12,7 +12,7 @@
 namespace cellui {
 
 // The base of a modal dialog. A dialog is made on the stack and shown with
-// exec(), which runs a nested event loop and returns with the dialog's
+// showModal(), which runs a nested event loop and returns with the dialog's
 // result. Everything else is the dialog's own: the scrim behind it, taking
 // every key and pointer event while it is up (the application's widgets get
 // none), and ending when it calls done(). The application only needs to know
@@ -21,7 +21,7 @@ namespace cellui {
 class ModalDialog {
  public:
   // `root` is the widget tree the events come through, `screen` the plane the
-  // dialog is drawn under, `loop` the one exec() runs.
+  // dialog is drawn under, `loop` the one showModal() runs.
   ModalDialog(Widget & root, Plane & screen, EventLoop & loop) : root_(root), screen_(screen), loop_(loop) { }
   virtual ~ModalDialog();
   ModalDialog(const ModalDialog &) = delete;
@@ -31,8 +31,8 @@ class ModalDialog {
   static constexpr int kClosed = -1;
 
   // Shows the dialog and returns its result once it is done.
-  int exec();
-  // Ends exec() with `result`, after the turn it is called in.
+  int showModal();
+  // Ends showModal() with `result`, after the turn it is called in.
   void done(int result);
 
   // Draws it again for the current screen size; the application calls it

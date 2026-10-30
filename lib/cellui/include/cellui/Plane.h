@@ -63,6 +63,12 @@ class Plane {
   // multiplies it by displayScale()), where it draws by pixels; 0 is square.
   // Only an elevated plane shows it. Default no-op.
   virtual void setCornerRadius(double) {}
+  // Whether an elevated plane casts a shadow and edge shading of its own; one
+  // laid over another at the same height (a list on a dialog) does not.
+  virtual void setCastsShadow(bool) {}
+  // A plane of blank cells that only carries a backdrop (Scrim): nothing of
+  // it is drawn again over a lower plane's shadow.
+  virtual void setScrim(bool) {}
   // The pointer's shape over the plane's rectangle. A plane that leaves it
   // at INHERIT shows what is below it, so a popup sets DEFAULT to say its
   // area is not what lies under it. Default no-op for a display with no

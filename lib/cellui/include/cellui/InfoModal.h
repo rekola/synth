@@ -8,7 +8,7 @@
 namespace cellui {
 
 // A modal text box (Markdown, see InfoDialog) that Escape, Enter, q or Ctrl+G
-// close. The display's own text selection works over it. exec() returns 0.
+// close. The display's own text selection works over it. showModal() returns 0.
 class InfoModal : public ModalDialog {
  public:
   InfoModal(Widget & root, Plane & screen, EventLoop & loop, std::string title, std::string markdown);

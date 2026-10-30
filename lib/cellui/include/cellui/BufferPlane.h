@@ -46,6 +46,8 @@ class BufferPlane : public Plane {
   void setElevation(float elevation) override { elevation_ = elevation; }
   float elevation() const override { return elevation_; }
   void setCornerRadius(double radius) override { corner_radius_ = radius; }
+  void setCastsShadow(bool casts) override { casts_shadow_ = casts; }
+  void setScrim(bool scrim) override { scrim_ = scrim; }
   void setMouseCursor(MouseCursor cursor) override { mouse_cursor_ = cursor; }
   MouseCursor mouseCursor() const override { return mouse_cursor_; }
   bool isVisible() const { return visible_; }
@@ -227,6 +229,8 @@ class BufferPlane : public Plane {
   bool visible_ = true;
   float elevation_ = 0;
   double corner_radius_ = 0;
+  bool casts_shadow_ = true;
+  bool scrim_ = false;
   MouseCursor mouse_cursor_ = MouseCursor::INHERIT;
   std::string name_;
 

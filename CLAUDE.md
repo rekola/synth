@@ -1422,7 +1422,7 @@ would otherwise resume showing.
     would lay out the parsed `Document` itself). The terminal one is modal
     and closes on Escape/Enter/q/C-g or a click.
 
-    Modal dialogs are made on the stack and shown with `exec()`
+    Modal dialogs are made on the stack and shown with `showModal()`
     (`cellui::ModalDialog`, `ChoiceModal`, `InfoModal`): it runs a nested
     event loop and returns the dialog's result. The dialog owns its scrim,
     takes every key and pointer event through capture handlers it puts on the

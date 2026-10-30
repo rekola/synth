@@ -25,7 +25,7 @@ void ModalDialog::connect() {
   connections_.push_back(root_.on<Wheel>([take](const Wheel & e, EventContext &) { return take(e.input); }, Phase::capture));
 }
 
-int ModalDialog::exec() {
+int ModalDialog::showModal() {
   ModalDialog * previous = root_.activeModal();
   root_.setActiveModal(this);
   result_ = kClosed;
@@ -34,6 +34,8 @@ int ModalDialog::exec() {
   auto frame = loop_.onFrame([this] {
     if (animating()) relayout();
   });
+  // A turn must run to show it, with no event to start one.
+  loop_.wake();
   loop_.run(this);
   frame.disconnect();
   connections_.clear();

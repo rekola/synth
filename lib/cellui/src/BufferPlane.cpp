@@ -214,7 +214,7 @@ void BufferPlane::refresh() {
       top.mouse_cursors_.push_back(CursorArea{ r0, c0, r1 - r0, c1 - c0, p.plane->mouse_cursor_ });
     }
     if (elevated) {
-      top.elevations_.push_back(ElevatedArea{ r0, c0, r1 - r0, c1 - c0, p.elevation, p.plane->name_, top.layers_.size(), true, 0.0, 0.0, p.plane->corner_radius_, corner_bg });
+      top.elevations_.push_back(ElevatedArea{ r0, c0, r1 - r0, c1 - c0, p.elevation, p.plane->name_, top.layers_.size(), p.plane->casts_shadow_, 0.0, 0.0, p.plane->corner_radius_, corner_bg, p.plane->scrim_ });
     }
   }
   top.collectLifts(*top.target_, top.layers_.size());

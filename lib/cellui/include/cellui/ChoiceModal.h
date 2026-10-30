@@ -8,7 +8,7 @@
 
 namespace cellui {
 
-// A modal list to pick one entry from. exec() returns the index chosen, or
+// A modal list to pick one entry from. showModal() returns the index chosen, or
 // kClosed (-1) when it was cancelled.
 class ChoiceModal : public ModalDialog {
  public:
