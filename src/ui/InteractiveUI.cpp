@@ -720,6 +720,24 @@ InteractiveUI::initializeWidgets() {
     key_connections_.push_back(widget->on<cellui::KeyUp>([offer](const cellui::KeyUp & e, cellui::EventContext &) { return offer(e.input); }));
   }
 
+  // The clip grid and the outline take the left button and the wheel as
+  // dispatcher events, handing the Input they came from to offerInput(). The
+  // dispatcher's grab keeps a drag and its release with the widget the press
+  // went down on. The pattern editor still takes the pointer through
+  // offerInput() directly.
+  for (cellui::Widget * widget : std::initializer_list<cellui::Widget *>{clip_grid_.get(), outline_view_.get()}) {
+    auto offer = [widget](const cellui::Input * input) {
+      return input && widget->offerInput(*input) ? cellui::Handled::yes : cellui::Handled::no;
+    };
+    key_connections_.push_back(widget->on<cellui::MouseDown>([offer](const cellui::MouseDown & e, cellui::EventContext &) {
+      return e.button == 1 ? offer(e.input) : cellui::Handled::no;
+    }));
+    key_connections_.push_back(widget->on<cellui::MouseUp>([offer](const cellui::MouseUp & e, cellui::EventContext &) {
+      return e.button == 1 ? offer(e.input) : cellui::Handled::no;
+    }));
+    key_connections_.push_back(widget->on<cellui::Wheel>([offer](const cellui::Wheel & e, cellui::EventContext &) { return offer(e.input); }));
+  }
+
   // An overview first, not pattern editing - the arrangement grid when
   // starting in Arrangement view; initialize() moves it to the clip grid
   // when starting in Live View.

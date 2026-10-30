@@ -40,6 +40,7 @@ struct MouseDown {
   int row = 0, col = 0;
   int button = 1;  // 1 left, 2 middle, 3 right
   Modifiers mods;
+  const Input * input = nullptr;  // as offered through InputDispatcher::offer(), while handled
 };
 
 // buttons: the held ones, bit n-1 for button n; 0 for plain hover.
@@ -48,6 +49,7 @@ struct MouseMove {
   int row = 0, col = 0;
   unsigned buttons = 0;
   Modifiers mods;
+  const Input * input = nullptr;  // as offered through InputDispatcher::offer(), while handled
 };
 
 struct MouseUp {
@@ -55,6 +57,7 @@ struct MouseUp {
   int row = 0, col = 0;
   int button = 1;
   Modifiers mods;
+  const Input * input = nullptr;  // as offered through InputDispatcher::offer(), while handled
 };
 
 // dy > 0 is up (content moves down), dx > 0 is right, in steps of one notch.
@@ -63,6 +66,7 @@ struct Wheel {
   int row = 0, col = 0;
   int dx = 0, dy = 0;
   Modifiers mods;
+  const Input * input = nullptr;  // as offered through InputDispatcher::offer(), while handled
 };
 
 // The pointer came onto a widget (outermost first) or left it (deepest
