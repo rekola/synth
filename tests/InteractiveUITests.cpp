@@ -120,13 +120,16 @@ TEST(terminal_ui_set_song_scale_lists_scales_and_saves_the_choice) {
   CHECK(read().find("scale=\"") == std::string::npos);
 
   UIFixture f(song.string(), UI::View::ARRANGEMENT);
+  f.inModal([&] {
+    f.ui->step();
+    for (const char * name : {"None (chromatic)", "Major", "Minor", "Otonal", "Utonal"}) {
+      CHECK(f.text().find(name) != std::string::npos);
+    }
+    // The list starts on the scale in use, None.
+    for (int i = 0; i < 3; i++) f.press(cellui::Key::Down);
+    f.press(cellui::Key::Enter);
+  });
   f.execute("set-song-scale");
-  for (const char * name : { "None (chromatic)", "Major", "Minor", "Otonal", "Utonal" }) {
-    CHECK(f.text().find(name) != std::string::npos);
-  }
-  // The list starts on the scale in use, None.
-  for (int i = 0; i < 3; i++) f.press(cellui::Key::Down);
-  f.press(cellui::Key::Enter);
   CHECK(f.text().find("Scale Otonal") != std::string::npos);
 
   f.ctrl('x');
@@ -150,15 +153,17 @@ TEST(terminal_ui_modal_dialog_shows_the_screen_behind_it_through_a_backdrop) {
   };
   CHECK(!hasScrim());
 
-  f.execute("about");
-  CHECK(hasScrim());
   auto red = [](const cellui::CellBuffer::Cell & cell) { return cell.fg.value_or(cellui::Color()).getRed(); };
   auto green = [](const cellui::CellBuffer::Cell & cell) { return cell.fg.value_or(cellui::Color()).getGreen(); };
-  auto frosted = f.terminal.frame().at(0, 0);
-  CHECK(frosted.fg.has_value() && sharp.fg.has_value());
-  CHECK(red(frosted) != red(sharp) || green(frosted) != green(sharp));
-
-  f.press(cellui::Key::Escape);
+  f.inModal([&] {
+    f.ui->step();
+    CHECK(hasScrim());
+    auto frosted = f.terminal.frame().at(0, 0);
+    CHECK(frosted.fg.has_value() && sharp.fg.has_value());
+    CHECK(red(frosted) != red(sharp) || green(frosted) != green(sharp));
+    f.press(cellui::Key::Escape);
+  });
+  f.execute("about");
   CHECK(!hasScrim());
   auto back = f.terminal.frame().at(0, 0);
   CHECK(red(back) == red(sharp) && green(back) == green(sharp) && back.text == sharp.text);
@@ -169,13 +174,16 @@ TEST(terminal_ui_modal_dialog_shows_the_screen_behind_it_through_a_backdrop) {
 TEST(terminal_ui_modal_dialog_gives_the_backend_the_screen_behind_it_as_a_layer) {
   UIFixture f;
   CHECK(f.terminal.info().backdrops.empty());
+  f.inModal([&] {
+    f.ui->step();
+    const auto & layers = f.terminal.info().backdrops;
+    CHECK(layers.size() == 1);
+    CHECK(layers[0].backdrop.active());
+    CHECK(layers[0].cells.toPlainText().find("File") != std::string::npos);
+    CHECK(layers[0].cells.toPlainText().find("About") == std::string::npos);
+    f.press(cellui::Key::Escape);
+  });
   f.execute("about");
-  const auto & layers = f.terminal.info().backdrops;
-  CHECK(layers.size() == 1);
-  CHECK(layers[0].backdrop.active());
-  CHECK(layers[0].cells.toPlainText().find("File") != std::string::npos);
-  CHECK(layers[0].cells.toPlainText().find("About") == std::string::npos);
-  f.press(cellui::Key::Escape);
   CHECK(f.terminal.info().backdrops.empty());
 }
 
@@ -189,14 +197,17 @@ TEST(terminal_ui_modal_backdrop_is_pictures_where_the_terminal_shows_them) {
   UIFixture f("", UI::View::LIVE, display);
   f.terminal.emulateBackdrops(true);
   size_t before = f.terminal.images().size();
+  f.inModal([&] {
+    f.ui->step();
+    size_t stretched = 0;
+    for (auto & p : f.terminal.images()) stretched += p.image->stretched();
+    CHECK(stretched > 0);
+    CHECK(f.terminal.images().size() > before);
+    CHECK(f.terminal.frame().at(0, 0).image > 0);
+    CHECK(f.text().find("About") != std::string::npos);
+    f.press(cellui::Key::Escape);
+  });
   f.execute("about");
-  size_t stretched = 0;
-  for (auto & p : f.terminal.images()) stretched += p.image->stretched();
-  CHECK(stretched > 0);
-  CHECK(f.terminal.images().size() > before);
-  CHECK(f.terminal.frame().at(0, 0).image > 0);
-  CHECK(f.text().find("About") != std::string::npos);
-  f.press(cellui::Key::Escape);
   for (auto & p : f.terminal.images()) CHECK(!p.image->stretched());
 }
 
@@ -205,13 +216,15 @@ TEST(terminal_ui_modal_backdrop_is_pictures_where_the_terminal_shows_them) {
 // must not close it.
 TEST(terminal_ui_info_dialog_ignores_key_releases) {
   UIFixture f;
+  f.inModal([&] {
+    f.terminal.pushKey(cellui::Key::Enter, 0, cellui::Input::Kind::RELEASE);
+    f.terminal.pushKey('q', 0, cellui::Input::Kind::RELEASE);
+    f.ui->step();
+    CHECK(f.terminal.info().focus == "info-dialog");
+    f.terminal.pushKey(cellui::Key::Enter, 0, cellui::Input::Kind::PRESS);
+    f.ui->step();
+  });
   f.execute("about");
-  f.terminal.pushKey(cellui::Key::Enter, 0, cellui::Input::Kind::RELEASE);
-  f.terminal.pushKey('q', 0, cellui::Input::Kind::RELEASE);
-  f.ui->step();
-  CHECK(f.terminal.info().focus == "info-dialog");
-  f.terminal.pushKey(cellui::Key::Enter, 0, cellui::Input::Kind::PRESS);
-  f.ui->step();
   CHECK(f.terminal.info().focus != "info-dialog");
 }
 
@@ -220,23 +233,28 @@ TEST(terminal_ui_info_dialog_ignores_key_releases) {
 TEST(terminal_ui_info_dialog_leaves_the_mouse_to_the_terminal) {
   UIFixture f;
   CHECK(!f.terminal.nativeSelection());
+  f.inModal([&] {
+    f.ui->step();
+    CHECK(f.terminal.nativeSelection());
+    f.terminal.pushMouse(20, 60, cellui::Key::Button1);
+    f.ui->step();
+    CHECK(f.terminal.info().focus == "info-dialog");
+    f.press(cellui::Key::Escape);
+  });
   f.execute("about");
-  CHECK(f.terminal.nativeSelection());
-  f.terminal.pushMouse(20, 60, cellui::Key::Button1);
-  f.ui->step();
-  CHECK(f.terminal.info().focus == "info-dialog");
-  f.press(cellui::Key::Escape);
   CHECK(!f.terminal.nativeSelection());
 }
 
 // A choice dialog's entries show over its raised box.
 TEST(terminal_ui_choice_dialog_entries_show_over_the_raised_box) {
   UIFixture f;
+  f.inModal([&] {
+    f.ui->step();
+    CHECK(f.terminal.text().find("Pick one") != std::string::npos);
+    CHECK(f.terminal.text().find("Alpha entry") != std::string::npos);
+    CHECK(f.terminal.text().find("Beta entry") != std::string::npos);
+  });
   f.ui->showChoiceDialog("Pick one", {{"Alpha entry", "a"}, {"Beta entry", "b"}}, 0, [](int) {});
-  f.ui->step();
-  CHECK(f.terminal.text().find("Pick one") != std::string::npos);
-  CHECK(f.terminal.text().find("Alpha entry") != std::string::npos);
-  CHECK(f.terminal.text().find("Beta entry") != std::string::npos);
 }
 
 TEST(terminal_ui_ctrl_keypad_operators_change_the_track_instrument) {

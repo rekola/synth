@@ -23,6 +23,8 @@
 
 namespace cellui {
 
+class ModalDialog;
+
 // A widget: owns a plane, draws through it, and dispatches key shortcuts to
 // named commands.
 class Widget {
@@ -73,6 +75,11 @@ class Widget {
     while (widget->parent_) widget = widget->parent_;
     return *widget;
   }
+
+  // The modal dialog that has the input, kept on the root of the tree
+  // (ModalDialog::exec() sets and clears it). Null when there is none.
+  ModalDialog * activeModal() { return root().modal_; }
+  void setActiveModal(ModalDialog * dialog) { root().modal_ = dialog; }
 
   // --- Posted events (see EventTypes.h). An event is any struct.
 
@@ -475,6 +482,7 @@ private:
   std::vector<Widget *> children_;
   // On a root: bumped whenever its tree changes shape.
   uint64_t epoch_ = 0;
+  ModalDialog * modal_ = nullptr;
   std::unique_ptr<Registry> registry_;
   std::function<double()> clock_;
 };

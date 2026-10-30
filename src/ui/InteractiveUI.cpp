@@ -404,10 +404,9 @@ InteractiveUI::InteractiveUI(cellui::Backend & backend)
     if (command_palette_.isOpen()) {
       command_palette_.close();
       force_next_render_ = true;
-    } else if (choice_dialog_.isOpen()) {
-      closeChoiceDialog();
-    } else if (info_dialog_.isOpen()) {
-      closeInfoDialog();
+    } else if (activeModal()) {
+      dispatcher_.offer(escape);
+      force_next_render_ = true;
     } else if (active && active->wantsBareEscape()) {
       active->offerInput(escape);
     } else {
@@ -459,9 +458,6 @@ InteractiveUI::initialize(std::shared_ptr<Controller> & controller) {
   root_plane_->setThemedBases(true);
   if (use_pixel) root_plane_->setCellPixelSize(display.cell_px_height, display.cell_px_width);
   setPlane(std::move(root_plane));
-  // The modal dialogs float above every overlay (menus, pickers, popups).
-  choice_dialog_.setElevation(styles_.theme.elevation.modal);
-  info_dialog_.setElevation(styles_.theme.elevation.modal);
 
   setFgColor(styles_.window_fg_color);
   setBgColor(styles_.window_bg_color);
@@ -499,17 +495,14 @@ InteractiveUI::initialize(std::shared_ptr<Controller> & controller) {
 // Every other widget was created after menu_, and layout() can raise a
 // widget above its header row, so it is raised before every frame (its open
 // section floats at the overlay elevation over everything but a modal
-// dialog) - and an open modal dialog above its scrim, which share the modal
-// elevation.
+// dialog).
 void InteractiveUI::raiseOverlays() {
   menu_->raiseToTop();
-  modal_scrim_.raise();
   command_palette_.raise();
-  choice_dialog_.raise();
-  info_dialog_.raise();
   // An info dialog takes no clicks: the terminal selects its text instead
   // (the blurred screen behind it has none to select).
-  backend_.setNativeSelection(info_dialog_.isOpen());
+  auto modal = activeModal();
+  backend_.setNativeSelection(modal && modal->wantsNativeSelection());
 }
 
 void
@@ -541,8 +534,9 @@ InteractiveUI::step() {
 std::string
 InteractiveUI::focusName() const {
   if (command_palette_.isOpen()) return "command-palette";
-  if (choice_dialog_.isOpen()) return "choice-dialog";
-  if (info_dialog_.isOpen()) return "info-dialog";
+  if (auto modal = const_cast<InteractiveUI *>(this)->activeModal()) {
+    return dynamic_cast<cellui::InfoModal *>(modal) ? "info-dialog" : "choice-dialog";
+  }
   if (outline_view_ && outline_view_->isModal()) return "outline-view";
   auto active = active_element_.lock();
   if (!active) return "";
@@ -701,11 +695,12 @@ InteractiveUI::initializeWidgets() {
   // The dispatcher sends keys to the focused widget, which still takes them
   // as an Input.
   auto modal = [this](const cellui::Input * input) {
+    if (activeModal()) return cellui::Handled::no; // the dialog's own handlers take it
     return input && (offerModal(*input) || offerKeyLayers(*input)) ? cellui::Handled::yes : cellui::Handled::no;
   };
   // While a modal layer or the menu is open the pointer is theirs: it is
   // handled in offerInput(), and must not reach the widgets underneath.
-  auto swallow = [this] { return anyModalOpen() || menu_->isOpen() ? cellui::Handled::yes : cellui::Handled::no; };
+  auto swallow = [this] { return !activeModal() && (anyModalOpen() || menu_->isOpen()) ? cellui::Handled::yes : cellui::Handled::no; };
   key_connections_.push_back(on<cellui::MouseDown>([swallow](const cellui::MouseDown &, cellui::EventContext &) { return swallow(); }, cellui::Phase::capture));
   key_connections_.push_back(on<cellui::MouseMove>([swallow](const cellui::MouseMove &, cellui::EventContext &) { return swallow(); }, cellui::Phase::capture));
   key_connections_.push_back(on<cellui::MouseUp>([swallow](const cellui::MouseUp &, cellui::EventContext &) { return swallow(); }, cellui::Phase::capture));
@@ -1292,11 +1287,8 @@ InteractiveUI::renderComponents(bool refresh) {
     blankScopes();
     render = true;
   }
-  // A choice list scrolling or easing its cursor draws itself each frame.
-  if (choice_dialog_.animating()) {
-    layoutChoiceDialog();
-    render = true;
-  }
+  // A dialog moving (a list scrolling) redraws itself each frame.
+  if (auto modal = activeModal(); modal && modal->animating()) render = true;
   auto active = active_element_.lock();
   auto & song = getController().getSong();
   // The shared/global track selection - Song's own, not any one widget's
@@ -1453,7 +1445,7 @@ bool InteractiveUI::modalLayerOpen(const cellui::Input & input) const {
 }
 
 bool InteractiveUI::anyModalOpen() const {
-  return command_palette_.isOpen() || choice_dialog_.isOpen() || info_dialog_.isOpen() || (outline_view_ && outline_view_->isModal());
+  return command_palette_.isOpen() || (outline_view_ && outline_view_->isModal());
 }
 
 // Hands `input` to the topmost modal layer; true when one took it.
@@ -1461,23 +1453,6 @@ bool InteractiveUI::offerModal(const cellui::Input & input) {
   if (!modalLayerOpen(input)) return false;
   if (command_palette_.isOpen()) {
     handleCommandPaletteInput(input);
-    return true;
-  }
-  if (choice_dialog_.isOpen()) {
-    handleChoiceDialogInput(input);
-    return true;
-  }
-  // The info dialog closes on its own keys and swallows everything else. The
-  // mouse is the terminal's while it is open (raiseOverlays()), so its text
-  // can be selected.
-  if (info_dialog_.isOpen()) {
-    auto id = input.getId();
-    // Not a release: the Enter that opened it, from the command palette, is
-    // released after it is open.
-    if (input.getKind() != InputEvent::Kind::RELEASE &&
-        (id == Key::Escape || id == Key::Enter || id == 'q' || (input.hasCtrl() && id == 'g'))) {
-      closeInfoDialog();
-    }
     return true;
   }
   outline_view_->offerInput(input);
@@ -1507,6 +1482,14 @@ bool InteractiveUI::offerKeyLayers(const cellui::Input & input) {
 bool
 InteractiveUI::offerInput(const cellui::Input & input) {
   bool handled = false;
+
+  // A modal dialog has everything but a resize: its own handlers take the
+  // event from the dispatcher.
+  if (activeModal() && input.getId() != Key::Resize && !(input.hasCtrl() && input.getId() == 'l')) {
+    dispatcher_.offer(input);
+    force_next_render_ = true;
+    return true;
+  }
 
   // Every pointer event goes through the dispatcher first, whatever takes it
   // below: it keeps the held buttons and which widget the press went down on.
@@ -1564,8 +1547,7 @@ InteractiveUI::offerInput(const cellui::Input & input) {
     // the next frame redraws everything.
     refresh();
     layout();
-    layoutInfoDialog();
-    layoutChoiceDialog();
+    if (auto modal = activeModal()) modal->relayout();
     layoutCommandPalette();
     // Deferred, not a direct renderComponents(true) call - see
     // force_next_render_'s own comment on InteractiveUI.h: this runs from
@@ -1709,9 +1691,8 @@ InteractiveUI::setStatus(std::string s) {
 
 void
 InteractiveUI::showInfoDialog(const std::string & title, const std::string & markdown) {
-  info_dialog_title_ = title;
-  info_dialog_markdown_ = markdown;
-  layoutInfoDialog();
+  cellui::InfoModal dialog(*this, getPlane(), eventLoop(), title, markdown);
+  dialog.exec();
   force_next_render_ = true;
 }
 
@@ -1723,10 +1704,14 @@ void InteractiveUI::showChoiceDialog(const std::string & title, std::vector<Choi
   }
   std::vector<std::string> labels;
   for (auto & choice : choices) labels.push_back(choice.label);
-  choice_callback_ = std::move(on_choose);
-  choice_dialog_.open(title, std::move(labels), current);
-  layoutChoiceDialog();
+  int index;
+  {
+    cellui::ChoiceModal dialog(*this, getPlane(), eventLoop(), title, std::move(labels), current);
+    index = dialog.exec();
+  }
   force_next_render_ = true;
+  // Called once the dialog is gone: it may report on the status line.
+  if (index >= 0 && on_choose) on_choose(index);
 }
 
 // How the active widgets bind `command` on this display, the focused one first.
@@ -1772,48 +1757,6 @@ void InteractiveUI::handleCommandPaletteInput(const cellui::Input & input) {
   command_palette_.close();
   force_next_render_ = true;
   if (!name.empty() && !getController().sendCommand(name)) setStatus("Invalid command");
-}
-
-void InteractiveUI::layoutModalScrim() {
-  if (!choice_dialog_.isOpen() && info_dialog_title_.empty()) {
-    modal_scrim_.close();
-    return;
-  }
-  auto [screen_rows, screen_cols] = getDim();
-  modal_scrim_.show(getPlane(), screen_rows, screen_cols, getPlane().getStyles().theme.modal_backdrop);
-}
-
-void InteractiveUI::layoutChoiceDialog() {
-  if (!choice_dialog_.isOpen()) return;
-  layoutModalScrim();
-  auto [screen_rows, screen_cols] = getDim();
-  choice_dialog_.show(getPlane(), screen_rows, screen_cols);
-}
-
-void InteractiveUI::handleChoiceDialogInput(const cellui::Input & input) {
-  auto result = choice_dialog_.offerInput(input);
-  if (result == ChoiceDialog::Result::NONE) {
-    layoutChoiceDialog(); // redraw with the moved selection
-    force_next_render_ = true;
-    return;
-  }
-  auto index = choice_dialog_.selected();
-  // Closed before the callback runs: it may report on the status line, and
-  // nothing should be left modal while it does.
-  auto callback = std::move(choice_callback_);
-  closeChoiceDialog();
-  if (result == ChoiceDialog::Result::CHOSEN && callback) callback(index);
-}
-
-// Centers the dialog on the screen.
-void
-InteractiveUI::layoutInfoDialog() {
-  if (info_dialog_title_.empty()) return;
-  layoutModalScrim();
-  auto [screen_rows, screen_cols] = getDim();
-  auto width = std::min(60, screen_cols);
-  info_dialog_.show(getPlane(), info_dialog_title_, info_dialog_markdown_, width, screen_rows);
-  info_dialog_.center(screen_rows, screen_cols);
 }
 
 cellui::EventLoop &
@@ -2153,7 +2096,7 @@ InteractiveUI::startUI(AudioAPI &, MidiInput & midi, LaunchpadIO & launchpad_io)
   constexpr auto kSteadyFrameInterval = std::chrono::milliseconds(25);
   // A view that scrolls smoothly is shown at the display's pace, not the steady one.
   constexpr auto kAnimatedFrameInterval = std::chrono::milliseconds(16);
-  auto animating = [&]() { return (arrangement_grid_ && arrangement_grid_->animating()) || (outline_view_ && outline_view_->animating()) || choice_dialog_.animating(); };
+  auto animating = [&]() { return (arrangement_grid_ && arrangement_grid_->animating()) || (outline_view_ && outline_view_->animating()) || (activeModal() && activeModal()->animating()); };
   auto min_frame_interval = [&]() { return animating() ? kAnimatedFrameInterval : kSteadyFrameInterval; };
   auto last_frame = std::chrono::steady_clock::now() - kSteadyFrameInterval;
   bool frame_pending = false;
