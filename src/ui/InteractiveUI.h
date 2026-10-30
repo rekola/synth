@@ -121,7 +121,6 @@ class InteractiveUI : public UI {
   // ArrangementGrid.h's own comment on why ArrangementGrid itself never
   // calls this directly.
   void commitOverviewCell(int track_id, int row);
-  bool tryActivate(int y, int x, std::shared_ptr<cellui::Widget> element);
   // The widgets the current view shows that can take focus, in C-x o
   // (other-window) order.
   std::vector<std::shared_ptr<cellui::Widget>> focusableElements() const;

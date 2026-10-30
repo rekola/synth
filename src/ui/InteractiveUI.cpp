@@ -1406,21 +1406,17 @@ InteractiveUI::viewChanged() {
   force_next_render_ = true;
 }
 
-bool InteractiveUI::tryActivate(int y, int x, std::shared_ptr<cellui::Widget> element) {
-  auto [pos_y, pos_x] = element->getPosition();
-  auto [rows, cols] = element->getDim();
-
-  if (y >= pos_y && y < pos_y + rows && x >= pos_x && x < pos_x + cols) {
-    active_element_ = element;
-    return true;
-  } else {
-    return false;
-  }
-}
-
 bool
 InteractiveUI::offerInput(const cellui::Input & input) {
   bool handled = false;
+
+  // Every pointer event goes through the dispatcher first, whatever takes it
+  // below: it keeps the held buttons and which widget the press went down on.
+  // A terminal reports a drag as the press again, so "was the button already
+  // down" is asked before this event is counted.
+  bool pointer = input.getId() >= Key::Motion && input.getId() <= Key::Button11;
+  bool button1_held = dispatcher_.pressedButtons() & 1;
+  if (pointer) dispatcher_.offer(input);
 
   // No open reader (a StatusLine prompt, any widget's inline
   // editor - see PatternEditor::isReaderActive()'s own comment) may let a
@@ -1510,7 +1506,7 @@ InteractiveUI::offerInput(const cellui::Input & input) {
     // The octave arrows act on click without taking focus from the active element.
     octave_control_->offerInput(input);
     return true;
-  } else if (input.getId() == Key::Button1 && (input.getKind() == InputEvent::Kind::RELEASE || clip_grid_->isMouseDown() || pattern_editor_->isMouseDown())) {
+  } else if (input.getId() == Key::Button1 && (input.getKind() == InputEvent::Kind::RELEASE || button1_held)) {
     // A release, or a press repeating as a drag moves, belongs to the
     // widget the button went down on - it must not hand focus to whatever
     // the pointer is over now. The release also ends the press everywhere,
@@ -1523,7 +1519,7 @@ InteractiveUI::offerInput(const cellui::Input & input) {
     auto previous_active_element = active_element_.lock();
     active_element_.reset();
 
-    // status_line_ deliberately isn't a tryActivate() candidate: its own
+    // status_line_ deliberately isn't a click-activation candidate: its own
     // input handling (the M-x trigger, and its reader while one's open) is
     // already reached unconditionally a few lines below, regardless of
     // active_element_ - becoming the active element bought it nothing, and
@@ -1536,11 +1532,16 @@ InteractiveUI::offerInput(const cellui::Input & input) {
     // Only the widgets the current view shows - a hidden one can share a
     // visible one's rect (see layout()), and a click must activate
     // whichever is visible.
+    // The widget under the pointer, or the shown one it sits in.
     bool activated = false;
-    for (auto & element : focusableElements()) {
-      if (!activated) activated = tryActivate(input.getY(), input.getX(), element);
+    auto candidates = focusableElements();
+    candidates.push_back(octave_control_);
+    for (cellui::Widget * hit = dispatcher_.hitTest(input.getY(), input.getX()); hit && !activated; hit = hit->parent()) {
+      auto candidate = std::find_if(candidates.begin(), candidates.end(), [hit](const auto & e) { return e.get() == hit; });
+      if (candidate == candidates.end()) continue;
+      active_element_ = *candidate;
+      activated = true;
     }
-    activated = tryActivate(input.getY(), input.getX(), octave_control_) || activated;
 
     // Fall back to the pattern editor (in every view) if the click landed
     // somewhere no widget claims (e.g.
