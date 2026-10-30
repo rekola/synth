@@ -705,6 +705,13 @@ InteractiveUI::initializeWidgets() {
   key_connections_.push_back(on<cellui::MouseMove>([swallow](const cellui::MouseMove &, cellui::EventContext &) { return swallow(); }, cellui::Phase::capture));
   key_connections_.push_back(on<cellui::MouseUp>([swallow](const cellui::MouseUp &, cellui::EventContext &) { return swallow(); }, cellui::Phase::capture));
   key_connections_.push_back(on<cellui::Wheel>([swallow](const cellui::Wheel &, cellui::EventContext &) { return swallow(); }, cellui::Phase::capture));
+  // A fresh left press makes the widget under it the active one, and ends
+  // an octave edit it leaves; the press itself still reaches that widget.
+  key_connections_.push_back(on<cellui::MouseDown>([this](const cellui::MouseDown & e, cellui::EventContext &) {
+    if (e.button == 1 && e.input && !button1_was_held_) activateAt(*e.input);
+    return cellui::Handled::no;
+  },
+                                                   cellui::Phase::capture));
   key_connections_.push_back(on<cellui::KeyDown>([modal](const cellui::KeyDown & e, cellui::EventContext &) { return modal(e.input); }, cellui::Phase::capture));
   key_connections_.push_back(on<cellui::KeyUp>([modal](const cellui::KeyUp & e, cellui::EventContext &) { return modal(e.input); }, cellui::Phase::capture));
   for (cellui::Widget * widget : std::initializer_list<cellui::Widget *>{pattern_editor_.get(), arrangement_grid_.get(), clip_grid_.get(), outline_view_.get()}) {
@@ -731,6 +738,14 @@ InteractiveUI::initializeWidgets() {
     }));
     key_connections_.push_back(widget->on<cellui::Wheel>([offer](const cellui::Wheel & e, cellui::EventContext &) { return offer(e.input); }));
   }
+
+  // The octave stepper takes the left button only.
+  key_connections_.push_back(octave_control_->on<cellui::MouseDown>([this](const cellui::MouseDown & e, cellui::EventContext &) {
+    return e.button == 1 && e.input && octave_control_->offerInput(*e.input) ? cellui::Handled::yes : cellui::Handled::no;
+  }));
+  key_connections_.push_back(octave_control_->on<cellui::MouseUp>([this](const cellui::MouseUp & e, cellui::EventContext &) {
+    return e.button == 1 && e.input && octave_control_->offerInput(*e.input) ? cellui::Handled::yes : cellui::Handled::no;
+  }));
 
   // An overview first, not pattern editing - the arrangement grid when
   // starting in Arrangement view; initialize() moves it to the clip grid
@@ -1479,6 +1494,42 @@ bool InteractiveUI::offerKeyLayers(const cellui::Input & input) {
   return status_line_->offerInput(input);
 }
 
+// A left press makes the widget under it the active one, falling back to the
+// pattern editor where none claims the cell.
+void InteractiveUI::activateAt(const cellui::Input & input) {
+  auto previous_active_element = active_element_.lock();
+  cellui::Widget * hit_widget = dispatcher_.hitTest(input.getY(), input.getX());
+
+  // The octave stepper is edited in place: a press on it, while editing, stays
+  // with it, and the arrows act without taking the focus.
+  if (hit_widget == octave_control_.get() && (octave_control_->isEditing() || octave_control_->hitsArrow(input.getY(), input.getX()))) return;
+
+  active_element_.reset();
+  // status_line_ deliberately isn't a click-activation candidate: it takes the
+  // M-x trigger and its reader whatever is active, and as the active element it
+  // would stop plain keys reaching the pattern editor (its row spans the
+  // screen's bottom). Only the widgets the current view shows - a hidden one
+  // can share a visible one's rect (see layout()).
+  bool activated = false;
+  auto candidates = focusableElements();
+  candidates.push_back(octave_control_);
+  for (cellui::Widget * hit = hit_widget; hit && !activated; hit = hit->parent()) {
+    auto candidate = std::find_if(candidates.begin(), candidates.end(), [hit](const auto & e) { return e.get() == hit; });
+    if (candidate == candidates.end()) continue;
+    active_element_ = *candidate;
+    activated = true;
+  }
+
+  // Where no widget claims the click (the scope strip, the dividers) the
+  // pattern editor takes it, or every key would find no active element. A
+  // click on the menu bar (the top row) leaves the focus where it was.
+  bool on_menu = input.getY() == 0;
+  if (!activated) active_element_ = (on_menu && previous_active_element) ? previous_active_element : pattern_editor_;
+
+  // Leaving the octave stepper mid-edit discards the half-typed value.
+  if (octave_control_->isEditing() && active_element_.lock() != octave_control_) octave_control_->cancelEditing();
+}
+
 bool
 InteractiveUI::offerInput(const cellui::Input & input) {
   bool handled = false;
@@ -1496,7 +1547,7 @@ InteractiveUI::offerInput(const cellui::Input & input) {
   // A terminal reports a drag as the press again, so "was the button already
   // down" is asked before this event is counted.
   bool pointer = input.getId() >= Key::Motion && input.getId() <= Key::Button11;
-  bool button1_held = dispatcher_.pressedButtons() & 1;
+  button1_was_held_ = dispatcher_.pressedButtons() & 1;
   bool pointer_taken = pointer && dispatcher_.offer(input) == cellui::Handled::yes;
 
   // A key goes to the dispatcher alone: the modal layers and the layers in
@@ -1536,7 +1587,7 @@ InteractiveUI::offerInput(const cellui::Input & input) {
     }
     return true;
   }
-  if (octave_control_->isEditing() && octave_control_->offerInput(input)) return true;
+  if (!pointer && octave_control_->isEditing() && octave_control_->offerInput(input)) return true;
   // A command (undo, save, ...) must see a half-typed velocity or delay.
   if (input.getKind() != InputEvent::Kind::RELEASE && (input.hasCtrl() || input.hasAlt())) pattern_editor_->commitPendingValue();
   if (!reader_active && dispatchCommand(input)) return true;
@@ -1574,70 +1625,10 @@ InteractiveUI::offerInput(const cellui::Input & input) {
       break;
     }
     return true;
-  } else if (input.getId() == Key::Button1 && (octave_control_->arrowPressPending() ||
-                                               (input.getKind() != InputEvent::Kind::RELEASE && octave_control_->hitsArrow(input.getY(), input.getX())))) {
-    // The octave arrows act on click without taking focus from the active element.
-    octave_control_->offerInput(input);
-    return true;
-  } else if (input.getId() == Key::Button1 && (input.getKind() == InputEvent::Kind::RELEASE || button1_held)) {
-    // A release, or a press repeating as a drag moves, belongs to the
-    // widget the button went down on - it must not hand focus to whatever
-    // the pointer is over now. The release also ends the press everywhere,
-    // wherever it lands.
-    if (input.getKind() == InputEvent::Kind::RELEASE) {
-      clip_grid_->releaseMouse();
-      pattern_editor_->releaseMouse();
-    }
-  } else if (input.getId() == Key::Button1) {
-    auto previous_active_element = active_element_.lock();
-    active_element_.reset();
-
-    // status_line_ deliberately isn't a click-activation candidate: its own
-    // input handling (the M-x trigger, and its reader while one's open) is
-    // already reached unconditionally a few lines below, regardless of
-    // active_element_ - becoming the active element bought it nothing, and
-    // cost everything else, since its own offerInput() returns false for
-    // any keystroke that isn't M-x/reader-related, so the active_element_
-    // fallback stopped reaching pattern_editor_ at all (no widget owns
-    // plain arrow keys/note entry the way pattern_editor_ does) the moment
-    // a click landed anywhere on the status line's own row - which spans
-    // the entire bottom row, so this was very easy to trigger by accident.
-    // Only the widgets the current view shows - a hidden one can share a
-    // visible one's rect (see layout()), and a click must activate
-    // whichever is visible.
-    // The widget under the pointer, or the shown one it sits in.
-    bool activated = false;
-    auto candidates = focusableElements();
-    candidates.push_back(octave_control_);
-    for (cellui::Widget * hit = dispatcher_.hitTest(input.getY(), input.getX()); hit && !activated; hit = hit->parent()) {
-      auto candidate = std::find_if(candidates.begin(), candidates.end(), [hit](const auto & e) { return e.get() == hit; });
-      if (candidate == candidates.end()) continue;
-      active_element_ = *candidate;
-      activated = true;
-    }
-
-    // Fall back to the pattern editor (in every view) if the click landed
-    // somewhere no widget claims (e.g.
-    // the FFT/heatmap/loudness scope strip, or the dividers between
-    // them). Without this, active_element_ was left permanently empty (a
-    // real, confirmed bug): every subsequent keyboard command routed
-    // through it (offerInput()'s active_element_ fallback below, and
-    // Launchpad button commands via executeCommand()) silently no-op'd -
-    // including plain Up/Down arrow - until the user happened to click
-    // directly back on the workspace.
-    // A click on the menu bar (the top row) leaves focus where it was.
-    bool on_menu = input.getY() == 0;
-    if (!activated) active_element_ = (on_menu && previous_active_element) ? previous_active_element : pattern_editor_;
-
-    // A click that moves focus away from the octave stepper while it's
-    // mid-edit discards the half-typed value rather than leaving it stuck
-    // showing a stale "selected" field forever - see SpinBox::
-    // cancelEditing()'s own comment. Not needed when the click lands back
-    // on octave_control_ itself (its own offerInput(), called below via
-    // active_element_, handles that click directly).
-    if (previous_active_element == octave_control_ && active_element_.lock() != octave_control_) {
-      octave_control_->cancelEditing();
-    }
+  } else if (input.getId() == Key::Button1 && input.getKind() == InputEvent::Kind::RELEASE) {
+    // The release ends the press everywhere, wherever it lands.
+    clip_grid_->releaseMouse();
+    pattern_editor_->releaseMouse();
   }
 
   if (!handled) {
