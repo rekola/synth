@@ -50,6 +50,9 @@ struct ElevatedArea {
   size_t layer = 0;
   // False for lifted cells that only stand above lower shadows and cast none.
   bool shadow = true;
+  // The cells of a plane drawn shifted by part of a cell sit this far up and
+  // to the left of the rows and columns above.
+  double shift_row = 0, shift_col = 0;
   // The outer corners' radius in pixels at 96 dpi (Plane::setCornerRadius()),
   // and what lay under each corner cell before the area was composed over it
   // (top left, top right, bottom left, bottom right; unset = the display's

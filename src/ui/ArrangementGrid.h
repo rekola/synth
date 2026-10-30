@@ -11,6 +11,7 @@
 #include <vector>
 
 #include <cellui/Fade.h>
+#include <cellui/InputEvents.h>
 #include <cellui/WheelAcceleration.h>
 #include <cellui/Input.h>
 #include <cellui/Viewport.h>
@@ -117,6 +118,8 @@ class ArrangementGrid : public UIElement {
   bool animating() const { return viewport_.animating(); }
 
  private:
+  bool pick(int screen_row, int screen_col);
+  std::vector<cellui::Connection> connections_;
   // How many bar rows there are to show: the arrangement's own bars plus
   // one empty one past its end to place into, reaching the cursor and the
   // playhead wherever they are.

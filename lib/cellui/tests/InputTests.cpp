@@ -389,6 +389,36 @@ TEST(offer_gives_a_key_handler_the_input_it_came_from) {
   CHECK(seen_up == &up);
 }
 
+TEST(offer_gives_a_pointer_handler_the_input_it_came_from) {
+  Screen s;
+  const Input * seen_down = nullptr;
+  const Input * seen_up = nullptr;
+  const Input * seen_wheel = nullptr;
+  s.keep.push_back(s.top.on<MouseDown>([&](const MouseDown & e, EventContext &) {
+    seen_down = e.input;
+    return Handled::yes;
+  }));
+  s.keep.push_back(s.top.on<MouseUp>([&](const MouseUp & e, EventContext &) {
+    seen_up = e.input;
+    return Handled::yes;
+  }));
+  s.keep.push_back(s.top.on<Wheel>([&](const Wheel & e, EventContext &) {
+    seen_wheel = e.input;
+    return Handled::yes;
+  }));
+  s.refresh();
+  using K = Input::Kind;
+  Input press(Key::Button1, 1, 2, false, false, false, false, K::PRESS);
+  Input release(Key::Button1, 1, 2, false, false, false, false, K::RELEASE);
+  Input wheel(Key::Button4, 1, 2, false, false, false, false, K::PRESS);
+  CHECK(s.dispatcher.offer(press) == Handled::yes);
+  CHECK(s.dispatcher.offer(release) == Handled::yes);
+  CHECK(s.dispatcher.offer(wheel) == Handled::yes);
+  CHECK(seen_down == &press);
+  CHECK(seen_up == &release);
+  CHECK(seen_wheel == &wheel);
+}
+
 TEST(a_handler_may_destroy_widgets_during_hover_changes) {
   Screen s;
   auto a = std::make_unique<Panel>(s.top.plane(), 0, 0, 4, 10);

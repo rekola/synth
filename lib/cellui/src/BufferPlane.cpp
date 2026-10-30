@@ -214,7 +214,7 @@ void BufferPlane::refresh() {
       top.mouse_cursors_.push_back(CursorArea{ r0, c0, r1 - r0, c1 - c0, p.plane->mouse_cursor_ });
     }
     if (elevated) {
-      top.elevations_.push_back(ElevatedArea{ r0, c0, r1 - r0, c1 - c0, p.elevation, p.plane->name_, top.layers_.size(), true, p.plane->corner_radius_, corner_bg });
+      top.elevations_.push_back(ElevatedArea{ r0, c0, r1 - r0, c1 - c0, p.elevation, p.plane->name_, top.layers_.size(), true, 0.0, 0.0, p.plane->corner_radius_, corner_bg });
     }
   }
   top.collectLifts(*top.target_, top.layers_.size());
@@ -224,25 +224,28 @@ void BufferPlane::refresh() {
 // in a row, with the same run right below it while that one joins it. `layer`
 // is the layer `out` is (or will be) set aside as: the cells of a layer stand
 // above the base just as the frame's do.
-void BufferPlane::collectLifts(const CellBuffer & out, size_t layer) const {
+void BufferPlane::collectLifts(const CellBuffer & out, size_t layer, int row0, int col0, float base, double shift_row, double shift_col,
+                               int max_rows, int max_cols) const {
+  int rows = max_rows >= 0 ? std::min(max_rows, out.rows()) : out.rows();
+  int cols = max_cols >= 0 ? std::min(max_cols, out.cols()) : out.cols();
   std::vector<ElevatedArea> open;
-  for (int r = 0; r < out.rows(); r++) {
+  for (int r = 0; r < rows; r++) {
     std::vector<ElevatedArea> next;
-    for (int c = 0; c < out.cols();) {
+    for (int c = 0; c < cols;) {
       const CellBuffer::Cell & first = out.at(r, c);
       int end = c + 1;
-      while (end < out.cols() && out.at(r, end).lift == first.lift && out.at(r, end).lift_joined == first.lift_joined &&
+      while (end < cols && out.at(r, end).lift == first.lift && out.at(r, end).lift_joined == first.lift_joined &&
              out.at(r, end).lift_shadow == first.lift_shadow) end++;
       if (first.lift > 0.0f) {
         auto above = std::find_if(open.begin(), open.end(), [&](const ElevatedArea & a) {
-          return first.lift_joined && a.col == c && a.cols == end - c && a.elevation == first.lift && a.shadow == first.lift_shadow;
+          return first.lift_joined && a.col == col0 + c && a.cols == end - c && a.elevation == base + first.lift && a.shadow == first.lift_shadow;
         });
         if (above != open.end()) {
           above->rows++;
           next.push_back(*above);
           open.erase(above);
         } else {
-          next.push_back(ElevatedArea{ r, c, 1, end - c, first.lift, "", layer, first.lift_shadow });
+          next.push_back(ElevatedArea{ row0 + r, col0 + c, 1, end - c, base + first.lift, "", layer, first.lift_shadow, shift_row, shift_col });
         }
       }
       c = end;
@@ -305,6 +308,38 @@ void BufferPlane::compose(CellBuffer & out, int row, int col, int clip_row, int 
         }
       }
     }
+    // The pictures the plane shows, marked over their cells (positions are the plane's own).
+    {
+      int cell_h = top.cell_px_h_, cell_w = top.cell_px_w_;
+      for (const PlacedImage & placed : images_) {
+        if (cell_h <= 0 || cell_w <= 0) break;
+        int r_hi = std::min(content.cells.rows(), placed.row + placed.image->coveredRows(cell_h));
+        int c_hi = std::min(content.cells.cols(), placed.col + placed.image->coveredCols(cell_w));
+        int r_lo = std::max(0, placed.row), c_lo = std::max(0, placed.col);
+        if (placed.clip_top != INT_MIN) r_lo = std::max(r_lo, placed.clip_top);
+        if (placed.clip_bottom != INT_MAX) r_hi = std::min(r_hi, placed.clip_bottom);
+        if (r_lo >= r_hi || c_lo >= c_hi) continue;
+        ImagePlacement placement;
+        placement.image = placed.image;
+        placement.key = placed.key;
+        placement.row = placed.row;
+        placement.col = placed.col;
+        placement.index = static_cast<int>(top.placements_.size());
+        top.placements_.push_back(placement);
+        for (int r = r_lo; r < r_hi; r++) {
+          for (int c = c_lo; c < c_hi; c++) {
+            CellBuffer::Cell marked;
+            marked.image = placement.index + 1;
+            marked.lift = content.cells.at(r, c).lift;
+            marked.lift_joined = content.cells.at(r, c).lift_joined;
+            marked.lift_shadow = content.cells.at(r, c).lift_shadow;
+            content.cells.put(r, c, marked);
+          }
+        }
+      }
+    }
+    // Its raised cells cast shadows, shifted with it.
+    top.collectLifts(content.cells, top.layers_.size(), row, col, height, scroll_rows_, scroll_cols_, plane_rows, plane_cols);
     content.row = row;
     content.col = col;
     content.rows = plane_rows;
