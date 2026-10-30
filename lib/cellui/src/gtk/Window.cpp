@@ -1,6 +1,7 @@
 #include <cellui/gtk/Window.h>
 
 #include <cellui/CellRasterizer.h>
+#include <cellui/Utf8.h>
 #include <cellui/gtk/GlibEventLoop.h>
 
 #include <gtk/gtk.h>
@@ -14,6 +15,7 @@
 #include <deque>
 #include <map>
 #include <set>
+#include <tuple>
 
 namespace cellui::gtk {
 
@@ -107,12 +109,28 @@ using CelluiViewClass = _CelluiViewClass;
 
 namespace cellui::gtk {
 
+constexpr int kBandRows = 4;
+
 struct Window::Impl {
   Window * owner = nullptr;
   GlibEventLoop loop;
   GtkWidget * window = nullptr;
   GtkWidget * view = nullptr;
   std::unique_ptr<CellRasterizer> rasterizer;
+  // The cell font in its four weights and slants (by bold | italic << 1),
+  // and one render node per glyph, colour and face, shared by every cell
+  // that shows it, so a glyph is shaped once.
+  PangoContext * text_context = nullptr;
+  PangoFontDescription * cell_fonts[4] = {};
+  struct Glyph {
+    std::string text;
+    uint32_t color;
+    int style;
+    bool operator<(const Glyph & o) const { return std::tie(text, color, style) < std::tie(o.text, o.color, o.style); }
+  };
+  std::map<Glyph, GskRenderNode *> glyph_nodes;
+  GskRenderNode * glyphNode(const CellBuffer::Cell & cell, const Color & fg);
+  GskRenderNode * textNode(const CellBuffer & cells, int r0, int r1);
 
   DisplayInfo display_info;
   int rows = 0, cols = 0;
@@ -146,8 +164,7 @@ struct Window::Impl {
       uint64_t bg_print = 0, text_print = 0;
       bool bg_valid = false, text_valid = false;
       GskRenderNode * bg = nullptr;
-      GdkTexture * text = nullptr;
-      int text_row = 0, text_col = 0;  // the cell the text texture's corner is at
+      GskRenderNode * text = nullptr;  // glyphs and underlines, from the band's top-left corner
     };
     uint64_t shape = 0;
     std::vector<Band> bands;
@@ -212,7 +229,7 @@ struct Window::Impl {
   }
   static void releaseBand(Painted::Band & band) {
     if (band.bg) gsk_render_node_unref(band.bg);
-    if (band.text) g_object_unref(band.text);
+    if (band.text) gsk_render_node_unref(band.text);
     band = {};
   }
   void appendShadows(GtkSnapshot * snap, const Painted & top, GskRenderNode * below);
@@ -304,6 +321,12 @@ void Window::Impl::measure(const WindowOptions & options) {
   cell_h = std::max(logical.height, 8);
   const char * family = pango_font_description_get_family(desc);
   rasterizer = canvasRasterizer(family ? family : "monospace");
+  text_context = gtk_widget_create_pango_context(view);
+  for (int i = 0; i < 4; i++) {
+    cell_fonts[i] = pango_font_description_copy(desc);
+    if (i & 1) pango_font_description_set_weight(cell_fonts[i], PANGO_WEIGHT_BOLD);
+    if (i & 2) pango_font_description_set_style(cell_fonts[i], PANGO_STYLE_ITALIC);
+  }
   g_object_unref(layout);
   g_object_unref(context);
   pango_font_description_free(desc);
@@ -435,7 +458,6 @@ static GskRenderNode * backgroundNode(const CellBuffer & cells, int r0, int r1, 
 const Window::Impl::Painted & Window::Impl::paint(size_t slot, const CellBuffer & cells, bool transparent) {
   if (painted.size() <= slot) painted.resize(slot + 1);
   Painted & p = painted[slot];
-  constexpr int kBandRows = 4;
   size_t count = static_cast<size_t>((cells.rows() + kBandRows - 1) / kBandRows);
   uint64_t shape = static_cast<uint64_t>(cells.rows()) << 32 | static_cast<uint32_t>(cells.cols());
   if (p.bands.size() != count || p.shape != shape) {
@@ -474,40 +496,89 @@ const Window::Impl::Painted & Window::Impl::paint(size_t slot, const CellBuffer 
     }
 
     if (!band.text_valid || band.text_print != text_print.value()) {
-      if (band.text) g_object_unref(band.text);
-      band.text = nullptr;
+      if (band.text) gsk_render_node_unref(band.text);
       band.text_print = text_print.value();
       band.text_valid = true;
-      // Only the columns the text spans, a wide character's second half too.
-      int c0 = cells.cols(), c1 = 0;
-      for (int r = r0; r < r1; r++) {
-        for (int c = 0; c < cells.cols(); c++) {
-          if (!hasText(cells.at(r, c))) continue;
-          int last = c + 1;
-          while (last < cells.cols() && cells.at(r, last).continuation) last++;
-          c0 = std::min(c0, c), c1 = std::max(c1, last);
-        }
-      }
-      if (c0 < c1) {
-        auto start = Clock::now();
-        Image image = rasterizer->renderText(cells, r0, c0, r1 - r0, c1 - c0, cell_h, cell_w, *display_info.default_fg);
-        if (image.width > 0 && image.height > 0) {
-          // The pixels move into the texture's bytes; no copy.
-          auto * pixels = new std::vector<uint32_t>(std::move(image.pixels));
-          GBytes * bytes = g_bytes_new_with_free_func(
-              pixels->data(), pixels->size() * sizeof(uint32_t), [](gpointer data) { delete static_cast<std::vector<uint32_t> *>(data); }, pixels);
-          band.text = gdk_memory_texture_new(image.width, image.height, GDK_MEMORY_R8G8B8A8_PREMULTIPLIED, bytes, static_cast<gsize>(image.width) * 4);
-          g_bytes_unref(bytes);
-          band.text_row = r0;
-          band.text_col = c0;
-        }
-        double ms = msSince(start);
-        stats.raster_ms_total += ms;
-        stats.raster_ms_max = std::max(stats.raster_ms_max, ms);
-      }
+      auto start = Clock::now();
+      band.text = textNode(cells, r0, r1);
+      double ms = msSince(start);
+      stats.raster_ms_total += ms;
+      stats.raster_ms_max = std::max(stats.raster_ms_max, ms);
     }
   }
   return p;
+}
+
+// One glyph in a cell's size, at the cell's corner: shaped by Pango, which
+// finds a font for a character the cell font lacks; one that comes out wider
+// than its cells is shrunk to them.
+GskRenderNode * Window::Impl::glyphNode(const CellBuffer::Cell & cell, const Color & fg) {
+  auto rgb = fg.toSrgb8();
+  Glyph key{ cell.text, static_cast<uint32_t>(rgb[0]) << 16 | static_cast<uint32_t>(rgb[1]) << 8 | rgb[2],
+             (cell.bold ? 1 : 0) | (cell.italic ? 2 : 0) };
+  auto found = glyph_nodes.find(key);
+  if (found != glyph_nodes.end()) return found->second;
+  if (glyph_nodes.size() > 4096) {
+    for (auto & entry : glyph_nodes) {
+      if (entry.second) gsk_render_node_unref(entry.second);
+    }
+    glyph_nodes.clear();
+  }
+  PangoLayout * layout = pango_layout_new(text_context);
+  pango_layout_set_font_description(layout, cell_fonts[key.style]);
+  pango_layout_set_text(layout, cell.text.c_str(), -1);
+  int w = 0, h = 0;
+  pango_layout_get_pixel_size(layout, &w, &h);
+  int wide = std::max(1, utf8::displayWidth(cell.text));
+  GtkSnapshot * snap = gtk_snapshot_new();
+  float scale = w > wide * cell_w ? static_cast<float>(wide * cell_w) / static_cast<float>(w) : 1.0f;
+  float top = std::max(0.0f, (static_cast<float>(cell_h) - static_cast<float>(h) * scale) / 2.0f);
+  graphene_point_t at = GRAPHENE_POINT_INIT(0.0f, top);
+  gtk_snapshot_translate(snap, &at);
+  if (scale < 1.0f) gtk_snapshot_scale(snap, scale, scale);
+  GdkRGBA color = { rgb[0] / 255.0f, rgb[1] / 255.0f, rgb[2] / 255.0f, 1.0f };
+  gtk_snapshot_append_layout(snap, layout, &color);
+  GskRenderNode * node = gtk_snapshot_free_to_node(snap);
+  g_object_unref(layout);
+  glyph_nodes[key] = node;
+  return node;
+}
+
+// The glyphs and underlines of rows [r0, r1), a cell at a time so each sits
+// on the grid whatever the font's advances are.
+GskRenderNode * Window::Impl::textNode(const CellBuffer & cells, int r0, int r1) {
+  GtkSnapshot * snap = gtk_snapshot_new();
+  const Color & default_fg = *display_info.default_fg;
+  bool any = false;
+  for (int r = r0; r < r1; r++) {
+    for (int c = 0; c < cells.cols(); c++) {
+      const CellBuffer::Cell & cell = cells.at(r, c);
+      if (!hasText(cell)) continue;
+      any = true;
+      Color fg = cell.fg.value_or(default_fg);
+      gtk_snapshot_save(snap);
+      graphene_point_t at = GRAPHENE_POINT_INIT(static_cast<float>(c * cell_w), static_cast<float>((r - r0) * cell_h));
+      gtk_snapshot_translate(snap, &at);
+      if (!cell.text.empty() && cell.text != " ") {
+        if (GskRenderNode * glyph = glyphNode(cell, fg)) gtk_snapshot_append_node(snap, glyph);
+      }
+      if (cell.underline) {
+        auto rgb = fg.toSrgb8();
+        GdkRGBA color = { rgb[0] / 255.0f, rgb[1] / 255.0f, rgb[2] / 255.0f, 1.0f };
+        float thickness = std::max(1.0f, static_cast<float>(cell_h) / 14.0f);
+        int wide = cell.text.empty() ? 1 : std::max(1, utf8::displayWidth(cell.text));
+        graphene_rect_t line = GRAPHENE_RECT_INIT(0.0f, static_cast<float>(cell_h) - 2.0f * thickness, static_cast<float>(wide * cell_w), thickness);
+        gtk_snapshot_append_color(snap, &color, &line);
+      }
+      gtk_snapshot_restore(snap);
+    }
+  }
+  GskRenderNode * node = gtk_snapshot_free_to_node(snap);
+  if (!any && node) {
+    gsk_render_node_unref(node);
+    return nullptr;
+  }
+  return node;
 }
 
 // The texture of a picture, uploaded when it is new or has changed.
@@ -648,11 +719,14 @@ void Window::Impl::appendPainted(GtkSnapshot * snap, const Painted & p, const Ce
     if (band.bg) gtk_snapshot_append_node(snap, band.bg);
   }
   if (cells) appendImages(snap, *cells);
-  for (const Painted::Band & band : p.bands) {
+  for (size_t i = 0; i < p.bands.size(); i++) {
+    const Painted::Band & band = p.bands[i];
     if (!band.text) continue;
-    graphene_rect_t bounds = GRAPHENE_RECT_INIT(static_cast<float>(band.text_col * cell_w), static_cast<float>(band.text_row * cell_h),
-                                                static_cast<float>(gdk_texture_get_width(band.text)), static_cast<float>(gdk_texture_get_height(band.text)));
-    gtk_snapshot_append_scaled_texture(snap, band.text, GSK_SCALING_FILTER_NEAREST, &bounds);
+    graphene_point_t top = GRAPHENE_POINT_INIT(0.0f, static_cast<float>(static_cast<int>(i) * kBandRows * cell_h));
+    gtk_snapshot_save(snap);
+    gtk_snapshot_translate(snap, &top);
+    gtk_snapshot_append_node(snap, band.text);
+    gtk_snapshot_restore(snap);
   }
   if (cells) appendTextRuns(snap, *cells);
   if (shifted) gtk_snapshot_restore(snap);
@@ -1145,6 +1219,13 @@ Window::~Window() {
   if (impl_->window) gtk_window_destroy(GTK_WINDOW(impl_->window));
   impl_->forgetTextures();
   if (impl_->proportional) pango_font_description_free(impl_->proportional);
+  for (auto & entry : impl_->glyph_nodes) {
+    if (entry.second) gsk_render_node_unref(entry.second);
+  }
+  for (PangoFontDescription * font : impl_->cell_fonts) {
+    if (font) pango_font_description_free(font);
+  }
+  if (impl_->text_context) g_object_unref(impl_->text_context);
   if (impl_->input_fd >= 0) ::close(impl_->input_fd);
   if (impl_->wake_fd >= 0) ::close(impl_->wake_fd);
 }
