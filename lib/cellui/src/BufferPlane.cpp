@@ -194,19 +194,28 @@ void BufferPlane::refresh() {
   top.collect(paints, 0, 0, 0, 0, top.target_->rows(), top.target_->cols(), 0.0f);
   std::stable_sort(paints.begin(), paints.end(), [](const Paint & a, const Paint & b) { return a.elevation < b.elevation; });
   for (const Paint & p : paints) {
-    p.plane->compose(*top.target_, p.row, p.col, p.clip_row, p.clip_col, p.clip_rows, p.clip_cols, p.elevation);
     bool elevated = p.elevation > 0.0f;
     Widget * owner = p.plane->owner();
-    if (!owner && !elevated && p.plane->mouse_cursor_ == MouseCursor::INHERIT) continue;
     auto [rows, cols] = p.plane->getDim();
     int r0 = std::max(p.clip_row, p.row), r1 = std::min(p.clip_row + p.clip_rows, p.row + rows);
     int c0 = std::max(p.clip_col, p.col), c1 = std::min(p.clip_col + p.clip_cols, p.col + cols);
-    if (r0 >= r1 || c0 >= c1) continue;
+    bool inside = r0 < r1 && c0 < c1;
+    // What lies under the corners, before this plane covers it.
+    std::array<std::optional<Color>, 4> corner_bg{};
+    if (elevated && inside && p.plane->corner_radius_ > 0) {
+      const int rs[2] = { r0, r1 - 1 }, cs[2] = { c0, c1 - 1 };
+      for (int k = 0; k < 4; k++) corner_bg[static_cast<size_t>(k)] = top.target_->at(rs[k / 2], cs[k % 2]).bg;
+    }
+    p.plane->compose(*top.target_, p.row, p.col, p.clip_row, p.clip_col, p.clip_rows, p.clip_cols, p.elevation);
+    if (!owner && !elevated && p.plane->mouse_cursor_ == MouseCursor::INHERIT) continue;
+    if (!inside) continue;
     if (owner) top.hit_areas_.push_back(HitArea{ r0, c0, r1 - r0, c1 - c0, owner, owner->life() });
     if (p.plane->mouse_cursor_ != MouseCursor::INHERIT) {
       top.mouse_cursors_.push_back(CursorArea{ r0, c0, r1 - r0, c1 - c0, p.plane->mouse_cursor_ });
     }
-    if (elevated) top.elevations_.push_back(ElevatedArea{ r0, c0, r1 - r0, c1 - c0, p.elevation, p.plane->name_, top.layers_.size() });
+    if (elevated) {
+      top.elevations_.push_back(ElevatedArea{ r0, c0, r1 - r0, c1 - c0, p.elevation, p.plane->name_, top.layers_.size(), true, 0.0, 0.0, p.plane->corner_radius_, corner_bg });
+    }
   }
   top.collectLifts(*top.target_, top.layers_.size());
 }

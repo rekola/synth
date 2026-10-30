@@ -953,6 +953,46 @@ TEST(bufferplane_reports_lifted_cells_as_pieces) {
   CHECK(at(4, 0, 1, 1, 2.0f));
 }
 
+// An elevated plane with a corner radius reports it, and what lay under each
+// corner before the plane covered it.
+TEST(bufferplane_reports_corner_radius_and_what_lies_under_corners) {
+  StyleProvider styles;
+  CellBuffer b(6, 10);
+  BufferPlane root(b, styles);
+  root.setBgColor(0x11, 0x22, 0x33);
+  for (int r = 0; r < 6; r++) root.putstr(r, 0, "          ");
+  auto dialog = root.createChild();
+  dialog->setName("dialog");
+  dialog->resize(3, 4);
+  dialog->move(1, 2);
+  dialog->setElevation(2);
+  dialog->setCornerRadius(6);
+  dialog->setBgColor(0xff, 0xff, 0xff);
+  for (int r = 0; r < 3; r++) dialog->putstr(r, 0, "    ");
+  auto square = root.createChild();
+  square->setName("square");
+  square->resize(1, 1);
+  square->move(0, 0);
+  square->setElevation(2);
+  root.refresh();
+  const ElevatedArea * round = nullptr;
+  const ElevatedArea * flat = nullptr;
+  auto areas = root.takeElevations();
+  for (const auto & a : areas) {
+    if (a.name == "dialog") round = &a;
+    if (a.name == "square") flat = &a;
+  }
+  CHECK(round != nullptr);
+  CHECK(flat != nullptr);
+  if (!round || !flat) return;
+  CHECK(round->radius == 6);
+  CHECK(flat->radius == 0);
+  for (const auto & under : round->corner_bg) {
+    CHECK(under.has_value());
+    if (under) CHECK(under->toSrgb8() == Color("#112233").toSrgb8());
+  }
+}
+
 // A lifted cell that casts no shadow is a piece of its own, and says so.
 TEST(bufferplane_reports_shadowless_lifted_cells) {
   StyleProvider styles;
