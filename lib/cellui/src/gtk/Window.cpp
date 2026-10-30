@@ -232,7 +232,7 @@ struct Window::Impl {
     if (band.text) gsk_render_node_unref(band.text);
     band = {};
   }
-  void appendShadows(GtkSnapshot * snap, const Painted & top, GskRenderNode * below);
+  void appendShadows(GtkSnapshot * snap, const Painted & top, GskRenderNode * below, const std::vector<GskRenderNode *> & stacks);
   void forgetTextures() {
     for (Painted & p : painted) release(p);
     for (auto & [key, entry] : image_textures) {
@@ -735,7 +735,7 @@ void Window::Impl::appendPainted(GtkSnapshot * snap, const Painted & p, const Ce
 // A soft shadow around every plane above the base that nothing blurs, the
 // higher the softer and the further down: drawn over the frame, outside the
 // plane, and under every plane higher than it, which is drawn again over it.
-void Window::Impl::appendShadows(GtkSnapshot * snap, const Painted & top, GskRenderNode * below) {
+void Window::Impl::appendShadows(GtkSnapshot * snap, const Painted & top, GskRenderNode * below, const std::vector<GskRenderNode *> & stacks) {
   const Color & bg = *display_info.default_bg;
   bool dark = bg.luminance() < 0.21f;
   stats.shadows = 0;
@@ -780,8 +780,10 @@ void Window::Impl::appendShadows(GtkSnapshot * snap, const Painted & top, GskRen
                                                k / 2 ? rect.origin.y + rect.size.height - r : rect.origin.y, r, r);
       const auto & under = a.corner_bg[static_cast<size_t>(k)];
       gtk_snapshot_push_clip(snap, &ear);
-      if (below && (a.layer < layers.size() || !under)) {
-        gtk_snapshot_append_node(snap, below);
+      // Without an opaque cell under it, the stack as it was before the area's
+      // own cells were composed (never the final one, which holds them).
+      if (!under && a.layer > 0 && a.layer <= stacks.size()) {
+        gtk_snapshot_append_node(snap, stacks[a.layer - 1]);
       } else {
         const Color & c = under ? *under : bg;
         auto rgb = c.toSrgb8();
@@ -862,6 +864,10 @@ void Window::Impl::appendShadows(GtkSnapshot * snap, const Painted & top, GskRen
         GskRoundedRect outline;
         gsk_rounded_rect_init_from_rect(&outline, &rect, radiusOf(elevations[k]));
         fillCorners(elevations[k], outline, dx, dy, blur, ambient_blur);
+        // The ears are squares; the area's own rounded body goes back over them.
+        gtk_snapshot_push_rounded_clip(snap, &outline);
+        redraw(elevations[k]);
+        gtk_snapshot_pop(snap);
       }
       // A light top edge and a darker bottom one, so pieces side by side
       // or stacked read apart.
@@ -922,12 +928,13 @@ void Window::Impl::snapshot(GtkSnapshot * snap) {
       gtk_snapshot_append_color(snap, &background, &all);
       const Painted & top = paint(0, frame, false);
       appendPainted(snap, top, &frame);
-      appendShadows(snap, top, nullptr);
+      appendShadows(snap, top, nullptr, {});
     } else {
       // Each backdrop blurs and dims everything below it, on the GPU: what
       // is composed so far is a node, drawn as it is and again, blurred,
       // inside the backdrop's cells.
       GskRenderNode * below = nullptr;
+      std::vector<GskRenderNode *> stacks;
       for (size_t i = 0; i < layers.size(); i++) {
         const BackdropLayer & layer = layers[i];
         GtkSnapshot * s = gtk_snapshot_new();
@@ -1007,7 +1014,6 @@ void Window::Impl::snapshot(GtkSnapshot * snap) {
           }
         }
         GskRenderNode * composed = gtk_snapshot_free_to_node(s);
-        if (below) gsk_render_node_unref(below);
 
         s = gtk_snapshot_new();
         gtk_snapshot_append_node(s, composed);
@@ -1036,12 +1042,13 @@ void Window::Impl::snapshot(GtkSnapshot * snap) {
         }
         gsk_render_node_unref(composed);
         below = gtk_snapshot_free_to_node(s);
+        stacks.push_back(below);
       }
       gtk_snapshot_append_node(snap, below);
       const Painted & top = paint(layers.size(), frame, true);
       appendPainted(snap, top, &frame);
-      appendShadows(snap, top, below);
-      gsk_render_node_unref(below);
+      appendShadows(snap, top, below, stacks);
+      for (GskRenderNode * node : stacks) gsk_render_node_unref(node);
     }
     // Layers that are gone leave their textures.
     size_t used = layers.size() + 1 + scrolls;
