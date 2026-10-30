@@ -769,24 +769,28 @@ void Window::Impl::appendShadows(GtkSnapshot * snap, const Painted & top, GskRen
     appendPainted(snap, top, &frame);
   };
   // What shows in the corners a radius cuts away: what lay under them (the
-  // stack below, or the cell's colour), under the shadow drawn next.
-  auto fillCorners = [&](const ElevatedArea & a) {
+  // stack below, or the cell's colour) with the area's shadow over it. Drawn
+  // after the cells of every area of its height, which cover the corners.
+  auto fillCorners = [&](const ElevatedArea & a, const GskRoundedRect & outline, float dx, float dy, float blur, float ambient_blur) {
     float r = radiusOf(a);
     if (r <= 0.0f) return;
     graphene_rect_t rect = rectOf(a);
     for (int k = 0; k < 4; k++) {
       graphene_rect_t ear = GRAPHENE_RECT_INIT(k % 2 ? rect.origin.x + rect.size.width - r : rect.origin.x,
                                                k / 2 ? rect.origin.y + rect.size.height - r : rect.origin.y, r, r);
-      if (a.layer < layers.size() && below) {
-        gtk_snapshot_push_clip(snap, &ear);
+      const auto & under = a.corner_bg[static_cast<size_t>(k)];
+      gtk_snapshot_push_clip(snap, &ear);
+      if (below && (a.layer < layers.size() || !under)) {
         gtk_snapshot_append_node(snap, below);
-        gtk_snapshot_pop(snap);
       } else {
-        const Color & c = a.corner_bg[static_cast<size_t>(k)] ? *a.corner_bg[static_cast<size_t>(k)] : bg;
+        const Color & c = under ? *under : bg;
         auto rgb = c.toSrgb8();
         GdkRGBA fill = { rgb[0] / 255.0f, rgb[1] / 255.0f, rgb[2] / 255.0f, 1.0f };
         gtk_snapshot_append_color(snap, &fill, &ear);
       }
+      gtk_snapshot_append_outset_shadow(snap, &outline, &ambient, 0, 0, 0, ambient_blur);
+      gtk_snapshot_append_outset_shadow(snap, &outline, &key, dx, dy, 0, blur);
+      gtk_snapshot_pop(snap);
     }
   };
   // The lifted bands of scrolled planes, which are drawn in the layers below.
@@ -821,7 +825,6 @@ void Window::Impl::appendShadows(GtkSnapshot * snap, const Painted & top, GskRen
     for (size_t k = i; k < level_end; k++) {
       if (!shown(elevations[k]) || !elevations[k].shadow) continue;
       graphene_rect_t rect = rectOf(elevations[k]);
-      fillCorners(elevations[k]);
       GskRoundedRect outline;
       gsk_rounded_rect_init_from_rect(&outline, &rect, radiusOf(elevations[k]));
       gtk_snapshot_append_outset_shadow(snap, &outline, &ambient, 0, 0, 0, ambient_blur);
@@ -852,6 +855,13 @@ void Window::Impl::appendShadows(GtkSnapshot * snap, const Painted & top, GskRen
         gtk_snapshot_push_rounded_clip(snap, &shape);
         redraw(elevations[j]);
         gtk_snapshot_pop(snap);
+      }
+      for (size_t k = i; k < level_end; k++) {
+        if (!shown(elevations[k]) || !elevations[k].shadow || radiusOf(elevations[k]) <= 0.0f) continue;
+        graphene_rect_t rect = rectOf(elevations[k]);
+        GskRoundedRect outline;
+        gsk_rounded_rect_init_from_rect(&outline, &rect, radiusOf(elevations[k]));
+        fillCorners(elevations[k], outline, dx, dy, blur, ambient_blur);
       }
       // A light top edge and a darker bottom one, so pieces side by side
       // or stacked read apart.
