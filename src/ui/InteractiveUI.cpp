@@ -165,7 +165,7 @@ static vector<MenuSectionSpec> menuSpec(vector<MenuItemSpec> buffer_items) {
                         {"Redo", "C-M-_", "undo-redo", "C-S-Z"},
                         {nullptr, nullptr, nullptr},
                         {"Select All", "C-x h", "mark-whole-buffer", "C-a"},
-                        {"Set Mark", "C-SPC", "set-mark"},
+                        {"Set Mark", "C-SPC", "set-mark", "S-Arrows"},
                         {"Kill Region", "C-w", "kill-region", "C-x"},
                         {"Copy", "M-w", "kill-ring-save", "C-c"},
                         {"Yank", "C-y", "yank", "C-v"},

@@ -158,6 +158,7 @@ protected:
 
   // The single place selection_active_ is ever written.
   void setSelectionActive(bool active);
+  void setMarkAtPoint();
 
   // scroll_row is a separate parameter (not always current_scroll_.row)
   // because render() below needs to call this with the *new* scroll

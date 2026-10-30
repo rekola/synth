@@ -67,18 +67,7 @@ PatternEditor::PatternEditor(Plane & parent)
   // from moving it into a constructor-time closure.
 
   commands_.define("set-mark", [this]() {
-    auto point = source_->cursor();
-    selection_start_pattern_ = point.block;
-    selection_start_row_ = point.row;
-    selection_start_track_ = current_cursor.track;
-    // A fresh mark starts scoped to just the column it's set on; moving
-    // sideways afterward widens/narrows the touched range (see
-    // getEffectiveSelectionBounds) - to select the whole track, widen past
-    // every note column (and the effect column, if reached too), and past
-    // the locator to select the whole row.
-    selection_start_col_ = current_cursor.col;
-    selection_start_scope_ = current_cursor.scope;
-    setSelectionActive(true);
+    setMarkAtPoint();
     getController().log("Mark set");
   });
 
@@ -655,7 +644,8 @@ PatternEditor::PatternEditor(Plane & parent)
 
   keymap_.bind(KeyStroke::pack('+', true, false, false, false), "edit-step-increase");
   keymap_.bind(KeyStroke::pack('-', true, false, false, false), "edit-step-decrease");
-  keymap_.bind(KeyStroke::pack(' ', true, false, false, false), "set-mark"); // Ctrl-Space
+  // The desktop keymap selects with Shift+arrows (see offerInputKey()).
+  keymap_.bind(KeymapProfile::TERMINAL, KeyStroke::pack(' ', true, false, false, false), "set-mark"); // Ctrl-Space
   // Cut, copy and paste: the terminal keymap's shortcuts, the usual
   // desktop ones elsewhere.
   keymap_.bind(KeymapProfile::TERMINAL, KeyStroke::pack('w', true, false, false, false), "kill-region");
@@ -752,6 +742,21 @@ PatternEditor::tuningsForTrackRange(const Song & song, const vector<int> & track
     tunings.push_back(track ? song.getTuningForTrack(*track) : song.getTuning());
   }
   return tunings;
+}
+
+void PatternEditor::setMarkAtPoint() {
+  auto point = source_->cursor();
+  selection_start_pattern_ = point.block;
+  selection_start_row_ = point.row;
+  selection_start_track_ = current_cursor.track;
+  // A fresh mark starts scoped to just the column it's set on; moving
+  // sideways afterward widens/narrows the touched range (see
+  // getEffectiveSelectionBounds) - to select the whole track, widen past
+  // every note column (and the effect column, if reached too), and past
+  // the locator to select the whole row.
+  selection_start_col_ = current_cursor.col;
+  selection_start_scope_ = current_cursor.scope;
+  setSelectionActive(true);
 }
 
 void
@@ -1944,6 +1949,17 @@ PatternEditor::offerInputKey(const cellui::Input & input) {
   }
 
   if (dispatchCommand(input)) return true;
+
+  // Desktop selection: Shift+arrow sets the mark where the cursor is, then
+  // moves like the plain arrow, extending the region.
+  if (keymapProfile() == KeymapProfile::DESKTOP && input.hasShift() && !input.hasCtrl() && !input.hasAlt() && !input.hasMeta() &&
+      input.getKind() != InputEvent::Kind::RELEASE &&
+      (input.getId() == Key::Up || input.getId() == Key::Down || input.getId() == Key::Left || input.getId() == Key::Right)) {
+    if (!selection_active_) setMarkAtPoint();
+    if (input.getId() == Key::Up) return commands_.execute("move-row-up");
+    if (input.getId() == Key::Down) return commands_.execute("move-row-down");
+    // Left and Right move through the plain branch below.
+  }
 
   auto & song = getController().getSong();
   auto & info = getController().getPlaybackInfo();
