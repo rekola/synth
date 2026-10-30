@@ -60,7 +60,7 @@ TEST(terminal_ui_wheel_scrolls_the_view_not_the_cursor_or_focus) {
   UIFixture f(repoSong("demo3.xml"), UI::View::ARRANGEMENT);
   f.otherWindow();  // the pattern editor
   for (int i = 0; i < 2; i++) f.wheel(20, 50);
-  CHECK(!rowsOf(f).empty() && rowsOf(f)[0] == 2);
+  CHECK(!rowsOf(f).empty() && rowsOf(f)[0] == 6); // three rows a notch
   CHECK(transportRow(f) == "1.1.1");
 
   f.wheel(20, 50, true, true);

@@ -15,6 +15,7 @@
 
 #include "StyleProvider.h"
 #include <cellui/Viewport.h>
+#include <cellui/WheelAcceleration.h>
 
 // What a row's own default action(s) - Key::Enter/Key::Delete, and what
 // renderButtonBar() shows for it - target. SECTION covers every plain
@@ -291,6 +292,8 @@ protected:
   // The tree's rows and columns: its offsets are the "new" scroll positions,
   // and what the last render drew is kept beside them.
   cellui::Viewport viewport_;
+  static constexpr int kWheelRows = 3; // rows one wheel notch scrolls, before acceleration
+  cellui::WheelAcceleration wheel_acceleration_;
   double current_shown_row_ = -1;
   int current_first_row_ = 0;  // the first data row the tree plane was drawn from
   int current_column_scroll_ = 0;

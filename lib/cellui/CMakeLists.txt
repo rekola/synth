@@ -222,6 +222,7 @@ add_executable(cellui_tests
   tests/MarkdownTests.cpp
   tests/ThemeTests.cpp
   tests/SpinBoxTests.cpp
+  tests/WheelAccelerationTests.cpp
   tests/SubcellGlyphsTests.cpp
   tests/ViewportTests.cpp
   tests/InlineEditorTests.cpp

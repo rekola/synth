@@ -110,7 +110,8 @@ ArrangementGrid::offerInput(const cellui::Input & input) {
     if (input.getKind() == cellui::Input::Kind::RELEASE) return true;
     bool sideways = input.getId() >= Key::Button6;
     int direction = (input.getId() == Key::Button4 || input.getId() == Key::Button6) ? -1 : 1;
-    viewport_.wheel(direction, sideways || !input.hasShift());
+    bool along_bars = sideways || !input.hasShift();
+    viewport_.wheel(direction, along_bars, along_bars ? wheel_acceleration_.step(kWheelBars) : 1);
     return true;
   }
 
