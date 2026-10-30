@@ -59,6 +59,10 @@ class Plane {
   // one height in tree order. Default no-op for a display with no layers.
   virtual void setElevation(float) {}
   virtual float elevation() const { return 0; }
+  // The radius of the plane's outer corners in pixels at 96 dpi (the display
+  // multiplies it by displayScale()), where it draws by pixels; 0 is square.
+  // Only an elevated plane shows it. Default no-op.
+  virtual void setCornerRadius(double) {}
   // The pointer's shape over the plane's rectangle. A plane that leaves it
   // at INHERIT shows what is below it, so a popup sets DEFAULT to say its
   // area is not what lies under it. Default no-op for a display with no
