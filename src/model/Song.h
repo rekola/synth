@@ -246,7 +246,7 @@ class Song : public SongObject {
 
   // One user action's worth of mutations. Opens before the first write and
   // bumps the version once, when the outermost scope closes (so the audio
-  // thread and the widgets see the finished edit, never half of it). Charts
+  // thread and the widgets see the finished edit, never half of it). Scopes
   // nest freely: the inner ones only widen the outer one's kind. This is the
   // only way to bump the version, so a write path without a scope is easy
   // to spot.
