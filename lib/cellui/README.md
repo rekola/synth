@@ -39,6 +39,60 @@ at configure time, GTK is optional). Headers are `cellui/X.h` in
 - **Loop.** `EventLoop` is the backend's wait-and-dispatch loop; it is
   re-entrant, so a handler may run a nested loop.
 
+## Why cells
+
+What the cell approach buys is still being found out. This lists what the code
+and the measurements so far support, and then what is only a hope.
+
+**Shown**
+
+- **One widget set on every display.** The widgets draw into planes of cells and
+  never name a display. The terminal, the GTK window, the Win32 window and the
+  test backend all run the same ones. The application asks for what it wants
+  (a spectrum, a sparkline, a clip name in a box of 12 cells) and each display
+  draws it as it can: pictures where it has them, glyphs where it has not.
+  Nothing outside `term/` knows a braille or block glyph.
+- **Redrawing only what changed.** A frame is a grid of cells, so a window can
+  cache by region. The GTK window keeps each layer's cells in bands of four
+  rows and redoes a band's backgrounds or text only when a cell in it changed;
+  a picture is uploaded once and only placed again; a glyph is shaped once for
+  its character, colour and face, and every cell that shows it shares the
+  render node. A chart that changes every frame redoes no text. On synth's main
+  screen this took the GTK window from about 6.9 ms to about 1.3 ms of drawing
+  per frame, and from about 6.5 ms to well under 0.1 ms of rasterising.
+- **Layout the display owns.** The application gives a string and a box in
+  cells. The display measures, cuts or ellipsizes it (`TextOverflow`) and picks
+  the face, so no application code measures text and a terminal falls back to
+  plain cells without the application changing.
+- **Effects as plane attributes.** Elevation, shadows, blur, dim, blend modes,
+  smooth scrolling and pointer shapes are set on planes. A window realises them
+  with its own graphics; the terminal emulates what it can from cells. One
+  description gives a close look on both.
+- **Tests without a display.** `TestBackend` has no tty or window, so the real
+  application runs in a test: keys go in, and the frame's cells, styles,
+  pictures and plane tree come out. The gallery is a golden file.
+- **Cell-based input.** Hit areas, focus and the mouse are in cells (with the
+  sub-cell position where the display reports it), the same for a click in a
+  terminal and in a window.
+
+**Not shown yet**
+
+- Whether the cell grid is faster or simpler than a conventional toolkit for
+  the same screen. No such comparison has been made; the figures above compare
+  cellui with an earlier version of itself.
+- Win32 has never been run, and HiDPI, input methods and native dialogs and
+  menus are not done.
+- Text in a face of its own works only through `Plane::putText()`; everything
+  else is monospace on the grid.
+
+**Costs**
+
+- Everything snaps to cells. A proportional run has a box a whole number of
+  cells wide, and smooth scrolling and bands are the way round it, not the
+  default.
+- A window backend has to realise each plane attribute itself, and the terminal
+  can only approximate several of them.
+
 ## Gallery
 
 `cellui_gallery` prints the gallery page: every text style, the theme's colour
