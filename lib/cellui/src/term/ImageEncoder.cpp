@@ -386,6 +386,7 @@ std::string ImageEncoder::kitty(const CellBuffer & frame, const ImagePlacement &
   const Image & img = *p.image;
   uint32_t old_id = shown.id;
   bool changed = fresh || shown.version != img.version;
+  size_t upload_before = sizes_.upload;
   if (changed) {
     // A new picture goes up under a new id; the old one stays on screen
     // until the new one is placed.
@@ -411,6 +412,8 @@ std::string ImageEncoder::kitty(const CellBuffer & frame, const ImagePlacement &
       sizes_.upload += out.size() - chunk_start;
       if (data.empty()) break;
     }
+    picture_stats_[{img.width, img.height}].uploads++;
+    picture_stats_[{img.width, img.height}].bytes += sizes_.upload - upload_before;
   }
   std::vector<Rect> rects = visibleRects(frame, p, false);
   if (changed || cleared || rects != shown.rects || p.row != shown.row || p.col != shown.col) {
@@ -495,6 +498,8 @@ std::string ImageEncoder::sixel(const CellBuffer & frame, const ImagePlacement &
   size_t before = out.size();
   out += encodeSixel(img, x, y, w, h, keep, dither);
   sizes_.upload += out.size() - before;
+  picture_stats_[{p.image->width, p.image->height}].uploads++;
+  picture_stats_[{p.image->width, p.image->height}].bytes += out.size() - before;
   return out;
 }
 
@@ -525,6 +530,8 @@ std::string ImageEncoder::iterm2(const CellBuffer & frame, const ImagePlacement 
     out += "\x1b]1337;File=inline=1;size=" + std::to_string(png.size()) + ";width=" + std::to_string(cols) +
            ";height=" + std::to_string(rows) + ";preserveAspectRatio=0;doNotMoveCursor=1:" + base64(png) + "\a";
     sizes_.upload += out.size() - osc_start;
+    picture_stats_[{img.width, img.height}].uploads++;
+    picture_stats_[{img.width, img.height}].bytes += out.size() - osc_start;
   }
   return out;
 }

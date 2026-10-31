@@ -4,6 +4,7 @@ speed. The terminal answers the start-up queries, the cursor position queries
 the frames are fenced with, and counts the kitty graphics commands and Sixel
 images it is sent. Standard library only.
 """
+import base64
 import errno
 import fcntl
 import heapq
@@ -30,11 +31,12 @@ class Link:
         self.freeze = freeze                # (start s, duration s): the terminal neither reads nor answers
 
     # -- running ----------------------------------------------------------
-    def run(self, argv, env=None, keys=(), duration=None):
+    def run(self, argv, env=None, keys=(), duration=None, keep_pictures=False):
         """Runs argv on the program's side of the link. `keys` are (time s, bytes)
         typed at the terminal; `duration` ends a program that does not end itself
         (SIGTERM). Returns a Result."""
         res = Result()
+        res.keep_pictures = keep_pictures
         environ = dict(os.environ)
         environ.update({"TERM": "xterm-256color", "COLORTERM": "truecolor", "CELLUI_PIXELS": "kitty"})
         environ.update(env or {})
@@ -125,6 +127,8 @@ class Link:
                         seq += 1
                         heapq.heappush(replies, (proc_free + self.down, seq, payload[0], "reply" if kind == "reply" else "key"))
             res.bytes_read += len(data)
+            if data:
+                res.series.append((time.time(), len(data)))
             # Wait for the next thing to do.
             timeout = 0.001 if (self.bandwidth and not data) else 0.002
             if not data and not self.bandwidth:
@@ -180,6 +184,10 @@ class Result:
         self.sixel = []                      # time of each Sixel image
         self.fences = []                     # time of each fence query
         self.chunks = 0
+        self.keep_pictures = False
+        self.series = []                     # (time, bytes) of each read from the program
+        self.dims = []                       # (time, width, height) of each kitty upload
+        self.pictures = []                   # (time, width, height, RGB bytes) of each kitty upload, when kept
 
     def count(self, action, t0=0.0, t1=1e9):
         return sum(1 for (t, a, n) in self.kitty if a == action and t0 <= t - self.start < t1)
@@ -267,15 +275,35 @@ class _Terminal:
             return b"\x1b[?2026;2$y"
         return None
 
+    def _collect(self, action, kv, payload, t):
+        """Reassembles chunked kitty uploads (raw RGB or RGBA) into pictures."""
+        if action == "t":
+            self.cur = [t, int(kv.get(b"s", b"0")), int(kv.get(b"v", b"0")), int(kv.get(b"f", b"24")), bytearray(payload)]
+        elif action == "" and getattr(self, "cur", None) is not None:
+            self.cur[4].extend(payload)
+        else:
+            return
+        if kv.get(b"m", b"0") == b"0" and self.cur is not None:
+            t0, w, h, f, data = self.cur
+            self.cur = None
+            raw = base64.b64decode(bytes(data))
+            if f == 32:
+                raw = b"".join(raw[i:i + 3] for i in range(0, len(raw), 4))
+            self.res.pictures.append((t0, w, h, raw))
+
     def _string(self, kind, body, t):
         if kind == "_" and body.startswith(b"G"):
             keys, _, payload = body[1:].partition(b";")
             kv = dict(p.split(b"=", 1) for p in keys.split(b",") if b"=" in p)
             action = kv.get(b"a", b"").decode()
+            if self.res.keep_pictures:
+                self._collect(action, kv, payload, t)
             if action == "q":
                 return b"\x1b_Gi=31;OK\x1b\\"
             if action:
                 self.res.kitty.append((t, action, len(body)))
+                if action == "t":
+                    self.res.dims.append((t, int(kv.get(b"s", b"0")), int(kv.get(b"v", b"0"))))
             else:
                 self.res.kitty.append((t, "chunk", len(body)))
             return None

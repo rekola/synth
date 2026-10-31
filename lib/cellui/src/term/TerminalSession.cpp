@@ -164,6 +164,7 @@ bool TerminalSession::start(SessionOptions & options, std::string * error) {
   dither_ = options.dither;
   parser_.setGrace(options.grace);
   pacer_config_ = options.pacer;
+  if (const char * path = std::getenv("SYNTH_LINK_STATS")) link_log_ = std::fopen(path, "a");
 
   // cbreak, plus what an Emacs-style key map needs: Ctrl-S/Q (flow
   // control), Ctrl-V/O (the line discipline's own) and, unless kept,
@@ -312,6 +313,8 @@ void TerminalSession::close() {
   }
   g.fd = -1;
   g.wake_write = -1;
+  if (link_log_) std::fclose(link_log_);
+  link_log_ = nullptr;
   ::close(wake_read_);
   ::close(wake_write_);
   wake_read_ = wake_write_ = -1;
@@ -438,9 +441,35 @@ std::string TerminalSession::fenceBytes() {
   return "\x1b[" + std::to_string(rows_) + ";1H\x1b[6n";
 }
 
+// One line a second, key=value, for measuring what a link carries (phase 0 of the link
+// classes): the frames and bytes sent in the second (picture data, placement, the rest),
+// the pacer's bandwidth and RTT, and each picture size uploaded as WxH:count/bytes.
+void TerminalSession::logLinkStats(std::chrono::steady_clock::time_point now) {
+  if (!link_log_) return;
+  if (link_log_last_ == std::chrono::steady_clock::time_point{}) link_log_last_ = now;
+  double dt = std::chrono::duration<double>(now - link_log_last_).count();
+  if (dt < 1.0) return;
+  PacerStats s = pacerStats();
+  std::fprintf(link_log_, "t=%.1f frames=%zu upload=%zu placement=%zu other=%zu bandwidth=%.0f rtt_ms=%.1f in_flight=%zu pics=", dt,
+               s.frames - link_log_frames_, s.totals.upload - link_log_mark_.upload, s.totals.placement - link_log_mark_.placement,
+               s.totals.other - link_log_mark_.other, s.bandwidth, s.rtt_min_us / 1000.0, s.bytes_in_flight);
+  bool first = true;
+  for (const auto & [size, stat] : link_log_pictures_) {
+    std::fprintf(link_log_, "%s%dx%d:%zu/%zu", first ? "" : ",", size.first, size.second, stat.uploads, stat.bytes);
+    first = false;
+  }
+  std::fprintf(link_log_, "%s\n", first ? "-" : "");
+  std::fflush(link_log_);
+  link_log_last_ = now;
+  link_log_frames_ = s.frames;
+  link_log_mark_ = s.totals;
+  link_log_pictures_.clear();
+}
+
 void TerminalSession::pumpFrame() {
   if (!pacing_ || fd_ < 0 || !open_) return;
   auto now = std::chrono::steady_clock::now();
+  logLinkStats(now);
   pacer_.tick(now);
   late_replies_ += pacer_.takeLateReplies();
   if (!out_.empty() || !pacer_.mayStart(now)) return;
@@ -493,6 +522,12 @@ void TerminalSession::sendFrame(const CellBuffer & frame, const CursorRequest & 
     body = encoder_.encode(frame, cursor, pixels);
   }
   if (body.empty()) return;  // nothing changed: no bytes, no frame
+  if (link_log_) {
+    for (const auto & [dims, stat] : images_.takePictureStats()) {
+      link_log_pictures_[dims].uploads += stat.uploads;
+      link_log_pictures_[dims].bytes += stat.bytes;
+    }
+  }
   FrameBytes size;
   size.upload = images_.lastSizes().upload;
   size.placement = images_.lastSizes().placement;

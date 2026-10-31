@@ -12,7 +12,9 @@
 #include <cellui/term/OutputQueue.h>
 
 #include <chrono>
+#include <cstdio>
 #include <deque>
+#include <map>
 #include <memory>
 #include <optional>
 #include <string>
@@ -189,6 +191,13 @@ class TerminalSession : public Backend {
     std::vector<BackdropLayer> layers;
   };
   std::optional<Held> held_;
+  // SYNTH_LINK_STATS=<file>: a line a second of what the link carried (see logLinkStats()).
+  FILE * link_log_ = nullptr;
+  std::chrono::steady_clock::time_point link_log_last_{};
+  FrameBytes link_log_mark_;
+  size_t link_log_frames_ = 0;
+  std::map<std::pair<int, int>, ImageEncoder::PictureStat> link_log_pictures_;
+  void logLinkStats(std::chrono::steady_clock::time_point now);
   void writeBlocking(const std::string & bytes);
   void flushOutput();
   void drainOutput(std::chrono::milliseconds limit);
