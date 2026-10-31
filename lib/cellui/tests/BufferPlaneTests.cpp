@@ -1133,3 +1133,35 @@ TEST(bufferplane_text_runs_survive_a_scroll_layer) {
   CHECK(layers.size() == 1 && layers[0].scroll && runs.size() == 1 && runs[0].text == "name");
   CHECK(layers[0].scroll->cells.at(0, 0).text_run == 1);
 }
+
+// A text's weight and slant are its own per call, and the plane's otherwise.
+TEST(bufferplane_put_text_weight_and_slant_are_per_call) {
+  StyleProvider styles;
+  CellBuffer b(3, 8);
+  BufferPlane root(b, styles);
+  root.setProportionalText(true);
+  root.putText(0, 0, 4, "a", TextStyle{});
+  root.putText(1, 0, 4, "b", TextStyle{ TextFont::PROPORTIONAL, TextOverflow::CLIP, 300, TextSlant::ITALIC });
+  root.setBold(true);
+  root.putText(2, 0, 4, "c", TextStyle{ TextFont::PROPORTIONAL, TextOverflow::CLIP, 0, TextSlant::UPRIGHT });
+  root.refresh();
+  auto runs = root.takeTextRuns();
+  CHECK(runs.size() == 3);
+  CHECK(runs[0].weight == 400 && !runs[0].italic);
+  CHECK(runs[1].weight == 300 && runs[1].italic);
+  CHECK(runs[2].weight == 700 && !runs[2].italic);
+}
+
+TEST(bufferplane_put_text_cells_fallback_uses_bold_from_600) {
+  StyleProvider styles;
+  CellBuffer b(3, 8);
+  BufferPlane root(b, styles);
+  root.putText(0, 0, 4, "a", TextStyle{ TextFont::PROPORTIONAL, TextOverflow::CLIP, 700, TextSlant::INHERIT });
+  root.putText(1, 0, 4, "b", TextStyle{ TextFont::PROPORTIONAL, TextOverflow::CLIP, 300, TextSlant::ITALIC });
+  root.putText(2, 0, 4, "c", TextStyle{});
+  root.refresh();
+  CHECK(b.at(0, 0).bold && !b.at(0, 0).italic);
+  CHECK(!b.at(1, 0).bold && b.at(1, 0).italic);
+  CHECK(!b.at(2, 0).bold && !b.at(2, 0).italic);
+  CHECK(!root.isBold() && !root.isItalic());
+}

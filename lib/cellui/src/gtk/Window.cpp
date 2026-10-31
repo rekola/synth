@@ -757,7 +757,7 @@ void Window::Impl::appendTextRuns(GtkSnapshot * snap, const CellBuffer & cells) 
     auto rgb = run.fg.value_or(*display_info.default_fg).toSrgb8();
     GdkRGBA color = { rgb[0] / 255.0f, rgb[1] / 255.0f, rgb[2] / 255.0f, 1.0f };
     PangoFontDescription * font = pango_font_description_copy(proportional);
-    if (run.bold) pango_font_description_set_weight(font, PANGO_WEIGHT_BOLD);
+    pango_font_description_set_weight(font, static_cast<PangoWeight>(run.weight));
     if (run.italic) pango_font_description_set_style(font, PANGO_STYLE_ITALIC);
     for (const MarkedRun & box : list) {
       float x = static_cast<float>(box.col * cell_w), y = static_cast<float>(box.row * cell_h);

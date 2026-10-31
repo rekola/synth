@@ -33,7 +33,8 @@ struct PlaneInfo {
 struct TextRun {
   std::string text;
   std::optional<Color> fg;  // unset = the display's own
-  bool bold = false, italic = false, underline = false;
+  int weight = 400;  // 100..900
+  bool italic = false, underline = false;
   TextFont font = TextFont::PROPORTIONAL;
   TextOverflow overflow = TextOverflow::CLIP;
 };

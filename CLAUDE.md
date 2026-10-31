@@ -1574,7 +1574,7 @@ would otherwise resume showing.
   Text in a face of its own is the display's too: `Plane::putText(y, x, cols, text,
   TextStyle)` gives the text a box of `cols` cells (to the plane's edge when negative)
   and the display lays it out - the app never measures it, and what does not fit the
-  box is cut (`TextOverflow::CLIP`) or cut with an ellipsis (`ELLIPSIS`). A display that
+  box is cut (`TextOverflow::CLIP`) or cut with an ellipsis (`ELLIPSIS`). Its weight (100-900, `TextRun::weight`) and slant (`TextSlant`) are the call's own when given, else the plane's bold and italic; cells have only bold (from 600) and italic, and the Win32 window makes a face per other weight on demand. A display that
   can (`DisplayInfo::proportional_text`: the GTK window, and the Win32 one with DirectWrite layouts, compiled but never run) marks the box's cells
   (`Cell::text_run`) and reports the run (`FrameInfo::text_runs`, `TextRun`), which the window sets with
   Pango in the system UI font sized to the cell height (`appendTextRuns()`), centred in the rows

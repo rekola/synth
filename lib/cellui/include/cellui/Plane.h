@@ -145,6 +145,10 @@ class Plane {
   virtual void setUnderline(bool b) = 0;
   virtual void setBold(bool b) = 0;
   virtual void setItalic(bool b) = 0;
+  // The weight and slant putstr() writes with (a plane that cannot say
+  // reports plain).
+  virtual bool isBold() const { return false; }
+  virtual bool isItalic() const { return false; }
   // What putstr() writes next is drawn over what lies below with its
   // background averaged with that one's (a translucent popup), and its
   // foreground leaning to white or black against the result. Default no-op.
@@ -192,7 +196,13 @@ class Plane {
   // caller need not know which it is.
   virtual void putText(int y, int x, int cols, const std::string & text, const TextStyle & style = {}) {
     if (cols < 0) cols = std::max(0, getDim().second - x);
+    // Cells have bold and italic only: 600 and up is bold.
+    const bool was_bold = isBold(), was_italic = isItalic();
+    setBold(resolveWeight(style, was_bold) >= 600);
+    setItalic(resolveItalic(style, was_italic));
     putstr(y, x, cutToCells(text, cols, style.overflow));
+    setBold(was_bold);
+    setItalic(was_italic);
   }
   // `text` fitted into `cols` cells as `overflow` says.
   static std::string cutToCells(const std::string & text, int cols, TextOverflow overflow) {

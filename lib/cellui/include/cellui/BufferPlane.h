@@ -67,6 +67,8 @@ class BufferPlane : public Plane {
   void setUnderline(bool b) override { style_.underline = b; }
   void setBold(bool b) override { style_.bold = b; }
   void setItalic(bool b) override { style_.italic = b; }
+  bool isBold() const override { return style_.bold; }
+  bool isItalic() const override { return style_.italic; }
   void setBgBlend(bool b) override { style_.bg_blend = b; }
   void setFgContrast(bool b) override { style_.fg_contrast = b; }
   void setBackdrop(const Backdrop & b) override { style_.backdrop = b; }
