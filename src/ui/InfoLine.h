@@ -65,6 +65,9 @@ class InfoLine : public UIElement {
       // The transport's musical position (Song::formatPosition()).
       auto s = fmt::format(" {} {}{}{} voices:{}/{}", buffer_display_name, song.formatPosition(info.getAbsolutePosition()),
                            info.isPlaying() ? " PLAYING" : "", latency, num_voices, num_allocated_voices);
+      // The link, when it is not at full speed: on the left, which has the room, the right half
+      // moving over for it as it does for a long buffer name.
+      if (!link_text_.empty()) s += "  " + link_text_;
       // The right half starts mid-line, or just past the left half's text
       // when a long buffer name reaches that far.
       auto right_col = std::max(cols / 2, Utf8::displayWidth(s) + 2);
@@ -81,7 +84,6 @@ class InfoLine : public UIElement {
 
       auto swing_text = song.getSwing() > swing::kStraight ? fmt::format(" swing {}%", song.getSwing()) : std::string();
       auto right_text = fmt::format("{} {} {} {}{}", tuning_text, key, tempo, song.getBarsAt(info.getAbsolutePosition()).signature.toString(), swing_text);
-      if (!link_text_.empty()) right_text += "  " + link_text_;
       putstr(0, right_col, right_text);
 
       current_version_ = new_version;

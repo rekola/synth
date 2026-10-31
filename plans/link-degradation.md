@@ -320,6 +320,12 @@ Dials stay images in every class. To make them cacheable:
 - **The letter is in the picture**, so A, B and Main are three sets: 16 x 4 x 3 = **192 pictures**,
   each keyed by (letter, position, look, scale), none rendered until used. They are small and
   flat, so they compress to a few hundred bytes each and are well under 1 MB in the terminal.
+- **Lazy, down to the single variant.** A picture is rendered, and sent, only when a dial first shows it. Dials at
+  their default and never touched need **one picture per letter** (default position, normal look): today all 16
+  dials of the demo song go up at start (40x48 px each, 124 kB raw) because each has its own key; with shared keys
+  that is three (A, B and Main), rendered by the first dial that needs each and placed for the rest. Another
+  position or look is made the first time a dial reaches it (a drag crosses a handful; hover and pressed cost
+  one picture each, once). Nothing is made ahead of use, and nothing for a dial scrolled out of view.
 - Dragging with Shift (fine) still sets the exact value; the pointer moves when it crosses a
   position. The typed value shows as text while editing, as now.
 - Tests: all four looks at every position render and are distinct where they should differ;
@@ -495,7 +501,7 @@ deflate ratio on real charts is known.
    size, not by which widget draws them (the 232x80 one is the spectrum in all likelihood, nothing in the log
    says so); icons will share sizes, so the picture kinds of 3.4 replace it, and I have no real terminal or link here, so the figures are for the emulated terminal; the log is
    there for you to run on real ones.
-1. **API and classes.** `LinkStatus`, `Backend::linkStatus()/setLinkHandler()`, classification by
+1. **API and classes. Done.** (Built as below, with these differences: the terminal classifies only on seconds the link held frames back, because the pacer's estimate is a measurement only then; thresholds are the provisional uncompressed demands in `LinkThresholds` until phase 2 gives the compressed ones; the trials for going up wait for phase 5, which has the features to try. The bandwidth sample became the delivery rate of the last four back-to-back frames, judged by when a frame *started*, which fixed an estimate that was twice too high on fast links.) `LinkStatus`, `Backend::linkStatus()/setLinkHandler()`, classification by
    profile demand with hysteresis and trials, the description strings (terminal bandwidth/RTT,
    window vsync and fps), the status bar, `--link-class` and `set-link-class`,
    `TestBackend::setLinkStatus()`. Harness checks: the class at five bandwidths, no flapping on the
