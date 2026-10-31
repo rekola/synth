@@ -39,17 +39,6 @@ uint64_t nextImageVersion() {
 
 }  // namespace
 
-struct BufferPlane::Picker {
-  std::unique_ptr<BufferPlane> plane;
-  std::vector<std::string> options, descriptions;
-  int selected = 0;
-  int first = 0;        // the first item shown
-  int max_display = 0;  // 0: as many as fit
-  int y = 0, x = 0;
-
-  int count() const { return static_cast<int>(options.size()); }
-};
-
 BufferPlane::BufferPlane(CellBuffer & target, const StyleProvider & styles, std::shared_ptr<void> app_context)
   : Plane(std::move(app_context), styles), local_(target.rows(), target.cols()), target_(&target) {
   setDim(std::pair(target.rows(), target.cols()));
@@ -575,7 +564,6 @@ PlaneInfo BufferPlane::describe() const {
   info.elevation = elevation_;
   info.mouse_cursor = mouse_cursor_;
   info.reader = editor_ != nullptr;
-  info.picker = picker_ != nullptr;
   for (const BufferPlane * child : children_) info.children.push_back(child->describe());
   return info;
 }
@@ -671,130 +659,13 @@ void BufferPlane::showReaderIndicator(int x, const std::string & s) {
   indicator_->moveToTop();
 }
 
-// The picker: an opaque panel with no border, a row of padding, the items
-// (each option right-aligned to the longest, then its description), a row of
-// padding. The list wraps around at both ends.
-
-void BufferPlane::showPicker(int y, int x, int rows, int cols, int item_count) {
-  if (picker_) return;
-  picker_ = std::make_unique<Picker>();
-  picker_->plane = makeChild();
-  picker_->plane->setElevation(getStyles().theme.elevation.overlay);
-  picker_->plane->mouse_cursor_ = MouseCursor::POINTER;
-  picker_->y = y;
-  picker_->x = x;
-  picker_->plane->move(y, x);
-  picker_->plane->resize(std::max(1, rows), std::max(1, cols));
-  picker_->max_display = std::max(0, item_count);
-  picker_->plane->moveToTop();
-  drawPicker();
-}
-
-void BufferPlane::addItem(const std::string & id, const std::string & description) {
-  if (!picker_) return;
-  picker_->options.push_back(id);
-  picker_->descriptions.push_back(description);
-  drawPicker();
-}
-
-void BufferPlane::selectPickerItem(int index) {
-  if (!picker_ || index < 0 || index >= picker_->count()) return;
-  picker_->selected = index;
-  drawPicker();
-}
-
-void BufferPlane::closePicker() { picker_.reset(); }
-
-std::string BufferPlane::getPickerSelection() const {
-  if (!picker_ || picker_->options.empty()) return "";
-  return picker_->options[static_cast<size_t>(picker_->selected)];
-}
-
-void BufferPlane::drawPicker() {
-  Picker & pk = *picker_;
-  BufferPlane & p = *pk.plane;
-  const StyleProvider & theme = getStyles();
-  int longest_option = 0, longest_desc = 0;
-  for (size_t i = 0; i < pk.options.size(); i++) {
-    longest_option = std::max(longest_option, utf8::displayWidth(pk.options[i]));
-    longest_desc = std::max(longest_desc, utf8::displayWidth(pk.descriptions[i]));
-  }
-  int count = pk.count();
-  int shown = pk.max_display > 0 ? std::min(pk.max_display, count) : count;
-  int body_cols = longest_option + longest_desc + 5;
-  int rows = std::min(std::max(shown, 1) + 2, getDim().first - pk.y);
-  shown = std::max(0, std::min(shown, rows - 2));
-  p.resize(std::max(rows, 1), body_cols);
-  p.erase();
-
-  CellBuffer::Style base;
-  base.fg = theme.picker_fg_color;
-  base.bg = theme.picker_bg_color;
-  CellBuffer::Style option;
-  option.fg = theme.highlight_bg_color;
-  option.bg = theme.highlight_fg_color;
-  CellBuffer::Style option_selected;
-  option_selected.fg = theme.highlight_fg_color;
-  option_selected.bg = theme.highlight_bg_color;
-  CellBuffer::Style desc = base;
-  desc.fg = theme.picker_bg_color;
-
-  for (int r = 0; r < rows; r++) p.local_.write(r, 0, std::string(static_cast<size_t>(body_cols), ' '), base);
-  if (count == 0 || shown == 0) return;
-  // Keep the selection inside the window, which wraps around.
-  int offset = ((pk.selected - pk.first) % count + count) % count;
-  if (offset >= shown) pk.first = ((pk.selected - shown + 1) % count + count) % count;
-  for (int i = 0; i < shown; i++) {
-    int item = (pk.first + i) % count;
-    bool selected = item == pk.selected;
-    const std::string & text = pk.options[static_cast<size_t>(item)];
-    int col = 2 + longest_option - utf8::displayWidth(text);
-    p.local_.write(1 + i, col, text, selected ? option_selected : option);
-    CellBuffer::Style d = desc;
-    if (selected) std::swap(d.fg, d.bg);
-    p.local_.write(1 + i, 2 + longest_option, " " + pk.descriptions[static_cast<size_t>(item)], d);
-  }
-  if (shown < count) {
-    CellBuffer::Style arrow = desc;
-    arrow.fg = theme.highlight_bg_color;
-    p.local_.write(0, 2 + longest_option, "↑", arrow);
-    p.local_.write(rows - 1, 2 + longest_option, "↓", arrow);
-  }
-}
-
 bool BufferPlane::offerInput(const Input & input) {
   if (editor_) {
     editor_->offerInput(input);
     drawReader();
     return true;
   }
-  if (!picker_) return false;
-  Picker & pk = *picker_;
-  int count = pk.count();
-  if (count == 0) return false;
-  auto move = [&](int delta) {
-    pk.selected = ((pk.selected + delta) % count + count) % count;
-    drawPicker();
-  };
-  int shown = std::max(1, pk.plane->getDim().first - 2);
-  int id = input.getId();
-  bool release = input.getKind() == Input::Kind::RELEASE;
-  if (id == Key::Button1) {
-    if (!release) return false;
-    auto [py, px] = pk.plane->screenPosition();
-    int row = input.getY() - py - 1, col = input.getX() - px;
-    if (row < 0 || row >= shown || col < 0 || col >= pk.plane->getDim().second) return false;
-    pk.selected = (pk.first + row) % count;
-    drawPicker();
-    return true;
-  }
-  if (release) return false;
-  if (id == Key::Up || id == Key::Button4) move(-1);
-  else if (id == Key::Down || id == Key::Button5) move(1);
-  else if (id == Key::PageUp) move(-shown);
-  else if (id == Key::PageDown) move(shown);
-  else return false;
-  return true;
+  return false;
 }
 
 }  // namespace cellui

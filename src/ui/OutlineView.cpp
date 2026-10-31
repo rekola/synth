@@ -592,57 +592,24 @@ OutlineView::targetTrackLabel(int track_id) const {
 
 void
 OutlineView::openTargetPicker() {
-  if (getPlane().pickerActive()) return;
+  if (!choose_) return;
 
-  auto cols = getDim().second;
-  auto candidates = compatibleTargetTrackRows();
-  auto item_count = static_cast<int>(candidates.size()) + 1; // +1 for "New track"
-  // +2 for the picker's padding rows. Opens just above the button
-  // bar, so it never covers the button that opened it, capped so it never
-  // reaches above the tree's first row.
-  auto wanted_rows = item_count + 2;
-  auto picker_rows = std::clamp(wanted_rows, 1, std::max(1, buttonBarTop() - kTreeTop));
-  auto anchor_y = buttonBarTop() - picker_rows;
-
-  getPlane().showPicker(anchor_y, 0, picker_rows, cols, item_count);
-  for (auto * candidate : candidates) getPlane().addItem(candidate->label, "");
-  getPlane().addItem("New track", "");
-
-  // Starts highlighted on whatever's already the current choice, not
-  // always row 0 - candidates were added in the same order as
-  // compatibleTargetTrackRows() returns them, "New track" last (its own
-  // index is candidates.size()).
+  // The compatible tracks, then "New track"; starts on the current choice.
+  std::vector<std::pair<std::string, int>> entries;
   auto target_id = resolveTargetTrackId();
-  auto default_index = static_cast<int>(candidates.size());
-  for (size_t i = 0; i < candidates.size(); i++) {
-    if (candidates[i]->ref_id == target_id) {
-      default_index = static_cast<int>(i);
-      break;
-    }
-  }
-  getPlane().selectPickerItem(default_index);
-}
-
-void
-OutlineView::closeTargetPicker() {
-  getPlane().closePicker();
-}
-
-void
-OutlineView::applyTargetPickerSelection(const string & selection) {
-  if (selection.empty()) return; // nothing was ever highlighted - leave the previous choice untouched
-  if (selection == "New track") {
-    selected_target_track_id_ = kNewTrackTargetId;
-    details_dirty_ = true; // the "[t] Target: ..." line's own text just changed with no cursor move to otherwise trigger a redraw
-    return;
-  }
+  auto current = -1;
   for (auto * candidate : compatibleTargetTrackRows()) {
-    if (candidate->label == selection) {
-      selected_target_track_id_ = candidate->ref_id;
-      details_dirty_ = true;
-      return;
-    }
+    if (candidate->ref_id == target_id) current = static_cast<int>(entries.size());
+    entries.push_back({candidate->label, candidate->ref_id});
   }
+  if (current < 0) current = static_cast<int>(entries.size());
+  entries.push_back({"New track", kNewTrackTargetId});
+  choose_("Target track", std::move(entries), current, [this](const int & track_id) { applyTargetPickerSelection(track_id); });
+}
+
+void OutlineView::applyTargetPickerSelection(int track_id) {
+  selected_target_track_id_ = track_id;
+  details_dirty_ = true; // the "[t] Target: ..." line's own text just changed with no cursor move to otherwise trigger a redraw
 }
 
 void
@@ -677,7 +644,6 @@ OutlineView::addSelectedLibraryRhythmToSong() {
   // user explicitly picked New track" alike, so a second Add to Song
   // reuses this same fresh track instead of creating yet another one.
   selected_target_track_id_ = percussion_track->getInternalId();
-  closeTargetPicker(); // a no-op unless Enter on Add to Song somehow ran while it was still open
 
   Clip clip(percussion_track->getInternalId());
   clip.setName(pattern->name);
@@ -753,7 +719,7 @@ OutlineView::runDetailsAction(DetailsAction action) {
     getController().getPlaybackEventQueue().push(make_unique<PlaybackControlEvent>(PlaybackControlEvent::PREVIEW_STOP));
     break;
   case DetailsAction::TOGGLE_TARGET_PICKER:
-    if (getPlane().pickerActive()) closeTargetPicker(); else openTargetPicker();
+    openTargetPicker();
     break;
   case DetailsAction::TOGGLE_INFO:
     info_open_ = !info_open_;
@@ -762,14 +728,13 @@ OutlineView::runDetailsAction(DetailsAction action) {
   }
 }
 
-bool
-OutlineView::handleClick(const cellui::Input & input) {
+bool OutlineView::handleClick(int screen_y, int screen_x, bool release) {
   // Resolved on release only, matching SpinBox's own click convention.
   // A press - and each drag while held, which arrives as another press -
   // shows what is under the mouse as pressed, and holds off placing a
   // cursor on focus, which the release does instead.
-  auto target = hitTest(input.getY(), input.getX());
-  if (input.getKind() != InputEvent::Kind::RELEASE) {
+  auto target = hitTest(screen_y, screen_x);
+  if (!release) {
     click_pending_ = true;
     pressed_ = target;
     details_dirty_ = true;
@@ -820,121 +785,89 @@ OutlineView::hitTest(int screen_y, int screen_x) const {
 
 bool
 OutlineView::offerInput(const cellui::Input & input) {
-  // The Info popup is modal: it closes on its own keys or a click, and
-  // swallows everything else. A key's release still gets through, to stop
-  // a preview note held when it opened.
+  // The two callers that still hold an Input - the modal popup and the bare
+  // Escape - go through the same handlers the dispatcher's events do.
+  using cellui::Input;
+  if (input.getKind() == Input::Kind::RELEASE && input.getId() != Key::Button1) return keyUp(cellui::KeyUp{input.getId()});
+  if (input.getId() == Key::Button1)
+    return input.getKind() == Input::Kind::RELEASE ? mouseUp(input.getY(), input.getX()) : mouseDown(input.getY(), input.getX());
+  return keyDown(cellui::InputDispatcher::keyDownFor(input));
+}
+
+bool OutlineView::mouseDown(int row, int col) {
+  if (info_open_) return true;
+  return handleClick(row, col, false);
+}
+
+bool OutlineView::mouseUp(int row, int col) {
+  // The Info popup closes on a click's release.
   if (info_open_) {
-    bool is_click = input.getId() == Key::Button1;
-    bool closes = is_click ? input.getKind() == InputEvent::Kind::RELEASE
-      : input.getKind() != InputEvent::Kind::RELEASE && (input.getId() == '?' || input.getId() == Key::Escape || (input.hasCtrl() && input.getId() == 'g'));
-    if (closes) {
-      runDetailsAction(DetailsAction::TOGGLE_INFO);
-      return true;
-    }
-    if (is_click || input.getKind() != InputEvent::Kind::RELEASE) return true;
+    runDetailsAction(DetailsAction::TOGGLE_INFO);
+    return true;
   }
+  return handleClick(row, col, true);
+}
 
-  // While the target-track picker is open, every keystroke/click goes to
-  // it instead of anything below - mirrors PatternEditor::offerInput()'s
-  // identical readerActive() handling. Enter and a click landing on an
-  // item both commit (applyTargetPickerSelection() reads
-  // getPickerSelection() before the plane is destroyed, since it has
-  // nothing left to report once closed); Ctrl-g cancels without changing
-  // the previous choice; everything else (arrow keys, scroll, PgUp/
-  // PgDown) is just forwarded to the selector to navigate with, same as
-  // ncselector_offer_input()'s own documented input set.
-  if (getPlane().pickerActive()) {
-    if (input.getId() == Key::Enter) {
-      auto selection = getPlane().getPickerSelection();
-      closeTargetPicker();
-      applyTargetPickerSelection(selection);
-      return true;
-    } else if (input.hasCtrl() && input.getId() == 'g') {
-      closeTargetPicker();
-      return true;
-    } else if (input.getId() == Key::Button1 && input.getKind() == InputEvent::Kind::RELEASE) {
-      if (getPlane().offerInput(input)) {
-        // Landed on an item (or the scroll arrows) - ncselector_offer_input()
-        // only reports a click as relevant when it actually lands inside
-        // its own plane. Commits whatever's now highlighted and closes,
-        // the usual single-click-picks dropdown gesture - no separate
-        // confirm step the way keyboard navigation needs Enter for.
-        auto selection = getPlane().getPickerSelection();
-        closeTargetPicker();
-        applyTargetPickerSelection(selection);
-      } else {
-        // Landed outside the picker entirely - dismiss it without
-        // changing the previous choice, same as clicking outside any
-        // other dropdown/popup, then let the click fall through to
-        // handleClick() as normal (it may be a perfectly ordinary click
-        // on some other row/button).
-        closeTargetPicker();
-        return handleClick(input);
-      }
-      return true;
-    } else {
-      return getPlane().offerInput(input);
-    }
-  }
+bool OutlineView::wheel(const cellui::Wheel & e) {
+  if (info_open_) return true;
+  // The wheel scrolls the view, not the cursor (see scrollBy()); Shift or a
+  // sideways wheel scrolls sideways.
+  int direction = e.dy > 0 ? -1 : 1;
+  if (e.dx != 0)
+    scrollColumnsBy(e.dx * kColumnScrollStep);
+  else if (e.mods.shift)
+    scrollColumnsBy(direction * kColumnScrollStep);
+  else
+    scrollBy(direction * wheel_acceleration_.step(kWheelRows));
+  return true;
+}
 
-  // Handled first, before even RELEASE's own early-return just below (a
-  // mouse-button release would otherwise be swallowed there, since it's
-  // never the held preview-note key) - see handleClick()'s own comment
-  // for why it resolves on release anyway.
-  if (input.getId() == Key::Button1) return handleClick(input);
-  // A held preview-note key's RELEASE is handled once, up front, exactly
-  // like PatternEditor's own live note entry (see its own comment on why
-  // RELEASE needs this special early-return treatment) - it either matches
-  // the one key currently previewing (fully handled) or is inert.
-  if (input.getKind() == InputEvent::Kind::RELEASE) {
-    if (input.getId() != held_preview_key_) return false;
-    held_preview_key_ = -1;
-    getController().getPlaybackEventQueue().push(make_unique<PlaybackControlEvent>(PlaybackControlEvent::PREVIEW_STOP));
+bool OutlineView::keyUp(const cellui::KeyUp & e) {
+  // A held preview-note key's release stops it, even with a popup open.
+  if (e.key != held_preview_key_) return false;
+  held_preview_key_ = -1;
+  getController().getPlaybackEventQueue().push(make_unique<PlaybackControlEvent>(PlaybackControlEvent::PREVIEW_STOP));
+  return true;
+}
+
+bool OutlineView::keyDown(const cellui::KeyDown & e) {
+  // The Info popup is modal: it closes on its own keys and swallows
+  // everything else.
+  if (info_open_) {
+    if (e.key == '?' || e.key == Key::Escape || (e.mods.ctrl && e.key == 'g')) runDetailsAction(DetailsAction::TOGGLE_INFO);
     return true;
   }
 
-  if (input.getId() == '?') {
+  if (e.key == '?') {
     // Not a note key (InputEvent::toMidiNote()), so it never shadows a
     // preview.
     runDetailsAction(DetailsAction::TOGGLE_INFO);
     return true;
-  } else if (((input.hasCtrl() && input.getId() == 'g') || input.getId() == Key::Escape) && info_open_) {
-    runDetailsAction(DetailsAction::TOGGLE_INFO);
-    return true;
-  } else if (input.getId() == Key::Up) {
+  } else if (e.key == Key::Up) {
     moveCursorBy(-1);
     return true;
-  } else if (input.getId() == Key::Down) {
+  } else if (e.key == Key::Down) {
     moveCursorBy(1);
     return true;
-  } else if (input.getId() == Key::Left) {
+  } else if (e.key == Key::Left) {
     scrollColumnsBy(-kColumnScrollStep);
     return true;
-  } else if (input.getId() == Key::Right) {
+  } else if (e.key == Key::Right) {
     scrollColumnsBy(kColumnScrollStep);
     return true;
-  } else if (input.getId() >= Key::Button4 && input.getId() <= Key::Button7) {
-    // The wheel scrolls the view, not the cursor (see scrollBy()); Shift
-    // or a sideways wheel scrolls sideways.
-    int direction = (input.getId() == Key::Button4 || input.getId() == Key::Button6) ? -1 : 1;
-    if (input.hasShift() || input.getId() >= Key::Button6)
-      scrollColumnsBy(direction * kColumnScrollStep);
-    else
-      scrollBy(direction * wheel_acceleration_.step(kWheelRows));
-    return true;
-  } else if (input.getId() == Key::PageUp) {
+  } else if (e.key == Key::PageUp) {
     moveCursorBy(-cursorRows());
     return true;
-  } else if (input.getId() == Key::PageDown) {
+  } else if (e.key == Key::PageDown) {
     moveCursorBy(cursorRows());
     return true;
-  } else if (input.getId() == Key::Enter) {
+  } else if (e.key == Key::Enter) {
     runDetailsAction(DetailsAction::ADD_TO_SONG);
     return true;
-  } else if (input.getId() == Key::Delete || input.getId() == Key::Backspace) {
+  } else if (e.key == Key::Delete || e.key == Key::Backspace) {
     runDetailsAction(DetailsAction::DELETE);
     return true;
-  } else if (input.getId() == 'p' && new_cursor_row_ >= 0 && new_cursor_row_ < static_cast<int>(data_.size()) &&
+  } else if (e.key == 'p' && new_cursor_row_ >= 0 && new_cursor_row_ < static_cast<int>(data_.size()) &&
              data_[static_cast<size_t>(new_cursor_row_)].kind == OutlineRowKind::LIBRARY_RHYTHM) {
     // Loops the rhythm under the cursor (PlaybackControlEvent::
     // PREVIEW_RHYTHM) - 'p' rather than a note key, since a whole rhythm
@@ -943,18 +876,18 @@ OutlineView::offerInput(const cellui::Input & input) {
     // 'p' again, even on the same row) restarts it cleanly from row 0 -
     // see Player.h's own preview_rhythm_pattern_ comment. 'a' (above)
     // stops it, the same universal stop every other preview already uses.
-    if (input.getKind() == InputEvent::Kind::REPEAT) return true;
+    if (e.repeat) return true;
     runDetailsAction(DetailsAction::PREVIEW);
     return true;
-  } else if (input.getId() == 't' && new_cursor_row_ >= 0 && new_cursor_row_ < static_cast<int>(data_.size()) &&
+  } else if (e.key == 't' && new_cursor_row_ >= 0 && new_cursor_row_ < static_cast<int>(data_.size()) &&
              data_[static_cast<size_t>(new_cursor_row_)].kind == OutlineRowKind::LIBRARY_RHYTHM) {
     // Opens the rhythm's own target-track picker (openTargetPicker()) - a
     // real floating plane, closed by picking a candidate, Enter, or
-    // Ctrl-g (see this method's own pickerActive() handling up top).
-    if (input.getKind() == InputEvent::Kind::REPEAT) return true;
+    // Ctrl-g (see this method's own handling of the open picker up top).
+    if (e.repeat) return true;
     runDetailsAction(DetailsAction::TOGGLE_TARGET_PICKER);
     return true;
-  } else if (input.getId() == 'a') {
+  } else if (e.key == 'a') {
     // The dedicated note-off key (matches PatternEditor's own note-entry
     // convention - see its own is_off comment; 'a' is unmapped in
     // InputEvent::toMidiNote()'s pitched-note table for exactly this
@@ -974,9 +907,9 @@ OutlineView::offerInput(const cellui::Input & input) {
     // fresh preview note (holding a key should sustain the one already
     // sounding, not restart its envelope over and over) - mirrors
     // PatternEditor's own identical guard.
-    if (input.getKind() == InputEvent::Kind::REPEAT) return true;
+    if (e.repeat) return true;
 
-    auto input_note = keyToMidiNote(input, getController().getSong().getTuning(), getController().getSong().getScale());
+    auto input_note = keyToMidiNote(e.key, getController().getSong().getTuning(), getController().getSong().getScale());
     if (input_note.empty()) return false;
     auto midi_note = Note(input_note, getController().getSong().getTuning(), 0x28, 0, getController().getGlobalOctave()).getValue();
 
@@ -1013,7 +946,7 @@ OutlineView::offerInput(const cellui::Input & input) {
     // held_preview_key_ must stay untouched (a fresh PREVIEW_NOTE/
     // PREVIEW_POOL_NOTE replaces the sounding voice outright either way -
     // see Player.h's own comment on preview_note_voice_).
-    if (input.getKind() != InputEvent::Kind::UNKNOWN) held_preview_key_ = input.getId();
+    if (e.release_reported) held_preview_key_ = e.key;
     return true;
   }
 

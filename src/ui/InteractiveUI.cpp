@@ -674,6 +674,9 @@ InteractiveUI::initializeWidgets() {
   clip_grid_ = make_shared<ClipGrid>(getPlane());
   clip_grid_->setCharts(charts_.get());
   outline_view_ = make_shared<OutlineView>(getPlane());
+  outline_view_->setChooser([this](const std::string & title, std::vector<std::pair<std::string, int>> entries, int current, std::function<void(const int &)> on_choose) {
+    choose<int>(title, std::move(entries), current, std::move(on_choose));
+  });
   // Enter commits the cell under this grid's own (local, passive) cursor
   // to shared state - see ArrangementGrid.h's own comment on why this is a
   // callback rather than the grid reaching for PatternEditor/
@@ -738,7 +741,7 @@ InteractiveUI::initializeWidgets() {
                                                    cellui::Phase::capture));
   key_connections_.push_back(on<cellui::KeyDown>([modal](const cellui::KeyDown & e, cellui::EventContext &) { return modal(e.input); }, cellui::Phase::capture));
   key_connections_.push_back(on<cellui::KeyUp>([modal](const cellui::KeyUp & e, cellui::EventContext &) { return modal(e.input); }, cellui::Phase::capture));
-  for (cellui::Widget * widget : std::initializer_list<cellui::Widget *>{pattern_editor_.get(), clip_grid_.get(), outline_view_.get()}) {
+  for (cellui::Widget * widget : std::initializer_list<cellui::Widget *>{pattern_editor_.get(), clip_grid_.get()}) {
     auto offer = [widget](const cellui::Input * input) {
       return input && widget->offerInput(*input) ? cellui::Handled::yes : cellui::Handled::no;
     };
@@ -746,11 +749,11 @@ InteractiveUI::initializeWidgets() {
     key_connections_.push_back(widget->on<cellui::KeyUp>([offer](const cellui::KeyUp & e, cellui::EventContext &) { return offer(e.input); }));
   }
 
-  // The clip grid, the outline and the pattern editor take the left button
+  // The clip grid and the pattern editor take the left button
   // and the wheel as dispatcher events, handing the Input they came from to
   // offerInput(). The dispatcher's grab keeps a drag and its release with the
   // widget the press went down on.
-  for (cellui::Widget * widget : std::initializer_list<cellui::Widget *>{clip_grid_.get(), outline_view_.get(), pattern_editor_.get()}) {
+  for (cellui::Widget * widget : std::initializer_list<cellui::Widget *>{clip_grid_.get(), pattern_editor_.get()}) {
     auto offer = [widget](const cellui::Input * input) {
       return input && widget->offerInput(*input) ? cellui::Handled::yes : cellui::Handled::no;
     };
@@ -1692,14 +1695,12 @@ InteractiveUI::showInfoDialog(const std::string & title, const std::string & mar
   force_next_render_ = true;
 }
 
-void InteractiveUI::showChoiceDialog(const std::string & title, std::vector<Choice> choices, int current,
-                                  std::function<void(int)> on_choose) {
-  if (choices.empty()) {
+void InteractiveUI::showChoiceDialog(const std::string & title, std::vector<std::string> labels, int current,
+                                     std::function<void(int)> on_choose) {
+  if (labels.empty()) {
     setStatus(title + ": nothing to choose from");
     return;
   }
-  std::vector<std::string> labels;
-  for (auto & choice : choices) labels.push_back(choice.label);
   int index;
   {
     redraw_requested_ = true;

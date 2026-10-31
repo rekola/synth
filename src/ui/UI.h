@@ -13,6 +13,7 @@
 #include <functional>
 #include <string>
 #include <string_view>
+#include <utility>
 #include <variant>
 #include <vector>
 
@@ -79,18 +80,32 @@ class UI : public UIElement {
   virtual void setReducedMotion(bool /*reduced*/) {}
   virtual void showInfoDialog(const std::string & title, const std::string & markdown) = 0;
 
-  // One entry of a choice dialog: what the person sees, and what the command
-  // acts on.
-  struct Choice {
-    std::string label;
-    std::string value;
-  };
   // Shows a modal list to pick one entry from. `current` is the entry in
   // use, marked and where the selection starts (-1 for none). Calls
   // `on_choose` with the chosen index once, or never if the dialog is
   // cancelled. A backend with no such dialog says so on the status line.
-  virtual void showChoiceDialog(const std::string & title, std::vector<Choice> choices, int current,
+  virtual void showChoiceDialog(const std::string & title, std::vector<std::string> labels, int current,
                                 std::function<void(int)> on_choose) = 0;
+
+  // The same with a value of any type behind each label: `on_choose` gets
+  // the chosen entry's value. With `skip_current` choosing the entry already
+  // in use does nothing.
+  template <class T>
+  void choose(const std::string & title, std::vector<std::pair<std::string, T>> entries, int current,
+              std::function<void(const T &)> on_choose, bool skip_current = false) {
+    std::vector<std::string> labels;
+    std::vector<T> values;
+    for (auto & [label, value] : entries) {
+      labels.push_back(std::move(label));
+      values.push_back(std::move(value));
+    }
+    showChoiceDialog(title, std::move(labels), current,
+                     [values = std::move(values), current, skip_current, on_choose = std::move(on_choose)](int index) {
+                       if (index < 0 || index >= static_cast<int>(values.size())) return;
+                       if (skip_current && index == current) return;
+                       on_choose(values[static_cast<size_t>(index)]);
+                     });
+  }
 
   // Launchpad hardware input isn't tied to any one visual frontend, so its
   // event handling lives here rather than in a concrete backend - this one

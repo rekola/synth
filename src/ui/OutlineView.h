@@ -3,6 +3,10 @@
 
 #include "InfoDialog.h"
 #include <cellui/Fade.h>
+#include <cellui/InputDispatcher.h>
+#include <cellui/InputEvents.h>
+#include <functional>
+#include <cellui/Signal.h>
 #include "UIElement.h"
 #include "../model/TrackType.h"
 
@@ -90,7 +94,16 @@ class OutlineView : public UIElement {
   // The focus level is still easing: the loop keeps drawing frames.
   bool isAnimating() const { return fades_.active() || focus_fade_drawn_; }
 
+  // Shows a modal list (title, label and value of each entry, current index) and calls back with the chosen value.
+  using Chooser = std::function<void(const std::string &, std::vector<std::pair<std::string, int>>, int, std::function<void(const int &)>)>;
+  void setChooser(Chooser choose) { choose_ = std::move(choose); }
+
   OutlineView(Plane & parent) : UIElement(parent) {
+    connections_.push_back(on<cellui::KeyDown>([this](const cellui::KeyDown & e, cellui::EventContext &) { return keyDown(e) ? cellui::Handled::yes : cellui::Handled::no; }));
+    connections_.push_back(on<cellui::KeyUp>([this](const cellui::KeyUp & e, cellui::EventContext &) { return keyUp(e) ? cellui::Handled::yes : cellui::Handled::no; }));
+    connections_.push_back(on<cellui::MouseDown>([this](const cellui::MouseDown & e, cellui::EventContext &) { return e.button == 1 && mouseDown(e.row, e.col) ? cellui::Handled::yes : cellui::Handled::no; }));
+    connections_.push_back(on<cellui::MouseUp>([this](const cellui::MouseUp & e, cellui::EventContext &) { return e.button == 1 && mouseUp(e.row, e.col) ? cellui::Handled::yes : cellui::Handled::no; }));
+    connections_.push_back(on<cellui::Wheel>([this](const cellui::Wheel & e, cellui::EventContext &) { return wheel(e) ? cellui::Handled::yes : cellui::Handled::no; }));
   }
 
   bool offerInput(const cellui::Input & input) override;
@@ -178,7 +191,12 @@ protected:
   // side). Resolved on RELEASE, matching SpinBox's own click
   // convention - a press, or a drag while held, only shows what is
   // pressed; the release acts on it.
-  bool handleClick(const cellui::Input & input);
+  bool handleClick(int screen_y, int screen_x, bool release);
+  bool keyDown(const cellui::KeyDown & e);
+  bool keyUp(const cellui::KeyUp & e);
+  bool mouseDown(int row, int col);
+  bool mouseUp(int row, int col);
+  bool wheel(const cellui::Wheel & e);
   // What a click at the screen position lands on: a tree row (data_
   // index) or a button, or neither.
   struct ClickTarget {
@@ -223,28 +241,11 @@ protected:
   // for that id shows as its label - see compatibleTargetTrackRows()'s own
   // comment on why that's the exact text to reuse here.
   std::string targetTrackLabel(int track_id) const;
-  // TOGGLE_TARGET_PICKER on an already-closed picker - creates the real
-  // floating plane (Plane::showPicker()), anchored directly under the
-  // "[t] Target: ..." Details panel line (always that row's own fixed
-  // screen position for a Library > Rhythms row - see buildDetailsLines()),
-  // and populates it from compatibleTargetTrackRows() plus "New track".
-  // Sized down (never past this widget's own bottom edge) rather than
-  // trusting there's always room for every candidate at once.
+  // Asks for the target track in a modal list ("New track" last), made only
+  // for the question.
   void openTargetPicker();
-  // TOGGLE_TARGET_PICKER on an already-open picker, or Ctrl-g while it's
-  // open - destroys the floating plane without changing
-  // selected_target_track_id_.
-  void closeTargetPicker();
-  // Enter, or a click landing on an item, while the picker is open (see
-  // offerInput()'s own pickerActive() handling) - `selection` is
-  // Plane::getPickerSelection()'s own return, read *before*
-  // closeTargetPicker() destroys the plane it comes from. Resolves back
-  // to a real track id by matching against compatibleTargetTrackRows()'s
-  // own labels (exactly what was handed to addItem() as each row's own
-  // id) or the literal "New track" text; a miss (nothing was ever
-  // highlighted - no items, or the plane was closed with none selected)
-  // leaves selected_target_track_id_ untouched.
-  void applyTargetPickerSelection(const std::string & selection);
+  // The chosen track id, kNewTrackTargetId for a fresh track.
+  void applyTargetPickerSelection(int track_id);
   // Key::Delete/Key::Backspace on a Track or pool Instruments row - see
   // this class's own header comment. A no-op on any other row, and on a
   // song's own last remaining playable track (Song::removeTrack()'s floor).
@@ -322,10 +323,7 @@ protected:
   // explicitly chosen yet" (resolveTargetTrackId() then defaults to the
   // first compatibleTargetTrackRows() entry, or kNewTrackTargetId with
   // none); kNewTrackTargetId is itself a real, sticky choice once picked,
-  // same as any other track id. Whether the picker plane itself is
-  // currently open is never cached here - getPlane().pickerActive() is
-  // the one source of truth, so it can never drift out of sync with the
-  // plane's own real state.
+  // same as any other track id.
   int selected_target_track_id_ = -1;
   // Set whenever the Details panel's own content needs redrawing despite
   // neither render_all's own triggers nor the cursor moving - the target-
@@ -335,6 +333,8 @@ protected:
   bool details_dirty_ = false;
   InfoDialog info_popup_;
   int screen_rows_ = 24, screen_cols_ = 80;
+  std::vector<cellui::Connection> connections_;
+  Chooser choose_;
   bool info_open_ = false;
 };
 

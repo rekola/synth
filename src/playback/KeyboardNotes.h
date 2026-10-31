@@ -9,11 +9,11 @@
 #include <string_view>
 
 // The note-entry keyboard mapping: the MIDI note a key plays in a tuning, or -1.
-inline const std::string_view keyToMidiNote(const cellui::Input & input, Tuning tuning, Scale scale) {
+inline const std::string_view keyToMidiNote(int key, Tuning tuning, Scale scale) {
   if (tuning == Tuning::PERCUSSION) {
     // The 4x4 drum rack of the Launchpad: General MIDI notes 36-51, left to
     // right and then bottom to top, on the four key rows x.., s.., w.., 2.. (not a, the note-off key)
-    switch (input.getId()) {
+    switch (key) {
       case 'x':
         return "BD"; // 36 Bass Drum
       case 'c':
@@ -50,7 +50,7 @@ inline const std::string_view keyToMidiNote(const cellui::Input & input, Tuning 
   } else {
     // A scale with no layout of its own plays the otonal one.
     if (scale != Scale::UTONAL) {
-      switch (input.getId()) {
+      switch (key) {
         case 'z':
           return "C";
         case 's':
@@ -81,7 +81,7 @@ inline const std::string_view keyToMidiNote(const cellui::Input & input, Tuning 
           return "E'";
       }
     } else {
-      switch (input.getId()) {
+      switch (key) {
         case 'z':
           return "C";
         case 's':
@@ -114,6 +114,10 @@ inline const std::string_view keyToMidiNote(const cellui::Input & input, Tuning 
     }
   }
   return "";
+}
+
+inline const std::string_view keyToMidiNote(const cellui::Input & input, Tuning tuning, Scale scale) {
+  return keyToMidiNote(input.getId(), tuning, scale);
 }
 
 #endif

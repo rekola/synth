@@ -24,6 +24,8 @@ struct KeyDown {
   // The Input this came from when it was offered as one (InputDispatcher::offer()),
   // valid while the event is handled: for a widget that still takes an Input.
   const Input * input = nullptr;
+  // The display reports this key's release (a plain terminal never does).
+  bool release_reported = false;
 };
 
 // Only where DisplayInfo::key_release.

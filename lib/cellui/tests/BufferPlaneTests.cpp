@@ -224,30 +224,6 @@ TEST(bufferplane_reader_edits_a_field_and_places_the_cursor) {
   CHECK(!line->readerActive() && !root.cursorPosition());
 }
 
-TEST(bufferplane_picker_lists_and_wraps) {
-  StyleProvider styles;
-  CellBuffer b(10, 20);
-  BufferPlane root(b, styles);
-  root.showPicker(1, 2, 8, 12, 3);
-  root.addItem("alpha", "");
-  root.addItem("beta", "");
-  root.addItem("gamma", "");
-  root.refresh();
-  CHECK(b.toPlainText() == "\n\n    alpha\n     beta\n    gamma\n");
-  CHECK(b.at(2, 2).bg && b.at(1, 2).bg);  // opaque, padding rows included
-  CHECK(root.getPickerSelection() == "alpha");
-  CHECK(root.offerInput(Input(cellui::Key::Up, -1, -1, false, false, false, false)));
-  CHECK(root.getPickerSelection() == "gamma");
-  root.selectPickerItem(1);
-  CHECK(root.getPickerSelection() == "beta");
-  // A click on a row selects it; Enter is the owner's.
-  CHECK(root.offerInput(Input(cellui::Key::Button1, 2, 5, false, false, false, false, Input::Kind::RELEASE)));
-  CHECK(root.getPickerSelection() == "alpha");
-  CHECK(!root.offerInput(Input(cellui::Key::Enter, -1, -1, false, false, false, false)));
-  root.closePicker();
-  CHECK(!root.pickerActive());
-}
-
 TEST(bufferplane_translucent_cells_blend_with_what_is_below) {
   StyleProvider styles;
   CellBuffer b(1, 4);

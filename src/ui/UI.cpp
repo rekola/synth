@@ -412,20 +412,17 @@ UI::initializeCommands() {
   // The device pickers list what is available right now (read fresh each
   // time, so a device plugged in a moment ago shows) with the one in use
   // marked. Choosing that one again changes nothing.
-  auto chooseDevice = [this](const std::string & title, std::vector<Choice> choices, const std::string & current,
-                             std::function<void(const Choice &)> apply) {
+  using Device = std::pair<std::string, std::string>; // label, name
+  auto chooseDevice = [this](const std::string & title, std::vector<Device> devices, const std::string & current,
+                             std::function<void(const Device &)> apply) {
     int current_index = -1;
-    for (size_t i = 0; i < choices.size(); i++) {
-      if (choices[i].value == current || (isDefaultDevice(choices[i].value) && isDefaultDevice(current))) {
-        current_index = static_cast<int>(i);
-        break;
-      }
+    std::vector<std::pair<std::string, Device>> entries;
+    for (size_t i = 0; i < devices.size(); i++) {
+      auto & name = devices[i].second;
+      if (current_index < 0 && (name == current || (isDefaultDevice(name) && isDefaultDevice(current)))) current_index = static_cast<int>(i);
+      entries.push_back({devices[i].first, devices[i]});
     }
-    auto list = choices;
-    showChoiceDialog(title, std::move(choices), current_index, [list, current_index, apply](int index) {
-      if (index == current_index || index < 0 || index >= static_cast<int>(list.size())) return;
-      apply(list[static_cast<size_t>(index)]);
-    });
+    choose<Device>(title, std::move(entries), current_index, std::move(apply), true);
   };
   // Names where the list comes from. The card list is much shorter than the
   // audio server's own, so a missing device may just mean this build can't
@@ -438,77 +435,69 @@ UI::initializeCommands() {
 #endif
   };
   commands_.define("select-capture-device", [this, chooseDevice, deviceDialogTitle]() {
-    std::vector<Choice> choices;
-    for (auto & device : listCaptureDevices()) choices.push_back({device.label, device.name});
-    chooseDevice(deviceDialogTitle("Audio input"), std::move(choices), getController().getDeviceSettings().capture,
-                 [this](const Choice & choice) { selectCaptureDevice(choice.value, choice.label); });
+    std::vector<Device> devices;
+    for (auto & device : listCaptureDevices()) devices.push_back({device.label, device.name});
+    chooseDevice(deviceDialogTitle("Audio input"), std::move(devices), getController().getDeviceSettings().capture,
+                 [this](const Device & device) { selectCaptureDevice(device.second, device.first); });
   });
   commands_.define("select-playback-device", [this, chooseDevice, deviceDialogTitle]() {
-    std::vector<Choice> choices;
-    for (auto & device : listPlaybackDevices()) choices.push_back({device.label, device.name});
-    chooseDevice(deviceDialogTitle("Audio output"), std::move(choices), getController().getDeviceSettings().playback,
-                 [this](const Choice & choice) { selectPlaybackDevice(choice.value, choice.label); });
+    std::vector<Device> devices;
+    for (auto & device : listPlaybackDevices()) devices.push_back({device.label, device.name});
+    chooseDevice(deviceDialogTitle("Audio output"), std::move(devices), getController().getDeviceSettings().playback,
+                 [this](const Device & device) { selectPlaybackDevice(device.second, device.first); });
   });
   commands_.define("select-midi-input", [this, chooseDevice]() {
-    std::vector<Choice> choices;
-    choices.push_back({"None", ""});
-    for (auto & source : listMidiSources()) choices.push_back({source.label, source.spec});
-    chooseDevice("MIDI input", std::move(choices), getController().getDeviceSettings().midi_input,
-                 [this](const Choice & choice) { selectMidiInput(choice.value, choice.label); });
+    std::vector<Device> sources;
+    sources.push_back({"None", ""});
+    for (auto & source : listMidiSources()) sources.push_back({source.label, source.spec});
+    chooseDevice("MIDI input", std::move(sources), getController().getDeviceSettings().midi_input,
+                 [this](const Device & source) { selectMidiInput(source.second, source.first); });
   });
   // The song's scale: which degrees the step view steps through, and the
   // ratios of a just scale's notes, so the notes that carry a tuning
   // correction are retuned for it in the same edit.
   commands_.define("set-song-scale", [this]() {
     static const Scale kScales[] = {Scale::NONE, Scale::MAJOR, Scale::MINOR, Scale::OTONAL, Scale::UTONAL};
-    std::vector<Choice> choices;
+    std::vector<std::pair<std::string, Scale>> choices;
     int current = -1;
     for (auto scale : kScales) {
       if (scale == getController().getSong().getScale()) current = static_cast<int>(choices.size());
-      choices.push_back({scaleLabel(scale), to_string(scale)});
+      choices.push_back({scaleLabel(scale), scale});
     }
-    showChoiceDialog("Scale", std::move(choices), current, [this, current](int index) {
-      if (index == current || index < 0 || index >= static_cast<int>(std::size(kScales))) return;
-      auto scale = kScales[index];
+    choose<Scale>("Scale", std::move(choices), current, [this](const Scale & scale) {
       auto & song = getController().getSong();
       Song::Edit edit(song, "set scale");
       song.setScale(scale);
       int retuned = retuneSong(song);
-      setStatus("Scale " + scaleLabel(scale) + (retuned > 0 ? fmt::format(", {} tuned notes retuned", retuned) : ""));
-    });
+      setStatus("Scale " + scaleLabel(scale) + (retuned > 0 ? fmt::format(", {} tuned notes retuned", retuned) : "")); }, true);
   });
   // Converts the song by pitch: notes move to the nearest step of the new
   // tuning, and tuned notes keep what is left as their correction.
   commands_.define("set-song-tuning", [this]() {
     static const Tuning kTunings[] = {Tuning::EDO12, Tuning::EDO19, Tuning::EDO31, Tuning::EDO53};
-    std::vector<Choice> choices;
+    std::vector<std::pair<std::string, Tuning>> choices;
     int current = -1;
     for (auto tuning : kTunings) {
       if (tuning == getController().getSong().getTuning()) current = static_cast<int>(choices.size());
-      choices.push_back({fmt::format("{}-EDO", edoStepsFor(tuning)), to_string(tuning)});
+      choices.push_back({fmt::format("{}-EDO", edoStepsFor(tuning)), tuning});
     }
-    showChoiceDialog("Tuning", std::move(choices), current, [this, current](int index) {
-      if (index == current || index < 0 || index >= static_cast<int>(std::size(kTunings))) return;
-      auto tuning = kTunings[index];
+    choose<Tuning>("Tuning", std::move(choices), current, [this](const Tuning & tuning) {
       auto & song = getController().getSong();
       Song::Edit edit(song, "set tuning");
       int converted = convertSongTuning(song, tuning);
-      setStatus(fmt::format("Tuning {}-EDO, {} notes converted", edoStepsFor(tuning), converted));
-    });
+      setStatus(fmt::format("Tuning {}-EDO, {} notes converted", edoStepsFor(tuning), converted)); }, true);
   });
   // The colours: the modern look in dark or light, or the original one.
   commands_.define("select-theme", [this]() {
     static const char * const kNames[] = {"dark", "light", "original"};
-    std::vector<Choice> choices;
+    std::vector<std::pair<std::string, std::string>> choices;
     int current = -1;
     for (auto name : kNames) {
       if (theme_name_ == name) current = static_cast<int>(choices.size());
       choices.push_back({name, name});
     }
-    showChoiceDialog("Theme", std::move(choices), current, [this, current](int index) {
-      if (index == current || index < 0 || index >= static_cast<int>(std::size(kNames))) return;
-      if (setTheme(kNames[index])) setStatus(std::string("Theme ") + kNames[index]);
-    });
+    choose<std::string>("Theme", std::move(choices), current, [this](const std::string & name) {
+      if (setTheme(name)) setStatus("Theme " + name); }, true);
   });
   commands_.define("next-buffer", [this]() {
     getController().cycleBuffer(true);

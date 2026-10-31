@@ -28,9 +28,7 @@ namespace cellui {
 // It is what the terminal backend draws: the terminal shows the composed
 // buffer. So it also has the reader (a one-line field over its own child
 // plane, edited with LineEditor's keys, its cursor reported by
-// cursorPosition()), the reader's indicator, and the picker (a boxed list
-// in a child plane, moved with the arrows, PgUp/PgDn, the wheel and a
-// click). Widgets can be laid out, drawn and read back in a test, or
+// cursorPosition()), and the reader's indicator. Widgets can be laid out, drawn and read back in a test, or
 // printed by the gallery.
 class BufferPlane : public Plane {
  public:
@@ -105,7 +103,7 @@ class BufferPlane : public Plane {
   std::vector<TextRun> takeTextRuns() { return std::move(text_runs_); }
   std::unique_ptr<Plane> createChild() override;
   void drawBorder() override;
-  // Feeds the reader or the picker, whichever is open.
+  // Feeds the reader when it is open.
   bool offerInput(const Input & input) override;
   // Composes the whole tree into the root's buffer.
   void refresh() override;
@@ -124,12 +122,6 @@ class BufferPlane : public Plane {
   void showReaderIndicator(int x, const std::string & s) override;
   void hideReaderIndicator() override { indicator_.reset(); }
 
-  void showPicker(int y, int x, int rows, int cols, int item_count) override;
-  void addItem(const std::string & id, const std::string & description) override;
-  void selectPickerItem(int index) override;
-  bool pickerActive() const override { return picker_ != nullptr; }
-  std::string getPickerSelection() const override;
-  void closePicker() override;
 
   // The colours a translucent cell over nothing blends with: the terminal's
   // own (root only).
@@ -187,7 +179,6 @@ class BufferPlane : public Plane {
   const CellBuffer & cells() const { return local_; }
 
  private:
-  struct Picker;
 
   explicit BufferPlane(BufferPlane & parent);
   std::unique_ptr<BufferPlane> makeChild() { return std::unique_ptr<BufferPlane>(new BufferPlane(*this)); }
@@ -210,7 +201,6 @@ class BufferPlane : public Plane {
   void collect(std::vector<Paint> & paints, int row, int col, int clip_row, int clip_col, int clip_rows, int clip_cols, float base) const;
   bool shown() const;
   void drawReader();
-  void drawPicker();
 
   CellBuffer local_;
   CellBuffer * target_ = nullptr;  // the root's output
@@ -241,7 +231,6 @@ class BufferPlane : public Plane {
   int reader_x_ = 0;
   int reader_cursor_ = 0;
   std::unique_ptr<BufferPlane> indicator_;
-  std::unique_ptr<Picker> picker_;
 
   // Root only.
   BufferPlane * active_reader_ = nullptr;

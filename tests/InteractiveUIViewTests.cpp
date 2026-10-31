@@ -225,6 +225,53 @@ TEST(terminal_ui_focus_change_fades_the_cursor) {
   CHECK(gridCursorRows(f).empty());
 }
 
+// A library rhythm's target-track picker: t opens it, Enter or a click on an
+// item commits, Ctrl-G or a click outside leaves the choice alone.
+TEST(terminal_ui_outline_rhythm_target_picker) {
+  UIFixture f(repoSong("demo3.xml"), UI::View::LIVE);
+  f.otherWindow();
+  f.otherWindow();
+  for (int i = 0; i < 4 && f.terminal.info().focus != "outline-view"; i++) f.otherWindow();
+  CHECK(f.terminal.info().focus == "outline-view");
+  for (int i = 0; i < 400 && f.text().find("Target:") == std::string::npos; i++) f.press(Key::Down);
+  CHECK(f.text().find("Target:") != std::string::npos);
+  auto target_line = [&] {
+    auto text = f.text();
+    auto at = text.find("Target:");
+    return text.substr(at, text.find('\n', at) - at);
+  };
+  auto before = target_line();
+  f.inModal([&] {
+    f.ui->step();
+    CHECK(f.text().find("New track") != std::string::npos);
+    f.ctrl('g');
+  });
+  f.type("t");
+  CHECK(target_line() == before);
+  f.inModal([&] {
+    f.ui->step();
+    f.press(Key::Down);
+    f.press(Key::Enter);
+  });
+  f.type("t");
+  CHECK(target_line() != before);
+}
+
+// A click on an outline row moves its cursor there (resolved on release).
+TEST(terminal_ui_outline_click_moves_the_cursor_to_the_row) {
+  UIFixture f(repoSong("demo3.xml"), UI::View::LIVE);
+  f.otherWindow();
+  for (int i = 0; i < 4 && f.terminal.info().focus != "outline-view"; i++) f.otherWindow();
+  CHECK(f.terminal.info().focus == "outline-view");
+  f.press(Key::Down);
+  auto before = f.text();
+  f.terminal.pushMouse(7, 5, cellui::Key::Button1);
+  f.ui->step();
+  f.terminal.pushMouse(7, 5, cellui::Key::Button1, 0, cellui::Input::Kind::RELEASE);
+  f.ui->step();
+  CHECK(f.text() != before);
+}
+
 TEST(terminal_ui_live_view_layout_and_the_clip_grid_cursor) {
   UIFixture f(repoSong("demo3.xml"), UI::View::LIVE);
   CHECK(f.line(1).compare(0, 8, " Outline") == 0 && f.line(1).find("T0") != std::string::npos);
