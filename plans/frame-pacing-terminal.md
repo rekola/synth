@@ -1,8 +1,7 @@
 # Frame pacing: terminal backend plan
 
-Status: plan for review. The shared contract and the GTK side are implemented;
-the terminal currently runs behind a stop-gap fixed 25 ms `FrameGate`, which the
-pacer below replaces. Nothing in this document beyond that gate is built.
+Status: implemented (see "As built" at the end for what differs from the plan
+and the harness numbers).
 
 ## Shared contract (implemented)
 
@@ -251,3 +250,61 @@ Assertions:
   another thread will make `B` look higher than the screen can show.
 - `addWriteSource` is on `PollEventLoop` only; `TestBackend` doesn't need it.
 - The lone-Escape risk in section 4 needs confirmation.
+
+## As built
+
+Differences from the plan above:
+
+- **Fence is `ESC[?6n`** (DECXCPR; reply `CSI ? r ; c R`), not the CUP form. The
+  CUP + `ESC[6n` form is the fallback when `Discovery` saw `?6n` unanswered
+  (`Capabilities::dec_cursor_report`). Discovery sends both queries at start-up.
+- **The pacing gap runs from when the previous frame started**, not from when its
+  last byte was accepted. On a full link the acceptance time already contains the
+  transfer, so measuring from it counted S/B twice (first harness run: 8 fps on a
+  link that carries 20).
+- **Bandwidth estimate:** the largest of the last 8 back-to-back samples, each
+  capped at 2x the current estimate; a lower window pulls the estimate down by
+  1/8 of the way. This replaces the symmetric EWMA.
+- **Probe frames (1.25x) are left out of the lag rule**, which uses 1.5x.
+- **"2 frames" in the in-flight cap is `2 x S_prev` bytes.**
+- **`delay_floor` (10 ms):** the queueing-delay rule uses
+  `max(2 x RTT_min, 10 ms)`. With RTT_min near zero (a local terminal) every
+  scheduling jitter counted as congestion and kept cutting B.
+- **Late replies:** after a stall the replies for the fences given up on are
+  counted and dropped when they arrive; the parser keeps expecting them.
+- **Lone Escape repair:** while replies are expected, a settled `ESC` or `ESC [`
+  followed within 1 s by `[ ? ...` / `? ...` is taken as the reply. The Escape key
+  that was already emitted stays; the text does not reach the application.
+- **Frames presented outside the pacer's turn** (a status message) are held (the
+  latest wins) and sent when a frame may start; with no frame handler set,
+  `present()` sends at once and nothing is paced, as before.
+- **Settings:** all constants are `PacerConfig` (`SessionOptions::pacer`).
+
+Final defaults (`PacerConfig`): `min_frame_interval` 16 ms, `in_flight_bdp` 1.5,
+`min_in_flight_frames` 2 (x S_prev), `startup_frames_in_flight` 2,
+`sample_window` 8, `sample_cap` 2.0, `down_weight` 0.125, `probe_every` 8,
+`probe_gain` 1.25, `backoff_factor` 0.8, `delay_ratio` 2.0, `delay_floor` 10 ms,
+`delay_frames` 2, `lag_ratio` 1.5, `lag_frames` 4, `rtt_refine_after` 10,
+`stall` 1.5 s, `stalls_before_giving_up` 3, `fallback_fps` 4,
+`min_bandwidth` 1000 B/s.
+
+Harness (`lib/cellui/tools/pacing/run_assertions.py`, run by ctest as
+`cellui_pacing_harness`), two consecutive runs:
+
+| # | Check | Result |
+|---|---|---|
+| 1 | 520 kB/s, 400 ms each way, frames of 25.8 kB (B/S 20.2, 1/RTT 1.25) | 20.2 fps both runs; estimated B 589 kB/s and 524 kB/s |
+| 2 | 100 kB/s cap, 10 ms | 4.0 fps (B/S 3.9); estimated B 104 kB/s; unshaped link 60 fps |
+| 3 | keys while frames are in flight on the cap | 4 of 4 read, latency 10 ms (the link delay) |
+| 4 | static kitty screen, 6 pictures | 6 uploads, 6 placements; a text change sent 0 picture commands; removing a picture sent 1 delete, 0 uploads, 0 placements |
+| 4 | static Sixel screen, 6 pictures | 6 images drawn, none sent after they settled |
+| 5 | reply split after `ESC [ ?`, 200 ms | 0 keys reached the application, 39 acks |
+| 5 | reply split after `ESC` | 4 keys, all Escape (one per split), 39 acks |
+| 6 | terminal that never answers | 0 fences, 3.99 fps |
+| 7 | 3 s freeze at 300 kB/s | 1 stall; 11.0 fps before, 10.8-10.9 after; estimated B 240-297 kB/s |
+| 8 | `FramePacer` and parser unit tests (fake clock) | in `cellui_tests` |
+
+Not tuned: the probe interval and the weights were left at their first values
+because every check passed with them; the estimate overshoots by up to 13%
+for a while after a probe (589 kB/s against 520 kB/s in one run) before the
+delay rule brings it back.

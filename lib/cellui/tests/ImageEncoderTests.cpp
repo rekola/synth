@@ -105,7 +105,7 @@ TEST(kitty_images_send_only_changes_and_crop_around_covers) {
   CHECK(next.find("i=2,") < next.find("a=p,i=2") && next.find("a=p,i=2") < next.find("a=d,d=I,i=1,"));
   chart->erase();
   root.refresh();
-  CHECK(enc.encode(b, root.images(), false) == "\x1b_Ga=d,d=I,i=2,q=2\x1b\\");
+  CHECK(enc.encode(b, root.images(), false) == "\x1b_Ga=d,d=I,i=2,q=1\x1b\\");
 }
 
 TEST(sixel_images_redraw_on_change_and_avoid_the_last_row) {

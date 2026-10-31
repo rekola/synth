@@ -86,11 +86,12 @@ add_library(cellui STATIC
   src/term/BackdropEmulation.cpp
   src/term/Discovery.cpp
   src/term/FrameEncoder.cpp
+  src/term/FramePacer.cpp
   src/term/ImageEncoder.cpp
   src/term/InputParser.cpp
   src/term/TermEvent.cpp)
 if(NOT WIN32)
-  target_sources(cellui PRIVATE src/PollEventLoop.cpp src/term/TerminalSession.cpp src/TestBackend.cpp)
+  target_sources(cellui PRIVATE src/PollEventLoop.cpp src/term/OutputQueue.cpp src/term/TerminalSession.cpp src/TestBackend.cpp)
   find_package(Threads REQUIRED)
   target_link_libraries(cellui PUBLIC Threads::Threads)
 endif()
@@ -198,6 +199,18 @@ target_link_libraries(cellui PUBLIC ${UNISTRING_LIBRARY})
 # Prints the gallery page (every style and widget the library has).
 add_executable(cellui_gallery gallery/main.cpp)
 target_link_libraries(cellui_gallery PRIVATE cellui)
+if(NOT WIN32)
+  # Driven by tools/pacing/run_assertions.py.
+  add_executable(cellui_pacing_probe tools/pacing_probe.cpp)
+  target_link_libraries(cellui_pacing_probe PRIVATE cellui)
+  # The frame pacer against shaped ptys (bandwidth, latency, a silent terminal).
+  find_package(Python3 COMPONENTS Interpreter QUIET)
+  if(Python3_Interpreter_FOUND)
+    add_test(NAME cellui_pacing_harness
+      COMMAND ${Python3_EXECUTABLE} -I ${CMAKE_CURRENT_SOURCE_DIR}/tools/pacing/run_assertions.py $<TARGET_FILE:cellui_pacing_probe>)
+    set_tests_properties(cellui_pacing_harness PROPERTIES TIMEOUT 400)
+  endif()
+endif()
 
 # The library's own tests: plain functions registered with TEST(), run by
 # tests/test_main.cpp; no framework dependency.
@@ -218,6 +231,7 @@ add_executable(cellui_tests
   tests/WidgetTests.cpp
   tests/FadeTests.cpp
   tests/FrameEncoderTests.cpp
+  tests/FramePacerTests.cpp
   tests/ImageEncoderTests.cpp
   tests/GalleryTests.cpp
   tests/HeatmapChartTests.cpp

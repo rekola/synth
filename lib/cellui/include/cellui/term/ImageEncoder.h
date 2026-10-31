@@ -59,6 +59,16 @@ class ImageEncoder {
   // `frame` is the composed frame, its image cells marked; `cleared` says
   // the screen is cleared before these bytes, taking every image with it.
   std::string encode(const CellBuffer & frame, const std::vector<ImagePlacement> & images, bool cleared);
+  // The bytes the last encode() made: picture data (kitty uploads, Sixel and
+  // iTerm2 images) and placement (positioning, placements and deletions).
+  struct Sizes {
+    size_t upload = 0, placement = 0;
+  };
+  const Sizes & lastSizes() const { return sizes_; }
+  // A reply from the terminal to a kitty graphics command (the body after
+  // "G"): "" for success, else a description of the error. Commands are sent
+  // with q=1, so only errors are ever replied.
+  std::string handleKittyReply(const std::string & body) const;
   // Removes every image (kitty graphics; Sixel images go with the text).
   std::string clear();
 
@@ -85,6 +95,7 @@ class ImageEncoder {
   std::map<uint64_t, Shown> shown_;
   uint32_t next_id_ = 0;
   bool sixel_ready_ = false;
+  Sizes sizes_;
 };
 
 // The pixels encoded as Sixel: covered pixels (where `keep` says false, one

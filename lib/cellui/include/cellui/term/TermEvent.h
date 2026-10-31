@@ -3,6 +3,7 @@
 #include <cellui/BackendEvent.h>
 #include <cellui/Input.h>
 
+#include <chrono>
 #include <cstdint>
 #include <optional>
 #include <string>
@@ -23,6 +24,7 @@ using cellui::kModSuper;
 // time; after start-up nothing needs them and they are dropped.
 enum class ReplyKind {
   CURSOR_POSITION,  // params: row, col (1-based)
+  DEC_CURSOR_POSITION,  // CSI ? row ; col R, the reply to CSI ? 6 n: params row, col
   PRIMARY_DA,       // params: the attributes
   SECONDARY_DA,     // params: Pp, Pv, Pc
   TERTIARY_DA,      // text: the unit id, in hex
@@ -77,6 +79,9 @@ struct TermEvent {
   int rows = 0, cols = 0;
   ReplyKind reply = ReplyKind::CURSOR_POSITION;
   std::vector<int> params;
+  // When the read that completed this event was made (the parser's last
+  // feed() time); not part of equality.
+  std::chrono::steady_clock::time_point at{};
 
   bool operator==(const TermEvent & o) const {
     return type == o.type && kind == o.kind && key == o.key && mods == o.mods && base_key == o.base_key &&

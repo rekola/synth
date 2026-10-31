@@ -39,6 +39,8 @@ struct Capabilities {
   bool kitty_keyboard = false;
   SyncForm sync = SyncForm::NONE;
   bool pixel_mouse = false;
+  // Which cursor position queries were answered; the frame fences use them.
+  bool cursor_report = false, dec_cursor_report = false;
 
   PixelProtocol pixels = PixelProtocol::NONE;
   bool kitty_graphics_animation = false;

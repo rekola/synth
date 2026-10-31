@@ -121,7 +121,7 @@ void setNonblocking(int fd) {
 
 std::unique_ptr<TerminalSession> TerminalSession::open(SessionOptions options, std::string * error) {
   std::unique_ptr<TerminalSession> session(new TerminalSession());
-  session->frames_hook_ = session->loop_.onFrame([s = session.get()] { s->gate_.run(FrameGate::Clock::now()); });
+  session->frames_hook_ = session->loop_.onFrame([s = session.get()] { s->pumpFrame(); });
   if (!session->start(options, error)) return nullptr;
   return session;
 }
@@ -158,10 +158,12 @@ bool TerminalSession::start(SessionOptions & options, std::string * error) {
     fcntl(fd, F_SETFD, FD_CLOEXEC);
   }
   setNonblocking(fd_);
+  loop_.addWriteSource(fd_, [this] { return !out_.empty(); }, [this] { flushOutput(); });
   line_signals_ = options.line_signals;
   mouse_ = options.mouse;
   dither_ = options.dither;
   parser_.setGrace(options.grace);
+  pacer_config_ = options.pacer;
 
   // cbreak, plus what an Emacs-style key map needs: Ctrl-S/Q (flow
   // control), Ctrl-V/O (the line discipline's own) and, unless kept,
@@ -218,7 +220,8 @@ void TerminalSession::negotiate(const Environment & env) {
   // The alternate screen first, so whatever a terminal fails to consume
   // lands there.
   parser_.expectCursorReport();
-  write("\x1b[?1049h" + discovery.queries());
+  parser_.expectDecCursorReport();
+  writeBlocking("\x1b[?1049h" + discovery.queries());
   auto deadline = std::chrono::steady_clock::now() + discovery.timeout();
   char buf[4096];
   while (!discovery.complete()) {
@@ -252,6 +255,8 @@ void TerminalSession::negotiate(const Environment & env) {
   parser_.setScreenSize(rows_, cols_);
   parser_.setKittyKeyboard(caps_.kitty_keyboard);
   parser_.setRxvt(caps_.rxvt);
+  parser_.forgetExpectedReports();
+  pacer_ = FramePacer(caps_.dec_cursor_report || caps_.cursor_report, pacer_config_);
   encoder_ = FrameEncoder(EncoderProfile::from(caps_));
   images_ = ImageEncoder(imageProfile());
 }
@@ -272,8 +277,8 @@ void TerminalSession::enterModes() {
   parser_.setPixelMouse(pixel_mouse_on_, caps_.display.cell_px_height, caps_.display.cell_px_width);
   caps_.display.precise_mouse = pixel_mouse_on_;
   if (pixel_mouse_on_) setup_ += "\x1b[?1016h";
-  if (caps_.pixels == PixelProtocol::KITTY) setup_ += "\x1b_Ga=d,q=2\x1b\\";
-  write(setup_);
+  if (caps_.pixels == PixelProtocol::KITTY) setup_ += "\x1b_Ga=d,q=1\x1b\\";
+  writeBlocking(setup_);
   encoder_.invalidate();
 
   restore_ += "\x1b[?2026l";
@@ -282,7 +287,7 @@ void TerminalSession::enterModes() {
   if (mouse_) restore_ += "\x1b[?1016l\x1b[?1003;1006l";
   restore_ += "\x1b>\x1b[?1004l\x1b[?2004l\x1b[?7h\x1b[?12l\x1b[?25h";
   restore_ += caps_.kitty_keyboard ? "\x1b[<u" : "\x1b[<u\x1b[>4m\x1b[>2m";
-  if (caps_.pixels == PixelProtocol::KITTY) restore_ += "\x1b_Ga=d,q=2\x1b\\";
+  if (caps_.pixels == PixelProtocol::KITTY) restore_ += "\x1b_Ga=d,q=1\x1b\\";
   restore_ += "\x1b[?1049l";
   size_t n = std::min(restore_.size(), sizeof g.restore);
   std::memcpy(g.restore, restore_.data(), n);
@@ -301,7 +306,8 @@ void TerminalSession::close() {
     for (int s : kTerminationSignals) uninstall(s);
   }
   if (g.active.exchange(false)) {
-    write(restore_);
+    drainOutput(std::chrono::milliseconds(500));
+    writeBlocking(restore_);
     tcsetattr(fd_, TCSAFLUSH, &g.saved);
   }
   g.fd = -1;
@@ -339,7 +345,7 @@ void TerminalSession::updatePixelMouse() {
   write(want ? "\x1b[?1016h" : "\x1b[?1016l");
 }
 
-void TerminalSession::write(const std::string & bytes) {
+void TerminalSession::writeBlocking(const std::string & bytes) {
   if (fd_ < 0 || bytes.empty()) return;
   // A signal's restoration must not land inside a half-written sequence.
   sigset_t block = blockedWhileWriting(), old;
@@ -359,26 +365,157 @@ void TerminalSession::write(const std::string & bytes) {
   pthread_sigmask(SIG_SETMASK, &old, nullptr);
 }
 
+void TerminalSession::write(const std::string & bytes) {
+  if (fd_ < 0 || bytes.empty()) return;
+  out_.append(bytes);
+  flushOutput();
+}
+
+void TerminalSession::flushOutput() {
+  if (fd_ < 0) return;
+  bool ok = out_.flush(fd_);
+  auto now = std::chrono::steady_clock::now();
+  // A frame is sent when its last byte has been taken by the descriptor.
+  while (!marks_.empty() && marks_.front().end <= out_.accepted()) {
+    Mark mark = marks_.front();
+    marks_.pop_front();
+    if (mark.probe) pacer_.onProbeSent(now);
+    else pacer_.onFrameSent(mark.size, now);
+  }
+  if (!ok) {
+    // The terminal is gone; the read side reports the end.
+    out_.discard();
+    marks_.clear();
+  }
+}
+
+void TerminalSession::drainOutput(std::chrono::milliseconds limit) {
+  auto end = std::chrono::steady_clock::now() + limit;
+  while (!out_.empty() && fd_ >= 0) {
+    auto now = std::chrono::steady_clock::now();
+    if (now >= end) break;
+    struct pollfd p = {fd_, POLLOUT, 0};
+    ::poll(&p, 1, static_cast<int>(std::chrono::duration_cast<std::chrono::milliseconds>(end - now).count()) + 1);
+    flushOutput();
+  }
+  // What did not go is given up: the restoration matters more.
+  out_.discard();
+  marks_.clear();
+}
+
+void TerminalSession::setFrameHandler(FrameHandler handler) {
+  frame_handler_ = std::move(handler);
+  pacing_ = static_cast<bool>(frame_handler_);
+}
+
+std::optional<TerminalSession::TimePoint> TerminalSession::nextDeadline() const {
+  std::optional<TimePoint> deadline = parser_.nextDeadline();
+  // While the queue holds bytes the write source wakes the loop for the next
+  // frame; the clock is still wanted for a stall.
+  if (pacing_) {
+    if (auto t = pacer_.deadline(out_.empty())) deadline = deadline ? std::min(*deadline, *t) : *t;
+  }
+  return deadline;
+}
+
+PacerStats TerminalSession::pacerStats() const {
+  PacerStats stats = pacer_.stats(std::chrono::steady_clock::now());
+  stats.kitty_errors = kitty_errors_;
+  stats.last_kitty_error = last_kitty_error_;
+  return stats;
+}
+
+std::string TerminalSession::fenceBytes() {
+  if (caps_.dec_cursor_report) {
+    parser_.expectDecCursorReport();
+    return "\x1b[?6n";
+  }
+  // The plain query's reply looks like F3 with modifiers when the cursor is on
+  // row 1: park it lower first.
+  parser_.expectCursorReport();
+  if (rows_ < 2) return "\x1b[6n";
+  encoder_.forgetCursor();
+  return "\x1b[" + std::to_string(rows_) + ";1H\x1b[6n";
+}
+
+void TerminalSession::pumpFrame() {
+  if (!pacing_ || fd_ < 0 || !open_) return;
+  auto now = std::chrono::steady_clock::now();
+  pacer_.tick(now);
+  late_replies_ += pacer_.takeLateReplies();
+  if (!out_.empty() || !pacer_.mayStart(now)) return;
+  pacer_.onFrameStart(now);
+  in_frame_ = true;
+  frame_presented_ = false;
+  frame_handler_(std::chrono::duration_cast<std::chrono::microseconds>(now.time_since_epoch()).count());
+  in_frame_ = false;
+  // A frame presented outside the turn is sent now if the handler had none.
+  if (!frame_presented_ && held_) {
+    Held held = std::move(*held_);
+    held_.reset();
+    sendFrame(held.frame, held.cursor, held.images, held.layers);
+  }
+}
+
 void TerminalSession::present(const CellBuffer & frame, const CursorRequest & cursor, const std::vector<ImagePlacement> & images,
                               const FrameInfo * info) {
-  // A backdrop is made of what the terminal can show; the frame and its
-  // pictures are copied only then.
   if (info) {
     cursor_areas_ = info->mouse_cursors;
     updateMouseCursor();
   }
   static const std::vector<BackdropLayer> kNoLayers;
   const std::vector<BackdropLayer> & layers = info ? info->backdrops : kNoLayers;
+  if (!pacing_ || in_frame_) {
+    held_.reset();
+    sendFrame(frame, cursor, images, layers);
+    return;
+  }
+  // Presented outside a turn of the pacer's (a status message, say): the
+  // latest one is kept and sent when a frame may start.
+  held_ = Held{frame, cursor, images, layers};
+  pacer_.requestFrame();
+}
+
+void TerminalSession::sendFrame(const CellBuffer & frame, const CursorRequest & cursor, const std::vector<ImagePlacement> & images,
+                                const std::vector<BackdropLayer> & layers) {
+  frame_presented_ = true;
+  std::string body;
+  // A backdrop is made of what the terminal can show; the frame and its
+  // pictures are copied only then.
   if (!layers.empty() || backdrops_.holdsState()) {
     CellBuffer shown = frame;
     std::vector<ImagePlacement> placements = images;
     backdrops_.apply(shown, placements, layers, caps_.display);
     std::string pixels = images_.encode(shown, placements, encoder_.willClear(shown));
-    write(encoder_.encode(shown, cursor, pixels));
+    body = encoder_.encode(shown, cursor, pixels);
+  } else {
+    std::string pixels = images_.encode(frame, images, encoder_.willClear(frame));
+    body = encoder_.encode(frame, cursor, pixels);
+  }
+  if (body.empty()) return;  // nothing changed: no bytes, no frame
+  FrameBytes size;
+  size.upload = images_.lastSizes().upload;
+  size.placement = images_.lastSizes().placement;
+  size.other = body.size() - std::min(body.size(), size.upload + size.placement);
+  if (!pacing_) {
+    out_.append(body);
+    flushOutput();
     return;
   }
-  std::string pixels = images_.encode(frame, images, encoder_.willClear(frame));
-  write(encoder_.encode(frame, cursor, pixels));
+  if (pacer_.fencesEnabled()) {
+    if (pacer_.needsProbe()) {
+      out_.append(fenceBytes());
+      marks_.push_back({out_.queued(), {}, true});
+    }
+    out_.append(body);
+    std::string fence = fenceBytes();
+    size.other += fence.size();
+    out_.append(fence);
+  } else {
+    out_.append(body);
+  }
+  marks_.push_back({out_.queued(), size, false});
+  flushOutput();
 }
 
 void TerminalSession::wake() {
@@ -453,6 +590,21 @@ std::vector<TermEvent> TerminalSession::pollTerm() {
   while (parser_.hasEvents()) {
     TermEvent e = parser_.pop();
     if (e.type == TermEvent::Type::REPLY) {
+      if (e.reply == ReplyKind::DEC_CURSOR_POSITION || e.reply == ReplyKind::CURSOR_POSITION) {
+        // A fence's reply: the oldest frame in flight has been taken in.
+        if (!pacing_) continue;
+        if (late_replies_ > 0) late_replies_--;
+        else pacer_.onAck(e.at);
+        continue;
+      }
+      if (e.reply == ReplyKind::KITTY_GRAPHICS) {
+        std::string error = images_.handleKittyReply(e.text);
+        if (!error.empty()) {
+          kitty_errors_++;
+          last_kitty_error_ = std::move(error);
+        }
+        continue;
+      }
       if (e.reply == ReplyKind::WINDOW_REPORT && e.params.size() == 3 && e.params[0] == 6 && e.params[1] > 0) {
         caps_.display.cell_px_height = e.params[1];
         caps_.display.cell_px_width = e.params[2];

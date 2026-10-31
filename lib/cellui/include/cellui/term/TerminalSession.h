@@ -1,14 +1,15 @@
 #pragma once
 
 #include <cellui/Backend.h>
-#include <cellui/FrameGate.h>
 #include <cellui/CellBuffer.h>
 #include <cellui/PollEventLoop.h>
 #include <cellui/term/BackdropEmulation.h>
 #include <cellui/term/Capabilities.h>
 #include <cellui/term/FrameEncoder.h>
+#include <cellui/term/FramePacer.h>
 #include <cellui/term/ImageEncoder.h>
 #include <cellui/term/InputParser.h>
+#include <cellui/term/OutputQueue.h>
 
 #include <chrono>
 #include <deque>
@@ -35,6 +36,8 @@ struct SessionOptions {
   Dither::Method dither = Dither::Method::ORDERED;
   Environment env = Environment::fromProcess();
   std::chrono::milliseconds grace{25};
+  // How frames are paced to the link (see FramePacer).
+  PacerConfig pacer;
 };
 
 // A full-screen session on a POSIX terminal: the terminal put into the
@@ -68,14 +71,19 @@ class TerminalSession : public Backend {
   EventLoop & eventLoop() override { return loop_; }
   int inputFd() const override { return fd_; }
   int wakeFd() const override { return wake_read_; }
-  std::optional<TimePoint> nextDeadline() const override {
-    auto a = parser_.nextDeadline(), b = gate_.deadline();
-    return a && b ? std::min(*a, *b) : a ? a : b;
-  }
-  // Frames are held to a fixed minimum interval for now (kFrameInterval); a
-  // pacer that follows the link replaces the gate behind these two.
-  void requestFrame() override { gate_.request(); }
-  void setFrameHandler(FrameHandler handler) override { gate_.setHandler(std::move(handler)); }
+  // The parser's deadline, and the moment the pacer lets the next frame start.
+  std::optional<TimePoint> nextDeadline() const override;
+
+  // Frames are paced to the link: the handler is called when the pacer lets a
+  // frame start, with the monotonic clock in microseconds. Without a handler
+  // present() sends at once and nothing is paced.
+  void requestFrame() override { pacer_.requestFrame(); }
+  void setFrameHandler(FrameHandler handler) override;
+
+  // What the pacer has learned of the link, and the bandwidth it sends by (bytes
+  // a second; 0 until known).
+  double estimatedBytesPerSec() const { return pacer_.estimatedBytesPerSec(); }
+  PacerStats pacerStats() const;
 
   // Every event available now, as the application sees them. A resize is
   // reported with the new size, already read from the terminal.
@@ -92,7 +100,8 @@ class TerminalSession : public Backend {
   void redraw() override { encoder_.invalidate(); }
   // Only when the session was opened with the mouse (SessionOptions::mouse).
   void setNativeSelection(bool on) override;
-  // Writes raw bytes, all of them.
+  // Queues raw bytes and writes what the terminal takes now; the rest goes
+  // as it can (never blocks).
   void write(const std::string & bytes);
 
   // The pointer's shape the last frame asked for over the cell it is in.
@@ -114,8 +123,6 @@ class TerminalSession : public Backend {
   void readSize();
 
   PollEventLoop loop_;
-  static constexpr std::chrono::milliseconds kFrameInterval{25};
-  FrameGate gate_{kFrameInterval};
   Connection frames_hook_;
   int fd_ = -1;
   bool own_fd_ = false;
@@ -155,6 +162,40 @@ class TerminalSession : public Backend {
   MouseCursor shown_cursor_ = MouseCursor::DEFAULT;
   void updateMouseCursor();
   bool ended_ = false;
+
+  // Output: everything goes through the queue, which never blocks. A frame is
+  // followed by a fence (a cursor position query) whose reply acknowledges it.
+  OutputQueue out_;
+  struct Mark {
+    uint64_t end;  // the queue position after the frame (or the bare query)
+    FrameBytes size;
+    bool probe;
+  };
+  std::deque<Mark> marks_;
+  FramePacer pacer_{false};
+  PacerConfig pacer_config_;
+  FrameHandler frame_handler_;
+  bool pacing_ = false;
+  bool in_frame_ = false;
+  bool frame_presented_ = false;
+  size_t late_replies_ = 0;
+  size_t kitty_errors_ = 0;
+  std::string last_kitty_error_;
+  // The latest frame presented outside the pacer's turn, sent when it allows.
+  struct Held {
+    CellBuffer frame{0, 0};
+    CursorRequest cursor;
+    std::vector<ImagePlacement> images;
+    std::vector<BackdropLayer> layers;
+  };
+  std::optional<Held> held_;
+  void writeBlocking(const std::string & bytes);
+  void flushOutput();
+  void drainOutput(std::chrono::milliseconds limit);
+  void pumpFrame();
+  void sendFrame(const CellBuffer & frame, const CursorRequest & cursor, const std::vector<ImagePlacement> & images,
+                 const std::vector<BackdropLayer> & layers);
+  std::string fenceBytes();
 };
 
 }  // namespace cellui::term

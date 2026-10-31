@@ -113,6 +113,7 @@ std::chrono::milliseconds Discovery::timeout() const {
 std::string Discovery::queries() const {
   std::string q;
   q += "\x1b[6n";                // cursor position
+  q += "\x1b[?6n";               // the same, the form that cannot be taken for a key
   q += "\x1b[>u\x1b[=27u";        // push kitty keyboard flags: disambiguate, event types, all keys, text
   if (!preIdentified()) {
     q += "\x1b[=c";                                  // DA3: unit id
@@ -197,6 +198,12 @@ void Discovery::ingest(const TermEvent & e) {
         else default_bg_ = c;
       }
       break;
+    case ReplyKind::CURSOR_POSITION:
+      cursor_report_ = true;
+      break;
+    case ReplyKind::DEC_CURSOR_POSITION:
+      dec_cursor_report_ = true;
+      break;
     case ReplyKind::KITTY_KEYBOARD:
       kitty_keyboard_ = true;
       break;
@@ -247,6 +254,8 @@ void Discovery::ingest(const TermEvent & e) {
 Capabilities Discovery::result() const {
   Capabilities caps;
   caps.answered = complete_;
+  caps.cursor_report = cursor_report_;
+  caps.dec_cursor_report = dec_cursor_report_;
 
   // Identity: the platform first, then the unit id, the version reply, the
   // terminal-name capability and the secondary attributes, in that order.

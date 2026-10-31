@@ -45,6 +45,7 @@ class Discovery {
 
   Environment env_;
   bool complete_ = false;
+  bool cursor_report_ = false, dec_cursor_report_ = false;
 
   std::string da3_name_;
   std::string xtversion_name_, xtversion_version_;
