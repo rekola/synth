@@ -1,7 +1,9 @@
 #include "TestFramework.h"
 
 #include <cellui/LinkStatus.h>
+#ifndef _WIN32
 #include <cellui/TestBackend.h>
+#endif
 
 using namespace cellui;
 
@@ -125,6 +127,8 @@ TEST(link_monitor_tells_the_handler_of_a_class_change_and_not_a_new_description)
   CHECK(calls == 3 && !last.pinned);
 }
 
+// The test backend is not built on Windows.
+#ifndef _WIN32
 TEST(test_backend_link_status_is_what_the_test_sets) {
   test::TestBackend backend;
   CHECK(backend.linkStatus().cls == LinkClass::FULL);
@@ -138,3 +142,4 @@ TEST(test_backend_link_status_is_what_the_test_sets) {
   backend.setLinkPin(LinkClass::HZ_5);
   CHECK(calls == 2 && backend.linkStatus().pinned && backend.linkStatus().cls == LinkClass::HZ_5);
 }
+#endif

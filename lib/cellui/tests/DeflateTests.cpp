@@ -227,10 +227,13 @@ TEST(deflate_stays_within_three_percent_of_zlib_level_six_on_the_charts) {
     std::ofstream(std::string(dir) + "/spectrum_232x80.rgb", std::ios::binary).write(reinterpret_cast<const char *>(spectrum.data()), static_cast<std::streamsize>(spectrum.size()));
     std::ofstream(std::string(dir) + "/heatmap_328x80.rgb", std::ios::binary).write(reinterpret_cast<const char *>(heatmap.data()), static_cast<std::streamsize>(heatmap.size()));
   }
+  // The figures are for the pictures Cairo draws; another backend draws other pixels.
+#if !defined(__APPLE__) && !defined(_WIN32)
   constexpr size_t kSpectrumZlib6 = 3906, kHeatmapZlib6 = 3258;
   CHECK(zlibCompress(spectrum, 2).size() * 100 <= kSpectrumZlib6 * 103);
   // The synthetic smooth gradient is the worst case seen (real pictures stay within about 1%).
   CHECK(zlibCompress(heatmap, 2).size() * 100 <= kHeatmapZlib6 * 108);
+#endif
 }
 
 TEST(deflate_small_inputs_with_high_literals_use_the_fixed_codes_correctly) {
