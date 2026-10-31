@@ -109,6 +109,34 @@ The page is drawn by `Gallery` through `Plane` only, so any backend can show
 it. The text of the page is compared with `tests/golden/gallery.txt`; after a
 deliberate change, run the tests with `CELLUI_UPDATE_GOLDEN=1` to rewrite it.
 
+## Adapting to a slow link
+
+*Design; not built yet.* The terminal backend measures its link (bandwidth and round
+trip; see `cellui/term/FramePacer.h`), and a window knows its vsync rate and how many
+frames it really gets. Each backend turns that into a **link status**:
+
+- a **class**, `FULL` (60 Hz and up), `HZ_30`, `HZ_15`, `HZ_5` or `HZ_1`, for what the
+  link sustains; the application listens for changes and, in the slow classes, stops
+  what it cannot afford: scopes first, then animations, hover effects and smooth
+  scrolling (the pattern editor then jumps a page at a time);
+- a **description**, a string the backend writes for its own kind of link, shown
+  as is in the application's status bar: `480 kB/s, RTT 38 ms` for a terminal,
+  `60 Hz vsync, 58 fps` for a window.
+
+A class can be pinned by the user and is otherwise measured, quickly down and slowly up.
+
+A separate **colour mode**, `COLOUR`, `GREY` or `MONO`, is applied where the bytes are made,
+so text, charts and dials all follow it without any widget drawing a grey version. It is
+chosen by capability (a terminal with no colour gets `MONO`, with reverse video for
+highlights; one with eight or sixteen gets four greys, which serve better than eight hues)
+and by link (grey from `HZ_15` down). Pictures go as greyscale PNG where the protocol
+takes it and as a grey palette in Sixel; a small deflate encoder in the library
+compresses them, and a Sixel image is sent in its changed tiles, not its bounding box.
+
+What the classes never touch: dials stay pictures (they are mostly still, and the
+terminal keeps them after the first upload), and an application's own widgets decide
+what a class means for them.
+
 ## Events and signals
 
 *Implemented: `Signal` and `Connection` (`cellui/Signal.h`) and posted events on the widget tree (`cellui/EventTypes.h`, `Widget::attach`/`on`/`post`/`postToRoot`), input events and `InputDispatcher` (`cellui/InputEvents.h`, `cellui/InputDispatcher.h`), the cross-thread queues (`cellui/ThreadPosts.h`) and the loop additions (`cellui/EventLoop.h`).*
