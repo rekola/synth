@@ -132,10 +132,17 @@ class InputDispatcher {
     }
     if (id == Key::Resize) return Handled::no;
     if (kind == Input::Kind::RELEASE) return keyUp(KeyUp{ id, mods, &input });
-    KeyDown down{ id, mods, "", kind == Input::Kind::REPEAT, &input };
+    return keyDown(keyDownFor(input));
+  }
+
+  // The KeyDown a key press or repeat becomes, for a widget that is handed an
+  // Input directly.
+  static KeyDown keyDownFor(const Input & input) {
+    Modifiers mods{ input.hasShift(), input.hasCtrl(), input.hasAlt(), input.hasMeta() };
+    KeyDown down{ input.getId(), mods, "", input.getKind() == Input::Kind::REPEAT, &input };
     int ch = input.getTrueCaseId();
     if (!mods.ctrl && !mods.alt && !mods.meta && ch >= 0x20 && ch != 0x7f && ch < Key::First) appendUtf8(down.text, ch);
-    return keyDown(down);
+    return down;
   }
 
  private:

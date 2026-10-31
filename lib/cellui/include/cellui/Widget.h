@@ -315,7 +315,12 @@ protected:
     // repeating, unlike a widget's own raw note-entry keys, which
     // suppress repeat themselves.
     if (input.getKind() == Input::Kind::RELEASE) return false;
-    auto stroke = KeyStroke::pack(input);
+    return dispatchCommand(input.getId(), Modifiers{ input.hasShift(), input.hasCtrl(), input.hasAlt(), input.hasMeta() });
+  }
+
+  // The same for a key that went down (KeyDown::key and ::mods).
+  bool dispatchCommand(int key, const Modifiers & mods) {
+    auto stroke = KeyStroke::pack(key, mods);
 
     // Two-key Emacs-style prefix sequences (C-x C-s, C-x C-c, ...) - a
     // pending prefix always consumes the very next keystroke one way or

@@ -1,4 +1,5 @@
 #include "ArrangementGrid.h"
+#include <cellui/InputDispatcher.h>
 
 #include "../playback/InputEvent.h"
 #include "StyleProvider.h"
@@ -55,6 +56,9 @@ ArrangementGrid::ArrangementGrid(Plane & parent) : UIElement(parent) {
 
   assertCommandBindingsValid();
 
+  connections_.push_back(on<cellui::KeyDown>([this](const cellui::KeyDown & e, cellui::EventContext &) {
+    return keyDown(e) ? cellui::Handled::yes : cellui::Handled::no;
+  }));
   connections_.push_back(on<cellui::MouseDown>([this](const cellui::MouseDown & e, cellui::EventContext &) {
     return e.button == 1 && pick(e.row, e.col) ? cellui::Handled::yes : cellui::Handled::no;
   }));
@@ -118,8 +122,12 @@ ArrangementGrid::ensureCursorVisible(int bar_count, int visible_rows, int visibl
 }
 
 bool ArrangementGrid::offerInput(const cellui::Input & input) {
-  if (dispatchCommand(input)) return true;
   if (input.getKind() == cellui::Input::Kind::RELEASE) return false;
+  return keyDown(cellui::InputDispatcher::keyDownFor(input));
+}
+
+bool ArrangementGrid::keyDown(const cellui::KeyDown & key) {
+  if (dispatchCommand(key.key, key.mods)) return true;
 
   auto & song = getController().getSong();
   auto track_ids = getVisibleTrackIds(song);
@@ -135,7 +143,7 @@ bool ArrangementGrid::offerInput(const cellui::Input & input) {
     cursor_bar_ = clamp(cursor_bar_ + delta, 0, barCount(song, playing_bar) - 1);
   };
 
-  if (input.getId() == Key::Enter) {
+  if (key.key == Key::Enter) {
     // A bar past the arrangement's end is a valid target: it just moves
     // the playhead/track selection there - "look at/jump to this
     // position" and "put real content here" stay two separate actions.
@@ -147,20 +155,20 @@ bool ArrangementGrid::offerInput(const cellui::Input & input) {
 
   // Time runs to the right: Left/Right move along the bars, Up/Down across
   // the tracks, stopping at the grid's own edges.
-  if (input.getId() == Key::Left)
+  if (key.key == Key::Left)
     move_cursor(-1);
-  else if (input.getId() == Key::Right)
+  else if (key.key == Key::Right)
     move_cursor(1);
   // A full screenful of bars at a time - same "jump by the viewport's own
   // width" reading Page Up/Down carry everywhere else in this app, rather
   // than PatternEditor's own fixed 16-row jump (which counts raw pattern
   // rows, not this grid's own bars, so a fixed count wouldn't mean the same
   // thing here).
-  else if (input.getId() == Key::PageUp)
+  else if (key.key == Key::PageUp)
     move_cursor(-max(1, getDim().second - kNameWidth));
-  else if (input.getId() == Key::PageDown)
+  else if (key.key == Key::PageDown)
     move_cursor(max(1, getDim().second - kNameWidth));
-  else if (input.getId() == Key::Backspace) {
+  else if (key.key == Key::Backspace) {
     if (cursor_track_index_ < num_tracks) {
       auto track_id = track_ids[static_cast<size_t>(cursor_track_index_)];
       auto bar_start_row = bar_row(cursor_bar_);
@@ -188,8 +196,7 @@ bool ArrangementGrid::offerInput(const cellui::Input & input) {
       // placing another stop on an already-silent bar would only
       // duplicate the one that already does the job.
     }
-  }
-  else if (input.getId() == Key::Delete || (input.hasCtrl() && input.getId() == 'k')) {
+  } else if (key.key == Key::Delete || (key.mods.ctrl && key.key == 'k')) {
     // Fully removes the clip itself (ArrangementOps.h's deleteClip()) -
     // every placement of it anywhere in the song, not just the one under
     // the cursor - unlike Backspace above, which only ends this one
@@ -226,9 +233,9 @@ bool ArrangementGrid::offerInput(const cellui::Input & input) {
         getController().log("Deleted stop");
       }
     }
-  } else if (input.getId() == Key::Up)
+  } else if (key.key == Key::Up)
     cursor_track_index_--;
-  else if (input.getId() == Key::Down)
+  else if (key.key == Key::Down)
     cursor_track_index_++;
   else return false;
 

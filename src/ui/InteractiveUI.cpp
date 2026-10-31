@@ -724,7 +724,7 @@ InteractiveUI::initializeWidgets() {
                                                    cellui::Phase::capture));
   key_connections_.push_back(on<cellui::KeyDown>([modal](const cellui::KeyDown & e, cellui::EventContext &) { return modal(e.input); }, cellui::Phase::capture));
   key_connections_.push_back(on<cellui::KeyUp>([modal](const cellui::KeyUp & e, cellui::EventContext &) { return modal(e.input); }, cellui::Phase::capture));
-  for (cellui::Widget * widget : std::initializer_list<cellui::Widget *>{pattern_editor_.get(), arrangement_grid_.get(), clip_grid_.get(), outline_view_.get()}) {
+  for (cellui::Widget * widget : std::initializer_list<cellui::Widget *>{pattern_editor_.get(), clip_grid_.get(), outline_view_.get()}) {
     auto offer = [widget](const cellui::Input * input) {
       return input && widget->offerInput(*input) ? cellui::Handled::yes : cellui::Handled::no;
     };

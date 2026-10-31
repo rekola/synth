@@ -11,6 +11,7 @@
 #include <vector>
 
 #include <cellui/Fade.h>
+#include <cellui/InputDispatcher.h>
 #include <cellui/InputEvents.h>
 #include <cellui/WheelAcceleration.h>
 #include <cellui/Input.h>
@@ -87,6 +88,8 @@ class ArrangementGrid : public UIElement {
   // own local state to gate on that the way the cursor cell's is.
   bool render(const StyleProvider & styles, bool refresh, bool focused, int selected_track_id);
   bool offerInput(const cellui::Input & input) override;
+  // A key that went down; the widget's own handler for KeyDown.
+  bool keyDown(const cellui::KeyDown & key);
 
   // Called (once, from UI::initialize()) with the (track_id, row) under
   // the cursor whenever Enter commits it - row is the first row of the
