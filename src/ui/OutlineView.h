@@ -3,6 +3,7 @@
 
 #include "InfoDialog.h"
 #include <cellui/Fade.h>
+#include <cellui/PickerPopup.h>
 #include "UIElement.h"
 #include "../model/TrackType.h"
 
@@ -236,7 +237,7 @@ protected:
   // selected_target_track_id_.
   void closeTargetPicker();
   // Enter, or a click landing on an item, while the picker is open (see
-  // offerInput()'s own pickerActive() handling) - `selection` is
+  // offerInput()'s own handling of the open picker) - `selection` is
   // Plane::getPickerSelection()'s own return, read *before*
   // closeTargetPicker() destroys the plane it comes from. Resolves back
   // to a real track id by matching against compatibleTargetTrackRows()'s
@@ -323,7 +324,7 @@ protected:
   // first compatibleTargetTrackRows() entry, or kNewTrackTargetId with
   // none); kNewTrackTargetId is itself a real, sticky choice once picked,
   // same as any other track id. Whether the picker plane itself is
-  // currently open is never cached here - getPlane().pickerActive() is
+  // currently open is never cached here - target_picker_.isOpen() is
   // the one source of truth, so it can never drift out of sync with the
   // plane's own real state.
   int selected_target_track_id_ = -1;
@@ -335,6 +336,7 @@ protected:
   bool details_dirty_ = false;
   InfoDialog info_popup_;
   int screen_rows_ = 24, screen_cols_ = 80;
+  cellui::PickerPopup target_picker_;
   bool info_open_ = false;
 };
 

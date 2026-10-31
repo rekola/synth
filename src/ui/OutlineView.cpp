@@ -592,7 +592,7 @@ OutlineView::targetTrackLabel(int track_id) const {
 
 void
 OutlineView::openTargetPicker() {
-  if (getPlane().pickerActive()) return;
+  if (target_picker_.isOpen()) return;
 
   auto cols = getDim().second;
   auto candidates = compatibleTargetTrackRows();
@@ -604,9 +604,9 @@ OutlineView::openTargetPicker() {
   auto picker_rows = std::clamp(wanted_rows, 1, std::max(1, buttonBarTop() - kTreeTop));
   auto anchor_y = buttonBarTop() - picker_rows;
 
-  getPlane().showPicker(anchor_y, 0, picker_rows, cols, item_count);
-  for (auto * candidate : candidates) getPlane().addItem(candidate->label, "");
-  getPlane().addItem("New track", "");
+  vector<string> labels;
+  for (auto * candidate : candidates) labels.push_back(candidate->label);
+  labels.push_back("New track");
 
   // Starts highlighted on whatever's already the current choice, not
   // always row 0 - candidates were added in the same order as
@@ -620,12 +620,12 @@ OutlineView::openTargetPicker() {
       break;
     }
   }
-  getPlane().selectPickerItem(default_index);
+  target_picker_.open(getPlane(), anchor_y, 0, picker_rows, cols, std::move(labels), default_index);
 }
 
 void
 OutlineView::closeTargetPicker() {
-  getPlane().closePicker();
+  target_picker_.close();
 }
 
 void
@@ -753,7 +753,10 @@ OutlineView::runDetailsAction(DetailsAction action) {
     getController().getPlaybackEventQueue().push(make_unique<PlaybackControlEvent>(PlaybackControlEvent::PREVIEW_STOP));
     break;
   case DetailsAction::TOGGLE_TARGET_PICKER:
-    if (getPlane().pickerActive()) closeTargetPicker(); else openTargetPicker();
+    if (target_picker_.isOpen())
+      closeTargetPicker();
+    else
+      openTargetPicker();
     break;
   case DetailsAction::TOGGLE_INFO:
     info_open_ = !info_open_;
@@ -843,38 +846,30 @@ OutlineView::offerInput(const cellui::Input & input) {
   // the previous choice; everything else (arrow keys, scroll, PgUp/
   // PgDown) is just forwarded to the selector to navigate with, same as
   // ncselector_offer_input()'s own documented input set.
-  if (getPlane().pickerActive()) {
-    if (input.getId() == Key::Enter) {
-      auto selection = getPlane().getPickerSelection();
+  if (target_picker_.isOpen()) {
+    using Result = cellui::PickerPopup::Result;
+    auto [pos_y, pos_x] = getPosition();
+    bool release = input.getKind() == InputEvent::Kind::RELEASE;
+    Result result = Result::IGNORED;
+    if (input.getId() == Key::Button1) {
+      if (release) result = target_picker_.click(input.getY() - pos_y, input.getX() - pos_x);
+    } else if (input.getId() == Key::Button4 || input.getId() == Key::Button5) {
+      if (!release) result = target_picker_.wheel(input.getId() == Key::Button4 ? -1 : 1);
+    } else if (!release) {
+      result = target_picker_.key(input.getId(), input.hasCtrl());
+    }
+    if (result == Result::CHOSEN) {
+      auto selection = target_picker_.selection();
       closeTargetPicker();
       applyTargetPickerSelection(selection);
       return true;
-    } else if (input.hasCtrl() && input.getId() == 'g') {
-      closeTargetPicker();
-      return true;
-    } else if (input.getId() == Key::Button1 && input.getKind() == InputEvent::Kind::RELEASE) {
-      if (getPlane().offerInput(input)) {
-        // Landed on an item (or the scroll arrows) - ncselector_offer_input()
-        // only reports a click as relevant when it actually lands inside
-        // its own plane. Commits whatever's now highlighted and closes,
-        // the usual single-click-picks dropdown gesture - no separate
-        // confirm step the way keyboard navigation needs Enter for.
-        auto selection = getPlane().getPickerSelection();
-        closeTargetPicker();
-        applyTargetPickerSelection(selection);
-      } else {
-        // Landed outside the picker entirely - dismiss it without
-        // changing the previous choice, same as clicking outside any
-        // other dropdown/popup, then let the click fall through to
-        // handleClick() as normal (it may be a perfectly ordinary click
-        // on some other row/button).
-        closeTargetPicker();
-        return handleClick(input);
-      }
-      return true;
-    } else {
-      return getPlane().offerInput(input);
     }
+    if (result == Result::CANCELLED) {
+      closeTargetPicker();
+      // A click outside is also an ordinary click on whatever is there.
+      return input.getId() == Key::Button1 ? handleClick(input) : true;
+    }
+    return result == Result::MOVED;
   }
 
   // Handled first, before even RELEASE's own early-return just below (a
@@ -950,7 +945,7 @@ OutlineView::offerInput(const cellui::Input & input) {
              data_[static_cast<size_t>(new_cursor_row_)].kind == OutlineRowKind::LIBRARY_RHYTHM) {
     // Opens the rhythm's own target-track picker (openTargetPicker()) - a
     // real floating plane, closed by picking a candidate, Enter, or
-    // Ctrl-g (see this method's own pickerActive() handling up top).
+    // Ctrl-g (see this method's own handling of the open picker up top).
     if (input.getKind() == InputEvent::Kind::REPEAT) return true;
     runDetailsAction(DetailsAction::TOGGLE_TARGET_PICKER);
     return true;

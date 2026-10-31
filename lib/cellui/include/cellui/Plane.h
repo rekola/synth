@@ -24,8 +24,8 @@ class Widget;
 
 // A rectangle of character cells that a widget draws into: its own position
 // and size under a parent plane, one current style (colours and attributes)
-// that putstr() writes with, and the places a backend can offer text entry
-// and a small list picker. A backend implements it for its screen; the
+// that putstr() writes with, and the places a backend can offer text entry.
+// A backend implements it for its screen; the
 // headless BufferPlane implements it over a CellBuffer.
 class Plane {
  public:
@@ -230,29 +230,6 @@ class Plane {
   virtual void showReaderIndicator(int x, const std::string & s) = 0;
   // Hides it; a no-op if nothing is shown. Only valid while readerActive().
   virtual void hideReaderIndicator() = 0;
-
-  // A small floating list picker raised above this plane, not text drawn
-  // into its content. y/x/rows/cols position and size it in this plane's
-  // coordinates. Items are added afterwards with addItem(); `item_count`
-  // (how many will follow) is needed up front so the list is exactly that
-  // tall instead of padded to `rows`. A second call while one is active is a
-  // no-op: closePicker() first to replace it.
-  virtual void showPicker(int y, int x, int rows, int cols, int item_count) = 0;
-  // One row: `id` is the visible text and what getPickerSelection() reports
-  // while this row is highlighted; `description` is optional extra text
-  // shown beside it.
-  virtual void addItem(const std::string & id, const std::string & description) = 0;
-  // Highlights row `index` (0-based, in addItem() order). The picker starts
-  // on row 0, so a caller that wants the current choice highlighted calls
-  // this once after the last addItem(). Out of range, or with no picker, it
-  // does nothing.
-  virtual void selectPickerItem(int index) = 0;
-  virtual bool pickerActive() const = 0;
-  // The highlighted row's `id`, "" with no picker or no items. Read it
-  // before closePicker(), which reports nothing: committing and cancelling
-  // end the same way, and only the caller knows which happened.
-  virtual std::string getPickerSelection() const = 0;
-  virtual void closePicker() = 0;
   virtual void refresh() = 0;
   
   const std::pair<int, int> & getPosition() const { return plane_pos; }

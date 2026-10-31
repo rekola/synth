@@ -36,12 +36,6 @@ class RecordingPlane : public Plane {
   void setReaderContents(const std::string &) override { }
   void showReaderIndicator(int, const std::string &) override { }
   void hideReaderIndicator() override { }
-  void showPicker(int, int, int, int, int) override { }
-  void addItem(const std::string &, const std::string &) override { }
-  void selectPickerItem(int) override { }
-  bool pickerActive() const override { return false; }
-  std::string getPickerSelection() const override { return ""; }
-  void closePicker() override { }
   void refresh() override { }
 };
 

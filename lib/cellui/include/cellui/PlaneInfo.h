@@ -24,7 +24,6 @@ struct PlaneInfo {
   float elevation = 0;  // above the parent (Plane::setElevation())
   MouseCursor mouse_cursor = MouseCursor::INHERIT;  // Plane::setMouseCursor()
   bool reader = false;  // a text field is open on this plane
-  bool picker = false;  // a picker is open on this plane
   std::vector<PlaneInfo> children;
 };
 

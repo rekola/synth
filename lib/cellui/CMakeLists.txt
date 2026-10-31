@@ -60,6 +60,7 @@ add_library(cellui STATIC
   src/BlendMode.cpp
   src/Color.cpp
   src/ChoiceDialog.cpp
+  src/PickerPopup.cpp
   src/ChoiceModal.cpp
   src/ModalDialog.cpp
   src/CommandPalette.cpp
@@ -207,6 +208,7 @@ add_executable(cellui_tests
   tests/BufferPlaneTests.cpp
   tests/CellBufferTests.cpp
   tests/ChoiceDialogTests.cpp
+  tests/PickerPopupTests.cpp
   tests/ModalDialogTests.cpp
   tests/ChoiceListTests.cpp
   tests/CommandPaletteTests.cpp
