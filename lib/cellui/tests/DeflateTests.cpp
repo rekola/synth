@@ -48,7 +48,7 @@ std::vector<uint8_t> text(size_t n) {
   return bytes(s);
 }
 
-std::vector<uint8_t> rgb(const std::vector<uint32_t> & pixels) {
+[[maybe_unused]] std::vector<uint8_t> rgb(const std::vector<uint32_t> & pixels) {
   std::vector<uint8_t> out;
   for (uint32_t p : pixels) {
     out.push_back(Image::red(p));
@@ -58,6 +58,38 @@ std::vector<uint8_t> rgb(const std::vector<uint32_t> & pixels) {
   return out;
 }
 
+#ifdef _WIN32
+// The window's renderer needs a desktop, which a test run may not have: stand-in pictures of the
+// same kind (a curve on a flat ground, a smooth gradient), drawn here.
+std::vector<uint8_t> spectrumPicture(unsigned w, unsigned h) {
+  std::vector<uint8_t> out(static_cast<size_t>(w) * h * 3, 20);
+  for (unsigned x = 0; x < w; x++) {
+    float t = static_cast<float>(x) / static_cast<float>(w);
+    unsigned y = static_cast<unsigned>((0.5f + 0.3f * std::sin(t * 17.0f) * std::exp(-t * 2.0f)) * static_cast<float>(h - 1));
+    for (unsigned k = y; k < h; k++) {
+      uint8_t * p = &out[(static_cast<size_t>(k) * w + x) * 3];
+      p[0] = 40;
+      p[1] = static_cast<uint8_t>(120 + (k == y ? 100 : 0));
+      p[2] = 200;
+    }
+  }
+  return out;
+}
+
+std::vector<uint8_t> heatmapPicture(unsigned w, unsigned h) {
+  std::vector<uint8_t> out(static_cast<size_t>(w) * h * 3);
+  for (unsigned y = 0; y < h; y++) {
+    for (unsigned x = 0; x < w; x++) {
+      float d = std::hypot(static_cast<float>(x) / 20.5f - 9.0f, static_cast<float>(y) / 10.0f - 3.0f);
+      uint8_t * p = &out[(static_cast<size_t>(y) * w + x) * 3];
+      p[0] = static_cast<uint8_t>(255 * std::max(0.0f, 1.0f - d / 6.0f));
+      p[1] = static_cast<uint8_t>(60 + 120 * std::min(1.0f, d / 8.0f));
+      p[2] = static_cast<uint8_t>(90 + 40 * std::sin(d));
+    }
+  }
+  return out;
+}
+#else
 // The charts as the application draws them, from fixed data.
 std::vector<uint8_t> spectrumPicture(unsigned w, unsigned h) {
   StyleProvider styles;
@@ -82,6 +114,7 @@ std::vector<uint8_t> heatmapPicture(unsigned w, unsigned h) {
   }
   return rgb(heatmap_image::render(brightness, saturation, cols, rows, {}, w, h, styles));
 }
+#endif
 
 bool roundTrips(const std::vector<uint8_t> & input, int level) {
   auto z = zlibCompress(input, level);
