@@ -3,27 +3,30 @@
 #include <cellui/NumberParse.h>
 
 #include <clocale>
-#include <cmath>
+#include <cstdint>
 #include <cstdio>
 #include <cstring>
 #include <functional>
 #include <string>
+#include <type_traits>
 #include <vector>
 
 using namespace cellui;
 
 namespace {
 
+// What a parsed value must be. The special ones are judged by their bits:
+// -ffast-math (the project's flags) lets the compiler fold isnan, isinf and
+// signbit, and treat -0 as +0.
+enum class Special { NONE, NAN_VALUE, INFINITY_VALUE, NEGATIVE_ZERO };
+
 struct Case {
   const char * text;
   std::errc ec;
   size_t used;       // characters up to ptr
-  double value;      // on success
-  bool negative_zero = false;
+  double value;      // on success, when Special::NONE
+  Special special = Special::NONE;
 };
-
-const double kNan = std::nan("");
-const double kInf = HUGE_VAL;
 
 // The cases std::from_chars is specified by; "used" is where ptr ends up.
 const std::vector<Case> & doubleCases() {
@@ -34,9 +37,9 @@ const std::vector<Case> & doubleCases() {
     {"1e-400", std::errc::result_out_of_range, 6, 0},
     {".5", std::errc(), 2, 0.5},
     {"5.", std::errc(), 2, 5.0},
-    {"-0", std::errc(), 2, 0.0, true},
-    {"nan", std::errc(), 3, kNan},
-    {"inf", std::errc(), 3, kInf},
+    {"-0", std::errc(), 2, 0.0, Special::NEGATIVE_ZERO},
+    {"nan", std::errc(), 3, 0.0, Special::NAN_VALUE},
+    {"inf", std::errc(), 3, 0.0, Special::INFINITY_VALUE},
     {"+1", std::errc::invalid_argument, 0, 0},
     {" 1", std::errc::invalid_argument, 0, 0},
     {"1abc", std::errc(), 1, 1.0},
@@ -68,22 +71,37 @@ const std::vector<Case> & floatCases() {
 using Parse = std::function<ParseResult(const char *, const char *, double &)>;
 using ParseF = std::function<ParseResult(const char *, const char *, float &)>;
 
+// The IEEE bits of a float or double, as unsigned integers.
+template <typename T>
+struct Bits {
+  using Word = std::conditional_t<sizeof(T) == 4, uint32_t, uint64_t>;
+  static constexpr int kMantissa = sizeof(T) == 4 ? 23 : 52;
+  static constexpr int kExponent = sizeof(T) == 4 ? 8 : 11;
+  Word word;
+  explicit Bits(const T & value) { std::memcpy(&word, &value, sizeof word); }
+  bool negative() const { return (word >> (kMantissa + kExponent)) & 1; }
+  Word exponent() const { return (word >> kMantissa) & ((Word(1) << kExponent) - 1); }
+  Word mantissa() const { return word & ((Word(1) << kMantissa) - 1); }
+  bool isNan() const { return exponent() == (Word(1) << kExponent) - 1 && mantissa() != 0; }
+  bool isInfinity() const { return exponent() == (Word(1) << kExponent) - 1 && mantissa() == 0; }
+  bool isZero() const { return (word << 1) == 0; }
+};
+
 template <typename T>
 bool matches(const char * who, const Case & c, const std::function<ParseResult(const char *, const char *, T &)> & parse) {
   const T untouched = static_cast<T>(-12345.0);
   T value = untouched;
   const char * first = c.text;
   ParseResult r = parse(first, first + std::strlen(first), value);
-  // The sign is read from the bits, first: -ffast-math may treat a value equal to 0 as +0.
-  unsigned char bytes[sizeof value];
-  std::memcpy(bytes, &value, sizeof value);
-  const int probe = 1;
-  const bool negative = bytes[*reinterpret_cast<const char *>(&probe) == 1 ? sizeof value - 1 : 0] & 0x80;
+  const Bits<T> bits(value);
   bool ok = r.ec == c.ec && r.ptr == first + c.used;
   if (c.ec == std::errc()) {
-    if (std::isnan(c.value)) ok = ok && std::isnan(value);
-    else if (std::isinf(c.value)) ok = ok && std::isinf(value) && value > 0;
-    else ok = ok && value == static_cast<T>(c.value) && (c.value != 0.0 || negative == c.negative_zero);
+    switch (c.special) {
+      case Special::NAN_VALUE: ok = ok && bits.isNan(); break;
+      case Special::INFINITY_VALUE: ok = ok && bits.isInfinity() && !bits.negative(); break;
+      case Special::NEGATIVE_ZERO: ok = ok && bits.isZero() && bits.negative(); break;
+      case Special::NONE: ok = ok && !bits.isNan() && value == static_cast<T>(c.value); break;
+    }
   } else {
     ok = ok && value == untouched;  // a failed parse leaves it alone
   }
