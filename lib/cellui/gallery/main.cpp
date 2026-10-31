@@ -8,6 +8,7 @@
 //                             The charts are pictures where the terminal
 //                             shows them.
 //   cellui_gallery --gtk      the same in a GTK window (when built with it)
+#include <cellui/Backend.h>
 #include <cellui/BufferPlane.h>
 #include <cellui/Gallery.h>
 #ifdef CELLUI_HAS_GTK
@@ -47,7 +48,7 @@ struct Page {
 };
 
 // Shows the page from row `top`, a status bar and a last line under it.
-void showPage(cellui::Backend & backend, const Page & page, int top, const std::string & summary, const std::string & last) {
+[[maybe_unused]] void showPage(cellui::Backend & backend, const Page & page, int top, const std::string & summary, const std::string & last) {
   int rows = backend.rows(), cols = backend.cols();
   int view = std::max(1, rows - 2);
   cellui::CellBuffer screen(rows, cols);
