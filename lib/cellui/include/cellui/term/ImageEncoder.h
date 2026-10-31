@@ -6,6 +6,7 @@
 
 #include <cstdint>
 #include <map>
+#include <set>
 #include <string>
 #include <utility>
 #include <vector>
@@ -79,7 +80,11 @@ class ImageEncoder {
   // A reply from the terminal to a kitty graphics command (the body after
   // "G"): "" for success, else a description of the error. Commands are sent
   // with q=1, so only errors are ever replied.
-  std::string handleKittyReply(const std::string & body) const;
+  std::string handleKittyReply(const std::string & body);
+  // Whether uploads are deflated (kitty `o=z`, a PNG's data). A terminal that rejects a compressed
+  // upload turns it off for good, and the pictures it refused go up again raw.
+  bool compressing() const { return compress_; }
+  void setCompressing(bool on) { compress_ = on; }
   // Removes every image (kitty graphics; Sixel images go with the text).
   std::string clear();
 
@@ -106,6 +111,8 @@ class ImageEncoder {
   std::map<uint64_t, Shown> shown_;
   uint32_t next_id_ = 0;
   bool sixel_ready_ = false;
+  bool compress_ = true;
+  std::set<uint32_t> deflated_ids_;  // kitty ids uploaded compressed and not yet confirmed
   Sizes sizes_;
   std::map<std::pair<int, int>, PictureStat> picture_stats_;
 };

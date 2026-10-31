@@ -232,3 +232,15 @@ TEST(deflate_stays_within_three_percent_of_zlib_level_six_on_the_charts) {
   // The synthetic smooth gradient is the worst case seen (real pictures stay within about 1%).
   CHECK(zlibCompress(heatmap, 2).size() * 100 <= kHeatmapZlib6 * 108);
 }
+
+TEST(deflate_small_inputs_with_high_literals_use_the_fixed_codes_correctly) {
+  for (size_t n : {1u, 2u, 7u, 18u, 40u}) {
+    std::vector<uint8_t> data(n);
+    for (size_t i = 0; i < n; i++) data[i] = static_cast<uint8_t>(255 - (i * 37) % 120);
+    for (int level = 1; level <= 3; level++) {
+      std::vector<uint8_t> packed = zlibCompress(data, level);
+      auto z = inflate_test::Inflater(packed.data(), packed.size()).zlib();
+      CHECK(z && *z == data);
+    }
+  }
+}

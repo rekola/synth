@@ -51,7 +51,7 @@ uint32_t load32(const uint8_t * p) {
 constexpr int kWindow = 32768;
 constexpr int kMaxMatch = 258;
 constexpr int kEndOfBlock = 256;
-constexpr int kLitLenSymbols = 286;
+constexpr int kLitLenSymbols = 288;
 constexpr int kDistSymbols = 30;
 
 constexpr uint16_t kLenBase[29] = {3,  4,  5,  6,  7,  8,  9,  10, 11,  13,  15,  17,  19,  23, 27,
