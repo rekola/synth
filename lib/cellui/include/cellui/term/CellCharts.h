@@ -1,8 +1,7 @@
 #pragma once
 
-#include <cellui/ChannelMeter.h>
 #include <cellui/Charts.h>
-#include <cellui/SpectrumMeter.h>
+#include <cellui/LineChart.h>
 
 namespace cellui::term {
 
@@ -13,25 +12,16 @@ namespace cellui::term {
 // it can show.
 
 // Two bars to a cell.
-class CellSpectrumMeter : public SpectrumMeter {
+class CellLineChart : public LineChart {
  public:
-  using SpectrumMeter::SpectrumMeter;
+  using LineChart::LineChart;
 
  protected:
-  size_t barCount(int cols) override { return static_cast<size_t>(2 * cols); }
-  void drawBars(const std::vector<float> & levels) override;
+  size_t sampleCount(int cols) override { return static_cast<size_t>(2 * cols); }
+  void drawSamples(const std::vector<float> & samples) override;
 };
 
-// Two channels to a cell.
-class CellChannelMeter : public ChannelMeter {
- public:
-  using ChannelMeter::ChannelMeter;
-
- protected:
-  void drawBars(int bar_rows, int cells) override;
-};
-
-void drawCellSparkline(Plane & plane, int row, int col, int rows, const SparklineReading & reading, const SparklineLook & look, int clip_top,
+void drawCellSparkline(Plane & plane, int row, int col, int rows, const std::vector<SparklineReading> & readings, const SparklineLook & look, int clip_top,
                      int clip_bottom);
 
 void drawCellWaveformRow(Plane & plane, int row, int col, int width, const std::vector<float> & slices, const WaveformLook & look,

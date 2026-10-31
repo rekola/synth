@@ -57,6 +57,21 @@ class Song;
 // InteractiveUI::layout().
 class ClipGrid : public UIElement {
  public:
+  // The body and header are planes of their own (and may hang off the root
+  // rather than this plane), so hiding the widget has to hide them too.
+  // The widget's plane is opaque, so its body and header go above it again.
+  void moveToTop() {
+    cellui::Widget::moveToTop();
+    if (body_plane_) body_plane_->moveToTop();
+    if (header_plane_) header_plane_->moveToTop();
+  }
+  void setShown(bool shown) {
+    setVisible(shown);
+    // Layout resizes (and so clears) the planes while hidden.
+    if (shown) current_song_version_ = -1;
+    if (body_plane_) body_plane_->setVisible(shown);
+    if (header_plane_) header_plane_->setVisible(shown);
+  }
   ClipGrid(Plane & parent);
 
   bool render(const StyleProvider & styles, bool refresh, bool focused);

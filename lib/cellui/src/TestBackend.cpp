@@ -38,6 +38,7 @@ TestBackend::TestBackend(int rows, int cols, DisplayInfo display)
   : display_(std::move(display)), rows_(rows), cols_(cols), frame_(rows, cols) {
   makePipe(pipe_);
   makePipe(wake_);
+  frames_hook_ = loop_.onFrame([this] { gate_.run(FrameGate::Clock::now()); });
 }
 
 TestBackend::~TestBackend() {

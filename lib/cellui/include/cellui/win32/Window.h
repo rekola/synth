@@ -43,7 +43,9 @@ class Window : public Backend {
   EventLoop & eventLoop() override;
   int inputFd() const override { return -1; }
   int wakeFd() const override { return -1; }
-  std::optional<TimePoint> nextDeadline() const override { return std::nullopt; }
+  std::optional<TimePoint> nextDeadline() const override;
+  void requestFrame() override;
+  void setFrameHandler(FrameHandler handler) override;
   std::vector<BackendEvent> poll() override;
 
   void present(const CellBuffer & frame, const CursorRequest & cursor = {}, const std::vector<ImagePlacement> & images = {},

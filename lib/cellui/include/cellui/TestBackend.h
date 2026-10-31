@@ -1,6 +1,7 @@
 #pragma once
 
 #include <cellui/Backend.h>
+#include <cellui/FrameGate.h>
 #include <cellui/PollEventLoop.h>
 #include <cellui/term/BackdropEmulation.h>
 
@@ -39,6 +40,10 @@ class TestBackend : public Backend {
                const std::vector<ImagePlacement> & images = {}, const FrameInfo * info = nullptr) override;
   bool wantsFrameInfo() const override { return true; }
   void redraw() override { redraws_++; }
+  // Frames are handed out at the start of the next loop turn, with no
+  // minimum interval.
+  void requestFrame() override { gate_.request(); }
+  void setFrameHandler(FrameHandler handler) override { gate_.setHandler(std::move(handler)); }
   // Shows backdrops as a terminal would (blurred cells or pictures); off,
   // the layers are stacked as they are, and info().backdrops has them.
   void emulateBackdrops(bool on) { emulate_backdrops_ = on; }
@@ -81,6 +86,8 @@ class TestBackend : public Backend {
 
  private:
   PollEventLoop loop_;
+  FrameGate gate_;
+  Connection frames_hook_;
   DisplayInfo display_;
   int rows_, cols_;
   int pipe_[2] = { -1, -1 };

@@ -26,7 +26,7 @@ class Backend;
 }
 
 #include "UIMenu.h"
-#include "SpectrumMeter.h"
+#include "LineChart.h"
 #include "HeatmapChart.h"
 #include "ChannelMeter.h"
 class InfoLine;
@@ -140,7 +140,7 @@ class InteractiveUI : public UI {
   void resizeScreen();
 
   std::shared_ptr<UIMenu> menu_;
-  std::shared_ptr<SpectrumMeter> chart_;
+  std::shared_ptr<LineChart> chart_;
   std::shared_ptr<ChannelMeter> volume_meter_;
   std::shared_ptr<HeatmapChart> heatmap_;
   // The scopes in the versions this terminal shows.

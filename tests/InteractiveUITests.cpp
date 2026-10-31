@@ -293,3 +293,15 @@ TEST(terminal_ui_delete_track_keeps_the_last_track) {
   f.execute("delete-track");
   CHECK(f.controller->getSong().getPlayableTrackIds().size() == 1);
 }
+
+// Switching away from Live View hides the clip grid and switching back shows
+// it again.
+TEST(terminal_ui_clip_grid_is_hidden_in_arrangement_view_and_back_in_live_view) {
+  UIFixture f;
+  auto sendsShown = [&]() { return f.terminal.text().find("Sends") != std::string::npos; };
+  CHECK(sendsShown());
+  f.press('\t');
+  CHECK(!sendsShown());
+  f.press('\t');
+  CHECK(sendsShown());
+}

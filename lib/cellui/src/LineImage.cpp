@@ -1,4 +1,4 @@
-#include <cellui/SpectrumImage.h>
+#include <cellui/LineImage.h>
 
 #include <canvas/Context.h>
 #include "NativeContext.h"
@@ -9,7 +9,7 @@
 
 namespace cellui {
 
-namespace spectrum_image {
+namespace line_image {
 
 namespace {
 
@@ -45,16 +45,16 @@ std::vector<uint32_t> render(const std::vector<float> & levels, unsigned width, 
   ctx.lineTo(w, h).closePath();
 
   auto fill = ctx.createLinearGradient(0, h, 0, 0);
-  fill.addColorStop(0.0f, toCanvas(styles.spectrumColor(0.0f), 0.22f));
-  fill.addColorStop(1.0f, toCanvas(styles.spectrumColor(1.0f), 0.22f));
+  fill.addColorStop(0.0f, toCanvas(styles.lineColor(0.0f), 0.22f));
+  fill.addColorStop(1.0f, toCanvas(styles.lineColor(1.0f), 0.22f));
   ctx.fillStyle = fill;
   ctx.fill();
 
   ctx.beginPath().moveTo(x_at(0), y_at(0));
   for (unsigned x = 1; x < width; x++) ctx.lineTo(x_at(x), y_at(x));
   auto stroke = ctx.createLinearGradient(0, h, 0, 0);
-  stroke.addColorStop(0.0f, toCanvas(styles.spectrumColor(0.0f)));
-  stroke.addColorStop(1.0f, toCanvas(styles.spectrumColor(1.0f)));
+  stroke.addColorStop(0.0f, toCanvas(styles.lineColor(0.0f)));
+  stroke.addColorStop(1.0f, toCanvas(styles.lineColor(1.0f)));
   ctx.strokeStyle = stroke;
   ctx.lineWidth = 1.5f;
   ctx.stroke();
@@ -76,6 +76,6 @@ std::vector<uint32_t> render(const std::vector<float> & levels, unsigned width, 
   return out;
 }
 
-}  // namespace spectrum_image
+}  // namespace line_image
 
 }  // namespace cellui

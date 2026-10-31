@@ -3,6 +3,6 @@
 // The implementation lives in lib/cellui; this keeps the old name.
 #include "UIElement.h"
 
-#include <cellui/SpectrumMeter.h>
+#include <cellui/LineChart.h>
 
-using cellui::SpectrumMeter;
+using cellui::LineChart;

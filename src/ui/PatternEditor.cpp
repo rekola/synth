@@ -2928,7 +2928,7 @@ PatternEditor::renderHeadingOnPlane(const StyleProvider & styles, const std::vec
     };
     auto draw_vu_meter = [&](int row, int col, float fraction, bool clipping, const Color & background, int track_id) {
       cellui::SparklineReading reading{fraction, 0.0f, clipping};
-      cellui::SparklineLook look{background, styles.meter_active_color};
+      cellui::SparklineLook look{background, styles.level_active_color};
       static const auto fallback = cellui::cellCharts();
       (charts_ ? charts_ : fallback.get())->drawSparkline(getPlane(), row, col, 1, reading, look, row, row + 1, static_cast<uint64_t>(track_id) + 2);
     };
@@ -3232,10 +3232,10 @@ PatternEditor::renderHeadingOnPlane(const StyleProvider & styles, const std::vec
 	      // matching where the level-0 title bar's own M/S glyphs sit,
 	      // rather than up front where the collapse toggle now is.
 	      if (track_info.isClipping()) {
-		setFgColor(styles.meter_clip_color);
-	      } else if (track_info.isActive()) {
-		setFgColor(styles.meter_active_color);
-	      } else {
+                setFgColor(styles.level_full_color);
+              } else if (track_info.isActive()) {
+                setFgColor(styles.level_active_color);
+              } else {
 		// Idle: faint_color() - see its own comment - rather than a
 		// fixed grey.
 		setFgColor(styles.track_chips ? styles.theme.text_disabled : faint_color(track));

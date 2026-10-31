@@ -1,9 +1,8 @@
 #pragma once
 
-#include <cellui/ChannelMeter.h>
 #include <cellui/DisplayInfo.h>
 #include <cellui/HeatmapChart.h>
-#include <cellui/SpectrumMeter.h>
+#include <cellui/LineChart.h>
 #include <cellui/SparklineImage.h>
 
 #include <memory>
@@ -23,24 +22,28 @@ struct WaveformLook {
   Color guide;
 };
 
-// The charts - a spectrum, a heatmap, a per-channel bar chart, sparklines and
-// a waveform - in the versions a backend can show. An application asks its
+// The charts - a line chart, a heatmap, sparklines and a waveform - in the versions a backend can show. An application asks its
 // backend's Charts for a chart and never knows how it is drawn.
 class Charts {
  public:
   virtual ~Charts() = default;
 
-  virtual std::shared_ptr<SpectrumMeter> spectrum(Plane & parent) const = 0;
+  virtual std::shared_ptr<LineChart> lineChart(Plane & parent) const = 0;
   // A heatmap of a grid_cols x grid_rows grid.
   virtual std::shared_ptr<HeatmapChart> heatmap(Plane & parent, int grid_cols, int grid_rows) const = 0;
-  virtual std::shared_ptr<ChannelMeter> channelMeter(Plane & parent) const = 0;
-  // A sparkline drawn into a widget's own plane: a bar `rows` cells tall from
-  // (row, col), one cell wide, showing a value and a mark above it, drawn only
+  // A sparkline drawn into a widget's own plane: a compact bar chart `rows` cells tall from
+  // (row, col), a bar for each reading showing a value and a mark above it - one bar
+  // fills a cell's right half, more are two to a cell from the left, so n bars are
+  // (n + 1) / 2 cells wide - drawn only
   // in the plane rows from clip_top up to clip_bottom (one partly scrolled out
   // of view). `id` names the sparkline for the plane's images (see
   // Plane::drawImageAt()); 0 for none.
-  virtual void drawSparkline(Plane & plane, int row, int col, int rows, const SparklineReading & reading, const SparklineLook & look,
+  virtual void drawSparkline(Plane & plane, int row, int col, int rows, const std::vector<SparklineReading> & readings, const SparklineLook & look,
                              int clip_top, int clip_bottom, uint64_t id = 0) const = 0;
+  void drawSparkline(Plane & plane, int row, int col, int rows, const SparklineReading & reading, const SparklineLook & look, int clip_top,
+                     int clip_bottom, uint64_t id = 0) const {
+    drawSparkline(plane, row, col, rows, std::vector<SparklineReading>{reading}, look, clip_top, clip_bottom, id);
+  }
   // One pattern row's slice of a sample clip's waveform across `width` cells
   // from (row, col): kWaveformSlices amplitudes (0..1) over the row's time,
   // each a bar centred in the row's width.

@@ -59,7 +59,6 @@ add_library(cellui STATIC
   src/CellBuffer.cpp
   src/BlendMode.cpp
   src/Color.cpp
-  src/ChannelMeter.cpp
   src/ChoiceDialog.cpp
   src/ChoiceModal.cpp
   src/ModalDialog.cpp
@@ -80,7 +79,7 @@ add_library(cellui STATIC
   src/MenuBar.cpp
   src/Charts.cpp
   src/term/CellCharts.cpp
-  src/SpectrumMeter.cpp
+  src/LineChart.cpp
   src/Scrim.cpp
   src/term/SubcellGlyphs.cpp
   src/Utf8.cpp
@@ -176,7 +175,7 @@ endif()
 # Apple platforms or its GDI+ one on Windows. The cell rasterizer (the GTK
 # window's, the terminal's backdrops) is not built on Windows, whose window
 # draws cells itself.
-target_sources(cellui PRIVATE src/Dial.cpp src/DialImage.cpp src/HeatmapImage.cpp src/NativeContext.cpp src/PixelCharts.cpp src/SpectrumImage.cpp src/SparklineImage.cpp src/WaveformImage.cpp)
+target_sources(cellui PRIVATE src/Dial.cpp src/DialImage.cpp src/HeatmapImage.cpp src/NativeContext.cpp src/PixelCharts.cpp src/LineImage.cpp src/SparklineImage.cpp src/WaveformImage.cpp)
 if(NOT WIN32)
   target_sources(cellui PRIVATE src/CanvasRasterizer.cpp)
   target_compile_definitions(cellui PRIVATE CELLUI_CANVAS_RASTERIZER)
@@ -233,7 +232,6 @@ add_executable(cellui_tests
   tests/InputParserTests.cpp
   tests/KeymapTests.cpp
   tests/GlyphMeterTests.cpp
-  tests/LevelMeterTests.cpp
   tests/EscapeCoalescerTests.cpp
   tests/KeyReaderTests.cpp
   tests/LineEditorTests.cpp
@@ -241,7 +239,7 @@ add_executable(cellui_tests
   tests/MeterTests.cpp
   tests/Utf8Tests.cpp)
 if(NOT WIN32)
-  target_sources(cellui_tests PRIVATE tests/BackdropEmulationTests.cpp tests/CanvasRasterizerTests.cpp tests/EventLoopTests.cpp tests/ThreadPostsTests.cpp tests/TerminalSessionTests.cpp tests/TestBackendTests.cpp tests/HeatmapImageTests.cpp tests/SpectrumImageTests.cpp
+  target_sources(cellui_tests PRIVATE tests/BackdropEmulationTests.cpp tests/CanvasRasterizerTests.cpp tests/EventLoopTests.cpp tests/ThreadPostsTests.cpp tests/TerminalSessionTests.cpp tests/TestBackendTests.cpp tests/HeatmapImageTests.cpp tests/LineImageTests.cpp
     tests/SparklineTests.cpp tests/DialTests.cpp)
 endif()
 if(WIN32)
