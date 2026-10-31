@@ -9,7 +9,6 @@
 //                             shows them.
 //   cellui_gallery --gtk      the same in a GTK window (when built with it)
 #include <cellui/BufferPlane.h>
-#include <cellui/Charts.h>
 #include <cellui/Gallery.h>
 #ifdef CELLUI_HAS_GTK
 #include <cellui/gtk/Window.h>
@@ -27,24 +26,22 @@
 
 namespace {
 
-// The gallery on a page of its own. Made for a display, its charts are the
-// ones chartsFor() picks and the page knows the cell size in pixels; without
-// one they are the cell versions.
+// The gallery on a page of its own, for a display: the charts are the ones
+// chartsFor() picks and the page knows the cell size in pixels. A default
+// DisplayInfo (no pictures) gives the text version.
 struct Page {
   cellui::Theme theme = cellui::Theme::dark();
   cellui::StyleProvider styles{theme};
   cellui::CellBuffer buffer{120, 72};
   cellui::BufferPlane plane{buffer, styles};
-  std::unique_ptr<cellui::Charts> charts;
   std::unique_ptr<cellui::Gallery> gallery;
 
-  explicit Page(const cellui::DisplayInfo * display) {
-    if (display && display->pictures && display->cell_px_height > 0 && display->cell_px_width > 0) {
-      plane.setCellPixelSize(display->cell_px_height, display->cell_px_width);
-      plane.setDisplayScale(display->display_scale);
+  explicit Page(const cellui::DisplayInfo & display) {
+    if (display.pictures && display.cell_px_height > 0 && display.cell_px_width > 0) {
+      plane.setCellPixelSize(display.cell_px_height, display.cell_px_width);
+      plane.setDisplayScale(display.display_scale);
     }
-    charts = display ? cellui::chartsFor(*display) : cellui::cellCharts();
-    gallery = std::make_unique<cellui::Gallery>(plane, theme, *charts);
+    gallery = std::make_unique<cellui::Gallery>(plane, theme, display);
     plane.refresh();
   }
 };
@@ -100,7 +97,7 @@ int live() {
     return 1;
   }
   const Capabilities & caps = session->capabilities();
-  Page page(&caps.display);
+  Page page(caps.display);
   int page_rows = page.gallery->rows();
   std::string summary = caps.terminal + (caps.version.empty() ? "" : " " + caps.version) +
                         (caps.answered ? "" : " (no reply)") + ", colours " + colorName(caps.colors) +
@@ -149,7 +146,7 @@ int liveWindow() {
     std::fprintf(stderr, "cellui_gallery: %s\n", error.c_str());
     return 1;
   }
-  Page page(&window->display());
+  Page page(window->display());
   int page_rows = page.gallery->rows();
   std::string summary = "GTK window, cell " + std::to_string(window->display().cell_px_width) + "x" +
                         std::to_string(window->display().cell_px_height) + " px, scale " +
@@ -209,7 +206,7 @@ int main(int argc, char ** argv) {
   if (full_screen) return live();
 #endif
   (void)full_screen;
-  Page page(nullptr);
+  Page page{cellui::DisplayInfo{}};
   std::cout << (plain ? page.buffer.toPlainText() : page.buffer.toAnsi(page.gallery->rows()));
   return 0;
 }

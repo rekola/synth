@@ -76,9 +76,9 @@ Color readableOn(const Color & bg) {
 
 }  // namespace
 
-Gallery::Gallery(Plane & plane, const Theme & theme) : Gallery(plane, theme, *cellCharts()) { }
-
-Gallery::Gallery(Plane & plane, const Theme & theme, const Charts & charts) {
+Gallery::Gallery(Plane & plane, const Theme & theme, const DisplayInfo & display) {
+  auto charts_for_display = chartsFor(display);
+  const Charts & charts = *charts_for_display;
   const StyleProvider & styles = plane.getStyles();
   int width = plane.getDim().second;
 
