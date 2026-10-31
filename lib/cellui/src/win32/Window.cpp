@@ -163,6 +163,8 @@ struct Window::Impl {
   Com<ID2D1HwndRenderTarget> target;
   Com<IDWriteTextFormat> formats[4];  // by bold | italic << 1
   Com<IDWriteTextFormat> proportional[4];  // the same in the system UI font
+  std::map<int, Com<IDWriteTextFormat>> weighted;  // proportional, by weight*2 + italic, for the other weights
+  float font_size = 0;
   Com<ID2D1SolidColorBrush> brush;
 
   WindowOptions options;
@@ -280,6 +282,8 @@ bool Window::Impl::createDevice() {
 // and the font's line height, in pixels at the monitor's DPI.
 void Window::Impl::makeFonts() {
   float size = static_cast<float>(options.font_points * dpi / 72.0);
+  font_size = size;
+  weighted.clear();
   std::wstring family = widen(options.font);
   for (int i = 0; i < 4; i++) {
     DWRITE_FONT_WEIGHT weight = (i & 1) ? DWRITE_FONT_WEIGHT_BOLD : DWRITE_FONT_WEIGHT_NORMAL;
@@ -367,7 +371,18 @@ ID2D1Bitmap * Window::Impl::bitmapFor(const ImagePlacement & placement) {
 }
 
 void Window::Impl::drawTextRun(const TextRun & run, float x, float y, int box_cols, const Color & fg) {
-  IDWriteTextFormat * format = (run.font == TextFont::PROPORTIONAL ? proportional : formats)[(run.bold ? 1 : 0) | (run.italic ? 2 : 0)].get();
+  IDWriteTextFormat * format = nullptr;
+  if (run.font == TextFont::PROPORTIONAL && run.weight != kWeightNormal && run.weight != kWeightBold) {
+    Com<IDWriteTextFormat> & slot = weighted[run.weight * 2 + (run.italic ? 1 : 0)];
+    if (!slot) {
+      dwrite->CreateTextFormat(L"Segoe UI", nullptr, static_cast<DWRITE_FONT_WEIGHT>(run.weight), run.italic ? DWRITE_FONT_STYLE_ITALIC : DWRITE_FONT_STYLE_NORMAL,
+                               DWRITE_FONT_STRETCH_NORMAL, font_size, L"", slot.put());
+      if (slot) slot->SetWordWrapping(DWRITE_WORD_WRAPPING_NO_WRAP);
+    }
+    format = slot.get();
+  } else {
+    format = (run.font == TextFont::PROPORTIONAL ? proportional : formats)[(run.weight >= 600 ? 1 : 0) | (run.italic ? 2 : 0)].get();
+  }
   if (!format) return;
   const float w = static_cast<float>(box_cols * cell_w), h = static_cast<float>(cell_h);
   std::wstring text = widen(run.text);
