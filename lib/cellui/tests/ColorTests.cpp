@@ -2,7 +2,9 @@
 
 #include <cellui/Color.h>
 
+#include <clocale>
 #include <set>
+#include <string>
 
 using namespace cellui;
 
@@ -170,4 +172,22 @@ TEST(color_equality_and_hash) {
   std::set<size_t> hashes;
   for (int i = 0; i < 100; i++) hashes.insert(Color(i, 2 * i, 255 - i).hash());
   CHECK(hashes.size() == 100);
+}
+
+// A window toolkit sets the locale; with a decimal comma "0.7" must still parse.
+TEST(color_parsing_ignores_the_locale_decimal_separator) {
+  std::string previous = std::setlocale(LC_NUMERIC, nullptr);
+  bool comma = false;
+  for (const char * name : {"fi_FI.UTF-8", "de_DE.UTF-8", "fr_FR.UTF-8", "sv_SE.UTF-8"}) {
+    if (std::setlocale(LC_NUMERIC, name) && std::localeconv()->decimal_point[0] == ',') {
+      comma = true;
+      break;
+    }
+  }
+  Color parsed("oklch(0.75 0.15 60)");
+  Color percent("oklch(75% 0.15 60deg)");
+  std::setlocale(LC_NUMERIC, previous.c_str());
+  if (!comma) return;  // no such locale installed here
+  CHECK(parsed == Color::fromOklch(0.75f, 0.15f, 60.0f));
+  CHECK(percent == Color::fromOklch(0.75f, 0.15f, 60.0f));
 }
