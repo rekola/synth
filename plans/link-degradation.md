@@ -525,6 +525,27 @@ deflate ratio on real charts is known.
 6. **Colours** (section 2): the `ansi16` theme and track-colour table, `MONO` with reverse video;
    grey only if asked.
 7. **Window class** from the frame clock and vsync (section 1).
+8. **CPU for the audio.** Everything this plan adds runs on the UI thread, which shares the machine with
+   the audio thread, so the aim is not a faster encoder for its own sake but less CPU spent on pictures: a
+   slow ARM board or a loaded laptop should lose no audio blocks to the UI. Measure first, then cut only
+   what the numbers point at:
+   - **Measure the share.** CPU time per frame and per second, by stage (picture render, deflate, base64,
+     quantise, palette, dither, Sixel encode, backdrop emulation), in the `SYNTH_LINK_STATS` log, and the
+     audio thread's xrun and late-block counts with the UI running under each class. A stage is worth
+     speeding up only if it is a visible share of a core on the slowest machine we care about (a
+     Raspberry Pi class board, over SSH).
+   - **Encoder.** NEON for the match compare and Adler-32 (ARM now has no SIMD path), an AVX2 path chosen at
+     run time for x86, CRC-32 with PCLMUL or the ARM CRC instructions. The bytes stay identical on every
+     CPU: the portable-versus-SIMD test is extended to each path.
+   - **Quantisation and palette generation** (3.2, 3.3): if they show in the profile, the options are a
+     SIMD nearest-colour search, a palette reused across frames while the picture's colours hold (rebuilt
+     on a change or every N frames) and a histogram on a subsample.
+   - **Do less work, not just faster work.** Skip encoding a picture that did not change (the shared keys of
+     3.4 already do), drop to a cheaper deflate level when the CPU is the limit and the link is not,
+     and keep encoding off the UI thread's critical path if a stage still dominates (a worker thread at
+     lower priority than the audio, handing back the finished bytes).
+   - **Done when** the UI under the slowest class and the busiest scenario costs the audio thread no
+     missed blocks on the slowest machine, with the per-stage figures recorded here.
 
 ## 6. Decisions
 
