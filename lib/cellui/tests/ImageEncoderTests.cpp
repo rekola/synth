@@ -1,4 +1,5 @@
 #include "TestFramework.h"
+#include "Inflate.h"
 
 #include <cellui/BufferPlane.h>
 #include <cellui/term/FrameEncoder.h>
@@ -151,8 +152,7 @@ uint32_t be32(const std::vector<uint8_t> & d, size_t i) {
   return (uint32_t(d[i]) << 24) | (uint32_t(d[i + 1]) << 16) | (uint32_t(d[i + 2]) << 8) | d[i + 3];
 }
 
-// The scanlines of a PNG made by encodePng(): its stored deflate blocks
-// joined, with the zlib checksum verified.
+// The scanlines of a PNG made by encodePng(), inflated (the check value verified).
 std::vector<uint8_t> pngScanlines(const std::vector<uint8_t> & png, uint32_t & width, uint32_t & height) {
   std::vector<uint8_t> raw;
   size_t i = 8;
@@ -164,20 +164,8 @@ std::vector<uint8_t> pngScanlines(const std::vector<uint8_t> & png, uint32_t & w
       width = be32(png, data);
       height = be32(png, data + 4);
     } else if (type == "IDAT") {
-      size_t p = data + 2;
-      bool last = false;
-      while (!last) {
-        last = png[p] & 1;
-        size_t n = static_cast<size_t>(png[p + 1] | (png[p + 2] << 8));
-        raw.insert(raw.end(), png.begin() + static_cast<long>(p + 5), png.begin() + static_cast<long>(p + 5 + n));
-        p += 5 + n;
-      }
-      uint32_t a = 1, b = 0;
-      for (uint8_t v : raw) {
-        a = (a + v) % 65521;
-        b = (b + a) % 65521;
-      }
-      if (be32(png, p) != ((b << 16) | a)) raw.clear();
+      auto z = inflate_test::Inflater(png.data() + data, len).zlib();
+      raw = z ? *z : std::vector<uint8_t>{};
     }
     i = data + len + 4;
   }
@@ -363,4 +351,54 @@ TEST(dither_methods_by_name) {
   CHECK(Dither::byName("ordered", m) && m == Dither::Method::ORDERED);
   CHECK(Dither::byName("nearest", m) && m == Dither::Method::NEAREST);
   CHECK(!Dither::byName("bayer", m));
+}
+
+namespace {
+
+std::vector<uint8_t> unbase64(const std::string & text) {
+  std::vector<uint8_t> out;
+  uint32_t acc = 0;
+  int bits = 0;
+  for (char c : text) {
+    int v = c >= 'A' && c <= 'Z' ? c - 'A' : c >= 'a' && c <= 'z' ? c - 'a' + 26 : c >= '0' && c <= '9' ? c - '0' + 52 : c == '+' ? 62 : c == '/' ? 63 : -1;
+    if (v < 0) continue;
+    acc = (acc << 6) | static_cast<uint32_t>(v);
+    bits += 6;
+    if (bits >= 8) {
+      bits -= 8;
+      out.push_back(static_cast<uint8_t>(acc >> bits));
+    }
+  }
+  return out;
+}
+
+// The payload of a kitty upload that fits one chunk.
+std::string kittyPayload(const std::string & s) {
+  size_t start = s.find(';');
+  size_t end = s.find("\x1b\\", start);
+  return s.substr(start + 1, end - start - 1);
+}
+
+}  // namespace
+
+TEST(kitty_uploads_are_deflated_and_a_refusal_turns_it_off) {
+  StyleProvider styles;
+  CellBuffer b(4, 8);
+  BufferPlane root(b, styles);
+  root.setCellPixelSize(6, 2);
+  auto chart = root.createChild();
+  chart->resize(2, 3);
+  chart->drawImage(solid(6, 12, Image::pack(10, 20, 30)), 6, 12);
+  ImageEncoder enc(profile(PixelProtocol::KITTY));
+  root.refresh();
+  std::string first = enc.encode(b, root.images(), true);
+  CHECK(count(first, "o=z,a=t,f=24,s=6,v=12,i=1,") == 1);
+  auto z = inflate_test::Inflater(unbase64(kittyPayload(first)).data(), unbase64(kittyPayload(first)).size()).zlib();
+  CHECK(z && z->size() == 6u * 12 * 3 && (*z)[0] == 10 && (*z)[1] == 20 && (*z)[2] == 30);
+  // The terminal refuses it: pictures go up raw from then on, the refused one again.
+  CHECK(!enc.handleKittyReply("i=1;EINVAL:could not decompress").empty());
+  CHECK(!enc.compressing());
+  root.refresh();
+  std::string again = enc.encode(b, root.images(), false);
+  CHECK(count(again, "a=t,f=24,s=6,v=12,i=2,") == 1 && count(again, "o=z") == 0);
 }

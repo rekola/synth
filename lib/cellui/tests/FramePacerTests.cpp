@@ -264,3 +264,40 @@ TEST(pacer_a_frame_is_wanted_until_it_starts) {
   p.onFrameStart(at(0));
   CHECK(!p.dirty() && !p.mayStart(at(1000)));
 }
+
+TEST(pacer_frames_started_before_the_last_reply_are_back_to_back_even_if_their_last_byte_is_taken_later) {
+  // A fast link behind a small buffer: a 25 kB frame takes 25 ms to drain at 1 MB/s, so its last byte is
+  // taken long after the reply to the frame before it (10 ms after that one's last byte). Judged by the
+  // last byte they would never be back to back and the estimate would keep its start-up value (2 MB/s,
+  // twice the link's).
+  PacerConfig cfg;
+  cfg.min_frame_interval = Ms(1);
+  FramePacer p(true, cfg);
+  startUp(p, 10000, 10, 5);  // 2 MB/s: a lower bound that is twice too high
+  CHECK(p.estimatedBytesPerSec() > 1.9e6);
+  int start = 100;
+  for (int i = 0; i < 40; i++) {
+    p.requestFrame();
+    p.onFrameStart(at(start));
+    p.onFrameSent(frame(25000), at(start + 25));
+    p.onAck(at(start + 25 + 10));
+    start += 25;
+  }
+  CHECK(p.estimatedBytesPerSec() < 1.3e6 && p.estimatedBytesPerSec() > 0.9e6);
+}
+
+TEST(pacer_reports_when_the_link_is_what_holds_the_next_frame_back) {
+  PacerConfig cfg;
+  FramePacer p(true, cfg);
+  startUp(p, 10000, 100, 10);  // 1 MB/s
+  send(p, 50000, 200);         // 50 ms on the link
+  p.requestFrame();
+  CHECK(p.linkBound(at(220)));   // waiting for the gap its size needs
+  CHECK(!p.linkBound(at(260)));  // the gap is over: allowed
+  FramePacer q(true, cfg);
+  startUp(q, 10000, 100, 10);
+  send(q, 1000, 200);  // 1 ms on the link: the floor between frames is what holds it
+  q.requestFrame();
+  CHECK(!q.linkBound(at(205)) && !q.mayStart(at(205)));
+  CHECK(!FramePacer(false).linkBound(at(0)));  // a fixed rate measures nothing
+}

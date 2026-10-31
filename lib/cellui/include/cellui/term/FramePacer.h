@@ -37,6 +37,9 @@ struct PacerConfig {
   // samples; a sample counts at most `sample_cap` times the current estimate,
   // and a lower window pulls the estimate down by `down_weight` of the way.
   size_t sample_window = 8;
+  // A sample is the bytes of up to this many frames sent back to back, over the time from the reply
+  // before them to the last: replies come in batches, and one pair of them is too noisy.
+  size_t sample_frames = 4;
   double sample_cap = 2.0;
   double down_weight = 0.125;
   // Every `probe_every` frames one is sent `probe_gain` times faster than
@@ -103,6 +106,11 @@ class FramePacer {
   // Whether a frame may start now (the caller also needs its output queue
   // to be empty).
   bool mayStart(TimePoint now) const;
+  // Whether the link is what holds the next frame back: one is wanted and not allowed, and not
+  // just by the floor between frames (the gap its size needs at the estimated bandwidth, or the
+  // bytes already in flight). Only then is the bandwidth estimate a measurement of the link; when
+  // the application is the limit it only says what the application sent.
+  bool linkBound(TimePoint now) const;
   // When the time alone lets the next frame start, if one is wanted and
   // nothing else is holding it; also the moment a stall would be declared.
   // `queue_empty`: whether the output queue has drained; while it has not, a
@@ -143,7 +151,8 @@ class FramePacer {
     bool probe = false;       // the bare query, not a frame
     bool probing = false;     // a frame sent faster than the estimate
     FrameBytes size;
-    TimePoint sent;
+    TimePoint started;  // when the frame began to be made: its first bytes went into the queue
+    TimePoint sent;     // when its last byte was taken by the descriptor
   };
   size_t inFlightBytes() const;
   bool inFlightAllows() const;
@@ -165,6 +174,12 @@ class FramePacer {
   bool rtt_known_ = false;
   std::deque<Fence> in_flight_;
   std::deque<double> samples_;
+  struct Acked {
+    TimePoint ack;
+    size_t bytes = 0;
+    bool back_to_back = false;  // sent before the reply to the frame before it
+  };
+  std::deque<Acked> acked_;
   size_t late_ = 0;
 
   std::optional<TimePoint> last_start_;    // when the last frame that sent anything started
@@ -173,7 +188,7 @@ class FramePacer {
   size_t last_sent_bytes_ = 0;
   bool last_sent_probing_ = false;
   std::optional<TimePoint> last_ack_;
-  std::optional<TimePoint> last_ack_sent_; // when the frame last acknowledged was sent
+  std::optional<TimePoint> last_ack_started_;  // when the frame last acknowledged was started
   bool last_ack_probing_ = false;
   std::optional<TimePoint> probe_ack_;     // when the bare query was answered
   size_t frame_acks_ = 0;

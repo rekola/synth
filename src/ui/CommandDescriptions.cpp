@@ -58,6 +58,7 @@ commandDescription(std::string_view name) {
       {"save-buffers-kill-terminal", "Quit, asking first if any song has unsaved changes"},
       {"save-buffer", "Save the current buffer"},
       {"save-buffer-as", "Save the current buffer under a new name"},
+      {"set-link-class", "Pin how fast the link to the display is taken to be, or measure it"},
       {"select-capture-device", "Choose the audio input device"},
       {"select-midi-input", "Choose the MIDI input device"},
       {"select-named-buffer", "Switch to an open song by name, or start a new one"},

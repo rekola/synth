@@ -122,6 +122,43 @@ TEST(gtk_window_renders_in_ticks_only_while_a_frame_is_wanted) {
   w->setFrameHandler(nullptr);
 }
 
+TEST(gtk_window_link_status_has_the_vsync_rate_and_follows_frames_asked_for_in_a_row) {
+  gtk::Window * w = theWindow();
+  if (!w) return;
+  StyleProvider styles;
+  CellBuffer screen(w->rows(), w->cols());
+  BufferPlane root(screen, styles);
+  root.putstr(0, 0, "link");
+  root.refresh();
+  // Idle: the class is the default and the description says what the monitor does.
+  LinkStatus idle = w->linkStatus();
+  CHECK(idle.cls == LinkClass::FULL && !idle.pinned);
+  CHECK(idle.description.find("vsync") != std::string::npos);
+  // Frames asked for one after the other for a while: the rate achieved is read.
+  int calls = 0;
+  w->setFrameHandler([&](int64_t) {
+    calls++;
+    w->present(screen, {}, root.images());
+    w->requestFrame();
+  });
+  w->requestFrame();
+  CHECK(pumpUntil(*w, [&] { return w->linkStatus().description.find("fps") != std::string::npos; }, 4000));
+  w->setFrameHandler(nullptr);
+  LinkStatus busy = w->linkStatus();
+  CHECK(busy.description.find("vsync") != std::string::npos);
+  CHECK(calls > 8);
+  // A pin holds, and clears.
+  int changes = 0;
+  w->setLinkHandler([&](const LinkStatus &) { changes++; });
+  w->setLinkPin(LinkClass::HZ_15);
+  CHECK(w->linkStatus().cls == LinkClass::HZ_15 && w->linkStatus().pinned && changes == 1);
+  w->setLinkPin(std::nullopt);
+  CHECK(!w->linkStatus().pinned);
+  w->setLinkHandler(nullptr);
+  w->setLinkPin(LinkClass::FULL);
+  w->setLinkPin(std::nullopt);
+}
+
 TEST(gtk_window_draws_a_frame_over_a_backdrop_layer) {
   gtk::Window * w = theWindow();
   if (!w) return;

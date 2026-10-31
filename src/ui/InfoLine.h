@@ -18,6 +18,9 @@ class InfoLine : public UIElement {
     setFgColor(getPlane().getStyles().info_line_fg_color);
   }
 
+  // What the link to the display is, when it is not at full speed ("" for nothing to show).
+  void setLinkText(std::string text) { link_text_ = std::move(text); }
+
   bool render(const StyleProvider & styles, bool refresh = false) {
     auto & info = getController().getPlaybackInfo();
     auto & song = getController().getSong();
@@ -39,9 +42,9 @@ class InfoLine : public UIElement {
     auto is_playing = info.isPlaying();
 
     if (refresh || new_version != current_version_ || new_position != current_position_ ||
-	num_voices != current_num_voices_ || num_allocated_voices != current_num_allocated_voices_ ||
-	buffer_name != current_buffer_name_ || buffer_names != current_buffer_names_ ||
-	latency_ms != current_latency_ms_ || is_playing != current_is_playing_) {
+        num_voices != current_num_voices_ || num_allocated_voices != current_num_allocated_voices_ ||
+        buffer_name != current_buffer_name_ || buffer_names != current_buffer_names_ ||
+        latency_ms != current_latency_ms_ || is_playing != current_is_playing_ || link_text_ != current_link_text_) {
       auto [ rows, cols ] = getDim();
 
       // Controller::getBufferDisplayName()'s own text - basename-only,
@@ -62,6 +65,9 @@ class InfoLine : public UIElement {
       // The transport's musical position (Song::formatPosition()).
       auto s = fmt::format(" {} {}{}{} voices:{}/{}", buffer_display_name, song.formatPosition(info.getAbsolutePosition()),
                            info.isPlaying() ? " PLAYING" : "", latency, num_voices, num_allocated_voices);
+      // The link, when it is not at full speed: on the left, which has the room, the right half
+      // moving over for it as it does for a long buffer name.
+      if (!link_text_.empty()) s += "  " + link_text_;
       // The right half starts mid-line, or just past the left half's text
       // when a long buffer name reaches that far.
       auto right_col = std::max(cols / 2, Utf8::displayWidth(s) + 2);
@@ -77,7 +83,8 @@ class InfoLine : public UIElement {
       auto tempo = song.getTempo();
 
       auto swing_text = song.getSwing() > swing::kStraight ? fmt::format(" swing {}%", song.getSwing()) : std::string();
-      putstr(0, right_col, fmt::format("{} {} {} {}{}", tuning_text, key, tempo, song.getBarsAt(info.getAbsolutePosition()).signature.toString(), swing_text));
+      auto right_text = fmt::format("{} {} {} {}{}", tuning_text, key, tempo, song.getBarsAt(info.getAbsolutePosition()).signature.toString(), swing_text);
+      putstr(0, right_col, right_text);
 
       current_version_ = new_version;
       current_position_ = new_position;
@@ -85,6 +92,7 @@ class InfoLine : public UIElement {
       current_num_allocated_voices_ = num_allocated_voices;
       current_latency_ms_ = latency_ms;
       current_is_playing_ = is_playing;
+      current_link_text_ = link_text_;
       current_buffer_name_ = buffer_name;
       current_buffer_names_ = std::move(buffer_names);
 
@@ -106,6 +114,7 @@ private:
   int current_latency_ms_ = -1;
   // Stopping at the same row changes nothing else shown.
   bool current_is_playing_ = false;
+  std::string link_text_, current_link_text_;
   // Its own dirty-check input too, for the same reason: switching to a
   // different open buffer (Controller::switchToBuffer()) doesn't
   // necessarily change the new song's own version number to something

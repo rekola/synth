@@ -109,6 +109,43 @@ The page is drawn by `Gallery` through `Plane` only, so any backend can show
 it. The text of the page is compared with `tests/golden/gallery.txt`; after a
 deliberate change, run the tests with `CELLUI_UPDATE_GOLDEN=1` to rewrite it.
 
+## Adapting to a slow link
+
+*Partly built.* The link status, its classes, the status-bar text and pinning a class exist; what an
+application does at a class, and the colour and picture changes below, are still design. The terminal backend measures its link (bandwidth and round
+trip; see `cellui/term/FramePacer.h`), and a window knows its vsync rate and how many
+frames it really gets. Each backend turns that into a **link status**:
+
+- a **class**, `FULL` (60 Hz and up), `HZ_30`, `HZ_15`, `HZ_5` or `HZ_1`, for what the
+  link sustains; the application listens for changes and, in the slow classes, stops
+  what it cannot afford: scopes first, then animations, hover effects and smooth
+  scrolling (the pattern editor then jumps a page at a time) and the live blur behind
+  a dialog, which freezes;
+- a **description**, a string the backend writes for its own kind of link, shown
+  as is in the application's status bar: `480 kB/s, RTT 38 ms` for a terminal,
+  `60 Hz vsync, 58 fps` for a window.
+
+A class can be pinned by the user (`--link-class`, the `set-link-class` command) and is otherwise measured,
+quickly down and slowly up. The terminal trusts its bandwidth estimate only while the link is what holds
+frames back; when the application is the limit the estimate only says what it sent, and the class holds.
+
+To see what a link carries today, run the application with `SYNTH_LINK_STATS=<file>`: the terminal
+backend then writes a line a second with the frames and bytes sent (pictures, placement, the rest),
+the pacer's bandwidth and round trip, and the pictures uploaded by size.
+
+Colours stay on every terminal that has any: an 8- or 16-colour terminal gets a theme made
+of its own palette's hues (so track colours stay apart), and there is no automatic grey. A
+terminal with no colour at all gets `MONO`, with reverse video for highlights. A slow link
+lowers **picture quality** instead, because pictures are rectangles that can have fewer colours
+without a seam: palette pictures in the kitty and iTerm2 protocols, a palette made from the
+picture's own colours in Sixel (not a fixed 240-colour cube), compressed by a small deflate
+encoder in the library, with a Sixel image sent in its changed tiles and not its bounding box.
+
+What the classes never touch: dials stay pictures (they are mostly still, and the
+terminal keeps them after the first upload; a widget gives a picture a key and shares one upload
+across every place it is shown), and an application's own widgets decide what a class means
+for them.
+
 ## Events and signals
 
 *Implemented: `Signal` and `Connection` (`cellui/Signal.h`) and posted events on the widget tree (`cellui/EventTypes.h`, `Widget::attach`/`on`/`post`/`postToRoot`), input events and `InputDispatcher` (`cellui/InputEvents.h`, `cellui/InputDispatcher.h`), the cross-thread queues (`cellui/ThreadPosts.h`) and the loop additions (`cellui/EventLoop.h`).*

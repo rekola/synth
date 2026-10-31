@@ -58,6 +58,13 @@ class Window : public Backend {
   void requestFrame() override;
   void setFrameHandler(FrameHandler handler) override;
 
+  // The class comes from the frame rate the window really gets while frames are asked for one
+  // after the other, the description is the monitor's vsync rate and that frame rate ("60 Hz
+  // vsync, 58 fps"). Idle, the last class holds.
+  LinkStatus linkStatus() const override;
+  void setLinkHandler(LinkHandler handler) override;
+  void setLinkPin(std::optional<LinkClass> pin) override;
+
   // Makes wakeFd() readable; any thread may call it.
   void wake();
 

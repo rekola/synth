@@ -61,6 +61,15 @@ bool FramePacer::mayStart(TimePoint now) const {
   return windowAllows();
 }
 
+bool FramePacer::linkBound(TimePoint now) const {
+  if (!fences_ || !dirty_ || bandwidth_ <= 0 || mayStart(now)) return false;
+  if (!windowAllows()) return true;
+  if (!last_start_) return false;
+  double floor = duration<double>(config_.min_frame_interval).count();
+  double gap = static_cast<double>(last_sent_bytes_) / (bandwidth_ * (wouldProbe() ? config_.probe_gain : 1.0));
+  return gap > floor && now < plus(*last_start_, gap);
+}
+
 std::optional<FramePacer::TimePoint> FramePacer::deadline(bool queue_empty) const {
   std::optional<TimePoint> best;
   auto consider = [&](TimePoint t) {
@@ -110,6 +119,7 @@ void FramePacer::onFrameSent(FrameBytes size, TimePoint t_sent) {
     Fence f;
     f.probing = starting_probe_;
     f.size = size;
+    f.started = pending_start_;
     f.sent = t_sent;
     in_flight_.push_back(f);
   }
@@ -158,20 +168,33 @@ void FramePacer::onAck(TimePoint t_ack) {
   } else {
     double delay = micros(t_ack, f.sent) - size / bandwidth_ * 1e6;
     if (frame_acks_ > static_cast<size_t>(config_.rtt_refine_after)) rtt_min_us_ = std::min(rtt_min_us_, std::max(0.0, delay));
-    if (last_ack_ && last_ack_sent_ && f.sent <= *last_ack_) {
-      // Sent back to back with the one before: the gap between the replies
-      // is the time the link took for this frame.
-      double gap = seconds(t_ack, *last_ack_);
+    // Started before the reply to the one before: the link was never left idle between them. (The
+    // last byte is no test: with a small buffer in front of a fast link it is taken long after the
+    // frame began, and after that reply.)
+    bool back_to_back = last_ack_ && last_ack_started_ && f.started <= *last_ack_;
+    acked_.push_back({t_ack, f.size.total(), back_to_back});
+    while (acked_.size() > config_.sample_frames + 1) acked_.pop_front();
+    if (back_to_back) {
+      // Sent back to back with the ones before: the time between the replies is what the link took
+      // for those frames. The bytes of up to `sample_frames` of them, over the time from the reply
+      // before them to this one.
+      size_t k = 0, bytes = 0;
+      for (size_t j = acked_.size(); j-- > 1 && k < config_.sample_frames && acked_[j].back_to_back;) {
+        bytes += acked_[j].bytes;
+        k++;
+      }
+      double gap = k ? seconds(t_ack, acked_[acked_.size() - 1 - k].ack) : 0;
       if (gap > 1e-5) {
-        double sample = std::min(size / gap, config_.sample_cap * bandwidth_);
+        double sample = std::min(static_cast<double>(bytes) / gap, config_.sample_cap * bandwidth_);
         samples_.push_back(sample);
         while (samples_.size() > config_.sample_window) samples_.pop_front();
         double target = *std::max_element(samples_.begin(), samples_.end());
         if (target >= bandwidth_) bandwidth_ = target;
         else bandwidth_ += config_.down_weight * (target - bandwidth_);
-        double send_gap = seconds(f.sent, *last_ack_sent_);
-        if (!f.probing && !last_ack_probing_ && send_gap > 1e-5) {
-          lag_ratios_.push_back(gap / send_gap);
+        double gap1 = seconds(t_ack, *last_ack_);
+        double send_gap = seconds(f.started, *last_ack_started_);
+        if (!f.probing && !last_ack_probing_ && send_gap > 1e-5 && gap1 > 1e-5) {
+          lag_ratios_.push_back(gap1 / send_gap);
           while (lag_ratios_.size() > static_cast<size_t>(config_.lag_frames)) lag_ratios_.pop_front();
           if (lag_ratios_.size() == static_cast<size_t>(config_.lag_frames) &&
               std::all_of(lag_ratios_.begin(), lag_ratios_.end(), [&](double r) { return r > config_.lag_ratio; })) {
@@ -187,7 +210,7 @@ void FramePacer::onAck(TimePoint t_ack) {
   bandwidth_ = std::max(bandwidth_, config_.min_bandwidth);
   if (config_.max_bandwidth > 0) bandwidth_ = std::min(bandwidth_, config_.max_bandwidth);
   last_ack_ = t_ack;
-  last_ack_sent_ = f.sent;
+  last_ack_started_ = f.started;
   last_ack_probing_ = f.probing;
 }
 
@@ -209,7 +232,8 @@ void FramePacer::tick(TimePoint now) {
   lag_ratios_.clear();
   delay_streak_ = 0;
   last_ack_.reset();
-  last_ack_sent_.reset();
+  last_ack_started_.reset();
+  acked_.clear();
 }
 
 PacerStats FramePacer::stats(TimePoint now) const {

@@ -164,6 +164,10 @@ bool TerminalSession::start(SessionOptions & options, std::string * error) {
   dither_ = options.dither;
   parser_.setGrace(options.grace);
   pacer_config_ = options.pacer;
+  link_ = LinkMonitor(options.link);
+  link_thresholds_ = options.link_thresholds;
+  link_opened_ = std::chrono::steady_clock::now();
+  if (const char * path = std::getenv("SYNTH_LINK_STATS")) link_log_ = std::fopen(path, "a");
 
   // cbreak, plus what an Emacs-style key map needs: Ctrl-S/Q (flow
   // control), Ctrl-V/O (the line discipline's own) and, unless kept,
@@ -312,6 +316,8 @@ void TerminalSession::close() {
   }
   g.fd = -1;
   g.wake_write = -1;
+  if (link_log_) std::fclose(link_log_);
+  link_log_ = nullptr;
   ::close(wake_read_);
   ::close(wake_write_);
   wake_read_ = wake_write_ = -1;
@@ -438,9 +444,85 @@ std::string TerminalSession::fenceBytes() {
   return "\x1b[" + std::to_string(rows_) + ";1H\x1b[6n";
 }
 
+// One line a second, key=value, for measuring what a link carries (phase 0 of the link
+// classes): the frames and bytes sent in the second (picture data, placement, the rest),
+// the pacer's bandwidth and RTT, and each picture size uploaded as WxH:count/bytes.
+void TerminalSession::logLinkStats(std::chrono::steady_clock::time_point now) {
+  if (!link_log_) return;
+  if (link_log_last_ == std::chrono::steady_clock::time_point{}) link_log_last_ = now;
+  double dt = std::chrono::duration<double>(now - link_log_last_).count();
+  if (dt < 1.0) return;
+  PacerStats s = pacerStats();
+  std::fprintf(link_log_, "t=%.1f frames=%zu upload=%zu placement=%zu other=%zu bandwidth=%.0f rtt_ms=%.1f in_flight=%zu pics=", dt,
+               s.frames - link_log_frames_, s.totals.upload - link_log_mark_.upload, s.totals.placement - link_log_mark_.placement,
+               s.totals.other - link_log_mark_.other, s.bandwidth, s.rtt_min_us / 1000.0, s.bytes_in_flight);
+  bool first = true;
+  for (const auto & [size, stat] : link_log_pictures_) {
+    std::fprintf(link_log_, "%s%dx%d:%zu/%zu", first ? "" : ",", size.first, size.second, stat.uploads, stat.bytes);
+    first = false;
+  }
+  std::fprintf(link_log_, "%s\n", first ? "-" : "");
+  std::fflush(link_log_);
+  link_log_last_ = now;
+  link_log_frames_ = s.frames;
+  link_log_mark_ = s.totals;
+  link_log_pictures_.clear();
+}
+
+namespace {
+
+std::string formatRate(double bytes_per_sec) {
+  char buf[32];
+  if (bytes_per_sec >= 1e6) std::snprintf(buf, sizeof buf, "%.1f MB/s", bytes_per_sec / 1e6);
+  else if (bytes_per_sec >= 1e3) std::snprintf(buf, sizeof buf, "%.0f kB/s", bytes_per_sec / 1e3);
+  else std::snprintf(buf, sizeof buf, "%.0f B/s", bytes_per_sec);
+  return buf;
+}
+
+}  // namespace
+
+void TerminalSession::updateLink(std::chrono::steady_clock::time_point now) {
+  constexpr auto kInterval = std::chrono::seconds(1);
+  constexpr auto kWarmUp = std::chrono::seconds(4);
+  if (link_last_update_ == std::chrono::steady_clock::time_point{}) link_last_update_ = now;
+  if (now - link_last_update_ < kInterval) return;
+  double span = std::chrono::duration<double>(now - link_last_update_).count();
+  double blocked = link_blocked_seconds_ / span;
+  link_blocked_seconds_ = 0;
+  link_last_update_ = now;
+  PacerStats s = pacerStats();
+  if (!s.fences) {
+    // No answers to the cursor queries: the pacer sends at a fixed rate and measures nothing.
+    link_.setDescription("no cursor reports, " + std::to_string(static_cast<int>(pacer_config_.fallback_fps)) + " Hz");
+    link_.update(now, LinkClass::HZ_5, LinkClass::HZ_5);
+    return;
+  }
+  if (s.stalls != link_stalls_seen_) {
+    link_stalls_seen_ = s.stalls;
+    link_stalled_at_ = now;
+  }
+  bool settled = now - link_opened_ >= kWarmUp && s.acks >= 12 && now - link_stalled_at_ >= kWarmUp;
+  if (!settled || s.bandwidth <= 0 || blocked < 0.4) return;
+  std::string text = formatRate(s.bandwidth);
+  if (s.rtt_min_us >= 1000) text += ", RTT " + std::to_string(static_cast<int>(s.rtt_min_us / 1000.0 + 0.5)) + " ms";
+  else if (s.rtt_min_us > 0) text += ", RTT <1 ms";
+  link_.setDescription(std::move(text));
+  link_.update(now, linkClassForBandwidth(link_thresholds_, s.bandwidth), linkClassForBandwidth(link_thresholds_, s.bandwidth, link_.classifierConfig().up_margin));
+}
+
 void TerminalSession::pumpFrame() {
   if (!pacing_ || fd_ < 0 || !open_) return;
   auto now = std::chrono::steady_clock::now();
+  logLinkStats(now);
+  // The time since the last turn counts as link-bound if the link is what holds the next frame back.
+  // The state the last turn left held for the time since: the loop sleeps through a stretch that the
+  // link holds a frame back, and wakes when it ends.
+  if (link_was_blocked_ && link_last_pump_ != std::chrono::steady_clock::time_point{}) {
+    link_blocked_seconds_ += std::min(1.0, std::chrono::duration<double>(now - link_last_pump_).count());
+  }
+  link_was_blocked_ = pacer_.linkBound(now) || (!out_.empty() && pacer_.dirty());
+  link_last_pump_ = now;
+  updateLink(now);
   pacer_.tick(now);
   late_replies_ += pacer_.takeLateReplies();
   if (!out_.empty() || !pacer_.mayStart(now)) return;
@@ -493,6 +575,12 @@ void TerminalSession::sendFrame(const CellBuffer & frame, const CursorRequest & 
     body = encoder_.encode(frame, cursor, pixels);
   }
   if (body.empty()) return;  // nothing changed: no bytes, no frame
+  if (link_log_) {
+    for (const auto & [dims, stat] : images_.takePictureStats()) {
+      link_log_pictures_[dims].uploads += stat.uploads;
+      link_log_pictures_[dims].bytes += stat.bytes;
+    }
+  }
   FrameBytes size;
   size.upload = images_.lastSizes().upload;
   size.placement = images_.lastSizes().placement;

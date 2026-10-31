@@ -1,5 +1,6 @@
 #include <cellui/term/ImageEncoder.h>
 
+#include <cellui/term/Deflate.h>
 #include <cellui/term/FrameEncoder.h>
 
 #include <algorithm>
@@ -153,22 +154,6 @@ int orderedIndex(int r, int g, int b, float threshold) {
 
 int percent(int v) { return static_cast<int>(std::lround(v * 100.0 / 255.0)); }
 
-uint32_t crc32(const uint8_t * data, size_t size, uint32_t crc = 0) {
-  static uint32_t table[256];
-  static bool ready = false;
-  if (!ready) {
-    for (uint32_t n = 0; n < 256; n++) {
-      uint32_t c = n;
-      for (int k = 0; k < 8; k++) c = (c & 1) ? 0xedb88320u ^ (c >> 1) : c >> 1;
-      table[n] = c;
-    }
-    ready = true;
-  }
-  crc = ~crc;
-  for (size_t i = 0; i < size; i++) crc = table[(crc ^ data[i]) & 0xff] ^ (crc >> 8);
-  return ~crc;
-}
-
 void put32(std::vector<uint8_t> & out, uint32_t v) {
   out.push_back(static_cast<uint8_t>(v >> 24));
   out.push_back(static_cast<uint8_t>(v >> 16));
@@ -209,26 +194,7 @@ std::vector<uint8_t> encodePng(const Image & image, int x0, int y0, int width, i
       raw.push_back(Image::alpha(p));
     }
   }
-  // A zlib stream of stored deflate blocks.
-  std::vector<uint8_t> z = {0x78, 0x01};
-  size_t pos = 0;
-  do {
-    size_t n = std::min<size_t>(65535, raw.size() - pos);
-    bool last = pos + n == raw.size();
-    z.push_back(last ? 1 : 0);
-    z.push_back(static_cast<uint8_t>(n));
-    z.push_back(static_cast<uint8_t>(n >> 8));
-    z.push_back(static_cast<uint8_t>(~n));
-    z.push_back(static_cast<uint8_t>(~n >> 8));
-    z.insert(z.end(), raw.begin() + static_cast<std::ptrdiff_t>(pos), raw.begin() + static_cast<std::ptrdiff_t>(pos + n));
-    pos += n;
-  } while (pos < raw.size());
-  uint32_t a = 1, b = 0;
-  for (uint8_t v : raw) {
-    a = (a + v) % 65521;
-    b = (b + a) % 65521;
-  }
-  put32(z, (b << 16) | a);
+  std::vector<uint8_t> z = zlibCompress(raw);
 
   std::vector<uint8_t> png = {0x89, 'P', 'N', 'G', '\r', '\n', 0x1a, '\n'};
   std::vector<uint8_t> ihdr;
@@ -386,6 +352,7 @@ std::string ImageEncoder::kitty(const CellBuffer & frame, const ImagePlacement &
   const Image & img = *p.image;
   uint32_t old_id = shown.id;
   bool changed = fresh || shown.version != img.version;
+  size_t upload_before = sizes_.upload;
   if (changed) {
     // A new picture goes up under a new id; the old one stays on screen
     // until the new one is placed.
@@ -399,18 +366,30 @@ std::string ImageEncoder::kitty(const CellBuffer & frame, const ImagePlacement &
       rgb.push_back(Image::green(px));
       rgb.push_back(Image::blue(px));
     }
+    // Compressed when that saves enough to be worth the terminal inflating it.
+    bool deflated = false;
+    if (compress_) {
+      std::vector<uint8_t> z = zlibCompress(rgb);
+      if (z.size() * 10 < rgb.size() * 9) {
+        rgb = std::move(z);
+        deflated = true;
+        deflated_ids_.insert(shown.id);
+      }
+    }
     std::string data = base64(rgb);
     for (size_t i = 0; i < data.size() || i == 0; i += kKittyChunk) {
       bool more = i + kKittyChunk < data.size();
       size_t chunk_start = out.size();
       out += "\x1b_G";
-      if (i == 0) out += "a=t,f=24,s=" + std::to_string(img.width) + ",v=" + std::to_string(img.height) + ",i=" + std::to_string(shown.id) + ",";
+      if (i == 0) out += std::string(deflated ? "o=z," : "") + "a=t,f=24,s=" + std::to_string(img.width) + ",v=" + std::to_string(img.height) + ",i=" + std::to_string(shown.id) + ",";
       out += "q=1,m=" + std::string(more ? "1" : "0") + ";";
       out += data.substr(i, kKittyChunk);
       out += "\x1b\\";
       sizes_.upload += out.size() - chunk_start;
       if (data.empty()) break;
     }
+    picture_stats_[{img.width, img.height}].uploads++;
+    picture_stats_[{img.width, img.height}].bytes += sizes_.upload - upload_before;
   }
   std::vector<Rect> rects = visibleRects(frame, p, false);
   if (changed || cleared || rects != shown.rects || p.row != shown.row || p.col != shown.col) {
@@ -443,6 +422,7 @@ std::string ImageEncoder::kitty(const CellBuffer & frame, const ImagePlacement &
     shown.col = p.col;
   }
   if (changed && old_id) {
+    deflated_ids_.erase(old_id);
     std::string del = "\x1b_Ga=d,d=I,i=" + std::to_string(old_id) + ",q=1\x1b\\";
     sizes_.placement += del.size();
     out += del;
@@ -495,6 +475,8 @@ std::string ImageEncoder::sixel(const CellBuffer & frame, const ImagePlacement &
   size_t before = out.size();
   out += encodeSixel(img, x, y, w, h, keep, dither);
   sizes_.upload += out.size() - before;
+  picture_stats_[{p.image->width, p.image->height}].uploads++;
+  picture_stats_[{p.image->width, p.image->height}].bytes += out.size() - before;
   return out;
 }
 
@@ -525,6 +507,8 @@ std::string ImageEncoder::iterm2(const CellBuffer & frame, const ImagePlacement 
     out += "\x1b]1337;File=inline=1;size=" + std::to_string(png.size()) + ";width=" + std::to_string(cols) +
            ";height=" + std::to_string(rows) + ";preserveAspectRatio=0;doNotMoveCursor=1:" + base64(png) + "\a";
     sizes_.upload += out.size() - osc_start;
+    picture_stats_[{img.width, img.height}].uploads++;
+    picture_stats_[{img.width, img.height}].bytes += out.size() - osc_start;
   }
   return out;
 }
@@ -564,14 +548,22 @@ std::string ImageEncoder::encode(const CellBuffer & frame, const std::vector<Ima
   return out;
 }
 
-std::string ImageEncoder::handleKittyReply(const std::string & body) const {
+std::string ImageEncoder::handleKittyReply(const std::string & body) {
   size_t semi = body.find(';');
   std::string message = semi == std::string::npos ? "" : body.substr(semi + 1);
   if (message == "OK") return "";
+  // (a reply to a compressed upload that is not an error never comes: q=1)
   std::string keys = body.substr(0, semi);
   uint32_t id = 0;
   size_t at = keys.find("i=");
   if (at != std::string::npos) id = static_cast<uint32_t>(std::strtoul(keys.c_str() + at + 2, nullptr, 10));
+  if (id && deflated_ids_.erase(id) && compress_) {
+    // The terminal refused a compressed upload: send raw from now on, and the refused pictures again.
+    compress_ = false;
+    for (auto & [key, shown] : shown_) {
+      if (shown.id == id) shown.version = ~uint64_t{0};
+    }
+  }
   std::string who = "kitty graphics";
   for (const auto & [key, shown] : shown_) {
     if (id && shown.id == id) who += " image key " + std::to_string(key);

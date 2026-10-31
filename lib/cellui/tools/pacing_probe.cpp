@@ -35,6 +35,7 @@ int main(int argc, char ** argv) {
   double seconds = 5;
   int img_w = 80, img_h = 80, images = 6;
   int min_interval_ms = -1;
+  std::string pin;
   for (int i = 1; i + 1 < argc; i += 2) {
     std::string a = argv[i];
     if (a == "--mode") mode = argv[i + 1];
@@ -42,6 +43,7 @@ int main(int argc, char ** argv) {
     else if (a == "--out") out_path = argv[i + 1];
     else if (a == "--images") images = std::atoi(argv[i + 1]);
     else if (a == "--min-interval-ms") min_interval_ms = std::atoi(argv[i + 1]);
+    else if (a == "--pin") pin = argv[i + 1];
     else if (a == "--img") std::sscanf(argv[i + 1], "%dx%d", &img_w, &img_h);
   }
   FILE * log = std::fopen(out_path.c_str(), "w");
@@ -56,6 +58,12 @@ int main(int argc, char ** argv) {
   if (!session) {
     std::fprintf(log, "ERROR %s\n", error.c_str());
     return 1;
+  }
+  int link_changes = 0;
+  session->setLinkHandler([&](const LinkStatus &) { link_changes++; });
+  if (!pin.empty()) {
+    std::optional<LinkClass> pinned;
+    if (parseLinkClass(pin, pinned)) session->setLinkPin(pinned);
   }
   const DisplayInfo & display = session->display();
   StyleProvider styles;
@@ -171,6 +179,9 @@ int main(int argc, char ** argv) {
                "upload=%zu placement=%zu other=%zu kitty_errors=%zu\n",
                s.frames, elapsed, static_cast<double>(s.frames) / elapsed, s.bandwidth, s.rtt_min_us, s.acks, s.backoffs, s.stalls,
                s.fences ? 1 : 0, s.totals.upload, s.totals.placement, s.totals.other, s.kitty_errors);
+  LinkStatus link = session->linkStatus();
+  std::fprintf(log, "LINK class=%d name=%s pinned=%d changes=%d description=%s\n", static_cast<int>(link.cls), linkClassName(link.cls),
+               link.pinned ? 1 : 0, link_changes, link.description.c_str());
   session->close();
   return 0;
 }

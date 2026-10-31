@@ -1,6 +1,8 @@
 #ifndef _TERMINALUI_H_
 #define _TERMINALUI_H_
 
+#include <cellui/LinkStatus.h>
+#include <optional>
 #include <cellui/ChoiceModal.h>
 #include <cellui/InfoModal.h>
 #include <cellui/InputDispatcher.h>
@@ -53,6 +55,8 @@ class InteractiveUI : public UI {
   // Uses this keymap instead of the one the display declares (the --keymap
   // option). Takes effect in initialize().
   void setKeymapProfile(cellui::KeymapProfile profile) { keymap_profile_override_ = profile; }
+  // The link class is this whatever is measured; empty to measure it (--link-class).
+  void setLinkPin(std::optional<cellui::LinkClass> pin);
   void render() override;
 
   bool offerInput(const cellui::Input & input) override;
