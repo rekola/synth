@@ -125,6 +125,10 @@ frames it really gets. Each backend turns that into a **link status**:
 
 A class can be pinned by the user and is otherwise measured, quickly down and slowly up.
 
+To see what a link carries today, run the application with `SYNTH_LINK_STATS=<file>`: the terminal
+backend then writes a line a second with the frames and bytes sent (pictures, placement, the rest),
+the pacer's bandwidth and round trip, and the pictures uploaded by size.
+
 Colours stay on every terminal that has any: an 8- or 16-colour terminal gets a theme made
 of its own palette's hues (so track colours stay apart), and there is no automatic grey. A
 terminal with no colour at all gets `MONO`, with reverse video for highlights. A slow link

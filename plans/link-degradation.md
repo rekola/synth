@@ -1,6 +1,7 @@
 # Degrading gracefully on a slow link
 
-Status: plan, second revision. Awaiting approval; nothing here is built.
+Status: plan, third revision. Phase 0 (measuring) is done and its tools are in the tree; the rest
+is awaiting approval.
 Builds on the terminal frame pacer (`plans/frame-pacing-terminal.md`), which
 measures the link but changes nothing about what is drawn.
 
@@ -12,7 +13,7 @@ measures the link but changes nothing about what is drawn.
   not worth it. Grey is an option on request only and may never be built (section 2).
 - **A slow link lowers picture quality, not screen colour**: pictures are rectangles, so a
   reduced palette in a chart mixes with colour text without a visible seam (3.2).
-- **Dials are never glyphs.** They are images in every class, **16 positions**, **the letter
+- **Dials are never glyphs.** They are images in every class, **15 positions at 3 dB**, **the letter
   stays in the picture**, four looks, shared by a custom key (3.5).
 - **Compression is a small in-tree deflate encoder**, no new dependency (3.1).
 - **No label changes and no reduced-resolution pictures**, the heatmap included.
@@ -109,6 +110,17 @@ longer before the next.
     the six hues and bright is the emphasis.
   A test checks that every semantic pair that must differ does (cursor, selection, bar, beat,
   playhead, focus), by index.
+- **Track colours by ordinal, with a fallback table.** A track's colour already comes from its
+  ordinal (`TrackPalette`: the modern table gives the first eight tracks hues picked to be far
+  apart, later ones step by the golden ratio). A third model, `TrackPalette::Model::ANSI`, is a
+  fixed table from ordinal to a palette colour, **ordered so that the first N tracks are as
+  different as the palette allows for every N**: with sixteen colours the six hues in an order
+  that alternates warm and cool (yellow, blue, red, cyan, magenta, green), then their bright
+  versions; with eight, the six hues and then the same six again drawn bold. Its colours are the
+  standard palette's own RGB values, so the encoder's nearest-colour step returns exactly the
+  intended index and the encoder does not change. This needs a sixteen-colour depth in the encoder
+  (`ColorDepth::C16`, `SGR 90-97/100-107`), which today folds into eight. It is chosen by depth,
+  so truecolour keeps the modern table.
 - **No colour at all (`MONO`)** is still a mode, for very old terminals: highlights use
   **reverse video** (`SGR 7`), which the cell encoder does not emit today (with no colour a
   highlight is invisible now), dim text uses `SGR 2`, emphasis bold.
@@ -168,10 +180,17 @@ start-up, `Capabilities::sixel_registers`, up to 1024) is read and never used. W
 
 **The fix.** A palette per picture, from its colours:
 
-1. Count the distinct colours. If they fit in the registers (almost always for a chart), use
-   them **exactly, with no dithering**.
+1. Count the distinct colours. If they fit in the registers, use them **exactly, with no
+   dithering**. Measured on the real pictures (phase 0): the small meters have 3 to 88 colours, the
+   spectrum **335 to 451** (anti-aliasing) and the heatmap **about 1100**. So most fit when the
+   terminal's register count is used (256 is the common figure, up to 1024 or more where it says
+   so), and the heatmap is the one that needs quantising.
 2. Otherwise median cut to N registers (N from `PictureQuality` and the terminal's count) and
-   dither lightly; for the heatmap, the two-variable grid of 3.2.
+   dither lightly; for the heatmap, the two-variable grid of 3.2. What a **register** is: a sixel
+   image paints with colours it has first defined in numbered slots of the terminal's colour table
+   (`#12;2;r;g;b` defines slot 12, `#12` then paints with it), and a terminal has a limited number of
+   slots for one image, its register count. The encoder asks for 1024 at start-up, the terminal says
+   what it will give, and the answer is stored but unused: the encoder always spends 240.
 3. Fewer colours is also fewer colour passes per band, which is most of a sixel's size.
 4. Whether colour registers persist between images (`?1070`, private versus shared registers)
    decides if the palette can be reused across frames; to be checked on the terminals that can
@@ -226,13 +245,19 @@ virtual void drawSharedImageAt(int row, int col, uint64_t key, int width, int he
 
 Dials stay images in every class. To make them cacheable:
 
-- **16 positions** over the arc (the Launchpad's 8 pads plus the micro adjustment); the pointer is
-  drawn at the nearest. **Open: the mapping.** The code today steps 6 dB from -36 dB to unity with
-  "off" below (8 positions); you measured 2 dB steps. 16 positions at 2 dB is off plus 15 levels,
-  0 to -28 dB; 16 over the current -36 to 0 range is 2.4 dB. Which?
+- **15 positions**: the dial's arc is -42 dB (drawn as off) to 0 dB, at **3 dB** steps, which is the
+  Launchpad's own grid (below). The pointer is drawn at the nearest. What the code has: the Launchpad
+  steps its fader rows 6 dB apart (off, then -36 to 0 dB) and a repeated press on a row moves
+  **halfway to the next** (3 dB), and a second repeat is the next row, so its reachable values are off,
+  -36, -33, ..., -3, 0: 14 values. (The code comment counts 8 rows x 2 = 16; a micro-tap on the bottom
+  row also lands at -68 dB, half way between off and -36, which looks unintended and would show as
+  off.) Dials have a 3 dB drag step per row and a 1 dB wheel step; I find no 2 dB step in the code. 16
+  positions would need a 2.8 dB step, which is fractional; 15 at 3 dB needs no change to the Launchpad
+  and adds only the dial's -42 and -39 dB below the Launchpad's lowest, so it is what I plan unless you
+  say otherwise.
 - **Four looks** per position: normal, pressed, hover, selected. `hover` is new; all four are
   implemented now so they can be tested.
-- **The letter is in the picture**, so A, B and Main are three sets: 16 x 4 x 3 = **192 pictures**,
+- **The letter is in the picture**, so A, B and Main are three sets: 15 x 4 x 3 = **180 pictures**,
   each keyed by (letter, position, look, scale), none rendered until used. They are small and
   flat, so they compress to a few hundred bytes each and are well under 1 MB in the terminal.
 - Dragging with Shift (fine) still sets the exact value; the pointer moves when it crosses a
@@ -294,31 +319,65 @@ demo3.xml, kitty: Live View idle; Live View playing; Arrangement view playing; A
 the pattern editor scrolling (Down at 30 a second); the same with page scrolling once built; mouse
 movement over the screen (hover cost); a dial dragged.
 
-**Already measured** (unshaped link, no code change, `--null-audio`, raw RGB, no compression):
+**Measured** (`tools/pacing/measure_link.py`, `analyze_pictures.py`; the real app through the emulated
+terminal on an unshaped link, `--null-audio`, kitty, 120x40 cells of 8x16 px, `demo3.xml`; bytes as the
+terminal receives them, pictures raw RGB in base64):
 
-| Scenario | Bytes | Pictures sent |
-|---|---|---|
-| Live View, idle | 0 | 0 |
-| Live View, playing | **5.5 MB/s**, 60 frames/s, 99% pictures | 433 uploads/s: 232x80 at 62/s (4.6 MB/s), 8x96 at 239/s (0.7 MB/s), 8x16 at 131/s |
-| Arrangement view, playing | **6.4 MB/s**, 60 frames/s | 248x80 at 47/s (3.7 MB/s), 328x80 at 16/s (1.6 MB/s), 72x64 at 47/s (0.9 MB/s), 8x16 at 187/s |
-| Arrangement, pattern editor, Down 30/s | 286 kB/s, all text | none (9.5 kB per frame at 30 frames/s) |
+| Scenario | kB/s | Pictures | Text etc | Frames/s | Uploads/s |
+|---|---|---|---|---|---|
+| Live View, idle | 0 | 0 | 0 | 0 | 0 |
+| Live View, playing | **5540** | 5500 | 14 | 60 | 443 |
+| Arrangement view, playing | **6390** | 6290 | 83 | 59 | 292 |
+| Arrangement, pattern editor, Down 30/s | 249 | 0 | 249 | 26 | 0 |
+| Live View, mouse moving 30/s, stopped | 0 | 0 | 0 | 0 | 0 |
+| Live View, playing + mouse moving | 5500 | 5460 | 14 | 60 | 433 |
 
-- A static UI sends nothing, as designed.
-- Playing is dominated by **one or two scope pictures**, redrawn almost every frame: 85% of Live
-  View's bytes are one 232x80 picture. On a 520 kB/s link that full profile fits about 6 frames a
-  second, and the pattern editor would scroll at 6 fps because a chart is hogging the line. Taking
-  the scope out leaves a few hundred kB/s, which that link can send at 30 fps or better. That is
-  the case for classes in one number.
-- The pictures are attributed by size only; phase 0 attributes them by widget.
+By picture, playing: **Live View** 232x80 at 62/s (4640 kB/s), 8x96 at 249/s (765), 8x16 at 132/s (68);
+**Arrangement** 248x80 at 46/s (3680), 328x80 at 16/s (1640), 72x64 at 46/s (855), 8x16 at 183/s (94).
+Mouse movement costs nothing today because there are no hover effects; this is the baseline for them.
+At start the 16 dials (40x48 px) go up once each, 124 kB in all, and never again.
 
-**What it gives:** each feature's demand (bytes a second) with deflate (3.1) in place, each
+What the pictures are made of (`analyze_pictures.py`, the stand-in for the in-tree encoder being zlib at
+level 1, so the real encoder will do somewhat worse):
+
+| Picture | Colours | Raw | Deflated | Pixels changed per frame | 8x16 tiles changed |
+|---|---|---|---|---|---|
+| 232x80 (Live View's chart) | 451 | 55.7 kB | **3.1 kB (18x)** | 6% | 20% |
+| 248x80 (Arrangement's chart) | 335 | 59.5 kB | **2.9 kB (20x)** | 5% | 13% |
+| 328x80 (heatmap) | 1088 | 78.7 kB | 5.4 kB (15x) | 8% | 36% |
+| 72x64 (meter) | 88 | 13.8 kB | 0.8 kB (17x) | 2% | 33% |
+| 8x96 (level meters) | 57 | 2.3 kB | 0.32 kB (7x) | 1% | 17% |
+
+- **Compression alone** takes Live View's playing traffic from 5.5 MB/s to about 0.37 MB/s and
+  Arrangement's from 6.4 to about 0.36 MB/s (deflated sizes times the number of uploads, plus base64's
+  4/3): a fifteen- to eighteen-fold cut with no change to what is drawn.
+- **Sending only what changed does not pay after compression**, for kitty and iTerm2. Only 5-8% of
+  pixels change, but they are spread across the whole width (a chart's curve moves in every column), so
+  the changed tiles are 13-36% of the tiles and the bounding box of the change is almost the whole
+  picture. Sent as separate deflated tiles they cost **more** than the whole picture deflated (5.0 kB
+  against 3.1 kB for the chart at one tile per cell; larger tiles do better, 3.5 kB at 4 cells, never
+  better than the whole), because every tile pays a header and starts its compression afresh. Only
+  the level meters gain (143 B against 319 B), and they are a few hundred bytes. So: compress whole
+  pictures; do not tile for kitty or iTerm2.
+- **For Sixel it does pay**: the format has no deflate, a changed picture costs a colour pass per
+  band whatever changed, and 80% of the tiles are unchanged. So the tile diff of 3.3 stays in the plan
+  for Sixel, where it is worth roughly four to five times for these charts.
+- Kitty has a command to edit part of an existing image in place (the animation frames, `a=f`, in kitty
+  from 0.20 only, `Capabilities::kitty_graphics_animation`); with whole pictures at 3 kB it saves nothing
+  that matters and works on one terminal, so it is left out.
+
+**What it gives:** each feature's demand (bytes a second) with deflate (3.1) in place (the estimate above
+is zlib; the in-tree encoder's own ratio replaces it), each
 profile's demand as the sum of its features, and from them the class thresholds: the class's
 bandwidth threshold is its profile's demand divided by 0.7. The thresholds are not set until the
 deflate ratio on real charts is known.
 
 ## 5. Phases
 
-0. **Measure** (section 4) and write the demands down.
+0. **Measure** (section 4). **Done**: the tools (`measure_link.py`, `analyze_pictures.py`), the
+   `SYNTH_LINK_STATS=<file>` log for a real link (a line a second: frames, bytes by kind, bandwidth, RTT,
+   uploads by picture size), and the results above. Still to do on real hardware: run it over a real SSH or
+   serial link, and attribute the pictures by widget rather than size.
 1. **API and classes.** `LinkStatus`, `Backend::linkStatus()/setLinkHandler()`, classification by
    profile demand with hysteresis and trials, the description strings (terminal bandwidth/RTT,
    window vsync and fps), the status bar, `--link-class` and `set-link-class`,
@@ -339,10 +398,10 @@ deflate ratio on real charts is known.
 
 ## 6. Decisions I need
 
-1. **Dial positions:** off plus 15 levels at 2 dB (0 to -28 dB), or 16 levels over -36 to 0
-   (2.4 dB)? And the Launchpad faders' coarse pads follow the same mapping?
-2. **Classes by demand:** is "the largest profile that fits in 70% of the bandwidth" the right
-   rule, with the thresholds taken from phase 0, as in section 4?
+1. **Dial positions:** 15 at 3 dB (the Launchpad's grid, plus the dial's -42 and -39), as in 3.5, or do you
+   want exactly 16? 16 needs a 2.8 dB step, or a change of the Launchpad's row spacing.
+2. **Classes by demand:** is "the largest profile that fits in 70% of the bandwidth" the right rule? Phase 0
+   now gives the inputs; thresholds follow once the in-tree encoder's ratio is known.
 
 ## 7. Risks
 
