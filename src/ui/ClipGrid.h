@@ -24,6 +24,9 @@
 #include <vector>
 
 #include <cellui/Input.h>
+#include <cellui/InputDispatcher.h>
+#include <cellui/InputEvents.h>
+#include <cellui/Signal.h>
 #include "StyleProvider.h"
 class Song;
 
@@ -87,6 +90,7 @@ class ClipGrid : public UIElement {
   // The clip each track is at (its position in the pattern editor below) -
   // marked, faintly, in that track's own column. Unset, nothing is.
   void setTrackClipSource(std::function<int(int track_id)> source) { track_clip_source_ = std::move(source); }
+  // Kept for the bare Escape; the same calls as the dispatcher's events.
   bool offerInput(const cellui::Input & input) override;
   // See PatternEditor::isReaderActive()/cancelReaderEdit().
   bool isReaderActive() const { return inline_editor_.isOpen() || isDialEditing(); }
@@ -312,7 +316,13 @@ class ClipGrid : public UIElement {
   void activateCell(const Song & song, const std::vector<int> & track_ids);
   // A left-button press or release: picks the cell under it, and a clip
   // slot (or the master's scene/stop-all slots) acts as a button.
-  bool handleMouse(const cellui::Input & input);
+  bool handleMouse(int row, int col, float y, bool shift, bool release);
+  bool keyDown(const cellui::KeyDown & e);
+  bool keyUp(const cellui::KeyUp & e);
+  bool mouseDown(const cellui::MouseDown & e);
+  bool mouseUp(const cellui::MouseUp & e);
+  bool wheel(const cellui::Wheel & e);
+  std::vector<cellui::Connection> connections_;
   // Between a press and its release - see handleMouse().
   bool mouse_down_ = false;
   // The cell a held button is on, shown pressed: the release picks it. `column`
@@ -333,7 +343,10 @@ class ClipGrid : public UIElement {
   void selectDial(int track_id, int send);
   cellui::Dial * cursorDial();
   bool isDialEditing() const;
-  bool dialMouse(const cellui::Input & input);
+  // A dial being dragged gets all of the mouse; any other takes a press or the wheel over it.
+  bool dialPress(float y, int row, int col, bool shift);
+  bool dialRelease();
+  bool dialWheel(int row, int col, bool up, bool shift);
   // What is under the screen position, if it is a column.
   Pressed hitTest(int screen_y, int screen_x, int num_tracks) const;
   bool isPressed(int column, int physical) const { return pressed_.column == column && pressed_.physical == physical; }

@@ -75,6 +75,12 @@ constexpr int kHeaderFlagsWidth = 5;
 ClipGrid::ClipGrid(Plane & parent) : UIElement(parent) {
   getPlane().setName("clip-grid");
   getPlane().setMouseCursor(cellui::MouseCursor::POINTER);
+  auto handled = [](bool taken) { return taken ? cellui::Handled::yes : cellui::Handled::no; };
+  connections_.push_back(on<cellui::KeyDown>([this, handled](const cellui::KeyDown & e, cellui::EventContext &) { return handled(keyDown(e)); }));
+  connections_.push_back(on<cellui::KeyUp>([this, handled](const cellui::KeyUp & e, cellui::EventContext &) { return handled(keyUp(e)); }));
+  connections_.push_back(on<cellui::MouseDown>([this, handled](const cellui::MouseDown & e, cellui::EventContext &) { return handled(mouseDown(e)); }));
+  connections_.push_back(on<cellui::MouseUp>([this, handled](const cellui::MouseUp & e, cellui::EventContext &) { return handled(mouseUp(e)); }));
+  connections_.push_back(on<cellui::Wheel>([this, handled](const cellui::Wheel & e, cellui::EventContext &) { return handled(wheel(e)); }));
   // Mute/Solo apply to the cursor's own column (a per-track state, not
   // tied to any particular row), same as the 'l' loop toggle stays a
   // manual offerInput() branch below rather than a command - there's
@@ -524,18 +530,16 @@ bool ClipGrid::isDialEditing() const {
 
 // The mouse for the dials: one being dragged gets all of it, wherever the
 // pointer is; any other takes a press or the wheel over it.
-bool ClipGrid::dialMouse(const cellui::Input & input) {
-  cellui::Dial * taker = nullptr;
+bool ClipGrid::dialPress(float y, int row, int col, bool shift) {
   for (auto & [key, dial] : dials_) {
-    if (dial->isDragging()) taker = dial.get();
-  }
-  if (taker) {
-    taker->offerMouse(input);
-    mouse_down_ = taker->isDragging();
-    return true;
+    if (dial->isDragging()) {
+      dial->press(y, row, col, shift);
+      mouse_down_ = dial->isDragging();
+      return true;
+    }
   }
   for (auto & [key, dial] : dials_) {
-    if (dial->offerMouse(input)) {
+    if (dial->press(y, row, col, shift)) {
       mouse_down_ = dial->isDragging();
       return true;
     }
@@ -543,25 +547,42 @@ bool ClipGrid::dialMouse(const cellui::Input & input) {
   return false;
 }
 
-bool
-ClipGrid::handleMouse(const cellui::Input & input) {
-  const Song & song = getController().getSong(); // see offerInput()'s own comment on why const
+bool ClipGrid::dialRelease() {
+  for (auto & [key, dial] : dials_) {
+    if (dial->isDragging()) {
+      dial->release();
+      mouse_down_ = dial->isDragging();
+      return true;
+    }
+  }
+  return false;
+}
+
+bool ClipGrid::dialWheel(int row, int col, bool up, bool shift) {
+  for (auto & [key, dial] : dials_) {
+    if (dial->wheel(row, col, up, shift)) return true;
+  }
+  return false;
+}
+
+bool ClipGrid::handleMouse(int row, int col, float fy, bool shift, bool release) {
+  const Song & song = getController().getSong(); // see keyDown()'s own comment on why const
   auto track_ids = song.getPlayableTrackIds();
   auto num_tracks = static_cast<int>(track_ids.size());
-  auto target = hitTest(input.getY(), input.getX(), num_tracks);
+  auto target = hitTest(row, col, num_tracks);
 
   // A dial takes its own presses, drags and releases.
-  if (dialMouse(input)) {
+  if (release ? dialRelease() : dialPress(fy, row, col, shift)) {
     pressed_ = Pressed();
     return true;
   }
 
   // A press, and each drag while held (another press), shows the cell under
   // the mouse as pressed; the release picks it.
-  if (input.getKind() != InputEvent::Kind::RELEASE) {
+  if (!release) {
     auto [ pos_y, pos_x ] = getPosition();
     auto [ rows, cols ] = getDim();
-    auto y = input.getY() - pos_y, x = input.getX() - pos_x;
+    auto y = row - pos_y, x = col - pos_x;
     if (y < 0 || y >= rows || x < 0 || x >= cols) return false;
     mouse_down_ = true;
     pressed_ = target;
@@ -579,7 +600,7 @@ ClipGrid::handleMouse(const cellui::Input & input) {
   cursor_send_ = std::max(0, target.send); // meaningful on the Sends row only
   cursor_row_ = target.logical_row;
   view_detached_ = false;
-  if (target.column < num_tracks) getController().getSong().setCurrentTrackId(track_ids[static_cast<size_t>(target.column)]); // non-const, see offerInput()'s own `song` comment
+  if (target.column < num_tracks) getController().getSong().setCurrentTrackId(track_ids[static_cast<size_t>(target.column)]); // non-const, see keyDown()'s own `song` comment
 
   // The dials' groups only take the cursor; the dials open their own editors.
   auto kind = rowKindFor(cursor_row_);
@@ -612,6 +633,60 @@ void ClipGrid::startRename() {
 
 bool
 ClipGrid::offerInput(const cellui::Input & input) {
+  using cellui::Input;
+  if (input.getId() == Key::Button1)
+    return input.getKind() == Input::Kind::RELEASE
+               ? mouseUp(cellui::MouseUp{input.getFx(), input.getFy(), input.getY(), input.getX(), 1, {}, &input})
+               : mouseDown(cellui::MouseDown{input.getFx(), input.getFy(), input.getY(), input.getX(), 1, {}, &input});
+  if (input.getKind() == Input::Kind::RELEASE)
+    return keyUp(cellui::KeyUp{input.getId(), {}, &input});
+  return keyDown(cellui::InputDispatcher::keyDownFor(input));
+}
+
+// The editors: a rename or a dial being typed into takes every key.
+bool ClipGrid::keyUp(const cellui::KeyUp &) { return isReaderActive(); }
+
+bool ClipGrid::mouseDown(const cellui::MouseDown & e) {
+  if (e.button != 1) return false;
+  if (inline_editor_.isOpen()) {
+    if (e.input) inline_editor_.offerInput(*e.input);
+    return true;
+  }
+  for (auto & [key, dial] : dials_) {
+    if (!dial->isEditing()) continue;
+    // A click anywhere else closes the editor (and then does what it would).
+    if (dial->contains(e.row, e.col)) return true;
+    dial->cancelEdit();
+  }
+  return handleMouse(e.row, e.col, e.y, e.mods.shift, false);
+}
+
+bool ClipGrid::mouseUp(const cellui::MouseUp & e) {
+  if (e.button != 1) return false;
+  if (inline_editor_.isOpen()) {
+    if (e.input) inline_editor_.offerInput(*e.input);
+    return true;
+  }
+  if (isDialEditing()) return true;
+  return handleMouse(e.row, e.col, e.y, e.mods.shift, true);
+}
+
+// The mouse wheel scrolls the view (Shift: tracks), not the cursor, until
+// the cursor next moves; over a dial the vertical wheel turns it.
+bool ClipGrid::wheel(const cellui::Wheel & e) {
+  if (inline_editor_.isOpen() || isDialEditing()) return true;
+  bool sideways = e.dx != 0;
+  if (!sideways && dialWheel(e.row, e.col, e.dy > 0, e.mods.shift)) return true;
+  int direction = sideways ? (e.dx > 0 ? 1 : -1) : (e.dy > 0 ? -1 : 1);
+  if (sideways || e.mods.shift)
+    scroll_x_ += direction * wheel_acceleration_x_.step(kWheelCells);
+  else
+    scroll_row_ += direction * wheel_acceleration_.step(kWheelRows);
+  view_detached_ = true;
+  return true;
+}
+
+bool ClipGrid::keyDown(const cellui::KeyDown & e) {
   // const - Song::getClips() has a non-const overload that inserts an
   // empty entry for a track that doesn't have one yet (needed for actual
   // mutation elsewhere, e.g. ArrangementOps.cpp); most of this method
@@ -624,54 +699,26 @@ ClipGrid::offerInput(const cellui::Input & input) {
   auto track_ids = song.getPlayableTrackIds();
   auto num_tracks = static_cast<int>(track_ids.size());
 
-  // While a rename editor is open it owns every key.
-  if (inline_editor_.offerInput(input)) return true;
+  // While a rename editor is open it owns every key. (Its text field is
+  // edited from the Input the key came as.)
+  if (e.input && inline_editor_.offerInput(*e.input)) return true;
   for (auto & [key, dial] : dials_) {
-    if (!dial->isEditing()) continue;
-    // A click anywhere else closes the editor (and then does what it would);
-    // the other mouse input is ignored while one is open, every key is its own.
-    if (input.getId() == Key::Button1) {
-      if (input.getKind() != InputEvent::Kind::RELEASE && !dial->contains(input.getY(), input.getX()))
-        dial->cancelEdit();
-      else
-        return true;
-    } else if (input.getId() >= Key::Button4 && input.getId() <= Key::Button7) {
-      return true;
-    } else {
-      return dial->offerInput(input);
-    }
+    if (dial->isEditing()) return dial->key(e.key, e.mods);
   }
 
-  if (input.getId() == Key::Button1) return handleMouse(input);
-
-  // The mouse wheel scrolls the view (Shift: tracks), not the cursor, until
-  // the cursor next moves.
-  if (input.getId() >= Key::Button4 && input.getId() <= Key::Button7) {
-    if (input.getKind() == InputEvent::Kind::RELEASE) return true;
-    bool sideways = input.getId() >= Key::Button6;
-    // Over a dial the vertical wheel turns it.
-    if (!sideways && dialMouse(input)) return true;
-    int direction = (input.getId() == Key::Button4 || input.getId() == Key::Button6) ? -1 : 1;
-    if (sideways || input.hasShift())
-      scroll_x_ += direction * wheel_acceleration_x_.step(kWheelCells);
-    else
-      scroll_row_ += direction * wheel_acceleration_.step(kWheelRows);
-    view_detached_ = true;
-    return true;
-  }
-
-  if (dispatchCommand(input)) return true;
-  if (input.getKind() == InputEvent::Kind::RELEASE) return false;
+  if (dispatchCommand(e.key, e.mods)) return true;
 
   // Navigation, plus the manual (non-command) part of this widget's own
   // input handling: Enter (clip focus toggle, on a clip row),
   // 'l' (toggle its own loop flag) - Mute/
   // Solo are dispatchCommand()'s job now, handled above via this
   // constructor's own toggle-mute/toggle-solo bindings.
-  if (input.getId() == Key::Up) cursor_row_--;
-  else if (input.getId() == Key::Down) cursor_row_++;
-  else if (input.getId() == Key::Left || input.getId() == Key::Right) {
-    int step = input.getId() == Key::Left ? -1 : 1;
+  if (e.key == Key::Up)
+    cursor_row_--;
+  else if (e.key == Key::Down)
+    cursor_row_++;
+  else if (e.key == Key::Left || e.key == Key::Right) {
+    int step = e.key == Key::Left ? -1 : 1;
     bool on_sends = rowKindFor(cursor_row_) == RowKind::SENDS;
     // On the Sends row the two dials are stops of their own: Left and Right
     // walk through them, then on into the next column.
@@ -681,10 +728,11 @@ ClipGrid::offerInput(const cellui::Input & input) {
       cursor_track_index_ += step;
       cursor_send_ = step > 0 ? 0 : 1;
     }
-  }
-  else if (input.getId() == Key::PageUp) cursor_row_ -= getDim().first;
-  else if (input.getId() == Key::PageDown) cursor_row_ += getDim().first;
-  else if (input.getId() == 'l' && !input.hasCtrl() && !input.hasAlt()) {
+  } else if (e.key == Key::PageUp)
+    cursor_row_ -= getDim().first;
+  else if (e.key == Key::PageDown)
+    cursor_row_ += getDim().first;
+  else if (e.key == 'l' && !e.mods.ctrl && !e.mods.alt) {
     // Loop toggle - only meaningful on a clip row that actually has a
     // clip; a no-op (but still consumed) anywhere else.
     if (rowKindFor(cursor_row_) == RowKind::CLIP && cursor_track_index_ >= 0 && cursor_track_index_ < num_tracks) {
@@ -699,7 +747,7 @@ ClipGrid::offerInput(const cellui::Input & input) {
       }
     }
     return true;
-  } else if (input.getId() == Key::Enter) {
+  } else if (e.key == Key::Enter) {
     activateCell(song, track_ids);
     return true;
   } else

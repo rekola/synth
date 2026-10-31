@@ -756,7 +756,7 @@ InteractiveUI::initializeWidgets() {
                                                    cellui::Phase::capture));
   key_connections_.push_back(on<cellui::KeyDown>([modal](const cellui::KeyDown & e, cellui::EventContext &) { return modal(e.input); }, cellui::Phase::capture));
   key_connections_.push_back(on<cellui::KeyUp>([modal](const cellui::KeyUp & e, cellui::EventContext &) { return modal(e.input); }, cellui::Phase::capture));
-  for (cellui::Widget * widget : std::initializer_list<cellui::Widget *>{pattern_editor_.get(), clip_grid_.get()}) {
+  for (cellui::Widget * widget : std::initializer_list<cellui::Widget *>{pattern_editor_.get()}) {
     auto offer = [widget](const cellui::Input * input) {
       return input && widget->offerInput(*input) ? cellui::Handled::yes : cellui::Handled::no;
     };
@@ -764,11 +764,11 @@ InteractiveUI::initializeWidgets() {
     key_connections_.push_back(widget->on<cellui::KeyUp>([offer](const cellui::KeyUp & e, cellui::EventContext &) { return offer(e.input); }));
   }
 
-  // The clip grid and the pattern editor take the left button
+  // The pattern editor takes the left button
   // and the wheel as dispatcher events, handing the Input they came from to
   // offerInput(). The dispatcher's grab keeps a drag and its release with the
   // widget the press went down on.
-  for (cellui::Widget * widget : std::initializer_list<cellui::Widget *>{clip_grid_.get(), pattern_editor_.get()}) {
+  for (cellui::Widget * widget : std::initializer_list<cellui::Widget *>{pattern_editor_.get()}) {
     auto offer = [widget](const cellui::Input * input) {
       return input && widget->offerInput(*input) ? cellui::Handled::yes : cellui::Handled::no;
     };
