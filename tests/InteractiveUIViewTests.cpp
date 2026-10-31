@@ -7,6 +7,7 @@
 #include "../src/model/ArrangementOps.h"
 #include "../src/model/LeafTrack.h"
 #include "../src/ui/CommandDescriptions.h"
+#include "../src/playback/VisualizationResultEvent.h"
 
 #include <chrono>
 #include <cmath>
@@ -1452,4 +1453,15 @@ TEST(terminal_ui_arrangement_view_scopes_are_as_tall_as_in_live_view) {
   int l = title_row(live, "DirAC") - title_row(live, "Spectrum");
   CHECK(a > 0);
   CHECK(a == l);
+}
+
+TEST(a_scope_result_with_a_spectrum_is_drawn) {
+  UIFixture f("", UI::View::ARRANGEMENT);
+  auto blank = f.text();
+  VisualizationResultEvent ev;
+  ev.setFFT(std::vector<float>(512, -6.0f), 50.0f);
+  ev.setChannelLoudness({0.0f});
+  f.ui->handleVisualizationResultEvent(ev);
+  f.ui->step();
+  CHECK(f.text() != blank);
 }

@@ -1824,17 +1824,12 @@ InteractiveUI::blankScopes() {
 }
 
 void InteractiveUI::handleVisualizationResultEvent(const VisualizationResultEvent & ev) {
-  // If a newer event is already queued behind this one, this one's visual
-  // result is about to be immediately overwritten - skip the
-  // comparatively expensive chart/meter update work for it. Doesn't
-  // change what eventually gets rendered (the last event in a batch
-  // always wins anyway, via plain overwrite); it only avoids redoing that
-  // work once per superseded event during a catch-up burst, so the app
-  // catches up faster instead of falling further behind.
-  bool superseded = eventsPending();
-  bool changed = superseded; // a superseded event is redrawn by the one behind it
+  // Every result is applied, none skipped: the spectrum and the DirAC grid
+  // come in only some of them, so dropping one that has a newer event behind
+  // it would drop that update and make the scope stutter.
+  bool changed = false;
   // Scopes that are off screen aren't updated at all.
-  if (!superseded && scopes_on_screen_) {
+  if (scopes_on_screen_) {
     if (scopes_stale_) {
       blankScopes();
       changed = true;
@@ -1876,12 +1871,13 @@ void InteractiveUI::handleVisualizationResultEvent(const VisualizationResultEven
       // Auto-scaling brightness reference, tracked across events rather
       // than derived fresh each time: jumps up immediately on a new peak
       // (so a loud transient doesn't clip the display), decays slowly
-      // otherwise (~2s time constant at this event's ~28.7Hz delivery
+      // otherwise (~2s time constant at this event's ~86Hz delivery
       // rate) so a quiet passage
       // doesn't suddenly wash the whole grid out to full brightness the
       // instant a loud part ends.
       if (frame_max > dirac_running_max_) dirac_running_max_ = frame_max;
-      else dirac_running_max_ += (frame_max - dirac_running_max_) * 0.0173f;
+      else
+        dirac_running_max_ += (frame_max - dirac_running_max_) * 0.0058f;
 
       // log1p applied to the *ratio* to dirac_running_max_ (not to the raw
       // absolute displayed[i]/dirac_running_max_ values themselves) - taking

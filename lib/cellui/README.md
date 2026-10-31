@@ -102,6 +102,8 @@ the meters, and a spin box.
 
     build-cellui/cellui_gallery            # 24-bit colour escape sequences
     build-cellui/cellui_gallery --plain    # the text alone
+    build-cellui/cellui_gallery --live     # full screen in the terminal; charts are pictures where it shows them
+    build-cellui/cellui_gallery --gtk      # in a GTK window (when built with GTK), charts as pictures
 
 The page is drawn by `Gallery` through `Plane` only, so any backend can show
 it. The text of the page is compared with `tests/golden/gallery.txt`; after a

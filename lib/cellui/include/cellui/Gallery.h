@@ -1,6 +1,7 @@
 #pragma once
 
 #include <cellui/ChoiceDialog.h>
+#include <cellui/DisplayInfo.h>
 #include <cellui/Dial.h>
 #include <cellui/InfoDialog.h>
 #include <cellui/LineChart.h>
@@ -22,7 +23,11 @@ namespace cellui {
 // only, so any backend can show it.
 class Gallery {
  public:
-  Gallery(Plane & plane, const Theme & theme);
+  // The charts are the ones chartsFor() picks for `display`: pictures when
+  // it shows them (the root plane then needs its cell size,
+  // BufferPlane::setCellPixelSize()), braille cells for a default
+  // DisplayInfo.
+  Gallery(Plane & plane, const Theme & theme, const DisplayInfo & display = {});
 
   // The number of rows the page uses.
   int rows() const { return rows_; }

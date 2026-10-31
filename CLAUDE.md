@@ -1596,7 +1596,7 @@ would otherwise resume showing.
   `InteractiveUI` (`step()` is one loop turn without waiting) and asserts on what it
   shows. It is named for the test, not the terminal, so a window backend's tests can use it too.
   The UI sources are the `synth_ui` library for that reason.
-  `cellui_gallery --live` shows the gallery through it. Its tests are in `lib/cellui/tests/` with a copy of the tiny test
+  `cellui_gallery --live` shows the gallery through it (its charts are the display's own, `chartsFor()`: pictures where the terminal shows them), `--gtk` in the window. Its tests are in `lib/cellui/tests/` with a copy of the tiny test
   framework (no dependency on `tests/`).
 
   `src/effects/`, `src/bus/`, and `src/dsp/` (below) predate this split
