@@ -515,9 +515,12 @@ void TerminalSession::pumpFrame() {
   auto now = std::chrono::steady_clock::now();
   logLinkStats(now);
   // The time since the last turn counts as link-bound if the link is what holds the next frame back.
-  if (link_last_pump_ != std::chrono::steady_clock::time_point{} && (pacer_.linkBound(now) || (!out_.empty() && pacer_.dirty()))) {
+  // The state the last turn left held for the time since: the loop sleeps through a stretch that the
+  // link holds a frame back, and wakes when it ends.
+  if (link_was_blocked_ && link_last_pump_ != std::chrono::steady_clock::time_point{}) {
     link_blocked_seconds_ += std::min(1.0, std::chrono::duration<double>(now - link_last_pump_).count());
   }
+  link_was_blocked_ = pacer_.linkBound(now) || (!out_.empty() && pacer_.dirty());
   link_last_pump_ = now;
   updateLink(now);
   pacer_.tick(now);

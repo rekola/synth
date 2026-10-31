@@ -122,6 +122,15 @@ struct Window::Impl {
   bool presented_in_tick = false;
   guint tick_id = 0;
   static gboolean onTick(GtkWidget *, GdkFrameClock * clock, gpointer data);
+  void noteTick(gint64 frame_time_us);
+  // The link: ticks that follow a tick whose handler asked for another one are the window running
+  // flat out, and the intervals between them are what it can do. Ticks after an idle gap say nothing.
+  LinkMonitor link;
+  bool tick_continuing = false;
+  gint64 last_tick_us = 0;
+  std::deque<double> tick_intervals;  // seconds
+  std::chrono::steady_clock::time_point link_last_update{};
+  std::string vsyncText() const;
   GtkWidget * window = nullptr;
   GtkWidget * view = nullptr;
   std::unique_ptr<CellRasterizer> rasterizer;
@@ -317,6 +326,41 @@ static void cellui_view_init(CelluiView * self) {
 
 namespace cellui::gtk {
 
+std::string Window::Impl::vsyncText() const {
+  GdkMonitor * monitor = nullptr;
+  if (window) {
+    if (GdkSurface * surface = gtk_native_get_surface(GTK_NATIVE(window))) monitor = gdk_display_get_monitor_at_surface(gtk_widget_get_display(window), surface);
+  }
+  int milli_hz = monitor ? gdk_monitor_get_refresh_rate(monitor) : 0;
+  if (milli_hz <= 0) return "vsync unknown";
+  double hz = milli_hz / 1000.0;
+  char buf[32];
+  if (std::fabs(hz - std::round(hz)) < 0.05) std::snprintf(buf, sizeof buf, "%d Hz vsync", static_cast<int>(std::lround(hz)));
+  else std::snprintf(buf, sizeof buf, "%.2f Hz vsync", hz);
+  return buf;
+}
+
+void Window::Impl::noteTick(gint64 frame_time_us) {
+  bool continuing = frame_dirty;  // the handler asked for the next frame already
+  if (tick_continuing && last_tick_us > 0) {
+    double interval = static_cast<double>(frame_time_us - last_tick_us) / 1e6;
+    tick_intervals.push_back(interval);
+    while (tick_intervals.size() > 60) tick_intervals.pop_front();
+  } else {
+    tick_intervals.clear();
+  }
+  tick_continuing = continuing;
+  last_tick_us = frame_time_us;
+  auto now = std::chrono::steady_clock::now();
+  if (tick_intervals.size() < 8 || now - link_last_update < std::chrono::seconds(1)) return;
+  link_last_update = now;
+  double sum = 0;
+  for (double v : tick_intervals) sum += v;
+  double fps = sum > 0 ? static_cast<double>(tick_intervals.size()) / sum : 0;
+  link.setDescription(vsyncText() + ", " + std::to_string(static_cast<int>(fps + 0.5)) + " fps");
+  link.update(now, linkClassForFps(fps), linkClassForFps(fps, link.classifierConfig().up_margin));
+}
+
 gboolean Window::Impl::onTick(GtkWidget *, GdkFrameClock * clock, gpointer data) {
   auto * self = static_cast<Impl *>(data);
   self->frame_dirty = false;
@@ -325,6 +369,7 @@ gboolean Window::Impl::onTick(GtkWidget *, GdkFrameClock * clock, gpointer data)
   self->presented_in_tick = false;
   if (self->frame_handler) self->frame_handler(gdk_frame_clock_get_frame_time(clock));
   self->in_tick = false;
+  self->noteTick(gdk_frame_clock_get_frame_time(clock));
   // Only a frame the handler presented is drawn; a tick that found nothing
   // new draws nothing.
   if (self->presented_in_tick) gtk_widget_queue_draw(self->view);
@@ -1363,6 +1408,14 @@ void Window::requestFrame() {
 }
 
 void Window::setFrameHandler(FrameHandler handler) { impl_->frame_handler = std::move(handler); }
+
+LinkStatus Window::linkStatus() const {
+  LinkStatus status = impl_->link.status();
+  if (status.description.empty()) status.description = impl_->vsyncText();
+  return status;
+}
+void Window::setLinkHandler(LinkHandler handler) { impl_->link.setHandler(std::move(handler)); }
+void Window::setLinkPin(std::optional<LinkClass> pin) { impl_->link.pin(pin); }
 
 void Window::redraw() {
   impl_->forgetTextures();

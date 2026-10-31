@@ -214,6 +214,7 @@ class TerminalSession : public Backend {
   LinkThresholds link_thresholds_;
   std::chrono::steady_clock::time_point link_opened_{}, link_last_pump_{}, link_last_update_{};
   double link_blocked_seconds_ = 0;
+  bool link_was_blocked_ = false;  // at the last turn: the link held the next frame back
   size_t link_stalls_seen_ = 0;
   std::chrono::steady_clock::time_point link_stalled_at_{};
   void writeBlocking(const std::string & bytes);

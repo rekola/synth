@@ -32,6 +32,9 @@ def parse(path):
             d["phases"][w[1]]["t"] /= 1e6
         elif w[0] == "RESULT":
             d["result"] = {k: float(v) for k, v in (x.split("=") for x in w[1:])}
+        elif w[0] == "LINK":
+            d["link"] = dict(x.split("=", 1) for x in w[1:] if "=" in x)
+            d["link"]["description"] = line.split("description=", 1)[1].strip() if "description=" in line else ""
         elif w[0] == "ERROR":
             d["error"] = line
     return d
@@ -164,7 +167,26 @@ def t7(probe):
           "stalls %d, fps before %.1f after %.1f, estimated B %.0f of %d" % (r["stalls"], before, after, r["bandwidth"], bw))
 
 
-TESTS = [t1, t2, t3, t4, t5, t6, t7]
+# 8. The link's class follows the link: a link that holds frames back is classed by its bandwidth, a
+# link that does not stays at full speed, a pinned class holds, and none of it flaps.
+def t8(probe):
+    cases = [  # (picture, link bandwidth, the class it is, in enum order: 0 full, 1 30, 2 15, 3 5, 4 1)
+        ("328x80", 20e6, 0), ("328x80", 5.5e6, 1), ("232x80", 3e6, 2), ("80x80", 500e3, 3), ("16x16", 30e3, 4)]
+    seen = []
+    ok = True
+    for img, bw, want in cases:
+        res, log = run(probe, Link(bandwidth=bw, up_ms=5, down_ms=5), ["--mode", "churn", "--seconds", "13", "--img", img])
+        link = log.get("link", {})
+        got, changes = int(link.get("class", -1)), int(link.get("changes", 99))
+        ok = ok and got == want and changes <= 1
+        seen.append("%s: class %d (want %d), %d change%s, \"%s\"" % ("%.2g MB/s" % (bw / 1e6), got, want, changes, "" if changes == 1 else "s", link.get("description", "")))
+    res, log = run(probe, Link(bandwidth=20e6, up_ms=5, down_ms=5), ["--mode", "churn", "--seconds", "8", "--img", "328x80", "--pin", "15"])
+    link = log.get("link", {})
+    pinned_ok = link.get("class") == "2" and link.get("pinned") == "1"
+    check("8 link class", ok and pinned_ok, "; ".join(seen) + "; pinned at 15 on a 20 MB/s link: class %s pinned %s" % (link.get("class"), link.get("pinned")))
+
+
+TESTS = [t1, t2, t3, t4, t5, t6, t7, t8]
 
 
 def main():

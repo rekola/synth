@@ -111,7 +111,8 @@ deliberate change, run the tests with `CELLUI_UPDATE_GOLDEN=1` to rewrite it.
 
 ## Adapting to a slow link
 
-*Design; not built yet.* The terminal backend measures its link (bandwidth and round
+*Partly built.* The link status, its classes, the status-bar text and pinning a class exist; what an
+application does at a class, and the colour and picture changes below, are still design. The terminal backend measures its link (bandwidth and round
 trip; see `cellui/term/FramePacer.h`), and a window knows its vsync rate and how many
 frames it really gets. Each backend turns that into a **link status**:
 
@@ -124,7 +125,9 @@ frames it really gets. Each backend turns that into a **link status**:
   as is in the application's status bar: `480 kB/s, RTT 38 ms` for a terminal,
   `60 Hz vsync, 58 fps` for a window.
 
-A class can be pinned by the user and is otherwise measured, quickly down and slowly up.
+A class can be pinned by the user (`--link-class`, the `set-link-class` command) and is otherwise measured,
+quickly down and slowly up. The terminal trusts its bandwidth estimate only while the link is what holds
+frames back; when the application is the limit the estimate only says what it sent, and the class holds.
 
 To see what a link carries today, run the application with `SYNTH_LINK_STATS=<file>`: the terminal
 backend then writes a line a second with the frames and bytes sent (pictures, placement, the rest),
