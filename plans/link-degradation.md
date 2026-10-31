@@ -136,12 +136,15 @@ cutting anything:
 
 - A **zlib-format deflate encoder** in `cellui/term/Deflate.{h,cpp}`, written to be **faster than
   zlib with a comparable ratio**. Measured baseline on the real charts (zlib, this machine, a 2.1 GHz
-  Xeon): level 1 does 330-355 MB/s and level 6 180-200 MB/s; level 6 is 13-15% smaller than level 1
-  (232x80: 2714 B against 3153 B). **Targets:** at most 3% larger than zlib level 6 on the charts
+  Xeon): level 1 does 330-355 MB/s and level 6 180-200 MB/s; level 6 is 8-17% smaller than level 1
+  (232x80: 2731 B against 3167 B; level 9 only 2% better again, 2679 B). **Targets:** at most 3% larger than zlib level 6 on the charts
   (below), and at least twice zlib level 1's speed. Whether the speed target is met is not known
   until a prototype is timed; the ratio target is the one that cannot give way.
-  - **Dynamic Huffman**, not fixed: the first plan's fixed codes cost far more than a few percent
-    on these pictures. Per block (about 32K symbols) the encoder builds length-limited codes
+  - **Dynamic Huffman**, not fixed. Measured with zlib's own fixed-code mode on the three charts: with
+    the same matching, fixed codes are **8-13% larger** at level 6 and 16-34% larger than level 6 when the
+    matching is level 1's. Matching matters as much: runs alone (zlib's run-length-only mode) are
+    **5.4-5.9 times larger**, because the pictures are repeated rows as much as flat runs, so the encoder
+    needs a real match finder, not a run detector. Per block (about 32K symbols) the encoder builds length-limited codes
     (15 bits, package-merge) from a histogram and takes the smaller of dynamic, fixed and stored.
   - **Match finder:** a hash of four bytes into a table of recent positions, with a chain depth
     per level (1: one probe, greedy; 2: lazy matching, 4 probes; 3: lazy, 16 probes). The
