@@ -4,9 +4,16 @@
 //   cellui_gallery --plain    the text alone
 //   cellui_gallery --live     full screen through the terminal backend:
 //                             arrows, PgUp/PgDn and the wheel scroll, the
-//                             last line shows each event decoded; q quits
+//                             last line shows each event decoded; q quits.
+//                             The charts are pictures where the terminal
+//                             shows them.
+//   cellui_gallery --gtk      the same in a GTK window (when built with it)
+#include <cellui/Backend.h>
 #include <cellui/BufferPlane.h>
 #include <cellui/Gallery.h>
+#ifdef CELLUI_HAS_GTK
+#include <cellui/gtk/Window.h>
+#endif
 #ifndef _WIN32
 #include <cellui/term/TerminalSession.h>
 #include <poll.h>
@@ -16,8 +23,50 @@
 #include <cstdio>
 #include <cstring>
 #include <iostream>
+#include <memory>
 
 namespace {
+
+// The gallery on a page of its own, for a display: the charts are the ones
+// chartsFor() picks and the page knows the cell size in pixels. A default
+// DisplayInfo (no pictures) gives the text version.
+struct Page {
+  cellui::Theme theme = cellui::Theme::dark();
+  cellui::StyleProvider styles{theme};
+  cellui::CellBuffer buffer{120, 72};
+  cellui::BufferPlane plane{buffer, styles};
+  std::unique_ptr<cellui::Gallery> gallery;
+
+  explicit Page(const cellui::DisplayInfo & display) {
+    if (display.pictures && display.cell_px_height > 0 && display.cell_px_width > 0) {
+      plane.setCellPixelSize(display.cell_px_height, display.cell_px_width);
+      plane.setDisplayScale(display.display_scale);
+    }
+    gallery = std::make_unique<cellui::Gallery>(plane, theme, display);
+    plane.refresh();
+  }
+};
+
+// Shows the page from row `top`, a status bar and a last line under it.
+[[maybe_unused]] void showPage(cellui::Backend & backend, const Page & page, int top, const std::string & summary, const std::string & last) {
+  int rows = backend.rows(), cols = backend.cols();
+  int view = std::max(1, rows - 2);
+  cellui::CellBuffer screen(rows, cols);
+  for (int r = 0; r < view && top + r < page.buffer.rows(); r++) {
+    for (int c = 0; c < std::min(cols, page.buffer.cols()); c++) screen.put(r, c, page.buffer.at(top + r, c));
+  }
+  cellui::CellBuffer::Style bar;
+  bar.fg = cellui::Color(0, 0, 0);
+  bar.bg = cellui::Color(0xb0, 0xb0, 0xb0);
+  screen.write(rows - 2, 0, std::string(static_cast<size_t>(cols), ' '), bar);
+  screen.write(rows - 2, 0, summary, bar);
+  screen.write(rows - 1, 0, last, {});
+  // The cells carry their picture's index, so the pictures keep their order
+  // and only move up with the scroll.
+  std::vector<cellui::ImagePlacement> images = page.plane.images();
+  for (auto & placement : images) placement.row -= top;
+  backend.present(screen, {}, images);
+}
 
 #ifndef _WIN32
 std::string colorName(cellui::term::ColorDepth d) {
@@ -40,7 +89,7 @@ std::string pixelName(cellui::term::PixelProtocol p) {
   return "";
 }
 
-int live(const cellui::CellBuffer & page, int page_rows) {
+int live() {
   using namespace cellui::term;
   std::string error;
   auto session = TerminalSession::open(SessionOptions(), &error);
@@ -49,6 +98,8 @@ int live(const cellui::CellBuffer & page, int page_rows) {
     return 1;
   }
   const Capabilities & caps = session->capabilities();
+  Page page(caps.display);
+  int page_rows = page.gallery->rows();
   std::string summary = caps.terminal + (caps.version.empty() ? "" : " " + caps.version) +
                         (caps.answered ? "" : " (no reply)") + ", colours " + colorName(caps.colors) +
                         ", images " + pixelName(caps.pixels) + (caps.kitty_keyboard ? ", kitty keys" : "") +
@@ -59,20 +110,9 @@ int live(const cellui::CellBuffer & page, int page_rows) {
   int top = 0;
   bool running = true;
   while (running) {
-    int rows = session->rows(), cols = session->cols();
-    int view = std::max(1, rows - 2);
+    int view = std::max(1, session->rows() - 2);
     top = std::max(0, std::min(top, page_rows - view));
-    cellui::CellBuffer screen(rows, cols);
-    for (int r = 0; r < view && top + r < page.rows(); r++) {
-      for (int c = 0; c < std::min(cols, page.cols()); c++) screen.put(r, c, page.at(top + r, c));
-    }
-    cellui::CellBuffer::Style bar;
-    bar.fg = cellui::Color(0, 0, 0);
-    bar.bg = cellui::Color(0xb0, 0xb0, 0xb0);
-    screen.write(rows - 2, 0, std::string(static_cast<size_t>(cols), ' '), bar);
-    screen.write(rows - 2, 0, summary, bar);
-    screen.write(rows - 1, 0, last, {});
-    session->present(screen);
+    showPage(*session, page, top, summary, last);
 
     struct pollfd fds[2] = {{session->inputFd(), POLLIN, 0}, {session->wakeFd(), POLLIN, 0}};
     int timeout = -1;
@@ -99,29 +139,75 @@ int live(const cellui::CellBuffer & page, int page_rows) {
 }
 #endif
 
+#ifdef CELLUI_HAS_GTK
+int liveWindow() {
+  std::string error;
+  auto window = cellui::gtk::Window::open({}, &error);
+  if (!window) {
+    std::fprintf(stderr, "cellui_gallery: %s\n", error.c_str());
+    return 1;
+  }
+  Page page(window->display());
+  int page_rows = page.gallery->rows();
+  std::string summary = "GTK window, cell " + std::to_string(window->display().cell_px_width) + "x" +
+                        std::to_string(window->display().cell_px_height) + " px, scale " +
+                        std::to_string(window->display().display_scale).substr(0, 4);
+  int top = 0;
+  auto & loop = window->eventLoop();
+  auto draw = [&](int64_t) {
+    int view = std::max(1, window->rows() - 2);
+    top = std::max(0, std::min(top, page_rows - view));
+    showPage(*window, page, top, summary, "q quits");
+  };
+  window->setFrameHandler(draw);
+  loop.addSource({window->inputFd(), window->wakeFd()}, [&] {
+    for (const cellui::BackendEvent & e : window->poll()) {
+      if (e.type == cellui::BackendEvent::Type::CLOSE) loop.quit();
+      if (e.type == cellui::BackendEvent::Type::INPUT && e.input.getKind() != cellui::Input::Kind::RELEASE) {
+        int key = e.input.getId();
+        if (key == 'q') loop.quit();
+        if (key == cellui::Key::Up) top--;
+        if (key == cellui::Key::Down) top++;
+        if (key == cellui::Key::PageUp) top -= std::max(1, window->rows() - 2);
+        if (key == cellui::Key::PageDown) top += std::max(1, window->rows() - 2);
+        if (key == cellui::Key::Button4) top -= 3;
+        if (key == cellui::Key::Button5) top += 3;
+      }
+    }
+    window->requestFrame();
+  });
+  window->requestFrame();
+  loop.run();
+  return 0;
+}
+#endif
+
 }  // namespace
 
 int main(int argc, char ** argv) {
-  bool plain = false, full_screen = false;
+  bool plain = false, full_screen = false, window = false;
   for (int i = 1; i < argc; i++) {
     if (std::strcmp(argv[i], "--plain") == 0) plain = true;
 #ifndef _WIN32
     else if (std::strcmp(argv[i], "--live") == 0) full_screen = true;
 #endif
+#ifdef CELLUI_HAS_GTK
+    else if (std::strcmp(argv[i], "--gtk") == 0) window = true;
+#endif
     else {
-      std::fprintf(stderr, "usage: %s [--plain | --live]\n", argv[0]);
+      std::fprintf(stderr, "usage: %s [--plain | --live | --gtk]\n", argv[0]);
       return 2;
     }
   }
-  cellui::Theme theme = cellui::Theme::dark();
-  cellui::StyleProvider styles(theme);
-  cellui::CellBuffer buffer(120, 72);
-  cellui::BufferPlane plane(buffer, styles);
-  cellui::Gallery gallery(plane, theme);
-  plane.refresh();
-#ifndef _WIN32
-  if (full_screen) return live(buffer, gallery.rows());
+#ifdef CELLUI_HAS_GTK
+  if (window) return liveWindow();
 #endif
-  std::cout << (plain ? buffer.toPlainText() : buffer.toAnsi(gallery.rows()));
+  (void)window;
+#ifndef _WIN32
+  if (full_screen) return live();
+#endif
+  (void)full_screen;
+  Page page{cellui::DisplayInfo{}};
+  std::cout << (plain ? page.buffer.toPlainText() : page.buffer.toAnsi(page.gallery->rows()));
   return 0;
 }
