@@ -1,8 +1,9 @@
 #include <cellui/Color.h>
 
+#include "ParseNumber.h"
+
 #include <algorithm>
 #include <cctype>
-#include <charconv>
 #include <cstdlib>
 #include <cstring>
 #include <string>
@@ -416,15 +417,10 @@ std::vector<std::string> arguments(std::string_view s) {
 // A number, or a percentage of `percent_of`; "none" is 0.
 float number(const std::string & tok, float percent_of) {
   if (tok == "none") return 0.0f;
-  // from_chars, not strtof: a window toolkit sets the locale, and a decimal
-  // comma there would read "0.7" as 0.
-  const char * begin = tok.c_str();
-  const char * last = begin + tok.size();
-  if (begin != last && *begin == '+') begin++;
   float v = 0.0f;
-  auto [end, error] = std::from_chars(begin, last, v);
-  if (error != std::errc()) return 0.0f;
-  if (end != last && *end == '%') return v / 100.0f * percent_of;
+  size_t used = 0;
+  if (!parseNumber(tok, v, &used)) return 0.0f;
+  if (used < tok.size() && tok[used] == '%') return v / 100.0f * percent_of;
   return v;
 }
 
