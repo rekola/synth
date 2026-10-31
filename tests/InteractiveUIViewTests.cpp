@@ -628,6 +628,46 @@ TEST(terminal_ui_octave_edit_is_cancelled_by_a_click_elsewhere) {
   CHECK(f.controller->getGlobalOctave() == octave);
 }
 
+namespace {
+// The screen cell (row, column) where `word` starts on the first line with it at or below `from_row`.
+bool findWord(UIFixture & f, const std::string & word, int from_row, int & row, int & col) {
+  auto lines = f.lines();
+  for (size_t y = static_cast<size_t>(from_row); y < lines.size(); ++y) {
+    auto at = lines[y].find(word);
+    if (at == std::string::npos) continue;
+    int cells = 0;
+    for (size_t i = 0; i < at; ++i) cells += (static_cast<unsigned char>(lines[y][i]) & 0xC0) != 0x80;
+    row = static_cast<int>(y);
+    col = cells;
+    return true;
+  }
+  return false;
+}
+} // namespace
+
+// A click on a menu opens it, a click on one of its items runs the command and
+// closes it, and neither reaches the widget under the dropdown.
+TEST(terminal_ui_menu_click_opens_a_section_and_runs_an_item) {
+  UIFixture f(repoSong("demo3.xml"), UI::View::LIVE);
+  int row = 0, col = 0;
+  CHECK(findWord(f, "Help", 0, row, col));
+  CHECK(row == 0);
+  auto focus = f.terminal.info().focus;
+  clickCell(f, row, col);
+  int item_row = 0, item_col = 0;
+  CHECK(findWord(f, "About", 1, item_row, item_col));
+  CHECK(f.terminal.info().focus == focus);
+  bool shown = false;
+  f.inModal([&] {
+    f.ui->step();
+    shown = f.terminal.info().focus == "info-dialog";
+    f.press(cellui::Key::Escape);
+  });
+  clickCell(f, item_row, item_col);
+  CHECK(shown);
+  CHECK(f.terminal.info().focus == focus);
+}
+
 // A click on a dial opens its editor, on that dial.
 TEST(terminal_ui_clip_grid_click_on_a_send_opens_its_editor) {
   UIFixture f(repoSong("demo3.xml"), UI::View::LIVE);

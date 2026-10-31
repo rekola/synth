@@ -701,11 +701,20 @@ InteractiveUI::initializeWidgets() {
   };
   // While a modal layer or the menu is open the pointer is theirs: it is
   // handled in offerInput(), and must not reach the widgets underneath.
-  auto swallow = [this] { return !activeModal() && (anyModalOpen() || menu_->isOpen()) ? cellui::Handled::yes : cellui::Handled::no; };
-  key_connections_.push_back(on<cellui::MouseDown>([swallow](const cellui::MouseDown &, cellui::EventContext &) { return swallow(); }, cellui::Phase::capture));
-  key_connections_.push_back(on<cellui::MouseMove>([swallow](const cellui::MouseMove &, cellui::EventContext &) { return swallow(); }, cellui::Phase::capture));
-  key_connections_.push_back(on<cellui::MouseUp>([swallow](const cellui::MouseUp &, cellui::EventContext &) { return swallow(); }, cellui::Phase::capture));
-  key_connections_.push_back(on<cellui::Wheel>([swallow](const cellui::Wheel &, cellui::EventContext &) { return swallow(); }, cellui::Phase::capture));
+  // An open menu owns the mouse: its dropdown is drawn over the widgets, and a
+  // click on an item must not also reach the widget underneath it (which would
+  // move its cursor, and so change what the item's command acts on). A closed
+  // one takes the clicks on its bar.
+  auto swallow = [this](const cellui::Input * input) {
+    if (activeModal()) return cellui::Handled::no;
+    if (anyModalOpen()) return cellui::Handled::yes;
+    bool open = menu_->isOpen();
+    return (input && offerMenu(*input)) || open ? cellui::Handled::yes : cellui::Handled::no;
+  };
+  key_connections_.push_back(on<cellui::MouseDown>([swallow](const cellui::MouseDown & e, cellui::EventContext &) { return swallow(e.input); }, cellui::Phase::capture));
+  key_connections_.push_back(on<cellui::MouseMove>([swallow](const cellui::MouseMove & e, cellui::EventContext &) { return swallow(e.input); }, cellui::Phase::capture));
+  key_connections_.push_back(on<cellui::MouseUp>([swallow](const cellui::MouseUp & e, cellui::EventContext &) { return swallow(e.input); }, cellui::Phase::capture));
+  key_connections_.push_back(on<cellui::Wheel>([swallow](const cellui::Wheel & e, cellui::EventContext &) { return swallow(e.input); }, cellui::Phase::capture));
   // A fresh left press makes the widget under it the active one, and ends
   // an octave edit it leaves; the press itself still reaches that widget.
   key_connections_.push_back(on<cellui::MouseDown>([this](const cellui::MouseDown & e, cellui::EventContext &) {
@@ -1485,14 +1494,22 @@ bool InteractiveUI::offerKeyLayers(const cellui::Input & input) {
   // global keybinding steal a keystroke meant for it.
   bool reader_active = status_line_->isReaderActive() || pattern_editor_->isReaderActive() || clip_grid_->isReaderActive();
   if (!reader_active && dispatchCommand(input)) return true;
-  if (menu_->offerInput(input)) {
-    // Through sendCommand() so Controller-level commands run too.
-    if (auto cmd = menu_->takeActivatedCommand(); !cmd.empty()) {
-      if (!getController().sendCommand(cmd)) setStatus("Invalid command");
-    }
-    return true;
-  }
+  if (offerMenu(input)) return true;
   return status_line_->offerInput(input);
+}
+
+// The menu tracks an item's display text, not any notion of a command:
+// TerminalMenu::offerInput() maps activation (a click on an item, or Enter
+// while one is highlighted) to a command name itself, and it is run here.
+// Through Controller::sendCommand() - not executeCommand() directly - so the
+// Controller-level commands (toggle-mixer-type, ...) are tried first and a
+// stale name is reported as M-x reports it.
+bool InteractiveUI::offerMenu(const cellui::Input & input) {
+  if (!menu_->offerInput(input)) return false;
+  if (auto cmd = menu_->takeActivatedCommand(); !cmd.empty()) {
+    if (!getController().sendCommand(cmd)) setStatus("Invalid command");
+  }
+  return true;
 }
 
 // A left press makes the widget under it the active one, falling back to the
@@ -1577,17 +1594,6 @@ InteractiveUI::offerInput(const cellui::Input & input) {
     }
     return true;
   }
-  // An open menu owns the mouse: its dropdown is drawn over the widgets, and
-  // a click on an item must not also reach the widget underneath it (which
-  // would move its cursor, and so change what the item's command acts on).
-  if (menu_->isOpen() && input.getId() >= Key::Motion && input.getId() <= Key::Button11) {
-    if (menu_->offerInput(input)) {
-      if (auto cmd = menu_->takeActivatedCommand(); !cmd.empty()) {
-	if (!getController().sendCommand(cmd)) setStatus("Invalid command");
-      }
-    }
-    return true;
-  }
   if (!pointer && octave_control_->isEditing() && octave_control_->offerInput(input)) return true;
   // A command (undo, save, ...) must see a half-typed velocity or delay.
   if (input.getKind() != InputEvent::Kind::RELEASE && (input.hasCtrl() || input.hasAlt())) pattern_editor_->commitPendingValue();
@@ -1632,28 +1638,10 @@ InteractiveUI::offerInput(const cellui::Input & input) {
     pattern_editor_->releaseMouse();
   }
 
-  if (!handled) {
-    handled |= menu_->offerInput(input);
-    if (handled) {
-      // ncmenu tracks an item's display text, not any notion of a command -
-      // TerminalMenu::offerInput() maps activation (a click on an item, or
-      // Enter while one is highlighted) to a command name itself; this is
-      // where it actually gets run. Goes through Controller::sendCommand()
-      // - not executeCommand() directly - for the same reason M-x
-      // (StatusLine::showMx()) does: sendCommand() tries its own
-      // Controller-level chain (toggle-mixer-type, ...) first and only
-      // then falls back to executeCommand() itself (Controller::
-      // setCommandFallback(), initializeWidgets()); calling executeCommand()
-      // directly would skip that chain entirely, silently no-oping any
-      // menu item mapped to a Controller-only command. Failure reported
-      // the same way M-x reports it, for the same reason (a mistyped/
-      // stale command name should never fail silently).
-      if (auto cmd = menu_->takeActivatedCommand(); !cmd.empty()) {
-	if (!getController().sendCommand(cmd)) setStatus("Invalid command");
-      }
-    }
-  }
-  if (!handled) {
+  if (!handled && !pointer) handled |= offerMenu(input);
+  // The status line only reads keys (its reader and the command prompt
+  // shortcut); the pointer is none of its business.
+  if (!handled && !pointer) {
     handled |= status_line_->offerInput(input);
   }
 
