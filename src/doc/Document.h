@@ -2,6 +2,7 @@
 #define _DOCUMENT_H_
 
 #include <cstdint>
+#include <exception>
 #include <functional>
 #include <memory>
 #include <set>
@@ -226,7 +227,15 @@ class Document {
 class Transaction {
  public:
   Transaction(Document & d, const std::string & label = std::string(), bool tracked = true) : doc_(d) { doc_.begin(label, tracked); }
-  ~Transaction() { doc_.commit(); }
+  // commit() can only fail by running out of memory, which in a destructor has
+  // always meant std::terminate; this says so.
+  ~Transaction() {
+    try {
+      doc_.commit();
+    } catch (...) {
+      std::terminate();
+    }
+  }
   Transaction(const Transaction &) = delete;
   Transaction & operator=(const Transaction &) = delete;
 

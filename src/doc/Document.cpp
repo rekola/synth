@@ -1,6 +1,7 @@
 #include "Document.h"
 
 #include <algorithm>
+#include <fmt/format.h>
 #include <cassert>
 #include <cstdio>
 #include <cstdlib>
@@ -374,7 +375,8 @@ std::unique_ptr<Document> Document::clone() const {
 
 static void formatValue(const Value & v, std::string & out) {
   if (auto i = std::get_if<int64_t>(&v)) out += "i" + std::to_string(*i);
-  else if (auto d = std::get_if<double>(&v)) { char buf[48]; std::snprintf(buf, sizeof buf, "d%.17g", *d); out += buf; }
+  else if (auto d = std::get_if<double>(&v))
+    out += fmt::format("d{:.17g}", *d); // never the locale
   else if (auto b = std::get_if<bool>(&v)) out += *b ? "btrue" : "bfalse";
   else if (auto s = std::get_if<std::string>(&v)) out += "s\"" + *s + "\"";
   else if (auto n = std::get_if<NodeId>(&v)) out += "n" + std::to_string(*n);
