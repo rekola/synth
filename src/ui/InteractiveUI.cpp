@@ -1411,13 +1411,15 @@ InteractiveUI::renderComponents(bool refresh) {
     statCount("render:arrangement_grid_");
   }
   {
-    // Shown only when the link is not at full speed, or the user pinned a class.
+    // Always shown: "n/a" until the backend has a figure.
     auto link = backend_.linkStatus();
-    std::string text;
-    if (link.cls != cellui::LinkClass::FULL || link.pinned) {
-      text = "Link: " + cellui::linkClassLabel(link.cls);
+    std::string text = "Link: ";
+    if (link.available || link.pinned) {
+      text += cellui::linkClassLabel(link.cls);
       if (!link.description.empty()) text += ", " + link.description;
       if (link.pinned) text += " (pinned)";
+    } else {
+      text += "n/a";
     }
     info_line_->setLinkText(std::move(text));
   }

@@ -90,7 +90,7 @@ LinkClass LinkClassifier::update(TimePoint now, LinkClass indicated, LinkClass i
 }
 
 void LinkMonitor::notifyIfChanged(const LinkStatus & before) {
-  if ((before.cls != status_.cls || before.pinned != status_.pinned) && handler_) handler_(status_);
+  if ((before.cls != status_.cls || before.pinned != status_.pinned || before.available != status_.available) && handler_) handler_(status_);
 }
 
 void LinkMonitor::pin(std::optional<LinkClass> pin) {
@@ -105,6 +105,13 @@ void LinkMonitor::update(TimePoint now, LinkClass indicated, LinkClass indicated
   LinkStatus before = status_;
   status_.cls = classifier_.update(now, indicated, indicated_with_margin);
   status_.pinned = classifier_.pinned();
+  status_.available = true;
+  notifyIfChanged(before);
+}
+
+void LinkMonitor::setAvailable(bool available) {
+  LinkStatus before = status_;
+  status_.available = available;
   notifyIfChanged(before);
 }
 

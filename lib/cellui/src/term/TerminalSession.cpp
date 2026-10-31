@@ -502,10 +502,19 @@ void TerminalSession::updateLink(std::chrono::steady_clock::time_point now) {
     link_stalled_at_ = now;
   }
   bool settled = now - link_opened_ >= kWarmUp && s.acks >= 12 && now - link_stalled_at_ >= kWarmUp;
-  if (!settled || s.bandwidth <= 0 || blocked < 0.4) return;
+  if (!settled) return;
+  std::string rtt;
+  if (s.rtt_min_us >= 1000) rtt = "RTT " + std::to_string(static_cast<int>(s.rtt_min_us / 1000.0 + 0.5)) + " ms";
+  else if (s.rtt_min_us > 0) rtt = "RTT <1 ms";
+  if (s.bandwidth <= 0 || blocked < 0.4) {
+    // The link did not hold frames back: the bandwidth estimate then only says what was sent, so the
+    // figure is the round trip, and the class stays where it is.
+    link_.setDescription(rtt.empty() ? "not limiting" : "not limiting, " + rtt);
+    link_.setAvailable(true);
+    return;
+  }
   std::string text = formatRate(s.bandwidth);
-  if (s.rtt_min_us >= 1000) text += ", RTT " + std::to_string(static_cast<int>(s.rtt_min_us / 1000.0 + 0.5)) + " ms";
-  else if (s.rtt_min_us > 0) text += ", RTT <1 ms";
+  if (!rtt.empty()) text += ", " + rtt;
   link_.setDescription(std::move(text));
   link_.update(now, linkClassForBandwidth(link_thresholds_, s.bandwidth), linkClassForBandwidth(link_thresholds_, s.bandwidth, link_.classifierConfig().up_margin));
 }

@@ -306,21 +306,28 @@ TEST(terminal_ui_clip_grid_is_hidden_in_arrangement_view_and_back_in_live_view) 
   CHECK(sendsShown());
 }
 
-TEST(info_line_shows_the_link_only_when_it_is_not_at_full_speed) {
+TEST(info_line_shows_the_link_and_says_n_a_until_there_is_a_figure) {
   UIFixture f;
-  CHECK(f.terminal.text().find("Link:") == std::string::npos);
+  CHECK(f.terminal.text().find("Link: n/a") != std::string::npos);
   cellui::LinkStatus slow;
   slow.cls = cellui::LinkClass::HZ_15;
   slow.description = "480 kB/s, RTT 38 ms";
+  slow.available = true;
   f.terminal.setLinkStatus(slow);
   f.ui->step();
   CHECK(f.terminal.text().find("Link: 15 Hz, 480 kB/s, RTT 38 ms") != std::string::npos);
   CHECK(f.terminal.text().find("(pinned)") == std::string::npos);
-  // Back at full speed it goes.
+  // At full speed it stays, with what the backend says.
   cellui::LinkStatus full;
+  full.description = "not limiting, RTT 3 ms";
+  full.available = true;
   f.terminal.setLinkStatus(full);
   f.ui->step();
-  CHECK(f.terminal.text().find("Link:") == std::string::npos);
+  CHECK(f.terminal.text().find("Link: Full speed, not limiting, RTT 3 ms") != std::string::npos);
+  // Without a figure again, n/a.
+  f.terminal.setLinkStatus(cellui::LinkStatus{});
+  f.ui->step();
+  CHECK(f.terminal.text().find("Link: n/a") != std::string::npos);
 }
 
 TEST(a_pinned_link_class_is_shown_even_at_full_speed) {
