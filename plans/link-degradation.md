@@ -1,6 +1,6 @@
 # Degrading gracefully on a slow link
 
-Status: plan, fourth revision. Phase 0 (measuring) is done and its tools are in the tree; the rest
+Status: plan, fifth revision. Phase 0 (measuring) is done and its tools are in the tree; the rest
 is awaiting approval.
 Builds on the terminal frame pacer (`plans/frame-pacing-terminal.md`), which
 measures the link but changes nothing about what is drawn.
@@ -13,7 +13,7 @@ measures the link but changes nothing about what is drawn.
   not worth it. Grey is an option on request only and may never be built (section 2).
 - **A slow link lowers picture quality, not screen colour**: pictures are rectangles, so a
   reduced palette in a chart mixes with colour text without a visible seam (3.2).
-- **Dials are never glyphs.** They are images in every class, **16 positions at 3 dB**, **the letter
+- **Dials are never glyphs.** They are images in every class, **16 positions at 3 dB, none above 0 dB**, **the letter
   stays in the picture**, four looks, shared by a custom key (3.5).
 - **Compression is a small in-tree deflate encoder**, no new dependency (3.1).
 - **No label changes and no reduced-resolution pictures**, the heatmap included.
@@ -249,10 +249,18 @@ upload, so two dials with identical pixels are two uploads, and an explicit `id`
 `drawImageAt()` only keeps that one placement's key stable. The change:
 
 ```cpp
+// Every picture that is shared has an identity: what kind of picture, and which of them. Icons will
+// often have the same size, so size says nothing; the kind does. Pictures with no key keep the hash of
+// their pixels, with kind "other".
+struct ImageKey {
+  const char * kind;   // "dial", "icon", "spectrum", "heatmap", "meter", "blur": a string literal
+  uint64_t id;         // within the kind: for a dial, its (letter, position, look, scale)
+};
+
 // Plane
 // A picture whose pixels depend only on `key` (the caller promises it): drawn once for the
 // root, shared by every plane that asks for the same key, and only rendered when no one has.
-virtual void drawSharedImageAt(int row, int col, uint64_t key, int width, int height,
+virtual void drawSharedImageAt(int row, int col, ImageKey key, int width, int height,
                                const std::function<std::vector<uint32_t>()> & render);
 ```
 
@@ -266,6 +274,10 @@ virtual void drawSharedImageAt(int row, int col, uint64_t key, int width, int he
 - A shared picture is **not deleted** when its last placement goes (`a=d,d=i` removes the placement
   and keeps the data); the shared set is bounded by bytes (a few MB), evicting the least recently
   placed with `a=d,d=I`. One-use pictures (charts) keep today's behaviour.
+- **The kind is also the label in the statistics.** `SYNTH_LINK_STATS` lists uploads and bytes by kind
+  (`dial:12/28k,spectrum:62/190k,icon:3/1k`), not by size, so two kinds of the same size are told apart.
+  Chart widgets give their pictures a kind too (the unkeyed charts get one through the same call, with an
+  id that changes per frame).
 - Pictures are uploaded **lazily**, on first use, never all at start: on a slow link an up-front
   burst of every dial would itself be the problem.
 - Sixel and iTerm2 keep no stored images, so sharing saves rasterisation but not bytes there.
@@ -274,27 +286,39 @@ virtual void drawSharedImageAt(int row, int col, uint64_t key, int width, int he
 
 Dials stay images in every class. To make them cacheable:
 
-- **16 positions at 3 dB**: off, then 15 levels from **-39 to +3 dB**; the dial's arc runs from -42
-  (where off is drawn) to +3. The pointer is drawn at the nearest position. This is the Launchpad's
-  own grid once every one of the 8 rows has a micro-tap (one per row, half a row up, 3 dB):
-  position 2r is row r and 2r+1 its micro-tap, r = 0 to 7:
+- **16 positions at 3 dB, and none above 0 dB**: off, then 15 levels from **-42 to 0 dB**; the dial's arc
+  runs from -45 (where off is drawn) to 0. Position p is dB(p) = -45 + 3p for p = 1 to 15, and p = 0 is
+  off. The pointer is drawn at the nearest. Everything that sets a send from a surface shares this one table:
+  the Launchpad's pads, the dial (drag 3 dB a row, wheel 1 dB, typed values), and the recorded commands.
+- **How the Launchpad's 8 rows take the 16 positions.** Today a row's plain press is 6 dB apart from its
+  neighbours (row 1 -36 dB up to row 7 at 0 dB, row 0 off) and a micro-tap goes 3 dB up, which the top row
+  cannot (and its second micro-value duplicates the next row). With nothing above 0 dB there are two ways:
 
-  | Position | 0 | 1 | 2 | 3 | 4 | ... | 14 | 15 |
-  |---|---|---|---|---|---|---|---|---|
-  | Row | 0 | 0 micro | 1 | 1 micro | 2 | ... | 7 | 7 micro |
-  | dB | off | -39 | -36 | -33 | -30 | ... | 0 | +3 |
+  | | (a) shift everything down 3 dB; micro-tap is **up** | (b) rows keep their values; micro-tap is **down** |
+  |---|---|---|
+  | Row 7 press | -3 dB | **0 dB (unity)** |
+  | Row 7 micro-tap | 0 dB | -3 dB |
+  | Row 1 press / micro | -39 / -36 dB | -36 / -39 dB |
+  | Row 0 press / micro | off / -42 dB | off / -42 dB |
+  | Rows' values against today | all 3 dB lower | **unchanged** |
 
-  **The rows already in the code stay where they are** (row 1 is -36 dB up to row 7 at 0 dB, unity).
-  What changes: row 7 gains a micro-tap (+3 dB, which it lacked as the ceiling); row 0's micro-tap
-  lands at -39 dB, a real value, instead of -68 dB (half way from off to -36, which looks
-  unintended); and a repeated tap on a row **toggles between the row and its micro-tap**, because the
-  second micro-value today is the next row's own value, a duplicate. Dials have a 3 dB drag step per
-  row and a 1 dB wheel step, so they land on the same positions. Typed values still go to +12 dB and
-  the pointer stops at the top of the arc.
-  **Recorded fader commands** (`YMxy`/`YAxy`/`YBxy`) have a 4-bit target, 16 states: the position
-  index is the nibble, 0 = off to F = +3 dB, so a recorded glide and a live tap name the same values.
-  The change lives in `sendRowToDb()`, `sendDbToRow()`, `resolveSendFaderTarget()` and
-  `sendDbToFraction()` (`SendFader.h`: the arc's bottom stays -42 and its top becomes +3).
+  **I recommend (b):** the top pad stays unity, as on a console fader and as today; no existing value moves;
+  the micro-tap becomes a 3 dB trim downward, which is the useful direction when unity is the ceiling. Row 0
+  stays a hard off (bottom pad = silence) with -42 dB as its micro-tap, the one row whose micro-tap goes up
+  because nothing is below off. A repeated tap on a row toggles the row and its micro-tap (today's second
+  micro-value is the next row's own value, a duplicate, and goes). Positions: row r owns 2r and 2r+1; for
+  r >= 1 the micro-tap is 2r and the press 2r+1, for row 0 the press is 0 and the micro-tap 1.
+- **Recorded commands.** `YMxy`/`YAxy`/`YBxy` have a 4-bit target, and today their 16 states are -80 to 0 dB in
+  5.33 dB steps (`Command::getGlideTargetDb()`), which is not on the Launchpad's grid at all, so a recorded
+  glide rounds a live tap to a value the tap never had. The nibble becomes the position index: **x = 0 off,
+  x = 1 to 15 is -45 + 3x dB, F exactly 0 dB**, so a live tap and its recording name the same value. The
+  commands' documentation and the glide encoder (`makeGlideSet()`) change with it; `-Lxx` (byte resolution,
+  -80 to 0 dB) is not touched.
+- **Typed values stop at 0 dB** in the dial too (`typed_max` was +12), and the limit holds for the Launchpad
+  and the commands by construction. A song that already holds a send above 0 dB is not rewritten by this;
+  the surfaces just cannot set one.
+- Code touched: `sendRowToDb()`, `sendDbToRow()`, `resolveSendFaderTarget()` and the micro-step state in the
+  Launchpad manager, `SendFader.h` (the arc becomes -45 to 0), `ClipGrid`'s `DialSpec`, `Command.h`.
 - **Four looks** per position: normal, pressed, hover, selected. `hover` is new; all four are
   implemented now so they can be tested.
 - **The letter is in the picture**, so A, B and Main are three sets: 16 x 4 x 3 = **192 pictures**,
@@ -332,8 +356,8 @@ by `InteractiveUI` when the link handler fires).
 | Pattern editor scrolling | line by line | line by line | line by line | **page** | page |
 | Hover effects, any-motion mouse | on | on | **off** | off | off |
 | Pointer-shape updates | on | on | on | off | off |
-| Modal backdrop blur, with pictures | live | **static** | static | flat dim | flat dim |
-| Modal backdrop blur, in cells (no pictures) | live | live | **static** | static | flat dim |
+| Modal backdrop blur, pictures (kitty, iTerm2) | live | **static** | static | flat dim | flat dim |
+| Modal backdrop blur, cells (no pictures, Sixel) | live | live | **static** | static | flat dim |
 | Dials | images | images | images | images | images |
 
 The table is the starting point; phase 0's demands set the cuts.
@@ -345,21 +369,29 @@ The table is the starting point; phase 0's demands set the cuts.
   scroll margins), so the screen repaints once per page instead of per row. In Live View each
   column's line (`keepTrackLinesVisible()`) uses the same rule; the arrangement grid pages sideways
   by bars.
-- **Backdrop blur** (the scrim behind a dialog; `term::BackdropEmulation`): measured, with the About
-  dialog open while playing, kitty gets **+3.7 MB/s** (9.2 against 5.5 MB/s): the blurred backdrop is
-  made of small pictures (34x18 px, 1339 uploads a second at 4 cells wide) redrawn whenever what is
-  below changes, and the blur is the second-largest consumer after the chart. With no pictures it is
-  cells: 64 kB/s against 19 kB/s for the same playing UI with no dialog (+45 kB/s). Stopped, a dialog
-  costs nothing either way. So:
-  - **Static** means the backdrop is made once, when the dialog opens (or its place or size changes), from
-    the cells then, and **not redone while what is below changes**; the dialog hides it anyway, and the
-    widgets below can stop updating. In `BackdropEmulation` a tile keeps its picture (or filtered cells)
-    and skips its change check while frozen.
-  - With pictures, from `HZ_30` down; in cells, one class lower, from `HZ_15`, since it is cheap. At
-    `HZ_5` and below pictures give way to a flat dim of the covered cells (no blur at all), and in cells at
-    `HZ_1`.
-  - A blur has many colours and is smooth, so it compresses worse than a chart and a reduced palette bands:
-    that is the reason to freeze it and not to thin it.
+- **Backdrop blur** (the scrim behind a dialog; `term::BackdropEmulation`). Measured with the About dialog
+  open while playing: with pictures it adds **3.7 MB/s** (9.2 against 5.5 MB/s), the second-largest consumer
+  after the chart: small blurred tiles (34x18 px) redrawn whenever what is below changes. With no pictures it
+  is cells: 64 kB/s against 19 kB/s without the dialog (+45 kB/s). Stopped, a dialog costs nothing either way.
+  - **A blur is never quantised.** A smooth gradient bands in a palette, so the picture blur is always
+    full RGB: **kitty and iTerm2 only** (24 bits per pixel). **Sixel cannot** (its palette is the
+    quantisation), so on Sixel the blur is the cell one, whatever the class.
+  - **Lossless compression does pay here**, contrary to what one would expect of a blur: measured on the tiles,
+    deflate takes them to **26% of their size** at level 1 and 23% at level 6 (3.8x to 4.4x; a tile has
+    about 68 colours in 612 pixels, because the cells under it are mostly flat). So the "enough bandwidth
+    for RGB" test counts the compressed size (the picture is sent raw only where deflate gains under about
+    10%), and the live blur is demand about 0.9 MB/s on the pacer's terms, not 3.7.
+  - **Most of that traffic is repeats.** In the 3 seconds after the dialog opened while playing, 6284 tiles were
+    uploaded and 1527 were distinct pictures; with shared keys (3.4) the rest are placements, which is
+    3 to 4 times less again before compression.
+  - **Static** means the backdrop is made once when the dialog opens (or its place or size changes), from the
+    cells then, and not redone while what is below changes; the dialog hides it, and the widgets below can stop
+    updating. A static blur is a **one-off cost**: stopped, the About dialog's backdrop is 80 tiles and 184 kB as
+    sent, about 46 kB compressed. It is used when that costs under about two seconds of the link, so it
+    needs roughly 25 kB/s compressed (about 90 kB/s of raw RGB); below that, a **flat dim** of the covered cells.
+  - By class: live with pictures at `FULL` (when the live demand fits, else static); static from `HZ_30`;
+    flat dim from `HZ_5`. In cells (no pictures, or Sixel): live through `HZ_30`, static from `HZ_15`, flat dim
+    at `HZ_1`.
 - **Key-release events** from the kitty keyboard protocol stop at `HZ_5` if `KeyReader` and note
   entry can do without them (checked first).
 - The glyph (cell) charts stay the fallback for a display with no pictures, and a last resort at
@@ -437,9 +469,9 @@ deflate ratio on real charts is known.
 
 0. **Measure** (section 4). **Done**: the tools (`measure_link.py`, `analyze_pictures.py`), the
    `SYNTH_LINK_STATS=<file>` log for a real link (a line a second: frames, bytes by kind, bandwidth, RTT,
-   uploads by picture size), and the results above. What it cannot tell: the pictures are told apart by their
+   uploads by picture size), and the results above. What it cannot tell yet: the pictures are told apart by their
    size, not by which widget draws them (the 232x80 one is the spectrum in all likelihood, nothing in the log
-   says so), and I have no real terminal or link here, so the figures are for the emulated terminal; the log is
+   says so); icons will share sizes, so the picture kinds of 3.4 replace it, and I have no real terminal or link here, so the figures are for the emulated terminal; the log is
    there for you to run on real ones.
 1. **API and classes.** `LinkStatus`, `Backend::linkStatus()/setLinkHandler()`, classification by
    profile demand with hysteresis and trials, the description strings (terminal bandwidth/RTT,
@@ -461,10 +493,11 @@ deflate ratio on real charts is known.
 
 ## 6. Decisions I need
 
-1. **Micro-tap behaviour:** a repeated tap on a row toggles the row and its micro-tap (3 dB up), instead of
-   today's cycle through half a row and the next row's own value. Is that the intent?
-2. **Classes by demand:** is "the largest profile that fits in 70% of the bandwidth" the right rule? Phase 0
-   gives the inputs; the thresholds follow once the in-tree encoder's ratio is known.
+1. **The Launchpad rows:** (a) everything 3 dB lower with an upward micro-tap, or (b) rows unchanged and the
+   micro-tap 3 dB **down** (my recommendation, 3.5)? And row 0 stays a hard off with -42 dB as its micro-tap?
+2. **Sixel and the blur:** Sixel cannot carry an unquantised blur, so it gets the cell blur always. Right?
+3. **Classes by demand:** is "the largest profile that fits in 70% of the bandwidth" the right rule? Phase 0
+   gives the inputs; thresholds follow once the in-tree encoder's ratio is known.
 
 ## 7. Risks
 
