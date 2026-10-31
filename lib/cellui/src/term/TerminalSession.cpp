@@ -164,6 +164,9 @@ bool TerminalSession::start(SessionOptions & options, std::string * error) {
   dither_ = options.dither;
   parser_.setGrace(options.grace);
   pacer_config_ = options.pacer;
+  link_ = LinkMonitor(options.link);
+  link_thresholds_ = options.link_thresholds;
+  link_opened_ = std::chrono::steady_clock::now();
   if (const char * path = std::getenv("SYNTH_LINK_STATS")) link_log_ = std::fopen(path, "a");
 
   // cbreak, plus what an Emacs-style key map needs: Ctrl-S/Q (flow
@@ -466,10 +469,57 @@ void TerminalSession::logLinkStats(std::chrono::steady_clock::time_point now) {
   link_log_pictures_.clear();
 }
 
+namespace {
+
+std::string formatRate(double bytes_per_sec) {
+  char buf[32];
+  if (bytes_per_sec >= 1e6) std::snprintf(buf, sizeof buf, "%.1f MB/s", bytes_per_sec / 1e6);
+  else if (bytes_per_sec >= 1e3) std::snprintf(buf, sizeof buf, "%.0f kB/s", bytes_per_sec / 1e3);
+  else std::snprintf(buf, sizeof buf, "%.0f B/s", bytes_per_sec);
+  return buf;
+}
+
+}  // namespace
+
+void TerminalSession::updateLink(std::chrono::steady_clock::time_point now) {
+  constexpr auto kInterval = std::chrono::seconds(1);
+  constexpr auto kWarmUp = std::chrono::seconds(4);
+  if (link_last_update_ == std::chrono::steady_clock::time_point{}) link_last_update_ = now;
+  if (now - link_last_update_ < kInterval) return;
+  double span = std::chrono::duration<double>(now - link_last_update_).count();
+  double blocked = link_blocked_seconds_ / span;
+  link_blocked_seconds_ = 0;
+  link_last_update_ = now;
+  PacerStats s = pacerStats();
+  if (!s.fences) {
+    // No answers to the cursor queries: the pacer sends at a fixed rate and measures nothing.
+    link_.setDescription("no cursor reports, " + std::to_string(static_cast<int>(pacer_config_.fallback_fps)) + " Hz");
+    link_.update(now, LinkClass::HZ_5, LinkClass::HZ_5);
+    return;
+  }
+  if (s.stalls != link_stalls_seen_) {
+    link_stalls_seen_ = s.stalls;
+    link_stalled_at_ = now;
+  }
+  bool settled = now - link_opened_ >= kWarmUp && s.acks >= 12 && now - link_stalled_at_ >= kWarmUp;
+  if (!settled || s.bandwidth <= 0 || blocked < 0.4) return;
+  std::string text = formatRate(s.bandwidth);
+  if (s.rtt_min_us >= 1000) text += ", RTT " + std::to_string(static_cast<int>(s.rtt_min_us / 1000.0 + 0.5)) + " ms";
+  else if (s.rtt_min_us > 0) text += ", RTT <1 ms";
+  link_.setDescription(std::move(text));
+  link_.update(now, linkClassForBandwidth(link_thresholds_, s.bandwidth), linkClassForBandwidth(link_thresholds_, s.bandwidth, link_.classifierConfig().up_margin));
+}
+
 void TerminalSession::pumpFrame() {
   if (!pacing_ || fd_ < 0 || !open_) return;
   auto now = std::chrono::steady_clock::now();
   logLinkStats(now);
+  // The time since the last turn counts as link-bound if the link is what holds the next frame back.
+  if (link_last_pump_ != std::chrono::steady_clock::time_point{} && (pacer_.linkBound(now) || (!out_.empty() && pacer_.dirty()))) {
+    link_blocked_seconds_ += std::min(1.0, std::chrono::duration<double>(now - link_last_pump_).count());
+  }
+  link_last_pump_ = now;
+  updateLink(now);
   pacer_.tick(now);
   late_replies_ += pacer_.takeLateReplies();
   if (!out_.empty() || !pacer_.mayStart(now)) return;

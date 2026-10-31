@@ -61,6 +61,15 @@ bool FramePacer::mayStart(TimePoint now) const {
   return windowAllows();
 }
 
+bool FramePacer::linkBound(TimePoint now) const {
+  if (!fences_ || !dirty_ || bandwidth_ <= 0 || mayStart(now)) return false;
+  if (!windowAllows()) return true;
+  if (!last_start_) return false;
+  double floor = duration<double>(config_.min_frame_interval).count();
+  double gap = static_cast<double>(last_sent_bytes_) / (bandwidth_ * (wouldProbe() ? config_.probe_gain : 1.0));
+  return gap > floor && now < plus(*last_start_, gap);
+}
+
 std::optional<FramePacer::TimePoint> FramePacer::deadline(bool queue_empty) const {
   std::optional<TimePoint> best;
   auto consider = [&](TimePoint t) {

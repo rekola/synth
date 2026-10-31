@@ -103,6 +103,11 @@ class FramePacer {
   // Whether a frame may start now (the caller also needs its output queue
   // to be empty).
   bool mayStart(TimePoint now) const;
+  // Whether the link is what holds the next frame back: one is wanted and not allowed, and not
+  // just by the floor between frames (the gap its size needs at the estimated bandwidth, or the
+  // bytes already in flight). Only then is the bandwidth estimate a measurement of the link; when
+  // the application is the limit it only says what the application sent.
+  bool linkBound(TimePoint now) const;
   // When the time alone lets the next frame start, if one is wanted and
   // nothing else is holding it; also the moment a stall would be declared.
   // `queue_empty`: whether the output queue has drained; while it has not, a

@@ -5,6 +5,7 @@
 #include <cellui/DisplayInfo.h>
 #include <cellui/EventLoop.h>
 #include <cellui/Image.h>
+#include <cellui/LinkStatus.h>
 #include <cellui/PlaneInfo.h>
 
 #include <chrono>
@@ -62,6 +63,15 @@ class Backend {
   using FrameHandler = std::function<void(int64_t frame_time_us)>;
   virtual void requestFrame() = 0;
   virtual void setFrameHandler(FrameHandler handler) = 0;
+  // What the link to the display sustains (LinkStatus.h): a class, and the backend's own words for it.
+  // A backend that cannot tell says FULL with no description.
+  virtual LinkStatus linkStatus() const { return {}; }
+  // `handler` is called on the UI thread when the class (or the pin) changes, not for every new
+  // reading.
+  using LinkHandler = std::function<void(const LinkStatus &)>;
+  virtual void setLinkHandler(LinkHandler) { }
+  // The class is this whatever is measured; empty to measure again.
+  virtual void setLinkPin(std::optional<LinkClass>) { }
   // Whether the user selects text with the mouse instead of the application
   // getting the clicks. Default no-op.
   virtual void setNativeSelection(bool) { }

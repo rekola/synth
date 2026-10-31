@@ -73,6 +73,7 @@ add_library(cellui STATIC
   src/EventLoop.cpp
   src/Wakeup.cpp
   src/ThreadPosts.cpp
+  src/LinkStatus.cpp
   src/KeyReader.cpp
   src/LineEditor.cpp
   src/Markdown.cpp
@@ -234,6 +235,7 @@ add_executable(cellui_tests
   tests/FadeTests.cpp
   tests/FrameEncoderTests.cpp
   tests/FramePacerTests.cpp
+  tests/LinkStatusTests.cpp
   tests/ImageEncoderTests.cpp
   tests/GalleryTests.cpp
   tests/HeatmapChartTests.cpp

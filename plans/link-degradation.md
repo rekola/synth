@@ -295,11 +295,12 @@ Dials stay images in every class. To make them cacheable:
   | Position (= command nibble) | 0 | 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10 | 11 | 12 | 13 | 14 | 15 |
   |---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
   | dB | off | -42 | -39 | -36 | -33 | -30 | -27 | -24 | -21 | -18 | -15 | -12 | -9 | -6 | -3 | 0 |
-  | Launchpad | row 0 | row 0 micro | row 1 micro | row 1 | row 2 micro | row 2 | row 3 micro | row 3 | row 4 micro | row 4 | row 5 micro | row 5 | row 6 micro | row 6 | row 7 micro | row 7 |
+  | Launchpad | row 0 micro | row 0 | row 1 micro | row 1 | row 2 micro | row 2 | row 3 micro | row 3 | row 4 micro | row 4 | row 5 micro | row 5 | row 6 micro | row 6 | row 7 micro | row 7 |
 
-  The compromise: **the rows keep today's values** (row 1 at -36 dB up to row 7 at 0 dB, unity, 6 dB apart; row 0
-  a hard off) and **each row's micro-tap is 3 dB down** (row 7: -3 dB, row 1: -39 dB); row 0, with nothing
-  below off, has its micro-tap at -42 dB. The range is 42 dB, 6 more than today's 36. A repeated tap on a row
+  The compromise: **rows 1 to 7 keep today's values** (row 1 at -36 dB up to row 7 at 0 dB, unity, 6 dB apart) and
+  **every row, 0 included, is regular: its micro-tap is 3 dB down**. Row 0's first tap is **-42 dB** and its
+  micro-tap is **off**, so the bottom pad no longer mutes on the first press (today it is a hard off); a second
+  tap does. The range is 42 dB, 6 more than today's 36. A repeated tap on a row
   toggles the row and its micro-tap (today's second micro-value is the next row's own value, a duplicate, and goes).
 - **The dial sets only these 16 values,** so what it does is what a pad does and what a recording can hold: a drag
   moves one position a row (3 dB, as now), a wheel notch one position (it was 1 dB), a typed value is rounded to
@@ -357,6 +358,15 @@ by `InteractiveUI` when the link handler fires).
 
 The table is the starting point; phase 0's demands set the cuts.
 
+- **A frame cap per class, for redraws nobody asked for.** What bounds the rate today is only the 16 ms floor
+  (60 a second) and the pacer's bandwidth gap, so a UI that changes a little every audio block runs at the
+  floor: measured, with the scopes off and the transport playing, **60 frames/s of 3.7 kB each (220 kB/s)**,
+  because the meters change on every block; a status bar alone would change at the rate of its own events
+  (the position text, a few a second). The class sets a cap on **autonomous** redraws (playhead, meters,
+  animation): `FULL` 60, `HZ_30` 30, `HZ_15` 15, `HZ_5` 5, `HZ_1` 1 frames a second. **A frame the user's input
+  caused is exempt** (a typed key is echoed at once, in any class), subject only to the pacer's bandwidth
+  gap. In `InteractiveUI` that is the idle gate the loop already has for wakes that ask for nothing
+  (100 ms), made class-dependent.
 - **Animations** use `InteractiveUI::setReducedMotion()`, which exists: smooth scrolling, easing,
   the clip slots' pulsing (a steady colour instead) and flashing (a steady marker).
 - **Page scrolling** (`PatternEditor::ScrollMode { LINE, PAGE }`): when the cursor, or a playing
@@ -381,6 +391,17 @@ The table is the starting point; phase 0's demands set the cuts.
   - **Most of that traffic is repeats.** In the 3 seconds after the dialog opened while playing, 6284 tiles were
     uploaded and 1527 were distinct pictures; with shared keys (3.4) the rest are placements, which is
     3 to 4 times less again before compression.
+  - **On Sixel the backdrop can be one picture, not tiles.** The tiles exist so that only the ones whose cells
+    changed are redone and sent; kitty and iTerm2 cannot send part of a picture, so they keep tiles. Sixel's
+    damage tracking (3.3) is done by the encoder, in cell-aligned tiles of one big picture, so the emulation
+    can keep **one persistent pixel buffer for the backdrop**, redraw only its dirty cells, and hand the
+    encoder the whole picture; the encoder sends the changed tiles, merged per row. Gains: **one palette**
+    for the whole backdrop, so neighbouring regions cannot come out in different colours (tiles each pick
+    their own, and a seam between two quantisations is what tiling risks even with the shared dither); one
+    stable palette, so the colours do not shift as the content below changes; and fewer sixel headers and
+    palette definitions, which are repeated for every tile. Limits: the terminal's largest sixel
+    (`Capabilities::sixel_max_width/height`; a full-screen picture may exceed it, then the picture is cut
+    into strips that fit) and the rule that a sixel never reaches the last screen row. Needs 3.3 first.
   - **Sixel costs differently, and cannot be compressed.** Measured (the same dialog, sixel): the playing UI is
     already only 743 kB/s (the 240-colour palette run-length-encodes flat charts well); the live blur takes it to
     **2.5 MB/s** (925 images a second, +1.8 MB/s); frozen, the About dialog's backdrop is **184 kB once**.
@@ -496,6 +517,14 @@ deflate ratio on real charts is known.
 
 All settled: the one 16-position table (3.5); Sixel keeps the pixel blur with dithering (3.7); classes are the
 largest profile that fits in 70% of the bandwidth (section 1). What is left is approval to start phase 1.
+
+## 6a. The first frame
+
+The first frame is sent before the link is known, and with pictures it is large: on a 1 kB/s line (9600 baud) the
+first screen is about 100 kB, which takes over a minute, with the link unmeasured until it is done. So the
+**first frame carries no pictures** (cells only, a few kB): the pacer's first reply then comes within seconds
+and the class is known before any picture is sent. Pictures follow at the class's quality, the first being the
+smallest. A terminal that answers fast loses a frame or two of delay.
 
 ## 7. Risks
 
