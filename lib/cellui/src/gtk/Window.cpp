@@ -1426,7 +1426,11 @@ void Window::setFrameHandler(FrameHandler handler) { impl_->frame_handler = std:
 
 LinkStatus Window::linkStatus() const {
   LinkStatus status = impl_->link.status();
-  if (status.description.empty()) status.description = impl_->vsyncText();
+  if (status.description.empty()) {
+    // The monitor's rate is known at once; the frame rate follows when the window has run flat out.
+    status.description = impl_->vsyncText();
+    status.available = status.description != "vsync unknown";
+  }
   return status;
 }
 void Window::setLinkHandler(LinkHandler handler) { impl_->link.setHandler(std::move(handler)); }

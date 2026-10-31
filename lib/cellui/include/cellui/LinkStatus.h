@@ -26,8 +26,13 @@ struct LinkStatus {
   std::string description;
   // Set by the user, not measured.
   bool pinned = false;
+  // Whether the backend has anything to report yet: a link is measured over seconds, so until then
+  // the class is only the default and an application shows "n/a".
+  bool available = false;
 
-  bool operator==(const LinkStatus & o) const { return cls == o.cls && description == o.description && pinned == o.pinned; }
+  bool operator==(const LinkStatus & o) const {
+    return cls == o.cls && description == o.description && pinned == o.pinned && available == o.available;
+  }
   bool operator!=(const LinkStatus & o) const { return !(*this == o); }
 };
 
@@ -93,6 +98,8 @@ class LinkMonitor {
   void pin(std::optional<LinkClass> pin);
   void update(TimePoint now, LinkClass indicated, LinkClass indicated_with_margin);
   void setDescription(std::string description) { status_.description = std::move(description); }
+  // A figure to show without a class to go with it (the link is not what limits the display).
+  void setAvailable(bool available);
   const LinkClassifierConfig & classifierConfig() const { return classifier_.config(); }
   // Replaces the status (a test's, or a backend that classifies elsewhere) and tells the handler.
   void set(const LinkStatus & status);

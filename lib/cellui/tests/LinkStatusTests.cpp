@@ -114,6 +114,8 @@ TEST(link_monitor_tells_the_handler_of_a_class_change_and_not_a_new_description)
   });
   m.setDescription("480 kB/s");
   m.update(at(0), LinkClass::FULL, LinkClass::FULL);
+  CHECK(calls == 1);  // the first reading makes the status available
+  calls = 0;
   m.setDescription("470 kB/s");
   CHECK(calls == 0 && m.status().description == "470 kB/s");
   m.update(at(0), LinkClass::HZ_5, LinkClass::HZ_5);
@@ -143,3 +145,17 @@ TEST(test_backend_link_status_is_what_the_test_sets) {
   CHECK(calls == 2 && backend.linkStatus().pinned && backend.linkStatus().cls == LinkClass::HZ_5);
 }
 #endif
+
+TEST(a_monitor_is_available_after_an_update_or_when_told_so) {
+  LinkMonitor m;
+  int calls = 0;
+  m.setHandler([&](const LinkStatus &) { calls++; });
+  CHECK(!m.status().available);
+  m.setAvailable(true);
+  CHECK(m.status().available && calls == 1);
+  m.setAvailable(true);
+  CHECK(calls == 1);  // nothing changed
+  LinkMonitor n;
+  n.update(std::chrono::steady_clock::now(), LinkClass::FULL, LinkClass::FULL);
+  CHECK(n.status().available);
+}

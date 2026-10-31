@@ -60,7 +60,11 @@ int main(int argc, char ** argv) {
     return 1;
   }
   int link_changes = 0;
-  session->setLinkHandler([&](const LinkStatus &) { link_changes++; });
+  LinkClass link_seen = LinkClass::FULL;
+  session->setLinkHandler([&](const LinkStatus & status) {
+    if (status.cls != link_seen) link_changes++;  // the status becoming available is not a change of class
+    link_seen = status.cls;
+  });
   if (!pin.empty()) {
     std::optional<LinkClass> pinned;
     if (parseLinkClass(pin, pinned)) session->setLinkPin(pinned);
@@ -180,8 +184,8 @@ int main(int argc, char ** argv) {
                s.frames, elapsed, static_cast<double>(s.frames) / elapsed, s.bandwidth, s.rtt_min_us, s.acks, s.backoffs, s.stalls,
                s.fences ? 1 : 0, s.totals.upload, s.totals.placement, s.totals.other, s.kitty_errors);
   LinkStatus link = session->linkStatus();
-  std::fprintf(log, "LINK class=%d name=%s pinned=%d changes=%d description=%s\n", static_cast<int>(link.cls), linkClassName(link.cls),
-               link.pinned ? 1 : 0, link_changes, link.description.c_str());
+  std::fprintf(log, "LINK class=%d name=%s pinned=%d available=%d changes=%d description=%s\n", static_cast<int>(link.cls), linkClassName(link.cls),
+               link.pinned ? 1 : 0, link.available ? 1 : 0, link_changes, link.description.c_str());
   session->close();
   return 0;
 }
