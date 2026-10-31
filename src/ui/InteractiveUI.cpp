@@ -1652,7 +1652,9 @@ InteractiveUI::offerInput(const cellui::Input & input) {
       }
     }
   }
-  if (!handled) {
+  // The status line only reads keys (its reader and the command prompt
+  // shortcut); the pointer is none of its business.
+  if (!handled && !pointer) {
     handled |= status_line_->offerInput(input);
   }
 
