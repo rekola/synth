@@ -3,7 +3,10 @@
 
 #include "InfoDialog.h"
 #include <cellui/Fade.h>
+#include <cellui/InputDispatcher.h>
+#include <cellui/InputEvents.h>
 #include <cellui/PickerPopup.h>
+#include <cellui/Signal.h>
 #include "UIElement.h"
 #include "../model/TrackType.h"
 
@@ -92,6 +95,11 @@ class OutlineView : public UIElement {
   bool isAnimating() const { return fades_.active() || focus_fade_drawn_; }
 
   OutlineView(Plane & parent) : UIElement(parent) {
+    connections_.push_back(on<cellui::KeyDown>([this](const cellui::KeyDown & e, cellui::EventContext &) { return keyDown(e) ? cellui::Handled::yes : cellui::Handled::no; }));
+    connections_.push_back(on<cellui::KeyUp>([this](const cellui::KeyUp & e, cellui::EventContext &) { return keyUp(e) ? cellui::Handled::yes : cellui::Handled::no; }));
+    connections_.push_back(on<cellui::MouseDown>([this](const cellui::MouseDown & e, cellui::EventContext &) { return e.button == 1 && mouseDown(e.row, e.col) ? cellui::Handled::yes : cellui::Handled::no; }));
+    connections_.push_back(on<cellui::MouseUp>([this](const cellui::MouseUp & e, cellui::EventContext &) { return e.button == 1 && mouseUp(e.row, e.col) ? cellui::Handled::yes : cellui::Handled::no; }));
+    connections_.push_back(on<cellui::Wheel>([this](const cellui::Wheel & e, cellui::EventContext &) { return wheel(e) ? cellui::Handled::yes : cellui::Handled::no; }));
   }
 
   bool offerInput(const cellui::Input & input) override;
@@ -179,7 +187,12 @@ protected:
   // side). Resolved on RELEASE, matching SpinBox's own click
   // convention - a press, or a drag while held, only shows what is
   // pressed; the release acts on it.
-  bool handleClick(const cellui::Input & input);
+  bool handleClick(int screen_y, int screen_x, bool release);
+  bool keyDown(const cellui::KeyDown & e);
+  bool keyUp(const cellui::KeyUp & e);
+  bool mouseDown(int row, int col);
+  bool mouseUp(int row, int col);
+  bool wheel(const cellui::Wheel & e);
   // What a click at the screen position lands on: a tree row (data_
   // index) or a button, or neither.
   struct ClickTarget {
@@ -336,6 +349,7 @@ protected:
   bool details_dirty_ = false;
   InfoDialog info_popup_;
   int screen_rows_ = 24, screen_cols_ = 80;
+  std::vector<cellui::Connection> connections_;
   cellui::PickerPopup target_picker_;
   bool info_open_ = false;
 };
