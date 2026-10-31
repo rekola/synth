@@ -1,6 +1,6 @@
 # Degrading gracefully on a slow link
 
-Status: plan, third revision. Phase 0 (measuring) is done and its tools are in the tree; the rest
+Status: plan, fourth revision. Phase 0 (measuring) is done and its tools are in the tree; the rest
 is awaiting approval.
 Builds on the terminal frame pacer (`plans/frame-pacing-terminal.md`), which
 measures the link but changes nothing about what is drawn.
@@ -13,7 +13,7 @@ measures the link but changes nothing about what is drawn.
   not worth it. Grey is an option on request only and may never be built (section 2).
 - **A slow link lowers picture quality, not screen colour**: pictures are rectangles, so a
   reduced palette in a chart mixes with colour text without a visible seam (3.2).
-- **Dials are never glyphs.** They are images in every class, **15 positions at 3 dB**, **the letter
+- **Dials are never glyphs.** They are images in every class, **16 positions at 3 dB**, **the letter
   stays in the picture**, four looks, shared by a custom key (3.5).
 - **Compression is a small in-tree deflate encoder**, no new dependency (3.1).
 - **No label changes and no reduced-resolution pictures**, the heatmap included.
@@ -134,14 +134,40 @@ longer before the next.
 The biggest cost is chart pictures: raw RGB, base64, every frame, in every protocol. Before
 cutting anything:
 
-- A small **zlib-format deflate encoder** in `cellui/term/Deflate.{h,cpp}`: LZ77 with a hash
-  chain and fixed Huffman codes (dynamic Huffman only if the measured ratio needs it), with
-  Adler-32. Round-trip tested against a small inflate written for the tests.
-- **kitty:** `o=z` on the payload. PNG (`f=100`) uses the same encoder for its IDAT stream,
-  with a CRC-32 writer next to the PNG writer that exists (`encodePng()`, for iTerm2, which is
-  stored uncompressed today).
-- The ratio is measured on the real charts first. A line chart on a flat background should
-  shrink many times; a smooth heatmap much less.
+- A **zlib-format deflate encoder** in `cellui/term/Deflate.{h,cpp}`, written to be **faster than
+  zlib with a comparable ratio**. Measured baseline on the real charts (zlib, this machine, a 2.1 GHz
+  Xeon): level 1 does 330-355 MB/s and level 6 180-200 MB/s; level 6 is 13-15% smaller than level 1
+  (232x80: 2714 B against 3153 B). **Targets:** at most 3% larger than zlib level 6 on the charts
+  (below), and at least twice zlib level 1's speed. Whether the speed target is met is not known
+  until a prototype is timed; the ratio target is the one that cannot give way.
+  - **Dynamic Huffman**, not fixed: the first plan's fixed codes cost far more than a few percent
+    on these pictures. Per block (about 32K symbols) the encoder builds length-limited codes
+    (15 bits, package-merge) from a histogram and takes the smaller of dynamic, fixed and stored.
+  - **Match finder:** a hash of four bytes into a table of recent positions, with a chain depth
+    per level (1: one probe, greedy; 2: lazy matching, 4 probes; 3: lazy, 16 probes). The
+    pictures are flat runs and repeated rows, so long matches decide the ratio: that is where
+    the work goes, and where a wide compare pays.
+  - **SIMD, by GCC vector extensions** (the project's DSP code already needs them, they build on
+    SSE2 and NEON alike, and clang has them): match-length comparison 16 bytes at a time (a
+    byte-equal compare and a mask, with the intrinsic for the mask on each architecture and a
+    64-bit XOR/count-trailing-zeros scalar fallback), the hash of several positions at once,
+    Adler-32 with widening adds, and the histogram in four interleaved tables. AVX2 and the CRC
+    (PCLMUL, ARM CRC) are optional extra paths chosen at run time with `target` attributes.
+  - **The output does not depend on the CPU.** Every path makes the same matches and the same
+    bytes; a test compares them bit for bit. Run-time dispatch changes speed only, so a picture's
+    bytes (and anything keyed on them) are the same everywhere.
+  - **Tests:** a round trip through a small inflate written for the tests (no library), the
+    scalar and SIMD paths equal, random and degenerate inputs (empty, one byte, all equal, 64K+
+    windows, incompressible), and **size ceilings per canned chart** set from zlib level 6's measured
+    size plus 3% (the charts are rendered by the real renderers in the test, so there are no
+    fixtures). A benchmark (`cellui_deflate_bench`) times it against zlib when zlib is found at
+    configure time; zlib is never a dependency of the library or the tests.
+- **Row filters are not used.** PNG's row filters were tried on the real charts and make them the
+  same or worse (232x80: 3153 B plain, 3411 B with Sub, 3471 B with Up; the flat runs already
+  compress well and the filters add noise at the anti-aliased edges). So kitty gets **plain
+  deflate of raw RGB (`o=z`)** for full quality, and a PNG (`f=100`) only where a palette makes it
+  smaller (3.2); iTerm2, which takes only PNG, gets one with no filter (type 0) and the same
+  encoder, with a CRC-32 writer next to the existing PNG writer.
 
 ### 3.2 Picture quality on a slow link
 
@@ -245,19 +271,30 @@ virtual void drawSharedImageAt(int row, int col, uint64_t key, int width, int he
 
 Dials stay images in every class. To make them cacheable:
 
-- **15 positions**: the dial's arc is -42 dB (drawn as off) to 0 dB, at **3 dB** steps, which is the
-  Launchpad's own grid (below). The pointer is drawn at the nearest. What the code has: the Launchpad
-  steps its fader rows 6 dB apart (off, then -36 to 0 dB) and a repeated press on a row moves
-  **halfway to the next** (3 dB), and a second repeat is the next row, so its reachable values are off,
-  -36, -33, ..., -3, 0: 14 values. (The code comment counts 8 rows x 2 = 16; a micro-tap on the bottom
-  row also lands at -68 dB, half way between off and -36, which looks unintended and would show as
-  off.) Dials have a 3 dB drag step per row and a 1 dB wheel step; I find no 2 dB step in the code. 16
-  positions would need a 2.8 dB step, which is fractional; 15 at 3 dB needs no change to the Launchpad
-  and adds only the dial's -42 and -39 dB below the Launchpad's lowest, so it is what I plan unless you
-  say otherwise.
+- **16 positions at 3 dB**: off, then 15 levels from **-39 to +3 dB**; the dial's arc runs from -42
+  (where off is drawn) to +3. The pointer is drawn at the nearest position. This is the Launchpad's
+  own grid once every one of the 8 rows has a micro-tap (one per row, half a row up, 3 dB):
+  position 2r is row r and 2r+1 its micro-tap, r = 0 to 7:
+
+  | Position | 0 | 1 | 2 | 3 | 4 | ... | 14 | 15 |
+  |---|---|---|---|---|---|---|---|---|
+  | Row | 0 | 0 micro | 1 | 1 micro | 2 | ... | 7 | 7 micro |
+  | dB | off | -39 | -36 | -33 | -30 | ... | 0 | +3 |
+
+  **The rows already in the code stay where they are** (row 1 is -36 dB up to row 7 at 0 dB, unity).
+  What changes: row 7 gains a micro-tap (+3 dB, which it lacked as the ceiling); row 0's micro-tap
+  lands at -39 dB, a real value, instead of -68 dB (half way from off to -36, which looks
+  unintended); and a repeated tap on a row **toggles between the row and its micro-tap**, because the
+  second micro-value today is the next row's own value, a duplicate. Dials have a 3 dB drag step per
+  row and a 1 dB wheel step, so they land on the same positions. Typed values still go to +12 dB and
+  the pointer stops at the top of the arc.
+  **Recorded fader commands** (`YMxy`/`YAxy`/`YBxy`) have a 4-bit target, 16 states: the position
+  index is the nibble, 0 = off to F = +3 dB, so a recorded glide and a live tap name the same values.
+  The change lives in `sendRowToDb()`, `sendDbToRow()`, `resolveSendFaderTarget()` and
+  `sendDbToFraction()` (`SendFader.h`: the arc's bottom stays -42 and its top becomes +3).
 - **Four looks** per position: normal, pressed, hover, selected. `hover` is new; all four are
   implemented now so they can be tested.
-- **The letter is in the picture**, so A, B and Main are three sets: 15 x 4 x 3 = **180 pictures**,
+- **The letter is in the picture**, so A, B and Main are three sets: 16 x 4 x 3 = **192 pictures**,
   each keyed by (letter, position, look, scale), none rendered until used. They are small and
   flat, so they compress to a few hundred bytes each and are well under 1 MB in the terminal.
 - Dragging with Shift (fine) still sets the exact value; the pointer moves when it crosses a
@@ -292,6 +329,8 @@ by `InteractiveUI` when the link handler fires).
 | Pattern editor scrolling | line by line | line by line | line by line | **page** | page |
 | Hover effects, any-motion mouse | on | on | **off** | off | off |
 | Pointer-shape updates | on | on | on | off | off |
+| Modal backdrop blur, with pictures | live | **static** | static | flat dim | flat dim |
+| Modal backdrop blur, in cells (no pictures) | live | live | **static** | static | flat dim |
 | Dials | images | images | images | images | images |
 
 The table is the starting point; phase 0's demands set the cuts.
@@ -303,6 +342,21 @@ The table is the starting point; phase 0's demands set the cuts.
   scroll margins), so the screen repaints once per page instead of per row. In Live View each
   column's line (`keepTrackLinesVisible()`) uses the same rule; the arrangement grid pages sideways
   by bars.
+- **Backdrop blur** (the scrim behind a dialog; `term::BackdropEmulation`): measured, with the About
+  dialog open while playing, kitty gets **+3.7 MB/s** (9.2 against 5.5 MB/s): the blurred backdrop is
+  made of small pictures (34x18 px, 1339 uploads a second at 4 cells wide) redrawn whenever what is
+  below changes, and the blur is the second-largest consumer after the chart. With no pictures it is
+  cells: 64 kB/s against 19 kB/s for the same playing UI with no dialog (+45 kB/s). Stopped, a dialog
+  costs nothing either way. So:
+  - **Static** means the backdrop is made once, when the dialog opens (or its place or size changes), from
+    the cells then, and **not redone while what is below changes**; the dialog hides it anyway, and the
+    widgets below can stop updating. In `BackdropEmulation` a tile keeps its picture (or filtered cells)
+    and skips its change check while frozen.
+  - With pictures, from `HZ_30` down; in cells, one class lower, from `HZ_15`, since it is cheap. At
+    `HZ_5` and below pictures give way to a flat dim of the covered cells (no blur at all), and in cells at
+    `HZ_1`.
+  - A blur has many colours and is smooth, so it compresses worse than a chart and a reduced palette bands:
+    that is the reason to freeze it and not to thin it.
 - **Key-release events** from the kitty keyboard protocol stop at `HZ_5` if `KeyReader` and note
   entry can do without them (checked first).
 - The glyph (cell) charts stay the fallback for a display with no pictures, and a last resort at
@@ -336,6 +390,10 @@ By picture, playing: **Live View** 232x80 at 62/s (4640 kB/s), 8x96 at 249/s (76
 **Arrangement** 248x80 at 46/s (3680), 328x80 at 16/s (1640), 72x64 at 46/s (855), 8x16 at 183/s (94).
 Mouse movement costs nothing today because there are no hover effects; this is the baseline for them.
 At start the 16 dials (40x48 px) go up once each, 124 kB in all, and never again.
+
+Two more, from the same tools: the playing UI **with no pictures at all costs 19 kB/s** (the cell charts), three
+hundred times less than with pictures; and a modal dialog's blurred backdrop adds 3.7 MB/s with pictures and
+45 kB/s without (3.7 below).
 
 What the pictures are made of (`analyze_pictures.py`, the stand-in for the in-tree encoder being zlib at
 level 1, so the real encoder will do somewhat worse):
@@ -376,8 +434,10 @@ deflate ratio on real charts is known.
 
 0. **Measure** (section 4). **Done**: the tools (`measure_link.py`, `analyze_pictures.py`), the
    `SYNTH_LINK_STATS=<file>` log for a real link (a line a second: frames, bytes by kind, bandwidth, RTT,
-   uploads by picture size), and the results above. Still to do on real hardware: run it over a real SSH or
-   serial link, and attribute the pictures by widget rather than size.
+   uploads by picture size), and the results above. What it cannot tell: the pictures are told apart by their
+   size, not by which widget draws them (the 232x80 one is the spectrum in all likelihood, nothing in the log
+   says so), and I have no real terminal or link here, so the figures are for the emulated terminal; the log is
+   there for you to run on real ones.
 1. **API and classes.** `LinkStatus`, `Backend::linkStatus()/setLinkHandler()`, classification by
    profile demand with hysteresis and trials, the description strings (terminal bandwidth/RTT,
    window vsync and fps), the status bar, `--link-class` and `set-link-class`,
@@ -398,10 +458,10 @@ deflate ratio on real charts is known.
 
 ## 6. Decisions I need
 
-1. **Dial positions:** 15 at 3 dB (the Launchpad's grid, plus the dial's -42 and -39), as in 3.5, or do you
-   want exactly 16? 16 needs a 2.8 dB step, or a change of the Launchpad's row spacing.
+1. **Micro-tap behaviour:** a repeated tap on a row toggles the row and its micro-tap (3 dB up), instead of
+   today's cycle through half a row and the next row's own value. Is that the intent?
 2. **Classes by demand:** is "the largest profile that fits in 70% of the bandwidth" the right rule? Phase 0
-   now gives the inputs; thresholds follow once the in-tree encoder's ratio is known.
+   gives the inputs; the thresholds follow once the in-tree encoder's ratio is known.
 
 ## 7. Risks
 
