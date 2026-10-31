@@ -114,6 +114,14 @@ constexpr int kBandRows = 4;
 struct Window::Impl {
   Window * owner = nullptr;
   GlibEventLoop loop;
+  // Frame pacing: the handler runs in a tick callback, which is on the view
+  // only while a frame is wanted.
+  FrameHandler frame_handler;
+  bool frame_dirty = false;
+  bool in_tick = false;
+  bool presented_in_tick = false;
+  guint tick_id = 0;
+  static gboolean onTick(GtkWidget *, GdkFrameClock * clock, gpointer data);
   GtkWidget * window = nullptr;
   GtkWidget * view = nullptr;
   std::unique_ptr<CellRasterizer> rasterizer;
@@ -308,6 +316,22 @@ static void cellui_view_init(CelluiView * self) {
 #pragma GCC diagnostic pop
 
 namespace cellui::gtk {
+
+gboolean Window::Impl::onTick(GtkWidget *, GdkFrameClock * clock, gpointer data) {
+  auto * self = static_cast<Impl *>(data);
+  self->frame_dirty = false;
+  self->stats.ticks++;
+  self->in_tick = true;
+  self->presented_in_tick = false;
+  if (self->frame_handler) self->frame_handler(gdk_frame_clock_get_frame_time(clock));
+  self->in_tick = false;
+  // Only a frame the handler presented is drawn; a tick that found nothing
+  // new draws nothing.
+  if (self->presented_in_tick) gtk_widget_queue_draw(self->view);
+  if (self->frame_dirty) return G_SOURCE_CONTINUE;
+  self->tick_id = 0;
+  return G_SOURCE_REMOVE;
+}
 
 void Window::Impl::measure(const WindowOptions & options) {
   PangoFontDescription * desc = pango_font_description_from_string(options.font.c_str());
@@ -1264,6 +1288,7 @@ Window::Window() : impl_(new Impl) { }
 
 Window::~Window() {
   if (!impl_) return;
+  if (impl_->tick_id) gtk_widget_remove_tick_callback(impl_->view, impl_->tick_id);
   if (impl_->view) reinterpret_cast<CelluiView *>(impl_->view)->impl = nullptr;
   if (impl_->window) gtk_window_destroy(GTK_WINDOW(impl_->window));
   impl_->forgetTextures();
@@ -1308,8 +1333,18 @@ void Window::present(const CellBuffer & frame, const CursorRequest & cursor, con
     impl_->mouse_cursors = info->mouse_cursors;
     impl_->updateMouseCursor();
   }
-  gtk_widget_queue_draw(impl_->view);
+  // Inside a tick the tick draws; anywhere else the draw is asked for here
+  // (GTK folds the requests of one frame into one).
+  if (impl_->in_tick) impl_->presented_in_tick = true;
+  else gtk_widget_queue_draw(impl_->view);
 }
+
+void Window::requestFrame() {
+  impl_->frame_dirty = true;
+  if (!impl_->tick_id && impl_->view) impl_->tick_id = gtk_widget_add_tick_callback(impl_->view, Impl::onTick, impl_.get(), nullptr);
+}
+
+void Window::setFrameHandler(FrameHandler handler) { impl_->frame_handler = std::move(handler); }
 
 void Window::redraw() {
   impl_->forgetTextures();

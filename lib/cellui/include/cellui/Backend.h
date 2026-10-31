@@ -8,6 +8,8 @@
 #include <cellui/PlaneInfo.h>
 
 #include <chrono>
+#include <cstdint>
+#include <functional>
 #include <optional>
 #include <vector>
 
@@ -49,6 +51,17 @@ class Backend {
   virtual bool wantsFrameInfo() const { return false; }
   // The next frame is drawn in full.
   virtual void redraw() = 0;
+
+  // Frame pacing. The application never schedules a render itself: it calls
+  // requestFrame() when its state changed (idempotent; requests made before
+  // the frame starts make one frame), and the backend calls the handler when
+  // it is time to render the *current* state, on the UI thread, with a time
+  // in microseconds: the frame clock's presentation time in a window, the
+  // monotonic clock in a terminal. The handler asks again to go on animating.
+  // Frames are coalesced, never queued. UI thread only.
+  using FrameHandler = std::function<void(int64_t frame_time_us)>;
+  virtual void requestFrame() = 0;
+  virtual void setFrameHandler(FrameHandler handler) = 0;
   // Whether the user selects text with the mouse instead of the application
   // getting the clicks. Default no-op.
   virtual void setNativeSelection(bool) { }
