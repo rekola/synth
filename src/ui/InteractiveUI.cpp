@@ -910,21 +910,16 @@ InteractiveUI::initializeWidgets() {
     static const cellui::LinkClass kClasses[] = {cellui::LinkClass::FULL, cellui::LinkClass::HZ_30, cellui::LinkClass::HZ_15,
                                                  cellui::LinkClass::HZ_5, cellui::LinkClass::HZ_1};
     auto status = backend_.linkStatus();
-    std::vector<Choice> choices;
-    choices.push_back({"Measured", "auto"});
-    for (auto cls : kClasses) choices.push_back({cellui::linkClassLabel(cls), cellui::linkClassName(cls)});
+    using Pin = std::optional<cellui::LinkClass>;
+    std::vector<std::pair<std::string, Pin>> choices;
+    choices.push_back({"Measured", std::nullopt});
     int current = 0;
-    if (status.pinned) {
-      for (size_t i = 0; i < std::size(kClasses); i++) {
-        if (kClasses[i] == status.cls) current = static_cast<int>(i) + 1;
-      }
+    for (auto cls : kClasses) {
+      if (status.pinned && cls == status.cls) current = static_cast<int>(choices.size());
+      choices.push_back({cellui::linkClassLabel(cls), cls});
     }
-    showChoiceDialog("Link speed", std::move(choices), current, [this](int index) {
-      if (index < 0 || index > static_cast<int>(std::size(kClasses))) return;
-      if (index == 0)
-        backend_.setLinkPin(std::nullopt);
-      else
-        backend_.setLinkPin(kClasses[index - 1]);
+    choose<Pin>("Link speed", std::move(choices), current, [this](const Pin & pin) {
+      backend_.setLinkPin(pin);
       backend_.requestFrame();
     });
   });
