@@ -1,6 +1,6 @@
 # Degrading gracefully on a slow link
 
-Status: plan, fifth revision. Phase 0 (measuring) is done and its tools are in the tree; the rest
+Status: plan, sixth revision. Every open decision is settled; awaiting approval to start phase 1. Phase 0 (measuring) is done and its tools are in the tree; the rest
 is awaiting approval.
 Builds on the terminal frame pacer (`plans/frame-pacing-terminal.md`), which
 measures the link but changes nothing about what is drawn.
@@ -290,33 +290,28 @@ Dials stay images in every class. To make them cacheable:
   runs from -45 (where off is drawn) to 0. Position p is dB(p) = -45 + 3p for p = 1 to 15, and p = 0 is
   off. The pointer is drawn at the nearest. Everything that sets a send from a surface shares this one table:
   the Launchpad's pads, the dial (drag 3 dB a row, wheel 1 dB, typed values), and the recorded commands.
-- **How the Launchpad's 8 rows take the 16 positions.** Today a row's plain press is 6 dB apart from its
-  neighbours (row 1 -36 dB up to row 7 at 0 dB, row 0 off) and a micro-tap goes 3 dB up, which the top row
-  cannot (and its second micro-value duplicates the next row). With nothing above 0 dB there are two ways:
+- **One table for the Launchpad, the commands and the dials**, whole dB throughout, 3 dB apart, nothing above 0:
 
-  | | (a) shift everything down 3 dB; micro-tap is **up** | (b) rows keep their values; micro-tap is **down** |
-  |---|---|---|
-  | Row 7 press | -3 dB | **0 dB (unity)** |
-  | Row 7 micro-tap | 0 dB | -3 dB |
-  | Row 1 press / micro | -39 / -36 dB | -36 / -39 dB |
-  | Row 0 press / micro | off / -42 dB | off / -42 dB |
-  | Rows' values against today | all 3 dB lower | **unchanged** |
+  | Position (= command nibble) | 0 | 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10 | 11 | 12 | 13 | 14 | 15 |
+  |---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
+  | dB | off | -42 | -39 | -36 | -33 | -30 | -27 | -24 | -21 | -18 | -15 | -12 | -9 | -6 | -3 | 0 |
+  | Launchpad | row 0 | row 0 micro | row 1 micro | row 1 | row 2 micro | row 2 | row 3 micro | row 3 | row 4 micro | row 4 | row 5 micro | row 5 | row 6 micro | row 6 | row 7 micro | row 7 |
 
-  **I recommend (b):** the top pad stays unity, as on a console fader and as today; no existing value moves;
-  the micro-tap becomes a 3 dB trim downward, which is the useful direction when unity is the ceiling. Row 0
-  stays a hard off (bottom pad = silence) with -42 dB as its micro-tap, the one row whose micro-tap goes up
-  because nothing is below off. A repeated tap on a row toggles the row and its micro-tap (today's second
-  micro-value is the next row's own value, a duplicate, and goes). Positions: row r owns 2r and 2r+1; for
-  r >= 1 the micro-tap is 2r and the press 2r+1, for row 0 the press is 0 and the micro-tap 1.
+  The compromise: **the rows keep today's values** (row 1 at -36 dB up to row 7 at 0 dB, unity, 6 dB apart; row 0
+  a hard off) and **each row's micro-tap is 3 dB down** (row 7: -3 dB, row 1: -39 dB); row 0, with nothing
+  below off, has its micro-tap at -42 dB. The range is 42 dB, 6 more than today's 36. A repeated tap on a row
+  toggles the row and its micro-tap (today's second micro-value is the next row's own value, a duplicate, and goes).
+- **The dial sets only these 16 values,** so what it does is what a pad does and what a recording can hold: a drag
+  moves one position a row (3 dB, as now), a wheel notch one position (it was 1 dB), a typed value is rounded to
+  the nearest position and shown rounded, and the fine step with Shift goes (the commands cannot hold anything
+  finer). The arc runs from -45 dB (where off is drawn) to 0 and the pointer sits on a position exactly.
 - **Recorded commands.** `YMxy`/`YAxy`/`YBxy` have a 4-bit target, and today their 16 states are -80 to 0 dB in
-  5.33 dB steps (`Command::getGlideTargetDb()`), which is not on the Launchpad's grid at all, so a recorded
-  glide rounds a live tap to a value the tap never had. The nibble becomes the position index: **x = 0 off,
-  x = 1 to 15 is -45 + 3x dB, F exactly 0 dB**, so a live tap and its recording name the same value. The
-  commands' documentation and the glide encoder (`makeGlideSet()`) change with it; `-Lxx` (byte resolution,
-  -80 to 0 dB) is not touched.
-- **Typed values stop at 0 dB** in the dial too (`typed_max` was +12), and the limit holds for the Launchpad
-  and the commands by construction. A song that already holds a send above 0 dB is not rewritten by this;
-  the surfaces just cannot set one.
+  5.33 dB steps (`Command::getGlideTargetDb()`), which is not on the Launchpad's grid at all, so a recorded glide
+  rounds a live tap to a value the tap never had. The nibble becomes the position: **x = 0 off, otherwise
+  -45 + 3x dB, F exactly 0 dB**. The documentation and the glide encoder (`makeGlideSet()`) change with it;
+  `-Lxx` (byte resolution, -80 to 0 dB) is not touched.
+- **Nothing sets a send above 0 dB** from these surfaces (the dial's typed limit was +12). A song that already
+  holds one is not rewritten.
 - Code touched: `sendRowToDb()`, `sendDbToRow()`, `resolveSendFaderTarget()` and the micro-step state in the
   Launchpad manager, `SendFader.h` (the arc becomes -45 to 0), `ClipGrid`'s `DialSpec`, `Command.h`.
 - **Four looks** per position: normal, pressed, hover, selected. `hover` is new; all four are
@@ -356,8 +351,8 @@ by `InteractiveUI` when the link handler fires).
 | Pattern editor scrolling | line by line | line by line | line by line | **page** | page |
 | Hover effects, any-motion mouse | on | on | **off** | off | off |
 | Pointer-shape updates | on | on | on | off | off |
-| Modal backdrop blur, pictures (kitty, iTerm2) | live | **static** | static | flat dim | flat dim |
-| Modal backdrop blur, cells (no pictures, Sixel) | live | live | **static** | static | flat dim |
+| Modal backdrop blur, pictures (kitty, iTerm2, Sixel) | live | **static** | static | cell blur, static | flat dim |
+| Modal backdrop blur, cells (no pictures) | live | live | **static** | static | flat dim |
 | Dials | images | images | images | images | images |
 
 The table is the starting point; phase 0's demands set the cuts.
@@ -373,9 +368,11 @@ The table is the starting point; phase 0's demands set the cuts.
   open while playing: with pictures it adds **3.7 MB/s** (9.2 against 5.5 MB/s), the second-largest consumer
   after the chart: small blurred tiles (34x18 px) redrawn whenever what is below changes. With no pictures it
   is cells: 64 kB/s against 19 kB/s without the dialog (+45 kB/s). Stopped, a dialog costs nothing either way.
-  - **A blur is never quantised.** A smooth gradient bands in a palette, so the picture blur is always
-    full RGB: **kitty and iTerm2 only** (24 bits per pixel). **Sixel cannot** (its palette is the
-    quantisation), so on Sixel the blur is the cell one, whatever the class.
+  - **On kitty and iTerm2 a blur is never quantised:** a smooth gradient bands in a palette, so the picture
+    is full RGB, losslessly compressed. **On Sixel the palette is the quantisation, and it is dithered**, as now,
+    which looks good: the blur keeps its adaptive palette (up to the terminal's registers, 3.3) and the existing
+    **ordered, screen-anchored dither**, which is what lets neighbouring tiles line up (error diffusion starts
+    afresh in each picture and would show seams at the tile edges).
   - **Lossless compression does pay here**, contrary to what one would expect of a blur: measured on the tiles,
     deflate takes them to **26% of their size** at level 1 and 23% at level 6 (3.8x to 4.4x; a tile has
     about 68 colours in 612 pixels, because the cells under it are mostly flat). So the "enough bandwidth
@@ -384,14 +381,18 @@ The table is the starting point; phase 0's demands set the cuts.
   - **Most of that traffic is repeats.** In the 3 seconds after the dialog opened while playing, 6284 tiles were
     uploaded and 1527 were distinct pictures; with shared keys (3.4) the rest are placements, which is
     3 to 4 times less again before compression.
+  - **Sixel costs differently, and cannot be compressed.** Measured (the same dialog, sixel): the playing UI is
+    already only 743 kB/s (the 240-colour palette run-length-encodes flat charts well); the live blur takes it to
+    **2.5 MB/s** (925 images a second, +1.8 MB/s); frozen, the About dialog's backdrop is **184 kB once**.
   - **Static** means the backdrop is made once when the dialog opens (or its place or size changes), from the
     cells then, and not redone while what is below changes; the dialog hides it, and the widgets below can stop
     updating. A static blur is a **one-off cost**: stopped, the About dialog's backdrop is 80 tiles and 184 kB as
     sent, about 46 kB compressed. It is used when that costs under about two seconds of the link, so it
     needs roughly 25 kB/s compressed (about 90 kB/s of raw RGB); below that, a **flat dim** of the covered cells.
-  - By class: live with pictures at `FULL` (when the live demand fits, else static); static from `HZ_30`;
-    flat dim from `HZ_5`. In cells (no pictures, or Sixel): live through `HZ_30`, static from `HZ_15`, flat dim
-    at `HZ_1`.
+  - **By class, with pictures (kitty, iTerm2, Sixel):** live at `FULL` when its demand fits, else static; static from
+    `HZ_30` while its one-off cost fits; where the one-off does not (about 25 kB/s of link for kitty and
+    iTerm2 compressed, 90 kB/s for Sixel), the **cell blur, static**, which costs a few kB once; a flat dim at
+    `HZ_1`. **In cells (no pictures):** live through `HZ_30`, static from `HZ_15`, flat dim at `HZ_1`.
 - **Key-release events** from the kitty keyboard protocol stop at `HZ_5` if `KeyReader` and note
   entry can do without them (checked first).
 - The glyph (cell) charts stay the fallback for a display with no pictures, and a last resort at
@@ -491,13 +492,10 @@ deflate ratio on real charts is known.
    grey only if asked.
 7. **Window class** from the frame clock and vsync (section 1).
 
-## 6. Decisions I need
+## 6. Decisions
 
-1. **The Launchpad rows:** (a) everything 3 dB lower with an upward micro-tap, or (b) rows unchanged and the
-   micro-tap 3 dB **down** (my recommendation, 3.5)? And row 0 stays a hard off with -42 dB as its micro-tap?
-2. **Sixel and the blur:** Sixel cannot carry an unquantised blur, so it gets the cell blur always. Right?
-3. **Classes by demand:** is "the largest profile that fits in 70% of the bandwidth" the right rule? Phase 0
-   gives the inputs; thresholds follow once the in-tree encoder's ratio is known.
+All settled: the one 16-position table (3.5); Sixel keeps the pixel blur with dithering (3.7); classes are the
+largest profile that fits in 70% of the bandwidth (section 1). What is left is approval to start phase 1.
 
 ## 7. Risks
 
