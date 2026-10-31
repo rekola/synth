@@ -18,6 +18,7 @@ struct WindowOptions {
 // How long frames took to draw, for measuring.
 struct FrameStats {
   size_t frames = 0;
+  size_t ticks = 0;  // frame-clock ticks that ran the frame handler; none while the UI is static
   double draw_ms_total = 0, draw_ms_max = 0;      // the whole snapshot
   double raster_ms_total = 0, raster_ms_max = 0;  // the cells rasterized into pixels
   size_t shadows = 0;  // the last frame's, under raised planes
@@ -52,6 +53,10 @@ class Window : public Backend {
   void present(const CellBuffer & frame, const CursorRequest & cursor = {}, const std::vector<ImagePlacement> & images = {},
                const FrameInfo * info = nullptr) override;
   void redraw() override;
+  // A frame is rendered in a tick of the window's frame clock, which runs
+  // only while one is wanted: a static UI draws and ticks nothing.
+  void requestFrame() override;
+  void setFrameHandler(FrameHandler handler) override;
 
   // Makes wakeFd() readable; any thread may call it.
   void wake();

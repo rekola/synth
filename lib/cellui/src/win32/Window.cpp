@@ -1,5 +1,7 @@
 #include <cellui/win32/Window.h>
 
+#include <cellui/FrameGate.h>
+
 #include <cellui/win32/Win32EventLoop.h>
 
 #ifndef WIN32_LEAN_AND_MEAN
@@ -151,6 +153,8 @@ int characterFor(WPARAM vk, LPARAM lparam, bool & altgr) {
 struct Window::Impl {
   Window * owner = nullptr;
   Win32EventLoop loop;
+  FrameGate gate{ std::chrono::milliseconds(16) };
+  Connection frames_hook;
   HWND hwnd = nullptr;
   HANDLE input_event = nullptr, wake_event = nullptr;
 
@@ -1176,7 +1180,13 @@ std::unique_ptr<Window> Window::open(const WindowOptions & options, std::string 
   return w;
 }
 
-Window::Window() : impl_(new Impl) { }
+Window::Window() : impl_(new Impl) {
+  impl_->frames_hook = impl_->loop.onFrame([this] { impl_->gate.run(FrameGate::Clock::now()); });
+}
+
+std::optional<Backend::TimePoint> Window::nextDeadline() const { return impl_->gate.deadline(); }
+void Window::requestFrame() { impl_->gate.request(); }
+void Window::setFrameHandler(FrameHandler handler) { impl_->gate.setHandler(std::move(handler)); }
 
 Window::~Window() {
   if (!impl_) return;

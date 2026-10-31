@@ -1,6 +1,7 @@
 #pragma once
 
 #include <cellui/Backend.h>
+#include <cellui/FrameGate.h>
 #include <cellui/CellBuffer.h>
 #include <cellui/PollEventLoop.h>
 #include <cellui/term/BackdropEmulation.h>
@@ -67,7 +68,14 @@ class TerminalSession : public Backend {
   EventLoop & eventLoop() override { return loop_; }
   int inputFd() const override { return fd_; }
   int wakeFd() const override { return wake_read_; }
-  std::optional<TimePoint> nextDeadline() const override { return parser_.nextDeadline(); }
+  std::optional<TimePoint> nextDeadline() const override {
+    auto a = parser_.nextDeadline(), b = gate_.deadline();
+    return a && b ? std::min(*a, *b) : a ? a : b;
+  }
+  // Frames are held to a fixed minimum interval for now (kFrameInterval); a
+  // pacer that follows the link replaces the gate behind these two.
+  void requestFrame() override { gate_.request(); }
+  void setFrameHandler(FrameHandler handler) override { gate_.setHandler(std::move(handler)); }
 
   // Every event available now, as the application sees them. A resize is
   // reported with the new size, already read from the terminal.
@@ -106,6 +114,9 @@ class TerminalSession : public Backend {
   void readSize();
 
   PollEventLoop loop_;
+  static constexpr std::chrono::milliseconds kFrameInterval{25};
+  FrameGate gate_{kFrameInterval};
+  Connection frames_hook_;
   int fd_ = -1;
   bool own_fd_ = false;
   int wake_read_ = -1, wake_write_ = -1;

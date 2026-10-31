@@ -121,6 +121,7 @@ void setNonblocking(int fd) {
 
 std::unique_ptr<TerminalSession> TerminalSession::open(SessionOptions options, std::string * error) {
   std::unique_ptr<TerminalSession> session(new TerminalSession());
+  session->frames_hook_ = session->loop_.onFrame([s = session.get()] { s->gate_.run(FrameGate::Clock::now()); });
   if (!session->start(options, error)) return nullptr;
   return session;
 }

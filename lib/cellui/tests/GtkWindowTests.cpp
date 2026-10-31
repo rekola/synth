@@ -85,6 +85,43 @@ TEST(gtk_window_draws_a_presented_frame) {
   CHECK(w->stats().frames == drawn);
 }
 
+TEST(gtk_window_renders_in_ticks_only_while_a_frame_is_wanted) {
+  gtk::Window * w = theWindow();
+  if (!w) return;
+  StyleProvider styles;
+  CellBuffer screen(w->rows(), w->cols());
+  BufferPlane root(screen, styles);
+  root.putstr(0, 0, "tick");
+  root.refresh();
+  int calls = 0, left = 3;
+  int64_t last_time = 0;
+  w->setFrameHandler([&](int64_t t) {
+    calls++;
+    last_time = t;
+    w->present(screen, {}, root.images());
+    if (--left > 0) w->requestFrame();  // animating for three frames
+  });
+  size_t ticks = w->stats().ticks, frames = w->stats().frames;
+  // Requests before the tick are one frame.
+  w->requestFrame();
+  w->requestFrame();
+  CHECK(pumpUntil(*w, [&] { return calls >= 3 && w->stats().frames > frames; }));
+  CHECK(calls == 3);
+  CHECK(w->stats().ticks - ticks == 3);
+  CHECK(last_time > 0);
+  // Idle: no tick, no frame, no handler call.
+  size_t idle_ticks = w->stats().ticks, idle_frames = w->stats().frames;
+  pumpUntil(*w, [] { return false; }, 400);
+  CHECK(calls == 3);
+  CHECK(w->stats().ticks == idle_ticks);
+  CHECK(w->stats().frames == idle_frames);
+  // And it starts again on the next request.
+  left = 1;
+  w->requestFrame();
+  CHECK(pumpUntil(*w, [&] { return calls == 4; }));
+  w->setFrameHandler(nullptr);
+}
+
 TEST(gtk_window_draws_a_frame_over_a_backdrop_layer) {
   gtk::Window * w = theWindow();
   if (!w) return;

@@ -1683,6 +1683,7 @@ InteractiveUI::setStatus(std::string s) {
 void
 InteractiveUI::showInfoDialog(const std::string & title, const std::string & markdown) {
   redraw_requested_ = true;
+  backend_.requestFrame();
   cellui::InfoModal dialog(*this, getPlane(), eventLoop(), title, markdown);
   dialog.showModal();
   force_next_render_ = true;
@@ -1699,6 +1700,7 @@ void InteractiveUI::showChoiceDialog(const std::string & title, std::vector<Choi
   int index;
   {
     redraw_requested_ = true;
+    backend_.requestFrame();
     cellui::ChoiceModal dialog(*this, getPlane(), eventLoop(), title, std::move(labels), current);
     index = dialog.showModal();
   }
@@ -1812,6 +1814,7 @@ void InteractiveUI::handlePlaybackEvent(const PlaybackEvent & ev) {
   if (signature != last_playback_signature_) {
     last_playback_signature_ = signature;
     redraw_requested_ = true;
+    backend_.requestFrame();
   }
 }
 
@@ -1927,7 +1930,10 @@ void InteractiveUI::handleVisualizationResultEvent(const VisualizationResultEven
     }
   }
 
-  if (changed) redraw_requested_ = true;
+  if (changed) {
+    redraw_requested_ = true;
+    backend_.requestFrame();
+  }
 }
 
 void InteractiveUI::handleMidiEvent(const MidiEvent & ev) {
@@ -2083,17 +2089,13 @@ InteractiveUI::startUI(AudioAPI &, MidiInput & midi, LaunchpadIO & launchpad_io)
 
   string waiting_stderr;
   // Playback and visualization events arrive with every audio block (about
-  // 190 a second); drawing for each of them would use far more of the
-  // terminal than the eye can follow, so a frame is drawn at most every
-  // kSteadyFrameInterval and the changes in between are folded into it.
-  constexpr auto kSteadyFrameInterval = std::chrono::milliseconds(25);
-  // A view that scrolls smoothly is shown at the display's pace, not the steady one.
-  constexpr auto kAnimatedFrameInterval = std::chrono::milliseconds(16);
+  // 190 a second). The UI never decides when a frame is drawn: it asks the
+  // backend for one (requestFrame()), which calls frameHandler below when it
+  // is time (the window's frame clock, the terminal link's pace), and the
+  // requests made before then are one frame.
   auto animating = [&]() { return (clip_grid_ && getView() == View::LIVE && clip_grid_->scrolling()) || (arrangement_grid_ && arrangement_grid_->animating()) || (outline_view_ && outline_view_->animating()) || (activeModal() && activeModal()->animating()); };
-  auto min_frame_interval = [&]() { return animating() ? kAnimatedFrameInterval : kSteadyFrameInterval; };
-  auto last_frame = std::chrono::steady_clock::now() - kSteadyFrameInterval;
-  bool frame_pending = false;
-  bool render_pending = false; // a redraw asked for while the frame was held back
+  auto last_frame = std::chrono::steady_clock::now();
+  bool render_pending = false; // a redraw asked for, drawn by the next frame
   // Between events that ask for nothing, frames come this seldom: the widgets
   // have nothing new to find, and the audio thread wakes the loop ~190 times
   // a second even when paused.
@@ -2174,6 +2176,28 @@ InteractiveUI::startUI(AudioAPI &, MidiInput & midi, LaunchpadIO & launchpad_io)
     for (auto & ev : evs) deliver(ev);
   });
 
+  // The backend calls this when it is time to render the current state.
+  backend_.setFrameHandler([&](int64_t) {
+    last_frame = std::chrono::steady_clock::now();
+    if (redraw_requested_) render_pending = true;
+    redraw_requested_ = false;
+    auto t2 = std::chrono::steady_clock::now();
+    bool components = renderComponents();
+    if (stats_path) g_ui_stats["us:renderComponents"] += static_cast<int>(std::chrono::duration_cast<std::chrono::microseconds>(std::chrono::steady_clock::now() - t2).count());
+    count("frame");
+    if (components) count("frame:components-asked-redraw");
+    render_pending |= components;
+    if (render_pending) {
+      render_pending = false;
+      count("present");
+      InteractiveUI::render();
+    }
+    // A colour still easing needs the next frame even if nothing else wakes
+    // the loop.
+    if ((getView() == View::LIVE && (clip_grid_->isAnimating() || outline_view_->isAnimating())) || pattern_editor_->isAnimating() ||
+        arrangement_grid_->isAnimating()) backend_.requestFrame();
+  });
+
   loop.setBefore([&]() -> int {
     render = false;
     other_wake = false;
@@ -2204,13 +2228,7 @@ InteractiveUI::startUI(AudioAPI &, MidiInput & midi, LaunchpadIO & launchpad_io)
 
     int poll_timeout_ms = escapeIndicatorPollTimeoutMs();
     // A view still moving toward where it was scrolled to asks for the next frame.
-    if (animating()) frame_pending = true;
-    // A redraw deferred by the frame limiter below wakes the loop when it is due.
-    if (frame_pending) {
-      auto wait = std::chrono::duration_cast<std::chrono::milliseconds>(min_frame_interval() - (std::chrono::steady_clock::now() - last_frame)).count() + 1;
-      wait = std::max<long>(wait, 1);
-      poll_timeout_ms = poll_timeout_ms < 0 ? static_cast<int>(wait) : std::min(poll_timeout_ms, static_cast<int>(wait));
-    }
+    if (animating()) backend_.requestFrame();
 
     // The terminal's input waits a few milliseconds for the rest of a
     // sequence a read split; when that runs out, what it holds is settled.
@@ -2234,39 +2252,16 @@ InteractiveUI::startUI(AudioAPI &, MidiInput & midi, LaunchpadIO & launchpad_io)
     }
     count(woken ? "wake" : "timeout");
 
-    if (woken || frame_pending) {
-      if (redraw_requested_) render = true;
-      redraw_requested_ = false;
+    if (woken) {
       render_pending |= render;
+      // A wake nothing asked a redraw of (the audio blocks, ~190 a second)
+      // looks for news at most this often.
       auto now = std::chrono::steady_clock::now();
-      if (!other_wake && !render_pending && !frame_pending && now - last_frame < kIdleFrameInterval) {
-	count("idle-wake-skipped");
+      if (!other_wake && !render_pending && !redraw_requested_ && now - last_frame < kIdleFrameInterval) {
+        count("idle-wake-skipped");
         return;
       }
-      if (now - last_frame < min_frame_interval()) {
-	frame_pending = true;
-        return;
-      }
-      frame_pending = false;
-      last_frame = now;
-      render = render_pending;
-      render_pending = false;
-
-      auto t2 = std::chrono::steady_clock::now();
-      bool components = renderComponents();
-      if (stats_path) g_ui_stats["us:renderComponents"] += static_cast<int>(std::chrono::duration_cast<std::chrono::microseconds>(std::chrono::steady_clock::now() - t2).count());
-      count("frame");
-      if (components) count("frame:components-asked-redraw");
-      render |= components;
-
-      if (render) {
-        count("present");
-        InteractiveUI::render();
-      }
-      // A colour still easing needs the next frame even if nothing else wakes
-      // the loop.
-      if ((getView() == View::LIVE && (clip_grid_->isAnimating() || outline_view_->isAnimating())) || pattern_editor_->isAnimating() ||
-          arrangement_grid_->isAnimating()) frame_pending = true;
+      backend_.requestFrame();
     }
   });
 
