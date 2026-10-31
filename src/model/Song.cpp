@@ -1,7 +1,10 @@
 #include "../util/FileOpen.h"
+#include "../util/FloatText.h"
 #include "Song.h"
 
+#include <charconv>
 #include <cstdlib>
+#include <cstring>
 #include <set>
 
 #include "../state/SongState.h"
@@ -57,7 +60,7 @@ public:
   bool has(const std::string & name) const override { return element_->Attribute(name.c_str()) != 0; }
 
   void set(const std::string & name, int value) override { element_->SetAttribute(name.c_str(), value); }
-  virtual void set(const std::string & name, float value) { element_->SetAttribute(name.c_str(), value); }
+  virtual void set(const std::string & name, float value) { element_->SetAttribute(name.c_str(), float_text::format(value).c_str()); }
   virtual void set(const std::string & name, const std::string & value) { element_->SetAttribute(name.c_str(), value.c_str()); }
 
 protected:
@@ -71,7 +74,7 @@ protected:
   }
   float getFloatImpl(const std::string & name, float default_value) const override {
     auto value = element_->Attribute(name.c_str());
-    return value ? strtof(value, nullptr) : default_value;
+    return value ? float_text::parse(value) : default_value;
   }
 
 private:
@@ -200,12 +203,28 @@ static Tuning parse_tuning(string_view tuning_text, Tuning default_tuning = Tuni
 // by name, in unknown_generator_overrides_ - preserved for a lossless
 // round-trip but never applied by any backend (see that table's own doc
 // comment for why an unrecognized name isn't simply rejected).
+// "N/D": two whole numbers around a slash.
+static bool parseSignatureText(const char * text, int & numerator, int & denominator) {
+  const char * end = text + std::strlen(text);
+  auto read = [&](const char *& at, int & out) {
+    while (at != end && *at == ' ') at++;
+    auto r = std::from_chars(at, end, out);
+    if (r.ec != std::errc()) return false;
+    at = r.ptr;
+    return true;
+  };
+  const char * at = text;
+  if (!read(at, numerator) || at == end || *at != '/') return false;
+  at++;
+  return read(at, denominator);
+}
+
 static void loadGeneratorOverrides(GenericInstrument & instrument, XMLElement & element) {
   for (auto it = element.FirstChildElement("generator"); it; it = it->NextSiblingElement("generator")) {
     auto name = it->Attribute("name");
     auto value_text = it->Attribute("value");
     if (!name || !value_text) continue;
-    float value = strtof(value_text, nullptr);
+    float value = float_text::parse(value_text);
     auto id = sf2GeneratorIdForName(name);
     if (id) instrument.addGeneratorOverride(*id, value);
     else instrument.addUnknownGeneratorOverride(name, value);
@@ -218,13 +237,13 @@ static void storeGeneratorOverrides(const GenericInstrument & instrument, XMLDoc
     if (!name) continue; // every id here came from a known name in the first place
     auto generator_element = doc.NewElement("generator");
     generator_element->SetAttribute("name", name);
-    generator_element->SetAttribute("value", value);
+    generator_element->SetAttribute("value", float_text::format(value).c_str());
     track_element->InsertEndChild(generator_element);
   }
   for (auto & [name, value] : instrument.getUnknownGeneratorOverrides()) {
     auto generator_element = doc.NewElement("generator");
     generator_element->SetAttribute("name", name.c_str());
-    generator_element->SetAttribute("value", value);
+    generator_element->SetAttribute("value", float_text::format(value).c_str());
     track_element->InsertEndChild(generator_element);
   }
 }
@@ -908,7 +927,7 @@ Song::open(const std::string & filename, const InstrumentProvider & provider) {
         setSceneName(scene_index, name ? name : "");
         setSceneTempo(scene_index, std::max(it->IntAttribute("tempo", 0), 0));
         int numerator = 0, denominator = 0;
-        if (auto text = it->Attribute("timeSignature"); text && sscanf(text, "%d/%d", &numerator, &denominator) == 2 && numerator > 0 && numerator <= 32 && scenename::validDenominator(denominator)) {
+        if (auto text = it->Attribute("timeSignature"); text && parseSignatureText(text, numerator, denominator) && numerator > 0 && numerator <= 32 && scenename::validDenominator(denominator)) {
           setSceneTimeSignature(scene_index, {numerator, denominator});
         }
       }

@@ -74,11 +74,16 @@ bool matches(const char * who, const Case & c, const std::function<ParseResult(c
   T value = untouched;
   const char * first = c.text;
   ParseResult r = parse(first, first + std::strlen(first), value);
+  // The sign is read from the bits, first: -ffast-math may treat a value equal to 0 as +0.
+  unsigned char bytes[sizeof value];
+  std::memcpy(bytes, &value, sizeof value);
+  const int probe = 1;
+  const bool negative = bytes[*reinterpret_cast<const char *>(&probe) == 1 ? sizeof value - 1 : 0] & 0x80;
   bool ok = r.ec == c.ec && r.ptr == first + c.used;
   if (c.ec == std::errc()) {
     if (std::isnan(c.value)) ok = ok && std::isnan(value);
     else if (std::isinf(c.value)) ok = ok && std::isinf(value) && value > 0;
-    else ok = ok && value == static_cast<T>(c.value) && (c.value != 0.0 || std::signbit(value) == c.negative_zero);
+    else ok = ok && value == static_cast<T>(c.value) && (c.value != 0.0 || negative == c.negative_zero);
   } else {
     ok = ok && value == untouched;  // a failed parse leaves it alone
   }

@@ -26,6 +26,7 @@
 #include "../launchpad/LaunchpadProtocol.h"
 #include "../launchpad/LaunchpadManager.h"
 #include "../util/Utf8.h"
+#include <charconv>
 #include "../util/constants.h"
 #include "../model/Color.h"
 #include "KeyStroke.h"
@@ -101,8 +102,21 @@ std::map<std::string, long> threadCpuTicks() {
     // pid (comm) state ppid ... utime stime: fields 14 and 15.
     char *open = strchr(line, '('), *close = strrchr(line, ')');
     if (!open || !close) continue;
+    // After the ")": the state, then ppid .. cmajflt (ten more), utime, stime.
     long utime = 0, stime = 0;
-    if (sscanf(close + 2, "%*c %*d %*d %*d %*d %*d %*u %*u %*u %*u %*u %ld %ld", &utime, &stime) != 2) continue;
+    {
+      const char * at = close + 1;
+      const char * end = line + n;
+      auto field = [&](long * out) {
+        while (at != end && *at == ' ') at++;
+        const char * start = at;
+        while (at != end && *at != ' ') at++;
+        return out ? std::from_chars(start, at, *out).ec == std::errc() : start != at;
+      };
+      bool ok = true;
+      for (int skipped = 0; skipped < 11 && ok; skipped++) ok = field(nullptr);
+      if (!ok || !field(&utime) || !field(&stime)) continue;
+    }
     ticks[std::string(open + 1, close)] += utime + stime;
   }
   return ticks;

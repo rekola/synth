@@ -1885,6 +1885,13 @@ would otherwise resume showing.
   it has): they only restate the code. The exception is complex layout that
   keeps breaking, such as the `PatternEditor` heading; test behaviour (what a
   key, a click or a song change does) as usual.
+- Numbers in text (song files, parameter bags, anything read or written as a
+  string) never go through the locale, which a window toolkit sets: read a
+  float with `float_text::parse()` (`util/FloatText.h`, over `cellui::
+  parseFloat()`), write one with `float_text::format()`; never `strtof`,
+  `atof`, `sscanf`, `std::to_string(float)`, `snprintf("%g")`, an
+  `istringstream`, or tinyxml2's `SetAttribute(name, float)` (it formats with
+  `snprintf`, so a song saved in a comma locale would hold `0,5`).
 - Comments: keep them short (a one-liner covers most cases). Don't point
   at something outside the code to explain the code - state the reasoning
   directly instead of citing: a `plans/*.md` file (they get deleted once
