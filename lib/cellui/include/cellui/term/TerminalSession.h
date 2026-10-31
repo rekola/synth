@@ -180,6 +180,7 @@ class TerminalSession : public Backend {
     uint64_t end;  // the queue position after the frame (or the bare query)
     FrameBytes size;
     bool probe;
+    size_t lead_bytes = 0;  // the fence in front of the frame
   };
   std::deque<Mark> marks_;
   FramePacer pacer_{false};

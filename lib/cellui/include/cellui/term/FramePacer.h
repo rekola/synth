@@ -41,6 +41,13 @@ struct PacerConfig {
   // before them to the last: replies come in batches, and one pair of them is too noisy.
   size_t sample_frames = 4;
   double sample_cap = 2.0;
+  // Each frame is led by a fence of its own, so the time from the reply to that one to the reply to
+  // the frame's own fence is the terminal taking in just that frame's bytes, with no idle time of
+  // ours in it, whether or not frames were sent back to back. That time makes a sample of its own
+  // when it is at least `sample_span`: below that the clock and the replies' batching say more than
+  // the link does.
+  bool start_fence = true;
+  us sample_span{5000};
   double down_weight = 0.125;
   // Every `probe_every` frames one is sent `probe_gain` times faster than
   // the estimate, to find headroom. Probe frames are left out of the lag rule.
@@ -125,7 +132,9 @@ class FramePacer {
   // The bare query that precedes the first frame has been written / a frame
   // with its fence has (every byte accepted by the descriptor).
   void onProbeSent(TimePoint t_sent);
-  void onFrameSent(FrameBytes size, TimePoint t_sent);
+  // `lead_bytes`: those of `size` that are the fence in front of the frame, not part of the time
+  // between the two replies.
+  void onFrameSent(FrameBytes size, TimePoint t_sent, size_t lead_bytes = 0);
   // The oldest outstanding fence was answered, `t_ack` being when the reply
   // was read.
   void onAck(TimePoint t_ack);
@@ -150,6 +159,8 @@ class FramePacer {
   struct Fence {
     bool probe = false;       // the bare query, not a frame
     bool probing = false;     // a frame sent faster than the estimate
+    bool lead = false;        // the fence in front of a frame
+    size_t lead_bytes = 0;    // (frame fence) the bytes of its lead fence
     FrameBytes size;
     TimePoint started;  // when the frame began to be made: its first bytes went into the queue
     TimePoint sent;     // when its last byte was taken by the descriptor
@@ -180,6 +191,7 @@ class FramePacer {
     bool back_to_back = false;  // sent before the reply to the frame before it
   };
   std::deque<Acked> acked_;
+  std::optional<TimePoint> lead_ack_;
   size_t late_ = 0;
 
   std::optional<TimePoint> last_start_;    // when the last frame that sent anything started

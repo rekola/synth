@@ -370,3 +370,27 @@ are the ones those would exercise. Proposed:
    it is simulated), so a later change to the pacer that costs efficiency or latency fails.
 
 The result is reported with the sweep tables, not only the final values.
+
+## Tried: a fence in front of every frame
+
+Each frame led by a second fence, so that the time from the reply to that one to the reply to the
+frame's own fence is the terminal taking in that frame alone (no idle time of ours in it), as a
+sample for any frame, not only for those sent back to back (`PacerConfig::start_fence`).
+
+Measured on the pty harness (churn, 8 s, estimate over the true bandwidth; before, after):
+
+- Saturated links (the link is the limit): unchanged, 1.00 to 1.02 either way. The old
+  back-to-back sample already measures these.
+- Not saturated: no better. 328x80 at 20 MB/s, RTT 5 ms: 4.27 then 0.38; 80x80 at 5 MB/s, RTT 5 ms:
+  1.81 then 4.80; at RTT 40 ms: 0.28 then 0.16. The pty emulation itself takes in about 6 to 8 MB/s,
+  so some of these are the terminal and not the link.
+- Frames of a few hundred bytes (16x16) stay 0.00 to 0.19 and one to 10.25: a frame that small takes
+  microseconds, below what the clock and the batching of replies resolve, with or without the
+  lead fence. A sum of the single-frame times is worse still (replies read together give a zero
+  time, and the estimate ran to 24 times the link); only a frame time of at least `sample_span` (5 ms)
+  is used, and that adds nothing the back-to-back samples did not have.
+- Pacing check 8 on a 20 MB/s link read 815 kB/s instead of a few MB/s: an underestimate from a
+  reply read late, which at the edge of a class could mis-classify a fast link.
+
+Not adopted: it costs about 12 bytes a frame and the pacer more state for no measured gain. What
+would add information is a probe (padding between two fences) on a link that is not limiting.

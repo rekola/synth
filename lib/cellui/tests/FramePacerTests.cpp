@@ -2,6 +2,8 @@
 
 #include <cellui/term/FramePacer.h>
 
+#include <cmath>
+
 using namespace cellui::term;
 
 namespace {
@@ -33,10 +35,17 @@ void startUp(FramePacer & p, size_t bytes, int rtt, int transfer) {
   p.onAck(at(rtt + transfer));
 }
 
+// The config of the tests that drive the pacer with one fence a frame.
+PacerConfig legacy() {
+  PacerConfig cfg;
+  cfg.start_fence = false;
+  return cfg;
+}
+
 }  // namespace
 
 TEST(pacer_start_up_learns_the_round_trip_and_a_first_bandwidth) {
-  FramePacer p(true);
+  FramePacer p(true, legacy());
   startUp(p, 10000, 100, 10);
   PacerStats s = p.stats(at(200));
   CHECK_NEAR(s.rtt_min_us, 100000.0, 1.0);
@@ -45,7 +54,7 @@ TEST(pacer_start_up_learns_the_round_trip_and_a_first_bandwidth) {
 }
 
 TEST(pacer_allows_one_more_frame_before_the_first_answer) {
-  FramePacer p(true);
+  FramePacer p(true, legacy());
   p.requestFrame();
   CHECK(p.mayStart(at(0)));
   p.onFrameStart(at(0));
@@ -61,7 +70,7 @@ TEST(pacer_allows_one_more_frame_before_the_first_answer) {
 }
 
 TEST(pacer_spaces_frames_by_their_size_over_the_bandwidth) {
-  FramePacer p(true);
+  FramePacer p(true, legacy());
   startUp(p, 10000, 100, 10);  // 1 MB/s
   send(p, 50000, 200);         // 50 ms on the link
   p.requestFrame();
@@ -71,7 +80,7 @@ TEST(pacer_spaces_frames_by_their_size_over_the_bandwidth) {
 }
 
 TEST(pacer_limits_the_bytes_in_flight_to_the_link_s_bandwidth_delay_product) {
-  PacerConfig cfg;
+  PacerConfig cfg = legacy();
   cfg.min_frame_interval = Ms(1);
   FramePacer p(true, cfg);
   startUp(p, 10000, 100, 10);  // 1 MB/s, 100 ms: 150 kB allowed in flight
@@ -97,7 +106,7 @@ TEST(pacer_limits_the_bytes_in_flight_to_the_link_s_bandwidth_delay_product) {
 }
 
 TEST(pacer_always_leaves_room_for_two_frames_even_on_a_tiny_delay) {
-  PacerConfig cfg;
+  PacerConfig cfg = legacy();
   cfg.min_frame_interval = Ms(1);
   FramePacer p(true, cfg);
   startUp(p, 10000, 1, 10);  // RTT 1 ms: the product is 1.5 kB
@@ -109,7 +118,7 @@ TEST(pacer_always_leaves_room_for_two_frames_even_on_a_tiny_delay) {
 }
 
 TEST(pacer_a_jittery_gap_raises_the_estimate_at_most_twofold) {
-  FramePacer p(true);
+  FramePacer p(true, legacy());
   startUp(p, 10000, 100, 10);  // 1 MB/s
   send(p, 10000, 200);
   send(p, 10000, 211);
@@ -121,7 +130,7 @@ TEST(pacer_a_jittery_gap_raises_the_estimate_at_most_twofold) {
 }
 
 TEST(pacer_a_slow_window_pulls_the_estimate_down_gradually) {
-  PacerConfig cfg;
+  PacerConfig cfg = legacy();
   cfg.min_frame_interval = Ms(1);
   FramePacer p(true, cfg);
   startUp(p, 10000, 20, 10);  // 1 MB/s
@@ -144,7 +153,7 @@ TEST(pacer_a_slow_window_pulls_the_estimate_down_gradually) {
 }
 
 TEST(pacer_backs_off_when_frames_wait_long_twice_in_a_row) {
-  FramePacer p(true);
+  FramePacer p(true, legacy());
   startUp(p, 10000, 100, 10);
   double before = p.estimatedBytesPerSec();
   send(p, 10000, 200);
@@ -159,7 +168,7 @@ TEST(pacer_backs_off_when_frames_wait_long_twice_in_a_row) {
 }
 
 TEST(pacer_a_delay_inside_the_floor_is_not_a_reason_to_back_off) {
-  FramePacer p(true);
+  FramePacer p(true, legacy());
   startUp(p, 10000, 1, 10);  // RTT of 1 ms
   for (int i = 0; i < 6; i++) {
     send(p, 10000, 100 + 10 * i);
@@ -171,7 +180,7 @@ TEST(pacer_a_delay_inside_the_floor_is_not_a_reason_to_back_off) {
 TEST(pacer_probe_frames_are_left_out_of_the_lag_rule) {
   // Every eighth frame is sent 1.25 times faster than the link goes: its reply
   // is 1.25 times further from the one before than the frames were apart.
-  PacerConfig cfg;
+  PacerConfig cfg = legacy();
   cfg.lag_ratio = 1.2;
   cfg.lag_frames = 1;
   cfg.min_frame_interval = Ms(1);
@@ -194,7 +203,7 @@ TEST(pacer_probe_frames_are_left_out_of_the_lag_rule) {
 }
 
 TEST(pacer_a_silence_declares_a_stall_and_halves_the_estimate) {
-  FramePacer p(true);
+  FramePacer p(true, legacy());
   startUp(p, 10000, 100, 10);
   send(p, 10000, 200);
   send(p, 10000, 220);
@@ -210,7 +219,7 @@ TEST(pacer_a_silence_declares_a_stall_and_halves_the_estimate) {
 }
 
 TEST(pacer_a_terminal_that_never_answers_gets_a_fixed_rate) {
-  FramePacer p(true);
+  FramePacer p(true, legacy());
   p.requestFrame();
   p.onFrameStart(at(0));
   p.onProbeSent(at(0));
@@ -228,7 +237,7 @@ TEST(pacer_a_terminal_that_never_answers_gets_a_fixed_rate) {
 }
 
 TEST(pacer_without_fences_is_a_fixed_rate_from_the_start) {
-  FramePacer p(false);
+  FramePacer p(false, legacy());
   CHECK(!p.fencesEnabled() && !p.needsProbe());
   send(p, 100000, 0);
   p.requestFrame();
@@ -237,7 +246,7 @@ TEST(pacer_without_fences_is_a_fixed_rate_from_the_start) {
 }
 
 TEST(pacer_counts_bytes_by_kind_and_frames_per_second) {
-  PacerConfig cfg;
+  PacerConfig cfg = legacy();
   cfg.min_frame_interval = Ms(1);
   FramePacer p(false, cfg);
   FrameBytes b;
@@ -256,7 +265,7 @@ TEST(pacer_counts_bytes_by_kind_and_frames_per_second) {
 }
 
 TEST(pacer_a_frame_is_wanted_until_it_starts) {
-  FramePacer p(false);
+  FramePacer p(false, legacy());
   CHECK(!p.mayStart(at(0)));
   p.requestFrame();
   p.requestFrame();
@@ -270,7 +279,7 @@ TEST(pacer_frames_started_before_the_last_reply_are_back_to_back_even_if_their_l
   // taken long after the reply to the frame before it (10 ms after that one's last byte). Judged by the
   // last byte they would never be back to back and the estimate would keep its start-up value (2 MB/s,
   // twice the link's).
-  PacerConfig cfg;
+  PacerConfig cfg = legacy();
   cfg.min_frame_interval = Ms(1);
   FramePacer p(true, cfg);
   startUp(p, 10000, 10, 5);  // 2 MB/s: a lower bound that is twice too high
@@ -287,7 +296,7 @@ TEST(pacer_frames_started_before_the_last_reply_are_back_to_back_even_if_their_l
 }
 
 TEST(pacer_reports_when_the_link_is_what_holds_the_next_frame_back) {
-  PacerConfig cfg;
+  PacerConfig cfg = legacy();
   FramePacer p(true, cfg);
   startUp(p, 10000, 100, 10);  // 1 MB/s
   send(p, 50000, 200);         // 50 ms on the link
@@ -300,4 +309,53 @@ TEST(pacer_reports_when_the_link_is_what_holds_the_next_frame_back) {
   q.requestFrame();
   CHECK(!q.linkBound(at(205)) && !q.mayStart(at(205)));
   CHECK(!FramePacer(false).linkBound(at(0)));  // a fixed rate measures nothing
+}
+
+namespace {
+
+// A frame with a lead fence: sent at `ms`, its lead answered at `lead_ack_ms`, its own at `ack_ms`.
+void sendLed(FramePacer & p, size_t bytes, int ms, int lead_ack_ms, int ack_ms) {
+  p.requestFrame();
+  p.onFrameStart(at(ms));
+  p.onFrameSent(frame(bytes + 4), at(ms), 4);
+  p.onAck(at(lead_ack_ms));
+  p.onAck(at(ack_ms));
+}
+
+}  // namespace
+
+TEST(pacer_a_frame_led_by_a_fence_measures_the_link_even_when_frames_are_far_apart) {
+  FramePacer p(true);
+  // The start-up on a link of 2 MB/s with a round trip of 20 ms.
+  p.requestFrame();
+  p.onFrameStart(at(0));
+  p.onProbeSent(at(0));
+  p.onFrameSent(frame(24), at(0), 4);
+  p.onAck(at(20));
+  p.onAck(at(20));
+  p.onAck(at(21));
+  // 20 kB frames 200 ms apart: the pipe is idle between them, the bandwidth is still what one frame took.
+  for (int i = 1; i <= 8; i++) {
+    int t = i * 200;
+    sendLed(p, 20000, t, t + 20, t + 30);
+  }
+  CHECK(std::fabs(p.estimatedBytesPerSec() - 2.0e6) < 0.1e6);
+}
+
+TEST(pacer_frames_too_small_to_time_leave_the_estimate_alone) {
+  FramePacer p(true);
+  p.requestFrame();
+  p.onFrameStart(at(0));
+  p.onProbeSent(at(0));
+  p.onFrameSent(frame(2004), at(0), 4);
+  p.onAck(at(20));
+  p.onAck(at(20));
+  p.onAck(at(21));
+  double before = p.estimatedBytesPerSec();
+  // 200 byte frames whose replies come together: no time to measure, so no sample.
+  for (int i = 1; i <= 30; i++) {
+    int t = i * 30;
+    sendLed(p, 200, t, t + 20, t + 20);
+  }
+  CHECK(p.estimatedBytesPerSec() == before);
 }

@@ -48,7 +48,7 @@ bool FramePacer::windowAllows() const {
   if (bandwidth_ <= 0) {
     // Before the first answer is in, one more frame than the first.
     size_t frames = 0;
-    for (const Fence & f : in_flight_) frames += f.probe ? 0 : 1;
+    for (const Fence & f : in_flight_) frames += (f.probe || f.lead) ? 0 : 1;
     return frames < config_.startup_frames_in_flight;
   }
   return inFlightAllows();
@@ -104,7 +104,7 @@ void FramePacer::onProbeSent(TimePoint t_sent) {
   in_flight_.push_back(f);
 }
 
-void FramePacer::onFrameSent(FrameBytes size, TimePoint t_sent) {
+void FramePacer::onFrameSent(FrameBytes size, TimePoint t_sent, size_t lead_bytes) {
   frames_++;
   last_frame_ = size;
   totals_ += size;
@@ -116,7 +116,14 @@ void FramePacer::onFrameSent(FrameBytes size, TimePoint t_sent) {
   last_sent_probing_ = starting_probe_;
   frames_since_probe_ = starting_probe_ ? 0 : frames_since_probe_ + 1;
   if (fences_) {
+    if (config_.start_fence) {
+      Fence lead;
+      lead.lead = true;
+      lead.sent = t_sent;
+      in_flight_.push_back(lead);
+    }
     Fence f;
+    f.lead_bytes = config_.start_fence ? lead_bytes : 0;
     f.probing = starting_probe_;
     f.size = size;
     f.started = pending_start_;
@@ -148,6 +155,10 @@ void FramePacer::onAck(TimePoint t_ack) {
   stall_streak_ = 0;
   auto micros = [](TimePoint a, TimePoint b) { return duration<double, std::micro>(a - b).count(); };
 
+  if (f.lead) {
+    lead_ack_ = t_ack;
+    return;
+  }
   if (f.probe) {
     rtt_min_us_ = std::max(0.0, micros(t_ack, f.sent));
     rtt_known_ = true;
@@ -168,6 +179,24 @@ void FramePacer::onAck(TimePoint t_ack) {
   } else {
     double delay = micros(t_ack, f.sent) - size / bandwidth_ * 1e6;
     if (frame_acks_ > static_cast<size_t>(config_.rtt_refine_after)) rtt_min_us_ = std::min(rtt_min_us_, std::max(0.0, delay));
+    auto applySample = [&](double sample) {
+      sample = std::min(sample, config_.sample_cap * bandwidth_);
+      samples_.push_back(sample);
+      while (samples_.size() > config_.sample_window) samples_.pop_front();
+      double target = *std::max_element(samples_.begin(), samples_.end());
+      if (target >= bandwidth_) bandwidth_ = target;
+      else bandwidth_ += config_.down_weight * (target - bandwidth_);
+    };
+    if (config_.start_fence && lead_ack_ && t_ack > *lead_ack_) {
+      // The frame's own time, from the reply to its lead fence to the reply to its own: the terminal
+      // taking in this frame alone. Replies read together give no time and none of a frame too small
+      // to time, so only a time that clock and batching cannot make up counts.
+      double secs = seconds(t_ack, *lead_ack_);
+      if (secs >= duration<double>(config_.sample_span).count()) {
+        applySample(static_cast<double>(f.size.total() - std::min(f.size.total(), f.lead_bytes)) / secs);
+      }
+    }
+    lead_ack_.reset();
     // Started before the reply to the one before: the link was never left idle between them. (The
     // last byte is no test: with a small buffer in front of a fast link it is taken long after the
     // frame began, and after that reply.)
@@ -185,12 +214,7 @@ void FramePacer::onAck(TimePoint t_ack) {
       }
       double gap = k ? seconds(t_ack, acked_[acked_.size() - 1 - k].ack) : 0;
       if (gap > 1e-5) {
-        double sample = std::min(static_cast<double>(bytes) / gap, config_.sample_cap * bandwidth_);
-        samples_.push_back(sample);
-        while (samples_.size() > config_.sample_window) samples_.pop_front();
-        double target = *std::max_element(samples_.begin(), samples_.end());
-        if (target >= bandwidth_) bandwidth_ = target;
-        else bandwidth_ += config_.down_weight * (target - bandwidth_);
+        applySample(static_cast<double>(bytes) / gap);
         double gap1 = seconds(t_ack, *last_ack_);
         double send_gap = seconds(f.started, *last_ack_started_);
         if (!f.probing && !last_ack_probing_ && send_gap > 1e-5 && gap1 > 1e-5) {
@@ -229,6 +253,7 @@ void FramePacer::tick(TimePoint now) {
   }
   if (bandwidth_ > 0) bandwidth_ = std::max(config_.min_bandwidth, bandwidth_ / 2);
   samples_.clear();
+  lead_ack_.reset();
   lag_ratios_.clear();
   delay_streak_ = 0;
   last_ack_.reset();
@@ -244,7 +269,7 @@ PacerStats FramePacer::stats(TimePoint now) const {
   for (TimePoint t : recent_starts_) if (now - t <= std::chrono::seconds(1)) recent++;
   s.fps = static_cast<double>(recent);
   s.bytes_in_flight = inFlightBytes();
-  for (const Fence & f : in_flight_) s.frames_in_flight += f.probe ? 0 : 1;
+  for (const Fence & f : in_flight_) s.frames_in_flight += (f.probe || f.lead) ? 0 : 1;
   s.last_frame = last_frame_;
   s.totals = totals_;
   s.frames = frames_;
