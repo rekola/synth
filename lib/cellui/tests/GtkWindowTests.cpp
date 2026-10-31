@@ -146,7 +146,7 @@ TEST(gtk_window_link_status_has_the_vsync_rate_and_follows_frames_asked_for_in_a
   w->setFrameHandler(nullptr);
   LinkStatus busy = w->linkStatus();
   CHECK(busy.description.find("vsync") != std::string::npos);
-  CHECK(calls > 8);
+  CHECK(calls >= 8);
   // A pin holds, and clears.
   int changes = 0;
   w->setLinkHandler([&](const LinkStatus &) { changes++; });

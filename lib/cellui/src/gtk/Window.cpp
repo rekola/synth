@@ -118,11 +118,17 @@ struct Window::Impl {
   // only while a frame is wanted.
   FrameHandler frame_handler;
   bool frame_dirty = false;
+  // Ticks since one asked for another; the tick callback goes on for a few so
+  // that a stream of requests (the scopes' results, between two ticks) finds
+  // it still there, instead of adding it again each frame and paying the frame
+  // clock's start-up for every one.
+  int idle_ticks = 0;
+  static constexpr int kLingerTicks = 8;
   bool in_tick = false;
   bool presented_in_tick = false;
   guint tick_id = 0;
   static gboolean onTick(GtkWidget *, GdkFrameClock * clock, gpointer data);
-  void noteTick(gint64 frame_time_us);
+  void noteTick(gint64 frame_time_us, bool continuing);
   // The link: ticks that follow a tick whose handler asked for another one are the window running
   // flat out, and the intervals between them are what it can do. Ticks after an idle gap say nothing.
   LinkMonitor link;
@@ -340,10 +346,12 @@ std::string Window::Impl::vsyncText() const {
   return buf;
 }
 
-void Window::Impl::noteTick(gint64 frame_time_us) {
-  bool continuing = frame_dirty;  // the handler asked for the next frame already
-  if (tick_continuing && last_tick_us > 0) {
-    double interval = static_cast<double>(frame_time_us - last_tick_us) / 1e6;
+void Window::Impl::noteTick(gint64 frame_time_us, bool continuing) {
+  double since_last = last_tick_us > 0 ? static_cast<double>(frame_time_us - last_tick_us) / 1e6 : 0.0;
+  // A gap is a restart, not a slow frame.
+  if (tick_continuing && last_tick_us > 0 && since_last < 0.2) {
+    double interval = since_last;
+    if (interval > 0.025) stats.late_ticks++;
     tick_intervals.push_back(interval);
     while (tick_intervals.size() > 60) tick_intervals.pop_front();
   } else {
@@ -363,17 +371,23 @@ void Window::Impl::noteTick(gint64 frame_time_us) {
 
 gboolean Window::Impl::onTick(GtkWidget *, GdkFrameClock * clock, gpointer data) {
   auto * self = static_cast<Impl *>(data);
+  // A tick that nobody asked for (one of the few that linger) runs nothing.
+  bool wanted = self->frame_dirty;
   self->frame_dirty = false;
-  self->stats.ticks++;
   self->in_tick = true;
   self->presented_in_tick = false;
-  if (self->frame_handler) self->frame_handler(gdk_frame_clock_get_frame_time(clock));
+  if (wanted) {
+    self->stats.ticks++;
+    if (self->frame_handler) self->frame_handler(gdk_frame_clock_get_frame_time(clock));
+  }
   self->in_tick = false;
-  self->noteTick(gdk_frame_clock_get_frame_time(clock));
+  bool keep = wanted || self->frame_dirty || ++self->idle_ticks <= kLingerTicks;
+  if (wanted || self->frame_dirty) self->idle_ticks = 0;
+  self->noteTick(gdk_frame_clock_get_frame_time(clock), wanted);
   // Only a frame the handler presented is drawn; a tick that found nothing
   // new draws nothing.
   if (self->presented_in_tick) gtk_widget_queue_draw(self->view);
-  if (self->frame_dirty) return G_SOURCE_CONTINUE;
+  if (keep) return G_SOURCE_CONTINUE;
   self->tick_id = 0;
   return G_SOURCE_REMOVE;
 }
@@ -1404,6 +1418,7 @@ void Window::present(const CellBuffer & frame, const CursorRequest & cursor, con
 
 void Window::requestFrame() {
   impl_->frame_dirty = true;
+  impl_->idle_ticks = 0;
   if (!impl_->tick_id && impl_->view) impl_->tick_id = gtk_widget_add_tick_callback(impl_->view, Impl::onTick, impl_.get(), nullptr);
 }
 

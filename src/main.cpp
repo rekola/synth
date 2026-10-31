@@ -429,8 +429,8 @@ int main(int argc, char *argv[]) {
       const auto & stats = static_cast<cellui::gtk::Window &>(*backend).stats();
       if (FILE * f = fopen(stats_path, "a")) {
         double n = static_cast<double>(std::max<size_t>(stats.frames, 1));
-        fprintf(f, "frames=%zu draw_ms_mean=%.2f draw_ms_max=%.2f raster_ms_mean=%.2f raster_ms_max=%.2f\n", stats.frames, stats.draw_ms_total / n,
-                stats.draw_ms_max, stats.raster_ms_total / n, stats.raster_ms_max);
+        fprintf(f, "frames=%zu ticks=%zu late_ticks=%zu draw_ms_mean=%.2f draw_ms_max=%.2f raster_ms_mean=%.2f raster_ms_max=%.2f\n", stats.frames, stats.ticks,
+                stats.late_ticks, stats.draw_ms_total / n, stats.draw_ms_max, stats.raster_ms_total / n, stats.raster_ms_max);
         fclose(f);
       }
     }

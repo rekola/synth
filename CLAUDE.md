@@ -249,7 +249,8 @@ the build has GTK and a display is there (`WAYLAND_DISPLAY` or `DISPLAY`), and
 the terminal when that cannot start; a named backend that cannot start is an
 error, and the choice is made once, at start (`cellui/BackendChoice.h`).
 `SYNTH_WINDOW_STATS=<file>` appends how long the window's frames took to draw
-when it exits. The e2e scripts pass `--ui terminal`.
+(and how many frame-clock ticks ran, and how many came more than 25 ms after the one
+before, a missed vsync at 60 Hz) when it exits. The e2e scripts pass `--ui terminal`.
 Options: `--samplerate N`, `--stereo`, `--ambisonic [order]`,
 `--legacy-binaural`, `--view live|arrangement`; `--help` lists them all
 (`printUsage()` in `main.cpp`, the shared ones from `printCommonOptionsUsage()`,

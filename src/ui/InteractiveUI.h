@@ -161,6 +161,13 @@ class InteractiveUI : public UI {
   // unchanged display needs no redraw (a pixel blit is the costly part).
   std::vector<float> last_fft_, last_loudness_;
   std::vector<int> last_brightness_, last_saturation_;
+  // Scope data waiting for the next frame: a result updates the smoothing and
+  // keeps the newest of each kind, and the frame draws it once.
+  std::vector<float> pending_fft_, pending_brightness_, pending_saturation_;
+  float pending_fft_hz_ = 0.0f;
+  bool fft_pending_ = false, grid_pending_ = false, meter_pending_ = false;
+  // Draws what waits; whether it drew anything.
+  bool drawPendingScopes();
   std::vector<uint64_t> last_playback_parts_; // SYNTH_UI_STATS only
   uint64_t last_playback_signature_ = 0;      // of the last playback snapshot that was drawn
 
