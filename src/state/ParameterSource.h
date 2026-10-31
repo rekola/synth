@@ -5,6 +5,8 @@
 #include <cstdlib>
 #include <string>
 
+#include "../util/FloatText.h"
+
 class ParameterSource {
  public:
   ParameterSource() { }
@@ -84,9 +86,9 @@ template <> inline bool ParameterSource::get<bool>(const std::string & name, boo
 inline float parseFraction(const std::string & text, float default_value) {
   if (text.empty()) return default_value;
   auto slash = text.find('/');
-  if (slash == std::string::npos) return strtof(text.c_str(), nullptr);
-  float numerator = strtof(text.substr(0, slash).c_str(), nullptr);
-  float denominator = strtof(text.substr(slash + 1).c_str(), nullptr);
+  if (slash == std::string::npos) return float_text::parse(text);
+  float numerator = float_text::parse(text.substr(0, slash));
+  float denominator = float_text::parse(text.substr(slash + 1));
   return denominator != 0.0f ? numerator / denominator : default_value;
 }
 

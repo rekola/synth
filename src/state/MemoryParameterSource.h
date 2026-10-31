@@ -2,6 +2,7 @@
 #define _MEMORYPARAMETERSOURCE_H_
 
 #include "ParameterSource.h"
+#include "../util/FloatText.h"
 
 #include <cstdlib>
 #include <unordered_map>
@@ -21,7 +22,7 @@
 class MemoryParameterSource : public ParameterSource {
  public:
   void set(const std::string & name, int value) override { values_[name] = std::to_string(value); }
-  void set(const std::string & name, float value) override { values_[name] = std::to_string(value); }
+  void set(const std::string & name, float value) override { values_[name] = float_text::format(value); }
   void set(const std::string & name, const std::string & value) override { values_[name] = value; }
 
   bool has(const std::string & name) const override { return values_.find(name) != values_.end(); }
@@ -37,7 +38,7 @@ class MemoryParameterSource : public ParameterSource {
   }
   float getFloatImpl(const std::string & name, float default_value) const override {
     auto it = values_.find(name);
-    return it != values_.end() ? strtof(it->second.c_str(), nullptr) : default_value;
+    return it != values_.end() ? float_text::parse(it->second) : default_value;
   }
 
  public:
