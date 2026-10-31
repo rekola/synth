@@ -4,7 +4,6 @@
 #include <cellui/InfoDialog.h>
 #include <cellui/Markdown.h>
 #include <cellui/Charts.h>
-#include <cellui/term/SubcellGlyphs.h>
 #include <cellui/Utf8.h>
 
 #include <algorithm>
@@ -175,17 +174,16 @@ Gallery::Gallery(Plane & plane, const Theme & theme, const DisplayInfo & display
   page.plain();
   page.skip(2);
 
-  page.heading("Sub-cell glyphs");
-  using namespace term;
-  std::string quadrants, braille, sextants;
-  for (int mask = 0; mask < 16; mask++) quadrants += utf8::encodeCodepoint(mask == 0 ? 0x2591 : kQuadrantCodepoints[mask]);
-  for (int mask = 1; mask < 64; mask += 3) sextants += utf8::encodeCodepoint(sextantCodepoint(mask));
-  for (int mask = 1; mask < 256; mask += 9) braille += utf8::encodeCodepoint(brailleCodepoint(mask));
-  page.text(0, "quadrants  " + quadrants);
+  page.heading("Proportional text");
+  // In the display's own face where it has one, cells otherwise; the box is 36 cells.
+  page.plain();
+  plane.putText(page.row(), 0, 36, "Proportional text in its box.");
   page.skip();
-  page.text(0, "sextants   " + sextants);
+  plane.putText(page.row(), 0, 36, "Cut with an ellipsis when it is too long for the box it is given", {TextFont::PROPORTIONAL, TextOverflow::ELLIPSIS});
   page.skip();
-  page.text(0, "braille    " + braille);
+  plane.putText(page.row(), 0, 36, "Cut where the box ends, with no ellipsis to say there is more of it", {TextFont::PROPORTIONAL, TextOverflow::CLIP});
+  page.skip();
+  plane.putText(page.row(), 0, 36, "The same text in the monospace face, one cell to a character", {TextFont::MONOSPACE, TextOverflow::ELLIPSIS});
   page.skip(2);
 
   page.heading("Width and truncation");

@@ -28,10 +28,11 @@ Wide colours and their clip
 Level meter ramp
 ████████████████████████████████
 
-Sub-cell glyphs
-quadrants  ░▘▝▀▖▌▞▛▗▚▐▜▄▙▟█
-sextants   🬀🬃🬆🬉🬌🬏🬒🬔🬗🬚🬝🬠🬣🬦🬨🬫🬮🬱🬴🬷🬺
-braille    ⠁⠘⠍⠖⠣⠺⠯⡀⡑⡌⡝⡢⡳⡮⡿⢐⢅⢜⢩⢲⢧⢾⣋⣄⣕⣨⣹⣦⣷
+Proportional text
+Proportional text in its box.
+Cut with an ellipsis when it is too…
+Cut where the box ends, with no elli
+The same text in the monospace face…
 
 Width and truncation
 plain text               10 columns, cut to 6: [plain ]

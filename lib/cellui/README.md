@@ -96,7 +96,7 @@ and the measurements so far support, and then what is only a hope.
 ## Gallery
 
 `cellui_gallery` prints the gallery page: every text style, the theme's colour
-tokens, the level meter ramp, the sub-cell glyphs, width and truncation of
+tokens, the level meter ramp, proportional text, width and truncation of
 wide and combining characters, a Markdown document, a choice list, the dialogs,
 the meters, and a spin box.
 

@@ -36,14 +36,18 @@ struct Page {
   cellui::CellBuffer buffer{120, 72};
   cellui::BufferPlane plane{buffer, styles};
   std::unique_ptr<cellui::Gallery> gallery;
+  // The proportional text a display sets itself; cells mark the run they belong to.
+  std::vector<cellui::TextRun> text_runs;
 
   explicit Page(const cellui::DisplayInfo & display) {
+    plane.setProportionalText(display.proportional_text);
     if (display.pictures && display.cell_px_height > 0 && display.cell_px_width > 0) {
       plane.setCellPixelSize(display.cell_px_height, display.cell_px_width);
       plane.setDisplayScale(display.display_scale);
     }
     gallery = std::make_unique<cellui::Gallery>(plane, theme, display);
     plane.refresh();
+    text_runs = plane.takeTextRuns();
   }
 };
 
@@ -65,7 +69,9 @@ struct Page {
   // and only move up with the scroll.
   std::vector<cellui::ImagePlacement> images = page.plane.images();
   for (auto & placement : images) placement.row -= top;
-  backend.present(screen, {}, images);
+  cellui::FrameInfo info;
+  info.text_runs = page.text_runs;
+  backend.present(screen, {}, images, &info);
 }
 
 #ifndef _WIN32
