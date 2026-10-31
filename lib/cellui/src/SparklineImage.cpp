@@ -46,8 +46,8 @@ std::vector<uint32_t> render(const std::vector<std::optional<SparklineReading>> 
     const float x1 = x0 + static_cast<float>(bar);
     const float fill = std::clamp(reading.fraction, 0.0f, 1.0f) * h;
     if (fill > 0.0f) {
-      if (reading.clipping) {
-        ctx.fillStyle = toCanvas(styles.meter_clip_color);
+      if (reading.saturated) {
+        ctx.fillStyle = toCanvas(styles.level_full_color);
       } else if (look.color) {
         ctx.fillStyle = toCanvas(*look.color);
       } else {
@@ -55,7 +55,7 @@ std::vector<uint32_t> render(const std::vector<std::optional<SparklineReading>> 
         auto gradient = ctx.createLinearGradient(0, h, 0, 0);
         for (int k = 0; k <= 8; k++) {
           float t = static_cast<float>(k) / 8.0f;
-          gradient.addColorStop(t, toCanvas(styles.meterColor(t)));
+          gradient.addColorStop(t, toCanvas(styles.levelColor(t)));
         }
         ctx.fillStyle = gradient;
       }
@@ -64,7 +64,7 @@ std::vector<uint32_t> render(const std::vector<std::optional<SparklineReading>> 
     // The peak: a line as thick as the display scale, at the peak's height.
     if (reading.peak > 0.0f) {
       float y = std::clamp(h - std::clamp(reading.peak, 0.0f, 1.0f) * h, 0.0f, h - thickness);
-      Color peak_color = reading.clipping ? styles.meter_clip_color : look.color ? *look.color : styles.meterColor(reading.peak);
+      Color peak_color = reading.saturated ? styles.level_full_color : look.color ? *look.color : styles.levelColor(reading.peak);
       ctx.fillStyle = toCanvas(peak_color);
       ctx.fillRect(x0, y, x1 - x0, thickness);
     }

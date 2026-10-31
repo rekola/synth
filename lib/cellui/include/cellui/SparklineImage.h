@@ -14,11 +14,11 @@ namespace cellui {
 struct SparklineReading {
   float fraction = 0.0f;
   float peak = 0.0f;  // 0: no peak marker
-  bool clipping = false;
+  bool saturated = false;
 };
 
 // How a sparkline looks: what it is drawn on, and one colour for the bar in
-// place of the meter colours by height (StyleProvider::meterColor()).
+// place of the meter colours by height (StyleProvider::levelColor()).
 struct SparklineLook {
   Color background;
   std::optional<Color> color;

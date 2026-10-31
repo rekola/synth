@@ -49,15 +49,15 @@ class StyleProvider {
     reader_text_color = t.reader_text;
     info_line_fg_color = t.info_line_fg;
     info_line_bg_color = t.info_line_bg;
-    meter_clip_color = t.meter_clip;
-    meter_active_color = t.meter_active;
-    meter_low_color = t.meter_low;
-    meter_mid_color = t.meter_mid;
-    meter_lime_color = t.meter_lime;
-    meter_warn_color = t.meter_warn;
-    meter_hot_color = t.meter_hot;
-    spectrum_low_color = t.spectrum_low;
-    spectrum_high_color = t.spectrum_high;
+    level_full_color = t.level_full;
+    level_active_color = t.level_active;
+    level_low_color = t.level_low;
+    level_mid_color = t.level_mid;
+    level_lime_color = t.level_lime;
+    level_warn_color = t.level_warn;
+    level_hot_color = t.level_hot;
+    line_low_color = t.line_low;
+    line_high_color = t.line_high;
     mute_color = t.mute;
     solo_color = t.solo;
     monitor_color = t.monitor;
@@ -146,26 +146,26 @@ class StyleProvider {
   Color info_line_fg_color;
   Color info_line_bg_color;
 
-  // A track's level indicators: clipping, and sounding.
-  Color meter_clip_color;
-  Color meter_active_color;
+  // A level indicator's colours: full scale, and sounding.
+  Color level_full_color;
+  Color level_active_color;
   // The level meters' bars shade by height, quiet to loud: greens, then
-  // lime, orange and hot orange, ending in meter_clip_color at full scale.
-  Color meter_low_color;
-  Color meter_mid_color;
-  Color meter_lime_color;
-  Color meter_warn_color;
-  Color meter_hot_color;
+  // lime, orange and hot orange, ending in level_full_color at full scale.
+  Color level_low_color;
+  Color level_mid_color;
+  Color level_lime_color;
+  Color level_warn_color;
+  Color level_hot_color;
   // The spectrum's bars shade from low to high.
-  Color spectrum_low_color;
-  Color spectrum_high_color;
+  Color line_low_color;
+  Color line_high_color;
 
   // The color of a level meter at `fraction` (0..1, level_meter::fraction())
   // of its height.
-  Color meterColor(float fraction) const {
+  Color levelColor(float fraction) const {
     const std::pair<float, const Color *> stops[] = {
-      { 0.0f, &meter_low_color }, { 0.3f, &meter_mid_color }, { 0.55f, &meter_active_color }, { 0.78f, &meter_lime_color },
-      { 0.86f, &meter_warn_color }, { 0.94f, &meter_hot_color }, { 1.0f, &meter_clip_color },
+      { 0.0f, &level_low_color }, { 0.3f, &level_mid_color }, { 0.55f, &level_active_color }, { 0.78f, &level_lime_color },
+      { 0.86f, &level_warn_color }, { 0.94f, &level_hot_color }, { 1.0f, &level_full_color },
     };
     fraction = std::clamp(fraction, 0.0f, 1.0f);
     for (size_t i = 1; i < std::size(stops); i++) {
@@ -174,9 +174,9 @@ class StyleProvider {
         return stops[i - 1].second->blend(t, *stops[i].second);
       }
     }
-    return meter_clip_color;
+    return level_full_color;
   }
-  Color spectrumColor(float fraction) const { return spectrum_low_color.blend(std::clamp(fraction, 0.0f, 1.0f), spectrum_high_color); }
+  Color lineColor(float fraction) const { return line_low_color.blend(std::clamp(fraction, 0.0f, 1.0f), line_high_color); }
 
   // The clip grid header's track flags when on: Mute, Solo, and a Monitor
   // set to In (Auto shows in window_fg_color, Off in window_border_color).

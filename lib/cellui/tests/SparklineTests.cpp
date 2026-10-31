@@ -3,7 +3,6 @@
 #include <cellui/BufferPlane.h>
 
 #include <cmath>
-#include <cellui/LevelMeter.h>
 #include <cellui/term/CellCharts.h>
 #include <cellui/term/GlyphMeter.h>
 #include <cellui/Charts.h>
@@ -34,11 +33,11 @@ TEST(sparkline_image_fills_its_slot_from_the_bottom) {
   CHECK(same(at(img, 20, 15, 39), *look.color));   // low in the right slot
   CHECK(same(at(img, 20, 15, 5), look.background)); // above the level
   CHECK(same(at(img, 20, 5, 39), look.background));  // the empty left slot
-  // A peak line, and the clip colour while clipping.
+  // A peak line, and the clip colour while saturated.
   img = sparkline_image::render({SparklineReading{0.0f, 0.75f, false}}, look, 10, 40, styles);
   CHECK(same(at(img, 10, 5, 10), *look.color) && same(at(img, 10, 5, 30), look.background));
   img = sparkline_image::render({SparklineReading{1.0f, 0.0f, true}}, look, 10, 40, styles);
-  CHECK(same(at(img, 10, 5, 20), styles.meter_clip_color));
+  CHECK(same(at(img, 10, 5, 20), styles.level_full_color));
 }
 
 TEST(sparkline_image_spaces_its_bars_evenly_with_the_rest_at_the_edges) {
@@ -72,7 +71,7 @@ TEST(sparkline_cell_version_is_the_braille_bar_clipped_to_its_rows) {
   BufferPlane root(b, styles);
   SparklineReading reading{0.6f, 0.9f, false};
   // Five rows from row 0, the top one clipped away.
-  term::drawCellSparkline(root, 0, 1, 5, reading, SparklineLook{styles.window_bg_color, std::nullopt}, 1, 6);
+  term::drawCellSparkline(root, 0, 1, 5, {reading}, SparklineLook{styles.window_bg_color, std::nullopt}, 1, 6);
   root.refresh();
   auto bar = term::glyph_meter::verticalBar(reading.fraction, 5, reading.peak);
   CHECK(b.at(0, 1).text == " ");
@@ -141,4 +140,17 @@ TEST(waveform_row_pixel_version_is_a_row_wide_image) {
   // Centre column is covered by the bar; the outer edge is the background.
   CHECK((image[5 * 40 + 20] & 0xffffffu) != 0u);
   CHECK((image[5 * 40 + 0] & 0xffffffu) == 0u);
+}
+
+TEST(sparkline_with_several_bars_puts_two_to_a_cell_from_the_left) {
+  StyleProvider styles;
+  CellBuffer b(4, 4);
+  BufferPlane root(b, styles);
+  SparklineLook look{styles.window_bg_color, std::nullopt};
+  // Three bars: two cells, the second with only its left bar.
+  term::drawCellSparkline(root, 0, 1, 4, {{1.0f, 0.0f, false}, {1.0f, 0.0f, false}, {1.0f, 0.0f, false}}, look, 0, 4);
+  root.refresh();
+  CHECK(b.at(3, 1).text == "\xe2\xa3\xbf");  // both columns full
+  CHECK(b.at(3, 2).text == "\xe2\xa1\x87");  // only the left column
+  CHECK(b.at(3, 3).text == " ");
 }

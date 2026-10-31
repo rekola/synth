@@ -11,7 +11,8 @@
 #include "ArrangementGrid.h"
 #include "ClipGrid.h"
 #include "ChannelMeter.h"
-#include "SpectrumMeter.h"
+#include "SpectrumCurve.h"
+#include "LineChart.h"
 #include "OutlineView.h"
 #include "SpinBox.h"
 #include "../dsp/DiracAnalyzer.h"
@@ -473,8 +474,8 @@ InteractiveUI::initialize(std::shared_ptr<Controller> & controller) {
   }
 
   charts_ = cellui::chartsFor(display);
-  chart_ = charts_->spectrum(getPlane());
-  volume_meter_ = charts_->channelMeter(getPlane());
+  chart_ = charts_->lineChart(getPlane());
+  volume_meter_ = std::make_shared<ChannelMeter>(getPlane(), *charts_);
   heatmap_ = charts_->heatmap(getPlane(), DiracAnalyzer::kAzimuthBins, DiracAnalyzer::kElevationBins);
 
   // No footer legend on either scope: the heatmap's axis extremes are
@@ -1175,7 +1176,7 @@ InteractiveUI::layout() {
   // grid's height follows the song's track count (see arrangementScopeRows()).
   int scope_rows = arrangementScopeRows();
   laid_out_scope_rows_ = scope_rows;
-  constexpr int kMeterWidth = 9;
+  constexpr int kMeterWidth = static_cast<int>(ChannelMeter::kMaxChannels / 2);
   int column_x = cols - kHeatmapWidth - 1 - kMeterWidth;
   int meter_x = column_x + kHeatmapWidth + 1;
   int matrix_divider_x = column_x - 1;
@@ -1863,7 +1864,7 @@ void InteractiveUI::handleVisualizationResultEvent(const VisualizationResultEven
 
     if (!ev.getFFT().empty() && ev.getFFT() != last_fft_) {
       last_fft_ = ev.getFFT();
-      if (chart_->setSpectrum(ev.getFFT(), ev.getFFTBinHz())) changed = true;
+      if (chart_->setValues(spectrum_curve::values(ev.getFFT(), ev.getFFTBinHz(), chart_->suggestedPoints()))) changed = true;
     }
 
     if (ev.hasDiracGrid()) {
