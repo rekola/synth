@@ -308,3 +308,65 @@ Not tuned: the probe interval and the weights were left at their first values
 because every check passed with them; the estimate overshoots by up to 13%
 for a while after a probe (589 kB/s against 520 kB/s in one run) before the
 delay rule brings it back.
+
+## Where each constant stands
+
+Which value was set by which test. Only `delay_floor` was moved by a test; the
+others are the first values, kept because nothing failed with them. No sweep
+was run, so none of them is tuned in the sense of "the best of several tried".
+
+| Constant | Final | Initial guess | What decided it |
+|---|---|---|---|
+| `min_frame_interval` (floor) | 16 ms | 16 ms | Unchanged. Check 2's unshaped run reaches 60 fps against it. |
+| `probe_every` | 8 frames | 8 | Unchanged. Check 1 reaches the link's rate (estimate 524-589 kB/s of 520). |
+| `probe_gain` | 1.25 | 1.25 | Unchanged. |
+| `sample_window` (up-window) | 8 samples | "about 8" | Unchanged in size. The estimator itself changed from an EWMA with weight 0.5 upward to a windowed maximum, on review, not on a test. |
+| `sample_cap` | 2.0x | none | Added on review (a jittery gap must not double the estimate more than once); `pacer_a_jittery_gap_raises_the_estimate_at_most_twofold` covers it. |
+| `down_weight` | 0.125 | 0.125 | Unchanged. `pacer_a_slow_window_pulls_the_estimate_down_gradually` covers the shape. |
+| `backoff_factor` | 0.8 | 0.8 | Unchanged. |
+| `delay_ratio` / `delay_frames` | 2.0 x RTT_min / 2 frames | same | Unchanged. |
+| `delay_floor` | 10 ms | none | **Added by check 5's first runs.** On an unshaped link RTT_min is near zero, so `2 x RTT_min` fired on every scheduling jitter: the estimate fell to 2-7 kB/s with 9 backoffs and the rate to 6 fps. `pacer_a_delay_inside_the_floor_is_not_a_reason_to_back_off` covers it. |
+| `lag_ratio` / `lag_frames` | 1.5 / 4 | 1.25 | Raised to 1.5 on review (a probe frame's ratio is exactly 1.25); probe frames are also left out of the rule (`pacer_probe_frames_are_left_out_of_the_lag_rule`). |
+| `stall` | 1.5 s | 1.5 s | Unchanged. Check 7 (a 3 s freeze) stalls once and recovers. |
+| `in_flight_bdp` / `min_in_flight_frames` | 1.5 / 2 x S_prev | same | Unchanged. |
+
+One change that is not a constant also came from a test: check 1's first run
+reached 8 fps on a link that carries 20, because the gap between frames was
+measured from when the previous frame's last byte was accepted, which on a full
+link already contains its transfer time. It is now measured from when the
+previous frame started.
+
+One unit test's bound was loosened, not a constant: after a sustained slowdown
+the queueing-delay rule can take the estimate about 20% under the link's real
+rate (400 kB/s against 500), which is by design (it backs off by 0.8 per event).
+
+## Tuning the constants
+
+What exists cannot tune the constants that matter most. The pty harness has a constant
+bandwidth, a fixed delay, no jitter, no acknowledgement batching and no cross traffic; the
+constants the review worried about (`delay_floor`, the sample cap, the window, the lag rule)
+are the ones those would exercise. Proposed:
+
+1. **A deterministic link simulator** (`tests/PacerSim.{h,cpp}`) that drives `FramePacer` with a
+   fake clock, no sleeping, so thousands of runs take seconds. Link model: bandwidth that is
+   constant, steps, ramps or oscillates; RTT; jitter (log-normal); **acknowledgement batching**
+   (replies delivered together every 10-50 ms, as an SSH or tmux hop does); a terminal that
+   stops parsing for a while (decode stalls); cross traffic that halves the bandwidth for a few
+   seconds; frame sizes that are steady, bursty (a chart appears) or both.
+2. **Metrics per run:** efficiency (achieved rate over the ideal B/S in the steady state), time to
+   within 15% of the link after start and after a step, overshoot and undershoot of the estimate,
+   backoffs and false stalls, and **added latency** (acknowledgement delay beyond the transfer
+   time and RTT: how stale the screen is).
+3. **Search.** A grid over two or three constants at a time (delay floor and window; probe
+   interval and cap; lag threshold and backoff factor), then a random search over all of them on
+   fifty scenario seeds. The objective rewards efficiency and punishes added latency and backoffs;
+   the result is a **Pareto front**, and the pick is the value that is good across scenarios, not
+   the best on one.
+4. **Confirm** on the existing pty harness (the eight checks) and on real links: an environment
+   variable (`SYNTH_LINK_TRACE=<file>`) logs the send and acknowledgement times of a real session
+   over SSH or a serial line; the simulator replays such a trace, so a real terminal's batching
+   and decode delays are in the sweep.
+5. **Guard.** The chosen config is asserted against the scenario matrix in `ctest` (cheap, since
+   it is simulated), so a later change to the pacer that costs efficiency or latency fails.
+
+The result is reported with the sweep tables, not only the final values.

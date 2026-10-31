@@ -459,6 +459,8 @@ InteractiveUI::escapeIndicatorPollTimeoutMs() const {
 
 void
 InteractiveUI::initialize(std::shared_ptr<Controller> & controller) {
+  // A change of the link's class shows in the info line, so a frame is wanted.
+  backend_.setLinkHandler([this](const cellui::LinkStatus &) { backend_.requestFrame(); });
   const auto & display = backend_.display();
   bool use_pixel = display.pictures && display.cell_px_height > 0 && display.cell_px_width > 0;
   auto root_plane = make_unique<cellui::BufferPlane>(screen_, styles_, controller);
@@ -537,6 +539,10 @@ InteractiveUI::render() {
     info.focus = focusName();
   }
   backend_.present(screen_, cursor, root_plane_->images(), &info);
+}
+
+void InteractiveUI::setLinkPin(std::optional<cellui::LinkClass> pin) {
+  backend_.setLinkPin(pin);
 }
 
 void
@@ -895,6 +901,30 @@ InteractiveUI::initializeWidgets() {
   };
   commands_.define("set-bus-effect-a", [setBusEffect]() { setBusEffect(0, "A"); });
   commands_.define("set-bus-effect-b", [setBusEffect]() { setBusEffect(1, "B"); });
+
+  // How fast the link to the display is taken to be: measured, or pinned to a class.
+  commands_.define("set-link-class", [this]() {
+    static const cellui::LinkClass kClasses[] = {cellui::LinkClass::FULL, cellui::LinkClass::HZ_30, cellui::LinkClass::HZ_15,
+                                                 cellui::LinkClass::HZ_5, cellui::LinkClass::HZ_1};
+    auto status = backend_.linkStatus();
+    std::vector<Choice> choices;
+    choices.push_back({"Measured", "auto"});
+    for (auto cls : kClasses) choices.push_back({cellui::linkClassLabel(cls), cellui::linkClassName(cls)});
+    int current = 0;
+    if (status.pinned) {
+      for (size_t i = 0; i < std::size(kClasses); i++) {
+        if (kClasses[i] == status.cls) current = static_cast<int>(i) + 1;
+      }
+    }
+    showChoiceDialog("Link speed", std::move(choices), current, [this](int index) {
+      if (index < 0 || index > static_cast<int>(std::size(kClasses))) return;
+      if (index == 0)
+        backend_.setLinkPin(std::nullopt);
+      else
+        backend_.setLinkPin(kClasses[index - 1]);
+      backend_.requestFrame();
+    });
+  });
 
   // The song's time signature, which the arrangement counts its bars in.
   // Prefilled with the current one, so Enter alone changes nothing.
@@ -1381,6 +1411,17 @@ InteractiveUI::renderComponents(bool refresh) {
   if (arrangement_grid_->render(styles_, refresh, active == arrangement_grid_, selected_track_id)) {
     render = true;
     statCount("render:arrangement_grid_");
+  }
+  {
+    // Shown only when the link is not at full speed, or the user pinned a class.
+    auto link = backend_.linkStatus();
+    std::string text;
+    if (link.cls != cellui::LinkClass::FULL || link.pinned) {
+      text = "Link: " + cellui::linkClassLabel(link.cls);
+      if (!link.description.empty()) text += ", " + link.description;
+      if (link.pinned) text += " (pinned)";
+    }
+    info_line_->setLinkText(std::move(text));
   }
   if (info_line_->render(styles_, refresh)) { render = true; statCount("render:info_line_"); }
   if (octave_control_->render(styles_, refresh)) { render = true; statCount("render:octave_control_"); }

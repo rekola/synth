@@ -6,7 +6,9 @@
 
 #include <cstdint>
 #include <map>
+#include <set>
 #include <string>
+#include <utility>
 #include <vector>
 
 namespace cellui::term {
@@ -65,10 +67,24 @@ class ImageEncoder {
     size_t upload = 0, placement = 0;
   };
   const Sizes & lastSizes() const { return sizes_; }
+  // What was uploaded, by picture size, since the last call: how many pictures and how
+  // many bytes of picture data. For measuring what a link carries.
+  struct PictureStat {
+    size_t uploads = 0, bytes = 0;
+  };
+  std::map<std::pair<int, int>, PictureStat> takePictureStats() {
+    auto out = std::move(picture_stats_);
+    picture_stats_.clear();
+    return out;
+  }
   // A reply from the terminal to a kitty graphics command (the body after
   // "G"): "" for success, else a description of the error. Commands are sent
   // with q=1, so only errors are ever replied.
-  std::string handleKittyReply(const std::string & body) const;
+  std::string handleKittyReply(const std::string & body);
+  // Whether uploads are deflated (kitty `o=z`, a PNG's data). A terminal that rejects a compressed
+  // upload turns it off for good, and the pictures it refused go up again raw.
+  bool compressing() const { return compress_; }
+  void setCompressing(bool on) { compress_ = on; }
   // Removes every image (kitty graphics; Sixel images go with the text).
   std::string clear();
 
@@ -95,7 +111,10 @@ class ImageEncoder {
   std::map<uint64_t, Shown> shown_;
   uint32_t next_id_ = 0;
   bool sixel_ready_ = false;
+  bool compress_ = true;
+  std::set<uint32_t> deflated_ids_;  // kitty ids uploaded compressed and not yet confirmed
   Sizes sizes_;
+  std::map<std::pair<int, int>, PictureStat> picture_stats_;
 };
 
 // The pixels encoded as Sixel: covered pixels (where `keep` says false, one

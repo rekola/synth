@@ -47,6 +47,11 @@ class TestBackend : public Backend {
   // Shows backdrops as a terminal would (blurred cells or pictures); off,
   // the layers are stacked as they are, and info().backdrops has them.
   void emulateBackdrops(bool on) { emulate_backdrops_ = on; }
+  LinkStatus linkStatus() const override { return link_.status(); }
+  void setLinkHandler(LinkHandler handler) override { link_.setHandler(std::move(handler)); }
+  void setLinkPin(std::optional<LinkClass> pin) override { link_.pin(pin); }
+  // The link is this from now on; the handler is told if its class changed.
+  void setLinkStatus(const LinkStatus & status) { link_.set(status); }
   void setNativeSelection(bool on) override { native_selection_ = on; }
   bool nativeSelection() const { return native_selection_; }
 
@@ -87,6 +92,7 @@ class TestBackend : public Backend {
  private:
   PollEventLoop loop_;
   FrameGate gate_;
+  LinkMonitor link_;
   Connection frames_hook_;
   DisplayInfo display_;
   int rows_, cols_;

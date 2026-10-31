@@ -58,30 +58,33 @@ printUsage() {
              "\n"
              "Audio:\n");
   printCommonOptionsUsage(stdout);
-  fmt::print("  --render FILE          render the song to a WAV file and exit\n"
-             "  --playback-device NAME output device for this run (see --list-devices)\n"
-             "  --capture-device NAME  input device for this run\n"
-             "  --midi-input NAME      MIDI source for this run\n"
-             "  --list-devices         print the devices that can be selected and exit\n"
-             "  --null-audio           no sound device; blocks are paced by the clock\n"
-             "\n"
-             "User interface:\n"
-             "  --ui MODE              auto, terminal, raster (a window) or headless (default auto)\n"
-             "  --view VIEW            live or arrangement: the view to start in (default live)\n"
-             "  --keymap KEYMAP        gui or terminal: the key bindings to use instead of the\n"
-             "                         display's own (the window uses gui, the terminal terminal)\n"
-             "  --theme THEME          dark, light or original (default: from the terminal's colours)\n"
-             "  --reduced-motion       no easing or pulsing (also SYNTH_REDUCED_MOTION=1)\n"
-             "  --dither METHOD        nearest, ordered or floyd-steinberg: Sixel image dithering\n"
-             "                         (default ordered)\n"
-             "\n"
-             "Headless:\n"
-             "  --autoplay             start the transport once running (needs --ui headless)\n"
-             "  --daemon               run headless, detached from the terminal\n"
-             "  --log-file FILE        where a daemon's output goes\n"
-             "  --pid-file FILE        where a daemon writes its process id\n"
-             "\n"
-             "  --help, -h             this text\n");
+  fmt::print(
+      "  --render FILE          render the song to a WAV file and exit\n"
+      "  --playback-device NAME output device for this run (see --list-devices)\n"
+      "  --capture-device NAME  input device for this run\n"
+      "  --midi-input NAME      MIDI source for this run\n"
+      "  --list-devices         print the devices that can be selected and exit\n"
+      "  --null-audio           no sound device; blocks are paced by the clock\n"
+      "\n"
+      "User interface:\n"
+      "  --ui MODE              auto, terminal, raster (a window) or headless (default auto)\n"
+      "  --view VIEW            live or arrangement: the view to start in (default live)\n"
+      "  --keymap KEYMAP        gui or terminal: the key bindings to use instead of the\n"
+      "                         display's own (the window uses gui, the terminal terminal)\n"
+      "  --theme THEME          dark, light or original (default: from the terminal's colours)\n"
+      "  --reduced-motion       no easing or pulsing (also SYNTH_REDUCED_MOTION=1)\n"
+      "  --link-class CLASS     auto, full, 30, 15, 5 or 1: take the link to the display to be\n"
+      "                         this fast instead of measuring it\n"
+      "  --dither METHOD        nearest, ordered or floyd-steinberg: Sixel image dithering\n"
+      "                         (default ordered)\n"
+      "\n"
+      "Headless:\n"
+      "  --autoplay             start the transport once running (needs --ui headless)\n"
+      "  --daemon               run headless, detached from the terminal\n"
+      "  --log-file FILE        where a daemon's output goes\n"
+      "  --pid-file FILE        where a daemon writes its process id\n"
+      "\n"
+      "  --help, -h             this text\n");
 }
 
 int main(int argc, char *argv[]) {
@@ -104,6 +107,8 @@ int main(int argc, char *argv[]) {
   // --dither nearest|ordered|floyd-steinberg: how what has to meet the
   // terminal's palette (Sixel images) is dithered.
   auto dither = cellui::term::Dither::Method::ORDERED;
+  // --link-class auto|full|30|15|5|1: pin the link's class (empty: measure it).
+  std::optional<cellui::LinkClass> link_pin;
   // The saved audio/MIDI device choices; --capture-device/--playback-device/
   // --midi-input override them for this run only (`devices`), never the file
   // (`saved_devices`, what the Controller persists from).
@@ -145,6 +150,12 @@ int main(int argc, char *argv[]) {
         headless = true;
       } else if (i + 1 >= argc || !cellui::parseBackendKind(argv[i + 1], ui_kind)) {
         fmt::print(stderr, "--ui requires 'auto', 'terminal', 'raster' or 'headless'\n");
+        exit(1);
+      }
+      i++;
+    } else if (strcmp(argv[i], "--link-class") == 0) {
+      if (i + 1 >= argc || !cellui::parseLinkClass(argv[i + 1], link_pin)) {
+        fmt::print(stderr, "--link-class requires 'auto', 'full', '30', '15', '5' or '1'\n");
         exit(1);
       }
       i++;
@@ -405,6 +416,7 @@ int main(int argc, char *argv[]) {
   InteractiveUI ui(*backend);
   ui.setInitialView(initial_view);
   if (keymap_profile) ui.setKeymapProfile(*keymap_profile);
+  if (link_pin) ui.setLinkPin(link_pin);
   ui.setTheme(theme_name);
   ui.setReducedMotion(reduced_motion);
   ui.initialize(controller);

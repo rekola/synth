@@ -73,6 +73,7 @@ add_library(cellui STATIC
   src/EventLoop.cpp
   src/Wakeup.cpp
   src/ThreadPosts.cpp
+  src/LinkStatus.cpp
   src/KeyReader.cpp
   src/LineEditor.cpp
   src/Markdown.cpp
@@ -87,6 +88,7 @@ add_library(cellui STATIC
   src/term/Discovery.cpp
   src/term/FrameEncoder.cpp
   src/term/FramePacer.cpp
+  src/term/Deflate.cpp
   src/term/ImageEncoder.cpp
   src/term/InputParser.cpp
   src/term/TermEvent.cpp)
@@ -205,6 +207,9 @@ if(NOT WIN32)
   # Driven by tools/pacing/run_assertions.py.
   add_executable(cellui_pacing_probe tools/pacing_probe.cpp)
   target_link_libraries(cellui_pacing_probe PRIVATE cellui)
+  # Times the deflate encoder on raw pictures (see the file's top comment).
+  add_executable(cellui_deflate_bench tools/deflate_bench.cpp)
+  target_link_libraries(cellui_deflate_bench PRIVATE cellui)
   # The frame pacer against shaped ptys (bandwidth, latency, a silent terminal).
   find_package(Python3 COMPONENTS Interpreter QUIET)
   if(Python3_Interpreter_FOUND)
@@ -234,6 +239,8 @@ add_executable(cellui_tests
   tests/FadeTests.cpp
   tests/FrameEncoderTests.cpp
   tests/FramePacerTests.cpp
+  tests/DeflateTests.cpp
+  tests/LinkStatusTests.cpp
   tests/ImageEncoderTests.cpp
   tests/GalleryTests.cpp
   tests/HeatmapChartTests.cpp

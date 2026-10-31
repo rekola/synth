@@ -12,7 +12,9 @@
 #include <cellui/term/OutputQueue.h>
 
 #include <chrono>
+#include <cstdio>
 #include <deque>
+#include <map>
 #include <memory>
 #include <optional>
 #include <string>
@@ -38,6 +40,9 @@ struct SessionOptions {
   std::chrono::milliseconds grace{25};
   // How frames are paced to the link (see FramePacer).
   PacerConfig pacer;
+  // How the link is classified (LinkStatus.h).
+  LinkClassifierConfig link;
+  LinkThresholds link_thresholds;
 };
 
 // A full-screen session on a POSIX terminal: the terminal put into the
@@ -84,6 +89,11 @@ class TerminalSession : public Backend {
   // a second; 0 until known).
   double estimatedBytesPerSec() const { return pacer_.estimatedBytesPerSec(); }
   PacerStats pacerStats() const;
+
+  // The link's class and description, from what the pacer has learned (see updateLink()).
+  LinkStatus linkStatus() const override { return link_.status(); }
+  void setLinkHandler(LinkHandler handler) override { link_.setHandler(std::move(handler)); }
+  void setLinkPin(std::optional<LinkClass> pin) override { link_.pin(pin); }
 
   // Every event available now, as the application sees them. A resize is
   // reported with the new size, already read from the terminal.
@@ -189,6 +199,24 @@ class TerminalSession : public Backend {
     std::vector<BackdropLayer> layers;
   };
   std::optional<Held> held_;
+  // SYNTH_LINK_STATS=<file>: a line a second of what the link carried (see logLinkStats()).
+  FILE * link_log_ = nullptr;
+  std::chrono::steady_clock::time_point link_log_last_{};
+  FrameBytes link_log_mark_;
+  size_t link_log_frames_ = 0;
+  std::map<std::pair<int, int>, ImageEncoder::PictureStat> link_log_pictures_;
+  void logLinkStats(std::chrono::steady_clock::time_point now);
+  // Once a second: the class, from the bandwidth estimate, but only on a second the link held frames back
+  // (otherwise the estimate says what the application sent, not what the link carries) and not in
+  // the first seconds, while the estimate is still a lower bound.
+  void updateLink(std::chrono::steady_clock::time_point now);
+  LinkMonitor link_;
+  LinkThresholds link_thresholds_;
+  std::chrono::steady_clock::time_point link_opened_{}, link_last_pump_{}, link_last_update_{};
+  double link_blocked_seconds_ = 0;
+  bool link_was_blocked_ = false;  // at the last turn: the link held the next frame back
+  size_t link_stalls_seen_ = 0;
+  std::chrono::steady_clock::time_point link_stalled_at_{};
   void writeBlocking(const std::string & bytes);
   void flushOutput();
   void drainOutput(std::chrono::milliseconds limit);

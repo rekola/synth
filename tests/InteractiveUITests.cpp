@@ -305,3 +305,45 @@ TEST(terminal_ui_clip_grid_is_hidden_in_arrangement_view_and_back_in_live_view) 
   f.press('\t');
   CHECK(sendsShown());
 }
+
+TEST(info_line_shows_the_link_only_when_it_is_not_at_full_speed) {
+  UIFixture f;
+  CHECK(f.terminal.text().find("Link:") == std::string::npos);
+  cellui::LinkStatus slow;
+  slow.cls = cellui::LinkClass::HZ_15;
+  slow.description = "480 kB/s, RTT 38 ms";
+  f.terminal.setLinkStatus(slow);
+  f.ui->step();
+  CHECK(f.terminal.text().find("Link: 15 Hz, 480 kB/s, RTT 38 ms") != std::string::npos);
+  CHECK(f.terminal.text().find("(pinned)") == std::string::npos);
+  // Back at full speed it goes.
+  cellui::LinkStatus full;
+  f.terminal.setLinkStatus(full);
+  f.ui->step();
+  CHECK(f.terminal.text().find("Link:") == std::string::npos);
+}
+
+TEST(a_pinned_link_class_is_shown_even_at_full_speed) {
+  UIFixture f;
+  f.ui->setLinkPin(cellui::LinkClass::FULL);
+  f.ui->step();
+  CHECK(f.terminal.text().find("Link: Full speed (pinned)") != std::string::npos);
+  f.ui->setLinkPin(cellui::LinkClass::HZ_5);
+  f.ui->step();
+  CHECK(f.terminal.text().find("Link: 5 Hz (pinned)") != std::string::npos);
+  f.ui->setLinkPin(std::nullopt);
+  f.ui->step();
+  CHECK(f.terminal.text().find("Link:") != std::string::npos); // still at the class it had, now measured
+  CHECK(f.terminal.text().find("(pinned)") == std::string::npos);
+}
+
+TEST(a_change_of_link_class_asks_for_a_frame) {
+  UIFixture f;
+  size_t frames = 0;
+  f.terminal.setFrameHandler([&](int64_t) { frames++; });
+  cellui::LinkStatus slow;
+  slow.cls = cellui::LinkClass::HZ_5;
+  f.terminal.setLinkStatus(slow); // the UI's handler is the one set at initialize(): a frame is wanted
+  f.terminal.eventLoop().iterate(false);
+  CHECK(frames == 1);
+}
