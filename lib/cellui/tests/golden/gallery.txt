@@ -83,11 +83,8 @@ Meters
 ⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣷⣿⣿⣿⣶⣿⣿⣦⣾⣿⣧⣤⣾⣷⣄⣴⣿    ⣧⢸⢸
                                             ⣿⣽⣸
 
-Spin box and cover art
+Spin box
 Octave ◂ 4 ▸
-
-                                 🖼
-
 
 
 Dials
