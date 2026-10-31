@@ -1,27 +1,26 @@
 # Degrading gracefully on a slow link
 
-Status: plan, revised after review. Awaiting approval; nothing here is built.
+Status: plan, second revision. Awaiting approval; nothing here is built.
 Builds on the terminal frame pacer (`plans/frame-pacing-terminal.md`), which
 measures the link but changes nothing about what is drawn.
 
 ## Decisions made
 
-- **Dials are never glyphs.** They are images in every class. They are cached, so a
-  dial costs bytes only the first time a picture is shown.
-- **One colour mode for the whole screen**, not per widget: `COLOUR`, `GREY`, `MONO`.
-  It is applied where bytes are made (the cell encoder and the image encoder), so
-  text, charts, meters and dials all follow it and no widget draws a grey version.
-  It is also what a very old terminal gets.
-- **Kitty and iTerm2 pictures go as greyscale PNG**, compressed by a small in-tree
-  deflate encoder (no new dependency). If a terminal refuses the grey PNG, a few
-  quantised colour levels are sent instead.
-- **No label changes and no reduced-resolution pictures**, the heatmap included. Axis
-  labels stay drawn into the image.
-- **Sixel is fixed**: no whole-bounding-box resends, and a grey palette in grey mode.
-- **Hover feedback may be lost at 15 Hz and below.** Hover effects are coming and
-  will cost more, so they are a managed cost (below).
-- **No `HZ_120` class.** The status string is the backend's own (`LinkStatus::description`),
-  so a terminal shows its bandwidth and a window its real vsync rate. No bandwidth
+- **Colours stay, on every terminal that has any.** 8- and 16-colour terminals keep
+  colour: it is how tracks are told apart. There is **no automatic grey**: switching part
+  of the screen to grey would mix grey and colour, and repainting everything to avoid that is
+  not worth it. Grey is an option on request only and may never be built (section 2).
+- **A slow link lowers picture quality, not screen colour**: pictures are rectangles, so a
+  reduced palette in a chart mixes with colour text without a visible seam (3.2).
+- **Dials are never glyphs.** They are images in every class, **16 positions**, **the letter
+  stays in the picture**, four looks, shared by a custom key (3.5).
+- **Compression is a small in-tree deflate encoder**, no new dependency (3.1).
+- **No label changes and no reduced-resolution pictures**, the heatmap included.
+- **Sixel gets a real palette and stops resending its bounding box** (3.3).
+- **Hover feedback may be lost at 15 Hz and below.** Hover effects are coming and will cost
+  more, so they are a managed cost (3.6).
+- **No `HZ_120` class.** The status string is the backend's own (`LinkStatus::description`):
+  bandwidth for a terminal, the real vsync rate and achieved fps for a window. No bandwidth
   estimate for the window.
 - **The API may change.**
 
@@ -29,7 +28,7 @@ measures the link but changes nothing about what is drawn.
 
 ```cpp
 // cellui/LinkStatus.h
-enum class LinkClass { FULL, HZ_30, HZ_15, HZ_5, HZ_1 };   // FULL: 60 Hz and up; the others the rate sustained
+enum class LinkClass { FULL, HZ_30, HZ_15, HZ_5, HZ_1 };
 
 struct LinkStatus {
   LinkClass cls = LinkClass::FULL;
@@ -43,210 +42,224 @@ using LinkHandler = std::function<void(const LinkStatus &)>;   // when the class
 virtual void setLinkHandler(LinkHandler) { }
 ```
 
-`FULL` covers everything from 60 Hz up: nothing is cut between 120, 60 and 60-ish, so
-those are one class. `TestBackend` returns a status the test sets
-(`setLinkStatus()`), so the app can be tested per class without a pty.
+`TestBackend` returns a status the test sets (`setLinkStatus()`), so the app can be tested
+per class without a pty.
 
-### What the description says
+### What a class is
 
-- **Terminal:** the pacer's estimate and RTT, `"480 kB/s, RTT 38 ms"` (`"no cursor
-  reports, 4 Hz"` for a terminal that answers none).
-- **Window:** the real vsync rate of the monitor the window is on
-  (`gdk_monitor_get_refresh_rate()`, in mHz) and the frame rate achieved over the last
-  second: `"60 Hz vsync, 58 fps"`. A fractional rate shows as such (`59.94 Hz`).
+A class is a **profile**: a set of choices (which scopes run and how often, animations,
+scrolling mode, picture quality, hover, mouse reporting). Each profile has a **demand**: the
+bytes per second it needs to look as intended, measured in phase 0. The link's class is
+the **largest profile whose demand fits in 70% of the estimated bandwidth**. So the thresholds
+are not guessed: they are the measured demands of the profiles (phase 0 below).
+
+- `FULL` is the profile that sends everything the app draws, at whatever rate the pacer
+  allows up to 60 Hz. Nothing is cut between 120, 60 and 60-ish, so those are one class.
+- `HZ_30`, `HZ_15`, `HZ_5`, `HZ_1` are smaller profiles, named for the update rate they
+  sustain for the content that is left.
+- A window's class comes from its frame clock: the achieved frame interval against the
+  refresh interval (`gdk_frame_clock_get_refresh_info()`, frame timings), so a slow remote
+  display (X forwarding, VNC, Broadway) lands in a low class with no bandwidth figure.
+- An RTT over 250 ms also selects page scrolling (3.7), whatever the class.
+
+### The description
+
+- **Terminal:** the pacer's estimate and RTT, `"480 kB/s, RTT 38 ms"`; for a terminal that
+  answers no cursor report, `"no cursor reports, 4 Hz"`.
+- **Window:** the real vsync rate of the monitor the window is on (`gdk_monitor_get_refresh_rate()`,
+  mHz) and the frame rate achieved over the last second: `"60 Hz vsync, 58 fps"`; a fractional
+  rate shows as such (`59.94 Hz`).
 - The status bar shows the description whenever the class is below `FULL` or pinned
-  (`Link: 15 Hz, 480 kB/s, RTT 38 ms`), and nothing on a good link. A line in the
-  window's status bar showing the vsync rate always is a one-line option if wanted.
-
-### Classes
-
-A terminal's class is the frame rate its bandwidth sustains for a **reference frame**:
-the bytes of a typical full-demand frame, measured in phase 0, not guessed. A window's
-class comes from its frame clock: the achieved frame interval against the refresh interval
-(`gdk_frame_clock_get_refresh_info()`, frame timings), so a slow remote display
-(X forwarding, VNC, Broadway) lands in a low class with no bandwidth figure.
-
-    FULL    sustains 60 Hz and up
-    HZ_30   30-60      HZ_15   15-30      HZ_5   5-15      HZ_1   under 5
-
-An RTT over 250 ms also selects page scrolling (3.7), whatever the class.
+  (`Link: 15 Hz, 480 kB/s, RTT 38 ms`), and nothing on a good link; showing a window's vsync
+  rate always is a one-line option.
 
 ### Stability
 
 The estimate is noisy (524 and 589 kB/s for a true 520 in two runs):
 
 - **Down fast:** two seconds below a threshold moves one class down.
-- **Up slowly:** fifteen seconds above 1.5x the next threshold, and only after a **trial**
-  (below). A feature must not come back just to overload the link again.
-- No change while the pacer is in a stall, or in the first seconds after start-up.
-- A static UI sends nothing, so the estimate goes stale: the class **holds**, it does not
-  fall.
+- **Up slowly:** fifteen seconds above 1.5x the next demand, and only after a **trial**. A
+  feature must not come back just to overload the link again.
+- No change while the pacer is in a stall or in the first seconds after start-up.
+- A static UI sends nothing, so the estimate goes stale: the class **holds**, it does not fall.
 
 ### Probing upward
 
-With scopes off there is little to measure. A recovery enables the next feature for a
-few seconds as a trial; the pacer's own queueing-delay rule judges it. A failed trial
-waits longer before the next one.
+With scopes off there is little to measure. A recovery enables the next feature for a few
+seconds as a trial; the pacer's own queueing-delay rule judges it. A failed trial waits
+longer before the next.
 
 ### Pinning
 
 `--link-class full|30|15|5|1|auto` and the command `set-link-class` (with a line in
-`ui/CommandDescriptions.cpp`) pin the class; `auto` returns to measuring.
+`ui/CommandDescriptions.cpp`); `auto` returns to measuring.
 
-## 2. Colour mode
+## 2. Colours
 
-```cpp
-enum class ColourMode { COLOUR, GREY, MONO };
-```
-
-Chosen by `--colours auto|colour|grey|mono` (and `CELLUI_COLORS`, which keeps its
-existing values). `auto`:
-
-- `MONO` for a terminal with no colour at all (`ColorDepth::NONE`);
-- `GREY` for an 8- or 16-colour terminal (eight hues serve a theme worse than four
-  greys do; `CELLUI_COLORS=8` forces the old mapping);
-- `COLOUR` otherwise, and `GREY` on a slow link (`HZ_15` and below).
-
-Applied in the backend, so no widget draws a grey version:
-
-| Terminal | Levels | Sent as |
-|---|---|---|
-| truecolour | 256 | `38;2;g;g;g` / `48;2;g;g;g` |
-| 256 colours | 26 | the xterm grey ramp (232-255) plus 16 and 231 |
-| 8/16 colours | 4 | black, bright black, white, bright white |
-| no colour (`MONO`) | 2 | the terminal's default; contrast by reverse video, bold and dim |
-
-- **Conversion:** luminance of the colour, from sRGB, to the nearest level.
-- **Contrast is the risk.** Hues that differ only in hue (the cyan cursor against the
-  neutral grey bar/beat accents) collapse to one grey. So `Theme` gets a grey variant,
-  chosen with the mode, whose semantic colours (cursor, selection, bar, beat, playhead,
-  focus, error) are far enough apart in luminance; a test computes the pairs and fails
-  when two that must differ are closer than a set number of levels. The encoder
-  conversion stays as the safety net for colours the theme does not name.
-- **`MONO`** needs the cell encoder to emit **reverse video** (`SGR 7`), which it does
-  not today: with no colour a highlight is invisible now. A cell whose background is
-  clearly lighter than its text on a dark theme (or the reverse on a light one) is drawn
-  reversed; dim text uses `SGR 2`; emphasis uses bold.
-- Images follow the mode (3.1, 3.2).
+- **Truecolour and 256-colour terminals:** unchanged.
+- **8- and 16-colour terminals keep colour, and get a palette made for them.** Today every
+  colour is mapped to the nearest of eight by RGB (`nearest8()`), which ignores what the
+  terminal's eight colours actually look like. Instead the theme gets an `ansi16` variant
+  that names colours by **role** and sends palette indices:
+  - text and background are the terminal's own defaults (`SGR 39`/`49`), so the user's
+    terminal theme guarantees contrast;
+  - accents are the terminal's six hues, bright variants for emphasis;
+  - **track colours** come from a fixed table of the six hues in normal and bright (twelve),
+    assigned so that neighbouring tracks differ; with only eight colours the table drops to
+    the six hues and bright is the emphasis.
+  A test checks that every semantic pair that must differ does (cursor, selection, bar, beat,
+  playhead, focus), by index.
+- **No colour at all (`MONO`)** is still a mode, for very old terminals: highlights use
+  **reverse video** (`SGR 7`), which the cell encoder does not emit today (with no colour a
+  highlight is invisible now), dim text uses `SGR 2`, emphasis bold.
+- **Grey on request** (`--colours grey`): luminance conversion in the encoders (and 4 levels
+  on a 16-colour terminal). Lowest priority; if nothing needs it, it is not built.
 
 ## 3. The steps
 
 ### 3.1 Compress, in tree (every class, no loss)
 
-The biggest cost is chart pictures: raw RGB, base64, about 26 kB for an 80x80 picture, every
-frame, in every protocol. Before cutting anything:
+The biggest cost is chart pictures: raw RGB, base64, every frame, in every protocol. Before
+cutting anything:
 
-- A small **zlib-format deflate encoder** in `cellui/term/Deflate.{h,cpp}`: LZ77 with a
-  hash chain and fixed Huffman codes (dynamic Huffman only if the measured ratio
-  needs it), with Adler-32. Round-trip tested against a small inflate written for the
-  tests, so no library is needed to test it.
-- **kitty:** `o=z` on the payload; PNG (`f=100`) uses the same encoder for its IDAT
-  stream, with a CRC-32 writer next to the PNG writer that exists (`encodePng()`, for
-  iTerm2, which is stored uncompressed today).
-- Ratio is measured on the real charts first. A line chart on a flat background should
+- A small **zlib-format deflate encoder** in `cellui/term/Deflate.{h,cpp}`: LZ77 with a hash
+  chain and fixed Huffman codes (dynamic Huffman only if the measured ratio needs it), with
+  Adler-32. Round-trip tested against a small inflate written for the tests.
+- **kitty:** `o=z` on the payload. PNG (`f=100`) uses the same encoder for its IDAT stream,
+  with a CRC-32 writer next to the PNG writer that exists (`encodePng()`, for iTerm2, which is
+  stored uncompressed today).
+- The ratio is measured on the real charts first. A line chart on a flat background should
   shrink many times; a smooth heatmap much less.
 
-### 3.2 Greyscale and quantised pictures
+### 3.2 Picture quality on a slow link
 
-When the mode is `GREY` (or `MONO`) every picture is converted to 8-bit grey at encode
-time:
+A `PictureQuality` knob (`FULL`, `REDUCED`, `LOW`), applied by the image encoder, is what a slow
+link turns instead of screen colour:
 
-- **kitty:** PNG colour type 0 (greyscale), 8-bit, or 4-bit when quantised to 16 levels
-  (half a byte per pixel before deflate), `f=100`. kitty's raw formats have no 1-byte
-  form (`f=24` RGB, `f=32` RGBA), so a grey PNG is what makes greyscale real there.
-  Whether every kitty-protocol terminal decodes grey PNGs is not known: the **error reply
-  (`q=1`) is the test**. On an error the encoder switches that terminal to a few
-  **quantised colour levels** (raw RGB with `o=z`, or a palette PNG) and remembers it.
-- **iTerm2:** the same grey PNG in its inline-image sequence.
-- **Sixel:** the format has no greyscale pixel type; a palette is free-form, so grey
-  means 16 or 32 grey registers instead of the 240-colour cube, which cuts the colour
-  passes per band, usually the bulk of a Sixel image. A monochrome sixel terminal takes
-  HLS lightness definitions (`#n;1;0;l;0`), so the same palette works there.
-- **`MONO`:** pictures are sent as grey as above where the terminal shows pictures at all;
-  a terminal with no colour has no pictures and uses the cell charts.
-- **The heatmap** keeps its axis labels in the image and its resolution. In grey, its
-  brightness and saturation (a fixed hue at two variables) become the luminance of the
-  result, so two cells can look alike where saturation differed; when the terminal has
-  colour and only the link is slow, the quantised-colour mode keeps both and is the better
-  choice for it.
+| | FULL | REDUCED (HZ_15) | LOW (HZ_5 and below) |
+|---|---|---|---|
+| kitty, iTerm2 | RGB, deflated | palette PNG, up to 64 colours, 8-bit indices deflated | up to 16 colours, 4-bit indices |
+| Sixel | exact or up to 256 registers | up to 64 | up to 16 |
 
-### 3.3 Sixel: send only what changed
+- A palette PNG (colour type 3) is standard; whether every kitty-protocol terminal decodes it is
+  not known. The **error reply (`q=1`) is the test**: on one, the encoder falls back to
+  quantised raw RGB with `o=z` and remembers it for that terminal.
+- Charts have few colours (a flat background, a line, its anti-aliasing), so a 64-colour
+  palette is close to lossless for them; the heatmap, a single hue at two variables, lies on a
+  two-parameter surface, so a palette made of a grid over those two (about 12 x 8) covers it.
+  Palettes are made from the picture's colour histogram (median cut when over the limit), not
+  fixed.
+- Greyscale pictures are not needed for this. (Kitty's PNG does take true greyscale, colour type
+  0, 8 or 4 bits per pixel; it would come with the optional grey mode.)
 
-Today `ImageEncoder::sixel()` sends the **bounding box** of an image's visible rectangles,
-again whenever anything about it changes. Fix:
+### 3.3 Sixel: palette and damage
+
+**The palette today.** `encodeSixel()` maps every pixel to one of **240 fixed registers**: the
+xterm colour cube (6 levels per channel: 0, 95, 135, 175, 215, 255) plus the 24-step grey ramp,
+then dithers with an 8x8 ordered (Bayer) matrix. The terminal's own register count (asked at
+start-up, `Capabilities::sixel_registers`, up to 1024) is read and never used. Why it looks bad:
+
+- six levels per channel cannot hold the theme's colours exactly, so a **flat background that
+  is not on the cube is dithered into a pattern**;
+- the heatmap's smooth single-hue gradient **bands** (a handful of levels along its hue);
+- anti-aliased chart lines pick up dither noise;
+- the palette ignores the picture, so a picture with five colours still pays the 240-register
+  layout.
+
+**The fix.** A palette per picture, from its colours:
+
+1. Count the distinct colours. If they fit in the registers (almost always for a chart), use
+   them **exactly, with no dithering**.
+2. Otherwise median cut to N registers (N from `PictureQuality` and the terminal's count) and
+   dither lightly; for the heatmap, the two-variable grid of 3.2.
+3. Fewer colours is also fewer colour passes per band, which is most of a sixel's size.
+4. Whether colour registers persist between images (`?1070`, private versus shared registers)
+   decides if the palette can be reused across frames; to be checked on the terminals that can
+   be tried. If shared, a stable palette per widget saves resending it every frame.
+
+**Damage.** `ImageEncoder::sixel()` also sends the bounding box of an image's visible
+rectangles, again whenever anything about it changes. Fix:
 
 1. **One sixel per visible rectangle**, not their union, so a popup over a chart no longer
    resends the covered pixels as transparency.
-2. **Tile diff:** when only the picture's version changed, compare with the previous pixels
-   (kept with the image already shown) in cell-aligned tiles, and send only the changed tiles
-   merged into rectangles per row. A sixel starts at a cell origin, hence the alignment;
-   a tile's last band is partial when the cell height is not a multiple of 6.
-3. A changed tile is dithered with the same screen-anchored matrix as now
-   (`Dither::origin_*`), so it matches its neighbours.
+2. **Tile diff:** when only the picture's version changed, compare with the previous pixels (kept
+   with the image already shown) in cell-aligned tiles and send only the changed tiles, merged
+   per row. A sixel starts at a cell origin, hence the alignment; a tile's last band is partial
+   when the cell height is not a multiple of 6.
+3. A changed tile uses the same palette as its neighbours, and the same screen-anchored dither
+   where dithering applies (`Dither::origin_*`).
 
-Tests (`ImageEncoderTests`): a popup over a chart sends only the visible rectangles; a
-one-row change sends only the tiles it touches; an unchanged picture sends nothing; a
-removed image sends nothing and the text overwrites it.
+Tests (`ImageEncoderTests`): an image of few colours round-trips exactly through the palette; a
+flat colour off the old cube is flat; a popup over a chart sends only the visible rectangles; a
+one-row change sends only the tiles it touches; an unchanged picture sends nothing; a removed
+image sends nothing and the text overwrites it.
 
-### 3.4 One upload per picture, many placements
+### 3.4 One upload per picture, many placements, by a custom key
 
-Today each placed picture has its own key, and a key's first appearance is an upload, so two
-dials with identical pixels are two uploads. For kitty the encoder becomes **content-
-addressed**: an upload per distinct picture (a hash of its pixels and size), then `a=p`
-for each place it is shown.
+Today each placed picture has its own key from a counter, and a key's first appearance is an
+upload, so two dials with identical pixels are two uploads, and an explicit `id` given to
+`drawImageAt()` only keeps that one placement's key stable. The change:
 
-- A picture is **not deleted** when its last placement goes (`a=d,d=i` removes the
-  placement; the data stays) while it is in the **cache**; the cache is bounded by bytes
-  (a few MB) and evicts the least recently placed with `a=d,d=I`. Charts and other one-use
-  pictures keep today's behaviour: deleted with their placement.
-- Cached pictures are uploaded **lazily**, on first use, never all at start: on a slow link
-  an up-front burst of every dial would itself be the problem.
-- Sixel and iTerm2 have no stored images, so a cache buys nothing there; they resend per
-  placement as now (with 3.3).
+```cpp
+// Plane
+// A picture whose pixels depend only on `key` (the caller promises it): drawn once for the
+// root, shared by every plane that asks for the same key, and only rendered when no one has.
+virtual void drawSharedImageAt(int row, int col, uint64_t key, int width, int height,
+                               const std::function<std::vector<uint32_t>()> & render);
+```
+
+- The plane tree keeps a **registry of shared pictures** by key. `render` runs only when the key
+  is not in the registry, so a dial on screen costs no rasterisation after its first drawing, and
+  nothing is hashed per frame. A change of theme, display scale or cell size bumps a generation
+  that empties the registry.
+- `ImagePlacement` gains `shared_key`. The kitty encoder uploads **once per shared key** and
+  places it with `a=p` wherever it is shown (a placement id per position). The GTK window
+  already keys its textures by image, so one texture serves every placement.
+- A shared picture is **not deleted** when its last placement goes (`a=d,d=i` removes the placement
+  and keeps the data); the shared set is bounded by bytes (a few MB), evicting the least recently
+  placed with `a=d,d=I`. One-use pictures (charts) keep today's behaviour.
+- Pictures are uploaded **lazily**, on first use, never all at start: on a slow link an up-front
+  burst of every dial would itself be the problem.
+- Sixel and iTerm2 keep no stored images, so sharing saves rasterisation but not bytes there.
 
 ### 3.5 Dials
 
-Dials stay images in every class (no glyph version, by decision). To make them cacheable:
+Dials stay images in every class. To make them cacheable:
 
-- **The pointer is quantised** to the steps the Launchpad faders show, so there are only a
-  few pictures per look. (`SendFader.h` today: unity down to -36 dB in 6 dB steps and
-  "off": **8 positions**. Sixteen means 3 dB steps, which would change the fader steps too:
-  to confirm.)
-- **Four looks** per position: normal, pressed, hover, selected. `hover` is new (the look
-  exists in the plan for the coming hover effects); all four are implemented now so they
-  can be tested.
-- **The letter is part of the picture** (`DialImage.cpp` draws it in the ring's gap), so
-  the three dials (A, B, Main) are three sets: 8 x 4 x 3 = **96 pictures** at 8 positions,
-  or 16 x 4 x 3 = **192** at 16. They would be 64 in all (16 x 4) only if the letter moves
-  into a text cell, which changes the dial's layout. 192 small pictures are still well under
-  1 MB in the terminal's memory, and compress to a few hundred bytes each.
-- Dragging with Shift (0.3 dB) still sets the exact value; the pointer moves when it crosses
-  a step. The typed value is shown as text while editing, as now.
-- Tests: all four looks at every position render, are distinct where they should differ,
-  keep a stable key for equal pixels, and are uploaded once however many times shown
-  (kitty); the gallery shows the grid.
+- **16 positions** over the arc (the Launchpad's 8 pads plus the micro adjustment); the pointer is
+  drawn at the nearest. **Open: the mapping.** The code today steps 6 dB from -36 dB to unity with
+  "off" below (8 positions); you measured 2 dB steps. 16 positions at 2 dB is off plus 15 levels,
+  0 to -28 dB; 16 over the current -36 to 0 range is 2.4 dB. Which?
+- **Four looks** per position: normal, pressed, hover, selected. `hover` is new; all four are
+  implemented now so they can be tested.
+- **The letter is in the picture**, so A, B and Main are three sets: 16 x 4 x 3 = **192 pictures**,
+  each keyed by (letter, position, look, scale), none rendered until used. They are small and
+  flat, so they compress to a few hundred bytes each and are well under 1 MB in the terminal.
+- Dragging with Shift (fine) still sets the exact value; the pointer moves when it crosses a
+  position. The typed value shows as text while editing, as now.
+- Tests: all four looks at every position render and are distinct where they should differ;
+  equal key gives equal pixels; each is uploaded once however often shown (kitty); the gallery
+  shows the grid.
 
 ### 3.6 Hover is a cost
 
 Hover effects (coming) are redraws triggered by the pointer, and so are bandwidth:
-each is a frame, and pictures that change on hover are new pictures. So:
 
-- **Mouse reporting** `?1003` (any motion) falls back to `?1002` (drag only) at `HZ_15` and
-  below, and hover effects stop there (accepted).
+- **Mouse reporting** `?1003` (any motion) falls back to `?1002` (drag only) at `HZ_15` and below,
+  and hover effects stop there (accepted).
 - **Pointer-shape updates** (OSC 22) stop at `HZ_5`.
-- A hover look reuses cached dial pictures (3.5), so hovering a dial costs a placement, not
-  an upload.
-- A new hover effect declares what it costs and whether it needs a picture; one that needs a
-  new picture is a candidate to be turned off sooner.
+- A hover look reuses shared dial pictures (3.4), so hovering a dial costs a placement, not an upload.
+- A new hover effect declares its cost and whether it needs a new picture; one that does is a
+  candidate to switch off sooner.
 
 ### 3.7 App behaviour by class
 
-Content decisions live in the app (`src/ui/PerformanceProfile.h`: `profileFor(LinkClass)`,
-applied by `InteractiveUI` when the link handler fires).
+Content decisions live in the app (`src/ui/PerformanceProfile.h`: `profileFor(LinkClass)`, applied
+by `InteractiveUI` when the link handler fires).
 
 | | FULL | HZ_30 | HZ_15 | HZ_5 | HZ_1 |
 |---|---|---|---|---|---|
-| Colour mode | as detected | as detected | **GREY** | GREY | GREY |
+| Picture quality | full | full | **reduced** | low | low |
 | Scopes (spectrum, heatmap) | every frame | 30 Hz | 15 Hz | **off** | off |
 | Channel meter | every frame | every frame | 15 Hz | 5 Hz, peak only | off |
 | Level meters (clip grid, pattern editor) | every frame | every frame | 15 Hz | 5 Hz | cell meter, last resort |
@@ -256,64 +269,88 @@ applied by `InteractiveUI` when the link handler fires).
 | Pointer-shape updates | on | on | on | off | off |
 | Dials | images | images | images | images | images |
 
-The table is the starting point; phase 0's numbers set the cuts.
+The table is the starting point; phase 0's demands set the cuts.
 
-- **Animations** use `InteractiveUI::setReducedMotion()`, which exists: smooth scrolling,
-  easing, the clip slots' pulsing (a steady colour instead) and flashing (a steady marker).
-- **Page scrolling** (`PatternEditor::ScrollMode { LINE, PAGE }`): when the cursor, or a
-  playing column's line, would leave the visible rows, the view jumps one page (visible rows
-  minus the scroll margins), so the screen repaints once per page instead of per row. In
-  Live View each column's line (`keepTrackLinesVisible()`) uses the same rule. The arrangement
-  grid pages sideways by bars. A scrolled screen changes every cell, so this matters even for
-  text; its size is measured in phase 0.
-- **Key-release events** from the kitty keyboard protocol stop at `HZ_5` if `KeyReader` and
-  note entry can do without them (checked first).
-- The glyph (cell) charts stay the fallback for a display with no pictures, and a last resort
-  at `HZ_1` only.
+- **Animations** use `InteractiveUI::setReducedMotion()`, which exists: smooth scrolling, easing,
+  the clip slots' pulsing (a steady colour instead) and flashing (a steady marker).
+- **Page scrolling** (`PatternEditor::ScrollMode { LINE, PAGE }`): when the cursor, or a playing
+  column's line, would leave the visible rows, the view jumps one page (visible rows minus the
+  scroll margins), so the screen repaints once per page instead of per row. In Live View each
+  column's line (`keepTrackLinesVisible()`) uses the same rule; the arrangement grid pages sideways
+  by bars.
+- **Key-release events** from the kitty keyboard protocol stop at `HZ_5` if `KeyReader` and note
+  entry can do without them (checked first).
+- The glyph (cell) charts stay the fallback for a display with no pictures, and a last resort at
+  `HZ_1` only.
 
-## 4. Phases
+## 4. Phase 0: what is measured, and what it gives
 
-0. **Measure.** Run the real app with playback and scopes through the shaped pty; log bytes
-   per second by kind and by picture key once a second (`SYNTH_LINK_STATS=<file>`, like the
-   existing UI stats). Gives the reference frame and each feature's cost. Output: the class
-   thresholds and the cuts in 3.7.
-1. **API and classes.** `LinkStatus`, `Backend::linkStatus()/setLinkHandler()`, terminal
-   classification with hysteresis and trials, the description strings (terminal
-   bandwidth/RTT, window vsync and fps), the status bar, `--link-class` and
-   `set-link-class`, `TestBackend::setLinkStatus()`. Harness checks: the class at five
-   bandwidths, no flapping on the 524/589 noise, a pinned class stays.
-2. **Colour mode** (section 2): the encoder levels, `MONO` with reverse video, the grey
-   theme and the contrast test, `--colours`, discovery defaults.
-3. **Deflate, PNG and grey pictures** (3.1, 3.2): the encoder and its round-trip tests;
-   bytes per frame per protocol before and after on the real charts; the kitty fallback on
-   an error reply tested with the harness's emulated terminal answering one.
-4. **Sixel** (3.3, and grey registers).
-5. **Picture cache and dials** (3.4, 3.5): content-addressed uploads, retention and the byte
-   cap, the quantised dial pictures and four looks.
-6. **App profile** (3.6, 3.7): scope/meter rates and off, animations, page scrolling, hover,
-   mouse reporting. UI tests per class with `TestBackend`; a harness run at 50 kB/s asserts
-   the editor stays usable (key latency, fps).
+Phase 0 decides the thresholds, so it is specified here.
+
+**What is measured** (a log line a second, `SYNTH_LINK_STATS=<file>`, like the existing UI stats):
+frames, bytes by kind (upload, placement, other), and uploads and bytes **by picture size**, so each
+widget's cost can be told apart, in these scenarios through the shaped pty, 120x40 cells of 8x16 px,
+demo3.xml, kitty: Live View idle; Live View playing; Arrangement view playing; Arrangement view with
+the pattern editor scrolling (Down at 30 a second); the same with page scrolling once built; mouse
+movement over the screen (hover cost); a dial dragged.
+
+**Already measured** (unshaped link, no code change, `--null-audio`, raw RGB, no compression):
+
+| Scenario | Bytes | Pictures sent |
+|---|---|---|
+| Live View, idle | 0 | 0 |
+| Live View, playing | **5.5 MB/s**, 60 frames/s, 99% pictures | 433 uploads/s: 232x80 at 62/s (4.6 MB/s), 8x96 at 239/s (0.7 MB/s), 8x16 at 131/s |
+| Arrangement view, playing | **6.4 MB/s**, 60 frames/s | 248x80 at 47/s (3.7 MB/s), 328x80 at 16/s (1.6 MB/s), 72x64 at 47/s (0.9 MB/s), 8x16 at 187/s |
+| Arrangement, pattern editor, Down 30/s | 286 kB/s, all text | none (9.5 kB per frame at 30 frames/s) |
+
+- A static UI sends nothing, as designed.
+- Playing is dominated by **one or two scope pictures**, redrawn almost every frame: 85% of Live
+  View's bytes are one 232x80 picture. On a 520 kB/s link that full profile fits about 6 frames a
+  second, and the pattern editor would scroll at 6 fps because a chart is hogging the line. Taking
+  the scope out leaves a few hundred kB/s, which that link can send at 30 fps or better. That is
+  the case for classes in one number.
+- The pictures are attributed by size only; phase 0 attributes them by widget.
+
+**What it gives:** each feature's demand (bytes a second) with deflate (3.1) in place, each
+profile's demand as the sum of its features, and from them the class thresholds: the class's
+bandwidth threshold is its profile's demand divided by 0.7. The thresholds are not set until the
+deflate ratio on real charts is known.
+
+## 5. Phases
+
+0. **Measure** (section 4) and write the demands down.
+1. **API and classes.** `LinkStatus`, `Backend::linkStatus()/setLinkHandler()`, classification by
+   profile demand with hysteresis and trials, the description strings (terminal bandwidth/RTT,
+   window vsync and fps), the status bar, `--link-class` and `set-link-class`,
+   `TestBackend::setLinkStatus()`. Harness checks: the class at five bandwidths, no flapping on the
+   524/589 noise, a pinned class stays.
+2. **Deflate, PNG and picture quality** (3.1, 3.2): the encoder and its round-trip tests; bytes per
+   frame per protocol before and after on the real charts; the kitty fallback on an error reply
+   tested with the harness's emulated terminal answering one.
+3. **Sixel** (3.3): palette and damage.
+4. **Shared pictures and dials** (3.4, 3.5): the registry, `drawSharedImageAt()`, the byte cap, the
+   16-position, four-look dial set.
+5. **App profile** (3.6, 3.7): scope/meter rates and off, animations, page scrolling, hover, mouse
+   reporting. UI tests per class with `TestBackend`; a harness run at 50 kB/s asserts the editor
+   stays usable (key latency, fps).
+6. **Colours** (section 2): the `ansi16` theme and track-colour table, `MONO` with reverse video;
+   grey only if asked.
 7. **Window class** from the frame clock and vsync (section 1).
 
-## 5. Decisions I need
+## 6. Decisions I need
 
-1. **Dial positions:** the code has 8 (6 dB steps). You said 16. Sixteen needs 3 dB fader
-   steps too. And the letter is in the picture: 96 or 192 pictures, or 64 if the letter moves
-   to a text cell. Which?
-2. **Default for 8/16-colour terminals:** grey (my recommendation), with `CELLUI_COLORS=8` for
-   the old mapping?
-3. **Grey on a slow link:** automatic at `HZ_15` and below, as in the table, or only when asked?
-4. **Classes:** `FULL / 30 / 15 / 5 / 1` as above. Is `FULL` (60 and up) as one class right?
+1. **Dial positions:** off plus 15 levels at 2 dB (0 to -28 dB), or 16 levels over -36 to 0
+   (2.4 dB)? And the Launchpad faders' coarse pads follow the same mapping?
+2. **Classes by demand:** is "the largest profile that fits in 70% of the bandwidth" the right
+   rule, with the thresholds taken from phase 0, as in section 4?
 
-## 6. Risks
+## 7. Risks
 
-- **Flapping.** Hysteresis and trials mitigate it, but the estimate is noisy and content-
-  dependent; the first version logs every class change.
-- **Grey loses information.** The heatmap's two variables merge; hue-only distinctions
-  collapse. The theme variant and the contrast test are the control.
-- **Protocol support.** Grey and palette PNG, `o=z` and the PNG decode are standard but not
-  tested on every terminal; the fallback is quantised colour, then today's raw RGB.
+- **Flapping.** Hysteresis and trials mitigate it, but the estimate is noisy and content-dependent;
+  the first version logs every class change.
+- **Protocol support.** Palette PNG, `o=z` and sixel register behaviour are standard but untested
+  on every terminal; the fallback is quantised raw RGB, then today's raw RGB. No real sixel or
+  kitty terminal is available here, only the emulated one.
 - **Cache memory in the terminal** is outside our control; the byte cap is conservative and
   eviction explicit.
-- **Page scrolling** is a behaviour change; it is only on in the slow classes and can be
-  pinned off.
+- **Page scrolling** is a behaviour change; it is only on in the slow classes and can be pinned off.

@@ -339,3 +339,34 @@ previous frame started.
 One unit test's bound was loosened, not a constant: after a sustained slowdown
 the queueing-delay rule can take the estimate about 20% under the link's real
 rate (400 kB/s against 500), which is by design (it backs off by 0.8 per event).
+
+## Tuning the constants
+
+What exists cannot tune the constants that matter most. The pty harness has a constant
+bandwidth, a fixed delay, no jitter, no acknowledgement batching and no cross traffic; the
+constants the review worried about (`delay_floor`, the sample cap, the window, the lag rule)
+are the ones those would exercise. Proposed:
+
+1. **A deterministic link simulator** (`tests/PacerSim.{h,cpp}`) that drives `FramePacer` with a
+   fake clock, no sleeping, so thousands of runs take seconds. Link model: bandwidth that is
+   constant, steps, ramps or oscillates; RTT; jitter (log-normal); **acknowledgement batching**
+   (replies delivered together every 10-50 ms, as an SSH or tmux hop does); a terminal that
+   stops parsing for a while (decode stalls); cross traffic that halves the bandwidth for a few
+   seconds; frame sizes that are steady, bursty (a chart appears) or both.
+2. **Metrics per run:** efficiency (achieved rate over the ideal B/S in the steady state), time to
+   within 15% of the link after start and after a step, overshoot and undershoot of the estimate,
+   backoffs and false stalls, and **added latency** (acknowledgement delay beyond the transfer
+   time and RTT: how stale the screen is).
+3. **Search.** A grid over two or three constants at a time (delay floor and window; probe
+   interval and cap; lag threshold and backoff factor), then a random search over all of them on
+   fifty scenario seeds. The objective rewards efficiency and punishes added latency and backoffs;
+   the result is a **Pareto front**, and the pick is the value that is good across scenarios, not
+   the best on one.
+4. **Confirm** on the existing pty harness (the eight checks) and on real links: an environment
+   variable (`SYNTH_LINK_TRACE=<file>`) logs the send and acknowledgement times of a real session
+   over SSH or a serial line; the simulator replays such a trace, so a real terminal's batching
+   and decode delays are in the sweep.
+5. **Guard.** The chosen config is asserted against the scenario matrix in `ctest` (cheap, since
+   it is simulated), so a later change to the pacer that costs efficiency or latency fails.
+
+The result is reported with the sweep tables, not only the final values.

@@ -125,17 +125,18 @@ frames it really gets. Each backend turns that into a **link status**:
 
 A class can be pinned by the user and is otherwise measured, quickly down and slowly up.
 
-A separate **colour mode**, `COLOUR`, `GREY` or `MONO`, is applied where the bytes are made,
-so text, charts and dials all follow it without any widget drawing a grey version. It is
-chosen by capability (a terminal with no colour gets `MONO`, with reverse video for
-highlights; one with eight or sixteen gets four greys, which serve better than eight hues)
-and by link (grey from `HZ_15` down). Pictures go as greyscale PNG where the protocol
-takes it and as a grey palette in Sixel; a small deflate encoder in the library
-compresses them, and a Sixel image is sent in its changed tiles, not its bounding box.
+Colours stay on every terminal that has any: an 8- or 16-colour terminal gets a theme made
+of its own palette's hues (so track colours stay apart), and there is no automatic grey. A
+terminal with no colour at all gets `MONO`, with reverse video for highlights. A slow link
+lowers **picture quality** instead, because pictures are rectangles that can have fewer colours
+without a seam: palette pictures in the kitty and iTerm2 protocols, a palette made from the
+picture's own colours in Sixel (not a fixed 240-colour cube), compressed by a small deflate
+encoder in the library, with a Sixel image sent in its changed tiles and not its bounding box.
 
 What the classes never touch: dials stay pictures (they are mostly still, and the
-terminal keeps them after the first upload), and an application's own widgets decide
-what a class means for them.
+terminal keeps them after the first upload; a widget gives a picture a key and shares one upload
+across every place it is shown), and an application's own widgets decide what a class means
+for them.
 
 ## Events and signals
 
