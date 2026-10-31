@@ -180,6 +180,8 @@ class InteractiveUI : public UI {
   bool modalLayerOpen(const cellui::Input & input) const;
   bool offerModal(const cellui::Input & input);
   bool offerKeyLayers(const cellui::Input & input);
+  void activateAt(const cellui::Input & input);
+  bool button1_was_held_ = false;
   void handleCommandPaletteInput(const cellui::Input & input);
   std::string bindingFor(const std::string & command) const;
   void raiseOverlays();

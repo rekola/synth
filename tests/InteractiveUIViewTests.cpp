@@ -579,6 +579,55 @@ TEST(terminal_ui_a_drag_stays_with_the_widget_the_press_started_on) {
   CHECK(f.terminal.info().focus == "pattern-editor");
 }
 
+namespace {
+// The screen cell (row, column) of `glyph` on the line with the octave stepper.
+bool findOctaveGlyph(UIFixture & f, const char * glyph, int & row, int & col) {
+  auto lines = f.lines();
+  for (size_t y = 0; y < lines.size(); ++y) {
+    if (lines[y].find("Octave:") == std::string::npos) continue;
+    auto at = lines[y].find(glyph);
+    if (at == std::string::npos) return false;
+    int cells = 0;
+    for (size_t i = 0; i < at; ++i) cells += (static_cast<unsigned char>(lines[y][i]) & 0xC0) != 0x80;
+    row = static_cast<int>(y);
+    col = cells;
+    return true;
+  }
+  return false;
+}
+} // namespace
+
+// The octave arrows act on a click without taking the focus.
+TEST(terminal_ui_octave_arrows_step_without_taking_the_focus) {
+  UIFixture f(repoSong("demo3.xml"), UI::View::LIVE);
+  int row = 0, col = 0;
+  CHECK(findOctaveGlyph(f, "▸", row, col));
+  auto focus = f.terminal.info().focus;
+  auto octave = f.controller->getGlobalOctave();
+  clickCell(f, row, col);
+  CHECK(f.controller->getGlobalOctave() == octave + 1);
+  CHECK(f.terminal.info().focus == focus);
+  CHECK(findOctaveGlyph(f, "◂", row, col));
+  clickCell(f, row, col);
+  CHECK(f.controller->getGlobalOctave() == octave);
+  CHECK(f.terminal.info().focus == focus);
+}
+
+// A click on the octave field takes the focus and starts an edit; a click
+// elsewhere ends it (what is typed after is not the stepper's) and moves the focus.
+TEST(terminal_ui_octave_edit_is_cancelled_by_a_click_elsewhere) {
+  UIFixture f(repoSong("demo3.xml"), UI::View::ARRANGEMENT);
+  int row = 0, col = 0;
+  CHECK(findOctaveGlyph(f, "▸", row, col));
+  auto octave = f.controller->getGlobalOctave();
+  clickCell(f, row, col - 2); // the digit between the arrows
+  CHECK(f.terminal.info().focus == "other");
+  clickCell(f, 20, 50);
+  CHECK(f.terminal.info().focus == "pattern-editor");
+  f.type(octave == 5 ? "3" : "5");
+  CHECK(f.controller->getGlobalOctave() == octave);
+}
+
 // A click on a dial opens its editor, on that dial.
 TEST(terminal_ui_clip_grid_click_on_a_send_opens_its_editor) {
   UIFixture f(repoSong("demo3.xml"), UI::View::LIVE);
