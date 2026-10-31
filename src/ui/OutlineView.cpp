@@ -592,40 +592,25 @@ OutlineView::targetTrackLabel(int track_id) const {
 
 void
 OutlineView::openTargetPicker() {
-  if (target_picker_.isOpen()) return;
+  if (!choose_) return;
 
-  auto cols = getDim().second;
   auto candidates = compatibleTargetTrackRows();
-  auto item_count = static_cast<int>(candidates.size()) + 1; // +1 for "New track"
-  // +2 for the picker's padding rows. Opens just above the button
-  // bar, so it never covers the button that opened it, capped so it never
-  // reaches above the tree's first row.
-  auto wanted_rows = item_count + 2;
-  auto picker_rows = std::clamp(wanted_rows, 1, std::max(1, buttonBarTop() - kTreeTop));
-  auto anchor_y = buttonBarTop() - picker_rows;
-
-  vector<string> labels;
+  std::vector<std::string> labels;
   for (auto * candidate : candidates) labels.push_back(candidate->label);
   labels.push_back("New track");
 
-  // Starts highlighted on whatever's already the current choice, not
-  // always row 0 - candidates were added in the same order as
-  // compatibleTargetTrackRows() returns them, "New track" last (its own
-  // index is candidates.size()).
+  // Starts on whatever is the current choice, "New track" last.
   auto target_id = resolveTargetTrackId();
-  auto default_index = static_cast<int>(candidates.size());
+  auto current = static_cast<int>(candidates.size());
   for (size_t i = 0; i < candidates.size(); i++) {
     if (candidates[i]->ref_id == target_id) {
-      default_index = static_cast<int>(i);
+      current = static_cast<int>(i);
       break;
     }
   }
-  target_picker_.open(getPlane(), anchor_y, 0, picker_rows, cols, std::move(labels), default_index);
-}
-
-void
-OutlineView::closeTargetPicker() {
-  target_picker_.close();
+  choose_("Target track", labels, current, [this, labels](int index) {
+    applyTargetPickerSelection(labels[static_cast<size_t>(index)]);
+  });
 }
 
 void
@@ -677,7 +662,6 @@ OutlineView::addSelectedLibraryRhythmToSong() {
   // user explicitly picked New track" alike, so a second Add to Song
   // reuses this same fresh track instead of creating yet another one.
   selected_target_track_id_ = percussion_track->getInternalId();
-  closeTargetPicker(); // a no-op unless Enter on Add to Song somehow ran while it was still open
 
   Clip clip(percussion_track->getInternalId());
   clip.setName(pattern->name);
@@ -753,10 +737,7 @@ OutlineView::runDetailsAction(DetailsAction action) {
     getController().getPlaybackEventQueue().push(make_unique<PlaybackControlEvent>(PlaybackControlEvent::PREVIEW_STOP));
     break;
   case DetailsAction::TOGGLE_TARGET_PICKER:
-    if (target_picker_.isOpen())
-      closeTargetPicker();
-    else
-      openTargetPicker();
+    openTargetPicker();
     break;
   case DetailsAction::TOGGLE_INFO:
     info_open_ = !info_open_;
@@ -833,7 +814,6 @@ OutlineView::offerInput(const cellui::Input & input) {
 
 bool OutlineView::mouseDown(int row, int col) {
   if (info_open_) return true;
-  if (target_picker_.isOpen()) return true;
   return handleClick(row, col, false);
 }
 
@@ -843,24 +823,11 @@ bool OutlineView::mouseUp(int row, int col) {
     runDetailsAction(DetailsAction::TOGGLE_INFO);
     return true;
   }
-  if (target_picker_.isOpen()) {
-    auto [pos_y, pos_x] = getPosition();
-    auto result = target_picker_.click(row - pos_y, col - pos_x);
-    if (result == cellui::PickerPopup::Result::CHOSEN) {
-      auto selection = target_picker_.selection();
-      closeTargetPicker();
-      applyTargetPickerSelection(selection);
-      return true;
-    }
-    // A click outside dismisses it and is an ordinary click on whatever is there.
-    closeTargetPicker();
-  }
   return handleClick(row, col, true);
 }
 
 bool OutlineView::wheel(const cellui::Wheel & e) {
   if (info_open_) return true;
-  if (target_picker_.isOpen()) return target_picker_.wheel(-e.dy) == cellui::PickerPopup::Result::MOVED;
   // The wheel scrolls the view, not the cursor (see scrollBy()); Shift or a
   // sideways wheel scrolls sideways.
   int direction = e.dy > 0 ? -1 : 1;
@@ -887,21 +854,6 @@ bool OutlineView::keyDown(const cellui::KeyDown & e) {
   if (info_open_) {
     if (e.key == '?' || e.key == Key::Escape || (e.mods.ctrl && e.key == 'g')) runDetailsAction(DetailsAction::TOGGLE_INFO);
     return true;
-  }
-
-  // While the target-track picker is open every key goes to it; Enter
-  // commits, Ctrl-g cancels and leaves the previous choice.
-  if (target_picker_.isOpen()) {
-    using Result = cellui::PickerPopup::Result;
-    auto result = target_picker_.key(e.key, e.mods.ctrl);
-    if (result == Result::CHOSEN) {
-      auto selection = target_picker_.selection();
-      closeTargetPicker();
-      applyTargetPickerSelection(selection);
-      return true;
-    }
-    if (result == Result::CANCELLED) closeTargetPicker();
-    return result != Result::IGNORED;
   }
 
   if (e.key == '?') {

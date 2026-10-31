@@ -660,6 +660,11 @@ InteractiveUI::initializeWidgets() {
   clip_grid_ = make_shared<ClipGrid>(getPlane());
   clip_grid_->setCharts(charts_.get());
   outline_view_ = make_shared<OutlineView>(getPlane());
+  outline_view_->setChooser([this](const std::string & title, std::vector<std::string> labels, int current, std::function<void(int)> on_choose) {
+    std::vector<Choice> choices;
+    for (auto & label : labels) choices.push_back({label, ""});
+    showChoiceDialog(title, std::move(choices), current, std::move(on_choose));
+  });
   // Enter commits the cell under this grid's own (local, passive) cursor
   // to shared state - see ArrangementGrid.h's own comment on why this is a
   // callback rather than the grid reaching for PatternEditor/

@@ -241,16 +241,20 @@ TEST(terminal_ui_outline_rhythm_target_picker) {
     return text.substr(at, text.find('\n', at) - at);
   };
   auto before = target_line();
+  f.inModal([&] {
+    f.ui->step();
+    CHECK(f.text().find("New track") != std::string::npos);
+    f.ctrl('g');
+  });
   f.type("t");
-  CHECK(f.text().find("New track") != std::string::npos);
-  f.ctrl('g');
   CHECK(target_line() == before);
+  f.inModal([&] {
+    f.ui->step();
+    f.press(Key::Down);
+    f.press(Key::Enter);
+  });
   f.type("t");
-  f.press(Key::Down);
-  f.press(Key::Enter);
   CHECK(target_line() != before);
-  f.type("t");
-  f.ctrl('g');
 }
 
 // A click on an outline row moves its cursor there (resolved on release).
