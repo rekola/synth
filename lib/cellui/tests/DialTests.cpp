@@ -81,9 +81,9 @@ TEST(dial_text_version_is_clipped_to_the_plane_rows_it_is_given) {
 
 namespace {
 
-Input mouse(int id, int y, int x, Input::Kind kind = Input::Kind::PRESS, bool shift = false) {
-  return Input(id, y, x, false, shift, false, false, kind);
-}
+bool press(Dial & d, int y, int x, bool shift = false) { return d.press(static_cast<float>(y), y, x, shift); }
+bool wheel(Dial & d, int y, int x, bool up) { return d.wheel(y, x, up, false); }
+bool key(Dial & d, int k) { return d.key(k, Modifiers{}); }
 
 struct DialFixture {
   StyleProvider styles;
@@ -106,48 +106,48 @@ struct DialFixture {
 
 TEST(dial_widget_drag_turns_it_up_and_down_and_ends_without_opening_the_editor) {
   DialFixture f;
-  CHECK(!f.dial.offerMouse(mouse(Key::Button1, 0, 0)));  // a press elsewhere is not its own
-  CHECK(f.dial.offerMouse(mouse(Key::Button1, 3, 5)));
+  CHECK(!press(f.dial, 0, 0));  // a press elsewhere is not its own
+  CHECK(press(f.dial, 3, 5));
   CHECK(f.dial.isDragging() && f.dial.isPressed());
   // Two rows up, a drag that moves with the pointer anywhere, outside the dial too.
-  CHECK(f.dial.offerMouse(mouse(Key::Button1, 1, 25)));
+  CHECK(press(f.dial, 1, 25));
   CHECK(f.dial.value() > -20.0f && f.begun == 1);
-  CHECK(f.dial.offerMouse(mouse(Key::Button1, 9, 5)));
+  CHECK(press(f.dial, 9, 5));
   CHECK(f.dial.value() < -20.0f);
-  CHECK(f.dial.offerMouse(mouse(Key::Button1, 3, 5, Input::Kind::RELEASE)));
+  CHECK(f.dial.release());
   CHECK(f.ended == 1 && f.clicks == 0 && !f.dial.isEditing() && !f.dial.isPressed() && !f.dial.isDragging());
 }
 
 TEST(dial_widget_drag_below_its_lowest_step_is_off_and_shift_is_fine) {
   DialFixture f;
-  f.dial.offerMouse(mouse(Key::Button1, 3, 5));
-  f.dial.offerMouse(mouse(Key::Button1, 11, 5));
+  press(f.dial, 3, 5);
+  press(f.dial, 11, 5);
   CHECK(f.dial.value() < -99.0f);
-  f.dial.offerMouse(mouse(Key::Button1, 3, 5, Input::Kind::RELEASE));
+  f.dial.release();
   DialFixture g;
-  g.dial.offerMouse(mouse(Key::Button1, 3, 5));
-  g.dial.offerMouse(mouse(Key::Button1, 1, 5, Input::Kind::PRESS, true));
+  press(g.dial, 3, 5);
+  press(g.dial, 1, 5, true);
   CHECK(g.dial.value() > -20.0f && g.dial.value() < -19.0f);
 }
 
 TEST(dial_widget_wheel_turns_it_only_over_it) {
   DialFixture f;
-  CHECK(!f.dial.offerMouse(mouse(Key::Button4, 0, 0)));
-  CHECK(f.dial.offerMouse(mouse(Key::Button4, 3, 5)));
+  CHECK(!wheel(f.dial, 0, 0, true));
+  CHECK(wheel(f.dial, 3, 5, true));
   CHECK_NEAR(f.dial.value(), -19.0f, 0.01f);
-  CHECK(f.dial.offerMouse(mouse(Key::Button5, 3, 5)));
-  CHECK(f.dial.offerMouse(mouse(Key::Button5, 3, 5)));
+  CHECK(wheel(f.dial, 3, 5, false));
+  CHECK(wheel(f.dial, 3, 5, false));
   CHECK_NEAR(f.dial.value(), -21.0f, 0.01f);
 }
 
 TEST(dial_widget_click_opens_the_editor_on_its_value_and_typing_sets_it) {
   DialFixture f;
-  f.dial.offerMouse(mouse(Key::Button1, 3, 5));
-  f.dial.offerMouse(mouse(Key::Button1, 3, 5, Input::Kind::RELEASE));
+  press(f.dial, 3, 5);
+  f.dial.release();
   CHECK(f.clicks == 1 && f.dial.isEditing());
-  f.dial.offerInput(keyInput('-', 0));
-  f.dial.offerInput(keyInput('6', 0));
-  f.dial.offerInput(keyInput(Key::Enter, 0));
+  key(f.dial, '-');
+  key(f.dial, '6');
+  key(f.dial, Key::Enter);
   CHECK(!f.dial.isEditing());
   CHECK_NEAR(f.dial.value(), -6.0f, 0.001f);
 }
@@ -156,8 +156,8 @@ TEST(dial_widget_escape_closes_the_editor_and_keeps_the_value) {
   DialFixture f;
   f.dial.startEdit();
   CHECK(f.dial.isEditing());
-  f.dial.offerInput(keyInput('9', 0));
-  f.dial.offerInput(keyInput(Key::Escape, 0));
+  key(f.dial, '9');
+  key(f.dial, Key::Escape);
   CHECK(!f.dial.isEditing());
   CHECK_NEAR(f.dial.value(), -20.0f, 0.001f);
   CHECK(f.changes.empty());
@@ -186,7 +186,7 @@ TEST(dial_widget_pressed_and_selected_look_different_from_idle) {
 TEST(dial_widget_shows_what_is_typed_with_a_caret_and_closing_removes_it) {
   DialFixture f;
   f.dial.startEdit();
-  f.dial.offerInput(keyInput('7', 0));
+  key(f.dial, '7');
   f.dial.draw();
   f.plane.refresh();
   std::string row;
