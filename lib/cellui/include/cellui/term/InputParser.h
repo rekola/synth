@@ -63,16 +63,32 @@ class InputParser {
   // CSI row;col R is a cursor report only while one was asked for;
   // otherwise it is F3 with modifiers.
   void expectCursorReport() { cursor_reports_expected_++; }
+  // CSI ? row ; col R is the reply to CSI ? 6 n, which nothing else sends;
+  // it cannot be mistaken for a key but is only taken for one while it is
+  // expected, as the repair below needs the count.
+  void expectDecCursorReport() { dec_reports_expected_++; }
+  // Forgets the replies still expected (the ones to a query that was never answered).
+  void forgetExpectedReports() { cursor_reports_expected_ = dec_reports_expected_ = 0; }
+  // While replies are expected, an Escape (or ESC [) that was settled before
+  // the rest of a reply arrived is not lost with it: the late "[ ? row ; col R"
+  // is taken as the reply and does not reach the application as text. The
+  // Escape key already emitted stays emitted.
+  int repliesExpected() const { return cursor_reports_expected_ + dec_reports_expected_; }
   // rxvt ends its colour replies with a bare ESC.
   void setRxvt(bool on) { rxvt_ = on; }
   void setPasteCap(size_t bytes) { paste_cap_ = bytes; }
 
  private:
-  enum class State { GROUND, ESC, CSI, SS3, STRING_INTRO, STRING, STRING_ESC, UTF8, PASTE, X10 };
+  enum class State { GROUND, ESC, CSI, SS3, STRING_INTRO, STRING, STRING_ESC, UTF8, PASTE, X10, ORPHAN };
+  // What a settled Escape may still turn out to have been the start of.
+  enum class Orphan { NONE, AFTER_ESC, AFTER_CSI };
 
   void byte(unsigned char c);
   void ground(unsigned char c, bool alt);
-  void emit(TermEvent e) { events_.push_back(std::move(e)); }
+  void emit(TermEvent e) {
+    e.at = last_now_;
+    events_.push_back(std::move(e));
+  }
   void emitKey(int key, unsigned mods, TermEvent::Kind kind = TermEvent::Kind::UNKNOWN, std::string text = "");
   void emitControl(unsigned char c, bool alt);
   void dispatchCsi();
@@ -121,7 +137,10 @@ class InputParser {
   bool pixel_mouse_ = false;
   int cell_px_h_ = 0, cell_px_w_ = 0;
   int screen_rows_ = 0, screen_cols_ = 0;
-  int cursor_reports_expected_ = 0;
+  int cursor_reports_expected_ = 0, dec_reports_expected_ = 0;
+  TimePoint last_now_{};
+  Orphan orphan_ = Orphan::NONE;
+  TimePoint orphan_until_{};
   bool ended_ = false;
 };
 

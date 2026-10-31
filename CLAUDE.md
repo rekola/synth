@@ -1508,7 +1508,7 @@ would otherwise resume showing.
   size, `estimateDisplayScale()`, and light or dark from the default colours,
   `detectAppearance()`, which picks the default `--theme`), `FrameEncoder` (the
   frame diff as escape sequences), `ImageEncoder` (kitty graphics, iTerm2 inline images, Sixel) and
-  `TerminalSession` (the tty, its modes, signals and restoration).
+  `TerminalSession` (the tty, its modes, signals and restoration). Frames are paced to the link (`FramePacer`, `term/FramePacer.h`; `plans/frame-pacing-terminal.md` has the design and the harness numbers): the application calls `Backend::requestFrame()` and renders in the handler it gave `setFrameHandler()`, which the session calls when the pacer lets a frame start; writes go through a non-blocking `OutputQueue` (the loop waits for `POLLOUT` only while it holds bytes) and nothing is encoded while it does; each frame ends with a fence, `ESC[?6n`, whose reply (matched in order, timestamped at the read) is its acknowledgement; a terminal that answers no cursor query gets a fixed 4 fps. `tools/pacing/run_assertions.py` (ctest `cellui_pacing_harness`) runs `cellui_pacing_probe` against a shaped pty.
   `cellui::Backend` (`cellui/Backend.h`, outside `term/`) is what the app needs of any
   display - `DisplayInfo` (`cellui/DisplayInfo.h`: cell size in pixels, whether pictures
   can be shown, default colours, display scale, sextants, `hdr` (unset for the terminal and

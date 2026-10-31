@@ -182,16 +182,21 @@ std::deque<TermEvent> InputParser::takeAll() {
 
 void InputParser::feed(const char * data, size_t size, TimePoint now) {
   if (ended_ || size == 0) return;
+  last_now_ = now;
   for (size_t i = 0; i < size; i++) byte(static_cast<unsigned char>(data[i]));
   if (state_ == State::GROUND || state_ == State::PASTE) {
     deadline_.reset();
   } else {
-    bool slow = state_ == State::STRING || state_ == State::STRING_ESC;
+    // A CSI with parameters cannot be Alt+[, so a reply split in transit
+    // (a serial line held by flow control) is waited for like a string.
+    bool slow = state_ == State::STRING || state_ == State::STRING_ESC ||
+                (state_ == State::CSI && (!params_.empty() || !intermediates_.empty()));
     deadline_ = now + (slow ? string_grace_ : grace_);
   }
 }
 
 void InputParser::expire(TimePoint now) {
+  last_now_ = now;
   if (deadline_ && now >= *deadline_) {
     deadline_.reset();
     settle();
@@ -232,9 +237,22 @@ void InputParser::settle() {
   switch (was) {
     case State::ESC:
       emitKey(Key::Escape, 0);
+      if (repliesExpected() > 0) {
+        orphan_ = Orphan::AFTER_ESC;
+        orphan_until_ = last_now_ + string_grace_;
+      }
       break;
     case State::CSI:
-      if (bare) emitKey('[', kModAlt);
+      if (bare) {
+        emitKey('[', kModAlt);
+        if (repliesExpected() > 0) {
+          orphan_ = Orphan::AFTER_CSI;
+          orphan_until_ = last_now_ + string_grace_;
+        }
+      }
+      break;
+    case State::ORPHAN:
+      ground('[', false);
       break;
     case State::SS3:
       if (bare) emitKey('O', kModAlt);
@@ -314,11 +332,42 @@ bool InputParser::stringIntroPossible() const {
 void InputParser::byte(unsigned char c) {
   switch (state_) {
     case State::GROUND:
+      if (orphan_ != Orphan::NONE && c != 0x1B) {
+        Orphan was = orphan_;
+        orphan_ = Orphan::NONE;
+        if (repliesExpected() > 0 && last_now_ <= orphan_until_) {
+          if (was == Orphan::AFTER_ESC && c == '[') {
+            state_ = State::ORPHAN;
+            return;
+          }
+          if (was == Orphan::AFTER_CSI && c == '?') {
+            state_ = State::CSI;
+            params_ = "?";
+            intermediates_.clear();
+            raw_ = "\x1b[?";
+            return;
+          }
+        }
+      }
+      orphan_ = Orphan::NONE;
       if (c == 0x1B) {
         state_ = State::ESC;
         raw_.assign(1, '\x1b');
       } else {
         ground(c, false);
+      }
+      return;
+
+    case State::ORPHAN:
+      if (c == '?') {
+        state_ = State::CSI;
+        params_ = "?";
+        intermediates_.clear();
+        raw_ = "\x1b[?";
+      } else {
+        state_ = State::GROUND;
+        ground('[', false);
+        byte(c);
       }
       return;
 
@@ -496,6 +545,11 @@ void InputParser::dispatchCsi() {
   };
 
   if (prefix == '?') {
+    if (final_ == 'R' && intermediates_.empty() && params.size() == 2 && dec_reports_expected_ > 0) {
+      dec_reports_expected_--;
+      reply(ReplyKind::DEC_CURSOR_POSITION);
+      return;
+    }
     if (final_ == 'c' && intermediates_.empty()) reply(ReplyKind::PRIMARY_DA);
     else if (final_ == 'y' && intermediates_ == "$") reply(ReplyKind::MODE_REPORT);
     else if (final_ == 'u' && intermediates_.empty()) reply(ReplyKind::KITTY_KEYBOARD);

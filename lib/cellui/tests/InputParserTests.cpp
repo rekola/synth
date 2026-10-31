@@ -302,3 +302,83 @@ TEST(term_event_to_input) {
   Input d = toInput(drag);
   CHECK(d.getId() == cellui::Key::Button1 && d.getKind() == Input::Kind::PRESS && d.getY() == 3 && d.getX() == 4);
 }
+
+TEST(parser_dec_cursor_report_is_a_reply_only_while_one_is_expected) {
+  InputParser p;
+  auto t = InputParser::TimePoint{} + Ms(500);
+  p.expectDecCursorReport();
+  p.feed("\x1b[?5;1R", t);
+  TermEvent e = p.pop();
+  CHECK(e.type == TermEvent::Type::REPLY && e.reply == ReplyKind::DEC_CURSOR_POSITION && e.params == std::vector<int>({5, 1}));
+  CHECK(e.at == t);  // when it was read
+  p.feed("\x1b[?5;1R", t);
+  CHECK(p.pop().type == TermEvent::Type::UNKNOWN);
+}
+
+TEST(parser_waits_for_the_rest_of_a_csi_with_parameters) {
+  InputParser p;
+  auto t = InputParser::TimePoint{};
+  p.expectDecCursorReport();
+  p.feed("\x1b[?5;", t);
+  p.expire(t + Ms(200));  // long past the grace of a lone Escape
+  CHECK(!p.hasEvents());
+  p.feed("1R", t + Ms(300));
+  TermEvent e = p.pop();
+  CHECK(e.reply == ReplyKind::DEC_CURSOR_POSITION && !p.hasEvents());
+}
+
+TEST(parser_takes_a_late_reply_after_a_settled_escape_without_text) {
+  InputParser p;
+  auto t = InputParser::TimePoint{};
+  p.expectDecCursorReport();
+  p.feed("\x1b", t);
+  p.expire(t + Ms(30));
+  CHECK(p.pop().key == Key::Escape && !p.hasEvents());  // the Escape key stays
+  p.feed("[?5;1R", t + Ms(300));
+  TermEvent e = p.pop();
+  CHECK(e.type == TermEvent::Type::REPLY && e.params == std::vector<int>({5, 1}));
+  CHECK(!p.hasEvents());
+}
+
+TEST(parser_takes_a_late_reply_after_a_settled_esc_bracket) {
+  InputParser p;
+  auto t = InputParser::TimePoint{};
+  p.expectDecCursorReport();
+  p.feed("\x1b[", t);
+  p.expire(t + Ms(30));
+  CHECK(describe(p.pop()) == describe(TermEvent::makeKey('[', kModAlt)) && !p.hasEvents());
+  p.feed("?5;1R", t + Ms(300));
+  CHECK(p.pop().type == TermEvent::Type::REPLY && !p.hasEvents());
+}
+
+TEST(parser_late_bracket_is_typed_text_when_no_reply_is_expected_or_too_late) {
+  InputParser p;
+  auto t = InputParser::TimePoint{};
+  p.feed("\x1b", t);
+  p.expire(t + Ms(30));
+  CHECK(p.pop().key == Key::Escape);
+  p.feed("[?", t + Ms(300));
+  CHECK(p.pop().key == '[');
+  CHECK(p.pop().key == '?');
+  // Expected, but the Escape was long ago.
+  p.expectDecCursorReport();
+  p.feed("\x1b", t + Ms(400));
+  p.expire(t + Ms(450));
+  CHECK(p.pop().key == Key::Escape);
+  p.feed("[x", t + Ms(3000));
+  CHECK(p.pop().key == '[');
+  CHECK(p.pop().key == 'x');
+}
+
+TEST(parser_a_bracket_after_a_settled_escape_that_is_not_a_reply_is_replayed) {
+  InputParser p;
+  auto t = InputParser::TimePoint{};
+  p.expectDecCursorReport();
+  p.feed("\x1b", t);
+  p.expire(t + Ms(30));
+  CHECK(p.pop().key == Key::Escape);
+  p.feed("[a", t + Ms(100));
+  CHECK(p.pop().key == '[');
+  CHECK(p.pop().key == 'a');
+  CHECK(!p.hasEvents());
+}

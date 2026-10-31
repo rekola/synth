@@ -71,6 +71,11 @@ class Screen:
 
     def _respond(self, data):
         buf = self._respond_buf + data
+        # The frame fences (CSI ? 6 n): one reply each, as a terminal gives.
+        fences = buf.count(b"\x1b[?6n")
+        if fences:
+            os.write(self.fd, f"\x1b[?{ROWS // 2};{COLS // 2}R".encode() * fences)
+            buf = buf.replace(b"\x1b[?6n", b"")
         if re.search(rb"\x1b\[6n", buf):
             os.write(self.fd, f"\x1b[{ROWS // 2};{COLS // 2}R".encode())
             buf = re.sub(rb"\x1b\[6n", b"", buf)
@@ -120,7 +125,8 @@ class Screen:
                 if not data:
                     break
                 self._respond(data)
-                self.stream.feed(data.decode("utf-8", errors="ignore"))
+                # pyte has no private form of the status report and fails on it.
+                self.stream.feed(data.replace(b"\x1b[?6n", b"").decode("utf-8", errors="ignore"))
                 end = min(time.time() + settle, hard_deadline)
 
     def wait_for_exit(self, proc, timeout):

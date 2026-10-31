@@ -4,6 +4,7 @@
 
 #include <algorithm>
 #include <cmath>
+#include <cstdlib>
 #include <set>
 #include <unordered_map>
 
@@ -401,11 +402,13 @@ std::string ImageEncoder::kitty(const CellBuffer & frame, const ImagePlacement &
     std::string data = base64(rgb);
     for (size_t i = 0; i < data.size() || i == 0; i += kKittyChunk) {
       bool more = i + kKittyChunk < data.size();
+      size_t chunk_start = out.size();
       out += "\x1b_G";
       if (i == 0) out += "a=t,f=24,s=" + std::to_string(img.width) + ",v=" + std::to_string(img.height) + ",i=" + std::to_string(shown.id) + ",";
-      out += "q=2,m=" + std::string(more ? "1" : "0") + ";";
+      out += "q=1,m=" + std::string(more ? "1" : "0") + ";";
       out += data.substr(i, kKittyChunk);
       out += "\x1b\\";
+      sizes_.upload += out.size() - chunk_start;
       if (data.empty()) break;
     }
   }
@@ -418,24 +421,32 @@ std::string ImageEncoder::kitty(const CellBuffer & frame, const ImagePlacement &
       img.pixelSpan(r.col - p.col, r.cols, cw, true, x0, x1);
       img.pixelSpan(r.row - p.row, r.rows, ch, false, y0, y1);
       if (x1 <= x0 || y1 <= y0) continue;
+      size_t place_start = out.size();
       out += cup(r.row, r.col);
       out += "\x1b_Ga=p,i=" + std::to_string(shown.id) + ",p=" + std::to_string(k + 1) + ",x=" + std::to_string(x0) +
              ",y=" + std::to_string(y0) + ",w=" + std::to_string(x1 - x0) + ",h=" + std::to_string(y1 - y0);
       // A stretched picture is scaled by the terminal over its cells.
       if (img.stretched()) out += ",c=" + std::to_string(r.cols) + ",r=" + std::to_string(r.rows);
-      out += ",C=1,q=2\x1b\\";
+      out += ",C=1,q=1\x1b\\";
+      sizes_.placement += out.size() - place_start;
     }
     // Placements this picture no longer has.
     if (!changed && !cleared) {
       for (size_t k = rects.size(); k < shown.rects.size(); k++) {
-        out += "\x1b_Ga=d,d=i,i=" + std::to_string(shown.id) + ",p=" + std::to_string(k + 1) + ",q=2\x1b\\";
+        size_t before = out.size();
+        out += "\x1b_Ga=d,d=i,i=" + std::to_string(shown.id) + ",p=" + std::to_string(k + 1) + ",q=1\x1b\\";
+        sizes_.placement += out.size() - before;
       }
     }
     shown.rects = rects;
     shown.row = p.row;
     shown.col = p.col;
   }
-  if (changed && old_id) out += "\x1b_Ga=d,d=I,i=" + std::to_string(old_id) + ",q=2\x1b\\";
+  if (changed && old_id) {
+    std::string del = "\x1b_Ga=d,d=I,i=" + std::to_string(old_id) + ",q=1\x1b\\";
+    sizes_.placement += del.size();
+    out += del;
+  }
   return out;
 }
 
@@ -476,11 +487,14 @@ std::string ImageEncoder::sixel(const CellBuffer & frame, const ImagePlacement &
     sixel_ready_ = true;
   }
   out += cup(r0, c0);
+  sizes_.placement += out.size();
   Dither dither;
   dither.method = profile_.dither;
   dither.origin_x = p.col * cw + x;
   dither.origin_y = p.row * ch + y;
+  size_t before = out.size();
   out += encodeSixel(img, x, y, w, h, keep, dither);
+  sizes_.upload += out.size() - before;
   return out;
 }
 
@@ -504,15 +518,20 @@ std::string ImageEncoder::iterm2(const CellBuffer & frame, const ImagePlacement 
     // Sized in cells, so the terminal's own pixel scale does not matter
     // (and a stretched picture is scaled by it).
     int rows = img.stretched() ? r.rows : (y1 - y0 + ch - 1) / ch, cols = img.stretched() ? r.cols : (x1 - x0 + cw - 1) / cw;
+    size_t start = out.size();
     out += cup(r.row, r.col);
+    sizes_.placement += out.size() - start;
+    size_t osc_start = out.size();
     out += "\x1b]1337;File=inline=1;size=" + std::to_string(png.size()) + ";width=" + std::to_string(cols) +
            ";height=" + std::to_string(rows) + ";preserveAspectRatio=0;doNotMoveCursor=1:" + base64(png) + "\a";
+    sizes_.upload += out.size() - osc_start;
   }
   return out;
 }
 
 std::string ImageEncoder::encode(const CellBuffer & frame, const std::vector<ImagePlacement> & images, bool cleared) {
   std::string out;
+  sizes_ = {};
   if (profile_.protocol == PixelProtocol::NONE) return out;
   if (cleared) {
     for (auto & [key, shown] : shown_) shown.rects.clear();
@@ -536,18 +555,35 @@ std::string ImageEncoder::encode(const CellBuffer & frame, const std::vector<Ima
       continue;
     }
     if (profile_.protocol == PixelProtocol::KITTY && it->second.id) {
-      out += "\x1b_Ga=d,d=I,i=" + std::to_string(it->second.id) + ",q=2\x1b\\";
+      std::string del = "\x1b_Ga=d,d=I,i=" + std::to_string(it->second.id) + ",q=1\x1b\\";
+      sizes_.placement += del.size();
+      out += del;
     }
     it = shown_.erase(it);
   }
   return out;
 }
 
+std::string ImageEncoder::handleKittyReply(const std::string & body) const {
+  size_t semi = body.find(';');
+  std::string message = semi == std::string::npos ? "" : body.substr(semi + 1);
+  if (message == "OK") return "";
+  std::string keys = body.substr(0, semi);
+  uint32_t id = 0;
+  size_t at = keys.find("i=");
+  if (at != std::string::npos) id = static_cast<uint32_t>(std::strtoul(keys.c_str() + at + 2, nullptr, 10));
+  std::string who = "kitty graphics";
+  for (const auto & [key, shown] : shown_) {
+    if (id && shown.id == id) who += " image key " + std::to_string(key);
+  }
+  return who + " (id " + std::to_string(id) + "): " + (message.empty() ? keys : message);
+}
+
 std::string ImageEncoder::clear() {
   std::string out;
   if (profile_.protocol == PixelProtocol::KITTY) {
     for (auto & [key, shown] : shown_) {
-      if (shown.id) out += "\x1b_Ga=d,d=I,i=" + std::to_string(shown.id) + ",q=2\x1b\\";
+      if (shown.id) out += "\x1b_Ga=d,d=I,i=" + std::to_string(shown.id) + ",q=1\x1b\\";
     }
   }
   shown_.clear();
