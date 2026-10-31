@@ -6,6 +6,11 @@
 #include <algorithm>
 
 void ChannelMeter::setLevels(const std::vector<float> & rms, const std::string & label) {
+  feed(rms);
+  show(label);
+}
+
+void ChannelMeter::feed(const std::vector<float> & rms) {
   auto now = std::chrono::steady_clock::now();
   auto dt = std::min(std::chrono::duration<float>(now - last_update_).count(), 0.25f);
   last_update_ = now;
@@ -16,7 +21,9 @@ void ChannelMeter::setLevels(const std::vector<float> & rms, const std::string &
     channel.reading.fraction = level_meter::fraction(channel.ballistics.update(level, dt));
     channel.reading.peak = channel.peak_hold.update(channel.reading.fraction, dt);
   }
+}
 
+void ChannelMeter::show(const std::string & label) {
   auto [rows, cols] = getDim();
   if (rows <= 0 || cols <= 0) return;
   auto & styles = getPlane().getStyles();

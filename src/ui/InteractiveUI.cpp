@@ -86,6 +86,15 @@ namespace {
 std::map<std::string, int> g_ui_stats;
 bool g_ui_stats_on = false;
 void statCount(const std::string & what) { if (g_ui_stats_on) g_ui_stats[what]++; }
+// Adds the microseconds of its scope to `what` while the stats are on.
+struct StatTimer {
+  explicit StatTimer(const char * what) : what_(what), start_(g_ui_stats_on ? std::chrono::steady_clock::now() : std::chrono::steady_clock::time_point{}) {}
+  ~StatTimer() {
+    if (g_ui_stats_on) g_ui_stats[what_] += static_cast<int>(std::chrono::duration_cast<std::chrono::microseconds>(std::chrono::steady_clock::now() - start_).count());
+  }
+  const char * what_;
+  std::chrono::steady_clock::time_point start_;
+};
 
 #ifndef _WIN32
 // Every thread's CPU time so far in clock ticks, by thread name.
@@ -1354,6 +1363,7 @@ InteractiveUI::renderComponents(bool refresh) {
     blankScopes();
     render = true;
   }
+  if (drawPendingScopes()) render = true;
   // A dialog moving (a list scrolling) redraws itself each frame.
   if (auto modal = activeModal(); modal && modal->animating()) render = true;
   auto active = active_element_.lock();
@@ -1871,10 +1881,32 @@ InteractiveUI::blankScopes() {
   last_brightness_.clear();
   last_saturation_.clear();
   last_loudness_.clear();
+  fft_pending_ = grid_pending_ = meter_pending_ = false;
   dirac_running_max_ = 0.0f;
 }
 
+bool InteractiveUI::drawPendingScopes() {
+  bool drawn = false;
+  if (meter_pending_) {
+    meter_pending_ = false;
+    volume_meter_->show(last_meter_label_);
+    drawn = true;
+  }
+  if (fft_pending_) {
+    fft_pending_ = false;
+    if (chart_->setValues(spectrum_curve::values(pending_fft_, pending_fft_hz_, chart_->suggestedPoints()))) drawn = true;
+  }
+  if (grid_pending_) {
+    grid_pending_ = false;
+    heatmap_->setGrid(pending_brightness_, pending_saturation_);
+    heatmap_->commit();
+    drawn = true;
+  }
+  return drawn;
+}
+
 void InteractiveUI::handleVisualizationResultEvent(const VisualizationResultEvent & ev) {
+  StatTimer timer("us:results");
   // Every result is applied, none skipped: the spectrum and the DirAC grid
   // come in only some of them, so dropping one that has a newer event behind
   // it would drop that update and make the scope stutter.
@@ -1892,13 +1924,17 @@ void InteractiveUI::handleVisualizationResultEvent(const VisualizationResultEven
     // A reading equal to the last still has to go in while the bars fall.
     if (getView() == View::ARRANGEMENT && (ev.getChannelLoudness() != last_loudness_ || !volume_meter_->atRest())) {
       last_loudness_ = ev.getChannelLoudness();
-      volume_meter_->setLevels(ev.getChannelLoudness(), ev.getMeterLabel());
+      volume_meter_->feed(ev.getChannelLoudness());
+      meter_pending_ = true;
       changed = true;
     }
 
     if (!ev.getFFT().empty() && ev.getFFT() != last_fft_) {
       last_fft_ = ev.getFFT();
-      if (chart_->setValues(spectrum_curve::values(ev.getFFT(), ev.getFFTBinHz(), chart_->suggestedPoints()))) changed = true;
+      pending_fft_ = ev.getFFT();
+      pending_fft_hz_ = ev.getFFTBinHz();
+      fft_pending_ = true;
+      changed = true;
     }
 
     if (ev.hasDiracGrid()) {
@@ -1959,9 +1995,10 @@ void InteractiveUI::handleVisualizationResultEvent(const VisualizationResultEven
       if (quantized_brightness != last_brightness_ || quantized_saturation != last_saturation_) {
 	last_brightness_ = std::move(quantized_brightness);
 	last_saturation_ = std::move(quantized_saturation);
-	heatmap_->setGrid(brightness, saturation);
-	heatmap_->commit();
-	changed = true;
+        pending_brightness_ = std::move(brightness);
+        pending_saturation_ = std::move(saturation);
+        grid_pending_ = true;
+        changed = true;
       }
     }
   }
@@ -2226,6 +2263,7 @@ InteractiveUI::startUI(AudioAPI &, MidiInput & midi, LaunchpadIO & launchpad_io)
     if (render_pending) {
       render_pending = false;
       count("present");
+      StatTimer timer("us:render");
       InteractiveUI::render();
     }
     // A colour still easing needs the next frame even if nothing else wakes

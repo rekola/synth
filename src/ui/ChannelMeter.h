@@ -24,6 +24,11 @@ class ChannelMeter : public cellui::Widget {
   // and the legend for it. Redraws.
   void setLevels(const std::vector<float> & rms, const std::string & label);
 
+  // setLevels() in two parts: feed() takes a reading into the smoothing and the
+  // peak hold (cheap, for every reading), show() draws what they hold now.
+  void feed(const std::vector<float> & rms);
+  void show(const std::string & label);
+
   // True when every bar and peak marker has fallen to nothing, so a further
   // silent reading would change nothing; until then setLevels() has to keep
   // being called for the bars to keep falling.
