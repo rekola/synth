@@ -119,13 +119,11 @@ VisualizationThread::handleAudioBlockEvent(AudioBlockEvent & ev) {
   }
 
   dirac_->process(ev.getRawBus());
-  // Deliver the DirAC grid at roughly
-  // every 3rd analysis frame (~28.7Hz), not every one (~86Hz) - terminal
-  // redraw/color-mapping cost buys nothing above that. Diffed against a
+  // Deliver the DirAC grid for every analysis frame. Diffed against a
   // saved frame count, not a fixed "did process() just fire" flag, so a
   // single process() call that internally advances several frames at once
   // (a large or backlogged AudioBlockEvent) still gets caught correctly.
-  if (dirac_->getAnalysisFrameCount() - dirac_last_pushed_frame_ >= 3) {
+  if (dirac_->getAnalysisFrameCount() - dirac_last_pushed_frame_ >= 1) {
     dirac_last_pushed_frame_ = dirac_->getAnalysisFrameCount();
     array<float, DiracAnalyzer::kNumBands> diffuse_energy {};
     for (int b = 0; b < DiracAnalyzer::kNumBands; b++) diffuse_energy[static_cast<size_t>(b)] = dirac_->getDiffuseEnergy(b);
