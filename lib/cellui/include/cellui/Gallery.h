@@ -15,7 +15,7 @@
 namespace cellui {
 
 // The gallery page, drawn onto `plane` when constructed: every text style,
-// the theme's colour tokens, the sub-cell glyph tables, the level meter ramp,
+// the theme's colour tokens, the level meter ramp, proportional text,
 // a Markdown document, wide and combining characters, a choice list, an info
 // dialog, a choice dialog, and the meters, spin box and dial widgets, as
 // the terminal shows them. The page keeps the widgets and their planes, so it
