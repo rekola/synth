@@ -1466,7 +1466,7 @@ would otherwise resume showing.
   libunistring dependency. So far it holds the leaves that never depended on
   the app: `Color` (linear Rec.2020 light as floats, 1.0 = SDR white, never negative, above 1 is HDR; built from `#rgb`/`#rrggbb` (each digit doubled), `oklch()`, `color(srgb|srgb-linear|display-p3|rec2020 ...)`, HSL or linear values; a backend that shows only sRGB takes `toSrgb8()`, which maps the gamut in and scales the range; `mix()` is in linear light and the compositor, `bg_blend` and the backdrops use it, while `blend()` is a widget's tween in encoded sRGB, where the theme was tuned), `utf8` (grapheme-
   aware width, truncation and padding), `markdown` (the tiny subset the info
-  dialogs use), `ChoiceList`, the terminal fallback's sub-cell glyph tables and two-colour
+  dialogs use), `NumberParse.h` (`parseFloat()`: `std::from_chars` for floats on every platform, never the locale - a window toolkit sets it and a decimal comma would read "0.7" as 0; the standard library where it has the function, else vendored fast_float: libc++ marks it unavailable below macOS 26.0, `_LIBCPP_AVAILABILITY_HAS_FROM_CHARS_FLOATING_POINT`; use it, not `strtof`/`atof`/`istringstream`, for numbers read from text), `ChoiceList`, the terminal fallback's sub-cell glyph tables and two-colour
   quantizer (`term/SubcellGlyphs.h`), the Escape-as-Meta coalescer (`EscapeCoalescer.h`) and `KeyReader` (the inputs as widgets see them, Escape as Meta included, and when the "ESC-" indicator is due), and the input data (`Input.h`: key id, modifiers,
   position, press/release kind, and the key ids `cellui::Key::Up` and so on, `Key::` in the app; the app's
   `InputEvent` is an `Input` that is also an `Event`; the note-entry key mapping
@@ -1839,7 +1839,8 @@ would otherwise resume showing.
   library, each with its own upstream `LICENSE`/provenance note -
   `third_party/tinyxml2/tinyxml2.{cpp,h}` (zlib licence) and
   `third_party/pocketfft/pocketfft_hdronly.h` (BSD-3-Clause, the FFT
-  backend behind `dsp/RealFFT.h`) so far. Do not reformat or refactor any
+  backend behind `dsp/RealFFT.h`) and `third_party/fast_float/fast_float.h`
+  (MIT, behind `cellui/NumberParse.h`) so far. Do not reformat or refactor any
   vendored file.
 - `src/dsp/RealFFT.h` — the engine's one FFT wrapper (real-signal r2c-forward/
   c2r-inverse, fixed size at construction, no per-call allocation),

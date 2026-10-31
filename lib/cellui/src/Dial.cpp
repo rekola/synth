@@ -2,7 +2,7 @@
 
 #include <cellui/Utf8.h>
 
-#include "ParseNumber.h"
+#include <cellui/NumberParse.h>
 
 #include <algorithm>
 #include <array>
@@ -145,8 +145,10 @@ void Dial::commitEdit() {
   // Locale-independent, and a typed decimal comma counts as a point.
   std::string text = edit_text_;
   std::replace(text.begin(), text.end(), ',', '.');
+  const char * begin = text.c_str();
+  if (*begin == '+') begin++;  // "+3" is a fine thing to type
   float value = 0.0f;
-  if (!parseNumber(text, value)) return;  // not a number: the value stays
+  if (parseFloat(begin, text.c_str() + text.size(), value).ec != std::errc()) return;  // not a number: the value stays
   value_ = std::clamp(value, spec_.typed_min, spec_.typed_max);
   if (on_change) on_change(value_);
 }
