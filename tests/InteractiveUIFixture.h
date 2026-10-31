@@ -9,6 +9,7 @@
 #include <cellui/TestBackend.h>
 
 #include <cctype>
+#include <functional>
 #include <memory>
 #include <optional>
 #include <sstream>
@@ -32,6 +33,8 @@ struct UIFixture {
   std::shared_ptr<Controller> controller = std::make_shared<Controller>(config);
   cellui::test::TestBackend terminal;
   std::unique_ptr<InteractiveUI> ui;
+  std::function<void()> modal_body;
+  cellui::Connection modal_turns;
 
   explicit UIFixture(const std::string & song = "", UI::View view = UI::View::LIVE, cellui::DisplayInfo display = {},
                      std::optional<cellui::KeymapProfile> keymap = {})
@@ -45,7 +48,21 @@ struct UIFixture {
     if (keymap) ui->setKeymapProfile(*keymap);
     ui->initialize(controller);
     ui->step();  // the loop's first frame is a full one
+    // A modal dialog runs a loop of its own inside the command that opens it;
+    // its turns run modal_body once, and then end it if it is still up.
+    terminal.eventLoop().setBefore([] { return 0; });
+    modal_turns = terminal.eventLoop().onFrame([this] {
+      if (modal_body) {
+        auto body = std::move(modal_body);
+        modal_body = nullptr;
+        body();
+      }
+      terminal.eventLoop().quit();
+    });
   }
+  // What to do while the next modal dialog is up (inside whatever opens it,
+  // execute() included): draw a frame with ui->step() before looking at it.
+  void inModal(std::function<void()> body) { modal_body = std::move(body); }
   void press(int key, unsigned mods = 0) {
     terminal.pushKey(key, mods);
     ui->step();

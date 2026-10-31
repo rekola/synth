@@ -782,7 +782,7 @@ void Window::Impl::appendShadows(GtkSnapshot * snap, const Painted & top, GskRen
       gtk_snapshot_push_clip(snap, &ear);
       // Without an opaque cell under it, the stack as it was before the area's
       // own cells were composed (never the final one, which holds them).
-      if (!under && a.layer > 0 && a.layer <= stacks.size()) {
+      if (a.layer > 0 && a.layer <= stacks.size()) {
         gtk_snapshot_append_node(snap, stacks[a.layer - 1]);
       } else {
         const Color & c = under ? *under : bg;
@@ -849,7 +849,7 @@ void Window::Impl::appendShadows(GtkSnapshot * snap, const Painted & top, GskRen
         gtk_snapshot_pop(snap);
       }
       for (size_t j = i; j < elevations.size(); j++) {
-        if (!shown(elevations[j])) continue;
+        if (!shown(elevations[j]) || elevations[j].scrim) continue;
         graphene_rect_t above = rectOf(elevations[j]), meet;
         if (!graphene_rect_intersection(&above, &reach, &meet)) continue;
         GskRoundedRect shape;
@@ -870,15 +870,16 @@ void Window::Impl::appendShadows(GtkSnapshot * snap, const Painted & top, GskRen
         gtk_snapshot_pop(snap);
       }
       // A light top edge and a darker bottom one, so pieces side by side
-      // or stacked read apart.
+      // or stacked read apart; a border that thins to nothing at the sides
+      // follows a rounded corner.
       for (size_t k = i; k < level_end; k++) {
         if (!shown(elevations[k]) || !elevations[k].shadow) continue;
         graphene_rect_t rect = rectOf(elevations[k]);
-        float r = radiusOf(elevations[k]);
-        graphene_rect_t top_edge = GRAPHENE_RECT_INIT(rect.origin.x + r, rect.origin.y, rect.size.width - 2 * r, 1);
-        graphene_rect_t bottom_edge = GRAPHENE_RECT_INIT(rect.origin.x + r, rect.origin.y + rect.size.height - 1, rect.size.width - 2 * r, 1);
-        gtk_snapshot_append_color(snap, &highlight, &top_edge);
-        gtk_snapshot_append_color(snap, &edge, &bottom_edge);
+        GskRoundedRect outline;
+        gsk_rounded_rect_init_from_rect(&outline, &rect, radiusOf(elevations[k]));
+        float widths[4] = { 1, 0, 1, 0 };
+        GdkRGBA colors[4] = { highlight, highlight, edge, edge };
+        gtk_snapshot_append_border(snap, &outline, widths, colors);
       }
     }
     i = level_end;
@@ -1025,14 +1026,32 @@ void Window::Impl::snapshot(GtkSnapshot * snap) {
           // twice its spread).
           double half_row = std::min(layer.backdrop.blur, Backdrop::kMaxBlur) * cell_h / 2.0;
           double radius = 2.0 * std::sqrt(2.0 * half_row * (half_row + 1.0) / 3.0);
-          // The edge of the screen blurs with the background, not with nothing.
+          // Past the screen's edge the picture is mirrored, so the edge blurs
+          // with its own colours: nothing there would darken or lighten it
+          // toward a vignette.
           float margin = static_cast<float>(3.0 * radius);
-          graphene_rect_t backing = GRAPHENE_RECT_INIT(region.origin.x - margin, region.origin.y - margin, region.size.width + 2 * margin,
-                                                       region.size.height + 2 * margin);
+          float fw = static_cast<float>(width), fh = static_cast<float>(height);
           gtk_snapshot_push_clip(s, &region);
           gtk_snapshot_push_blur(s, radius);
-          gtk_snapshot_append_color(s, &background, &backing);
           gtk_snapshot_append_node(s, composed);
+          for (int iy = -1; iy <= 1; iy++) {
+            for (int ix = -1; ix <= 1; ix++) {
+              if (ix == 0 && iy == 0) continue;
+              // The strip outside the screen on that side, and the mirror
+              // about the edge it borders.
+              float x0 = ix < 0 ? -margin : ix > 0 ? fw : 0, x1 = ix < 0 ? 0 : ix > 0 ? fw + margin : fw;
+              float y0 = iy < 0 ? -margin : iy > 0 ? fh : 0, y1 = iy < 0 ? 0 : iy > 0 ? fh + margin : fh;
+              graphene_rect_t strip = GRAPHENE_RECT_INIT(x0, y0, x1 - x0, y1 - y0);
+              gtk_snapshot_save(s);
+              gtk_snapshot_push_clip(s, &strip);
+              graphene_point_t about = GRAPHENE_POINT_INIT(ix > 0 ? 2 * fw : 0.0f, iy > 0 ? 2 * fh : 0.0f);
+              gtk_snapshot_translate(s, &about);
+              gtk_snapshot_scale(s, ix != 0 ? -1.0f : 1.0f, iy != 0 ? -1.0f : 1.0f);
+              gtk_snapshot_append_node(s, composed);
+              gtk_snapshot_pop(s);
+              gtk_snapshot_restore(s);
+            }
+          }
           gtk_snapshot_pop(s);
           gtk_snapshot_pop(s);
         }

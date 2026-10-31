@@ -405,10 +405,9 @@ InteractiveUI::InteractiveUI(cellui::Backend & backend)
     if (command_palette_.isOpen()) {
       command_palette_.close();
       force_next_render_ = true;
-    } else if (choice_dialog_.isOpen()) {
-      closeChoiceDialog();
-    } else if (info_dialog_.isOpen()) {
-      closeInfoDialog();
+    } else if (activeModal()) {
+      dispatcher_.offer(escape);
+      force_next_render_ = true;
     } else if (active && active->wantsBareEscape()) {
       active->offerInput(escape);
     } else {
@@ -460,9 +459,6 @@ InteractiveUI::initialize(std::shared_ptr<Controller> & controller) {
   root_plane_->setThemedBases(true);
   if (use_pixel) root_plane_->setCellPixelSize(display.cell_px_height, display.cell_px_width);
   setPlane(std::move(root_plane));
-  // The modal dialogs float above every overlay (menus, pickers, popups).
-  choice_dialog_.setElevation(styles_.theme.elevation.modal);
-  info_dialog_.setElevation(styles_.theme.elevation.modal);
 
   setFgColor(styles_.window_fg_color);
   setBgColor(styles_.window_bg_color);
@@ -500,17 +496,14 @@ InteractiveUI::initialize(std::shared_ptr<Controller> & controller) {
 // Every other widget was created after menu_, and layout() can raise a
 // widget above its header row, so it is raised before every frame (its open
 // section floats at the overlay elevation over everything but a modal
-// dialog) - and an open modal dialog above its scrim, which share the modal
-// elevation.
+// dialog).
 void InteractiveUI::raiseOverlays() {
   menu_->raiseToTop();
-  modal_scrim_.raise();
   command_palette_.raise();
-  choice_dialog_.raise();
-  info_dialog_.raise();
   // An info dialog takes no clicks: the terminal selects its text instead
   // (the blurred screen behind it has none to select).
-  backend_.setNativeSelection(info_dialog_.isOpen());
+  auto modal = activeModal();
+  backend_.setNativeSelection(modal && modal->wantsNativeSelection());
 }
 
 void
@@ -542,8 +535,9 @@ InteractiveUI::step() {
 std::string
 InteractiveUI::focusName() const {
   if (command_palette_.isOpen()) return "command-palette";
-  if (choice_dialog_.isOpen()) return "choice-dialog";
-  if (info_dialog_.isOpen()) return "info-dialog";
+  if (auto modal = const_cast<InteractiveUI *>(this)->activeModal()) {
+    return dynamic_cast<cellui::InfoModal *>(modal) ? "info-dialog" : "choice-dialog";
+  }
   if (outline_view_ && outline_view_->isModal()) return "outline-view";
   auto active = active_element_.lock();
   if (!active) return "";
@@ -702,15 +696,23 @@ InteractiveUI::initializeWidgets() {
   // The dispatcher sends keys to the focused widget, which still takes them
   // as an Input.
   auto modal = [this](const cellui::Input * input) {
+    if (activeModal()) return cellui::Handled::no; // the dialog's own handlers take it
     return input && (offerModal(*input) || offerKeyLayers(*input)) ? cellui::Handled::yes : cellui::Handled::no;
   };
   // While a modal layer or the menu is open the pointer is theirs: it is
   // handled in offerInput(), and must not reach the widgets underneath.
-  auto swallow = [this] { return anyModalOpen() || menu_->isOpen() ? cellui::Handled::yes : cellui::Handled::no; };
+  auto swallow = [this] { return !activeModal() && (anyModalOpen() || menu_->isOpen()) ? cellui::Handled::yes : cellui::Handled::no; };
   key_connections_.push_back(on<cellui::MouseDown>([swallow](const cellui::MouseDown &, cellui::EventContext &) { return swallow(); }, cellui::Phase::capture));
   key_connections_.push_back(on<cellui::MouseMove>([swallow](const cellui::MouseMove &, cellui::EventContext &) { return swallow(); }, cellui::Phase::capture));
   key_connections_.push_back(on<cellui::MouseUp>([swallow](const cellui::MouseUp &, cellui::EventContext &) { return swallow(); }, cellui::Phase::capture));
   key_connections_.push_back(on<cellui::Wheel>([swallow](const cellui::Wheel &, cellui::EventContext &) { return swallow(); }, cellui::Phase::capture));
+  // A fresh left press makes the widget under it the active one, and ends
+  // an octave edit it leaves; the press itself still reaches that widget.
+  key_connections_.push_back(on<cellui::MouseDown>([this](const cellui::MouseDown & e, cellui::EventContext &) {
+    if (e.button == 1 && e.input && !button1_was_held_) activateAt(*e.input);
+    return cellui::Handled::no;
+  },
+                                                   cellui::Phase::capture));
   key_connections_.push_back(on<cellui::KeyDown>([modal](const cellui::KeyDown & e, cellui::EventContext &) { return modal(e.input); }, cellui::Phase::capture));
   key_connections_.push_back(on<cellui::KeyUp>([modal](const cellui::KeyUp & e, cellui::EventContext &) { return modal(e.input); }, cellui::Phase::capture));
   for (cellui::Widget * widget : std::initializer_list<cellui::Widget *>{pattern_editor_.get(), arrangement_grid_.get(), clip_grid_.get(), outline_view_.get()}) {
@@ -737,6 +739,14 @@ InteractiveUI::initializeWidgets() {
     }));
     key_connections_.push_back(widget->on<cellui::Wheel>([offer](const cellui::Wheel & e, cellui::EventContext &) { return offer(e.input); }));
   }
+
+  // The octave stepper takes the left button only.
+  key_connections_.push_back(octave_control_->on<cellui::MouseDown>([this](const cellui::MouseDown & e, cellui::EventContext &) {
+    return e.button == 1 && e.input && octave_control_->offerInput(*e.input) ? cellui::Handled::yes : cellui::Handled::no;
+  }));
+  key_connections_.push_back(octave_control_->on<cellui::MouseUp>([this](const cellui::MouseUp & e, cellui::EventContext &) {
+    return e.button == 1 && e.input && octave_control_->offerInput(*e.input) ? cellui::Handled::yes : cellui::Handled::no;
+  }));
 
   // An overview first, not pattern editing - the arrangement grid when
   // starting in Arrangement view; initialize() moves it to the clip grid
@@ -1293,11 +1303,8 @@ InteractiveUI::renderComponents(bool refresh) {
     blankScopes();
     render = true;
   }
-  // A choice list scrolling or easing its cursor draws itself each frame.
-  if (choice_dialog_.animating()) {
-    layoutChoiceDialog();
-    render = true;
-  }
+  // A dialog moving (a list scrolling) redraws itself each frame.
+  if (auto modal = activeModal(); modal && modal->animating()) render = true;
   auto active = active_element_.lock();
   auto & song = getController().getSong();
   // The shared/global track selection - Song's own, not any one widget's
@@ -1454,7 +1461,7 @@ bool InteractiveUI::modalLayerOpen(const cellui::Input & input) const {
 }
 
 bool InteractiveUI::anyModalOpen() const {
-  return command_palette_.isOpen() || choice_dialog_.isOpen() || info_dialog_.isOpen() || (outline_view_ && outline_view_->isModal());
+  return command_palette_.isOpen() || (outline_view_ && outline_view_->isModal());
 }
 
 // Hands `input` to the topmost modal layer; true when one took it.
@@ -1462,23 +1469,6 @@ bool InteractiveUI::offerModal(const cellui::Input & input) {
   if (!modalLayerOpen(input)) return false;
   if (command_palette_.isOpen()) {
     handleCommandPaletteInput(input);
-    return true;
-  }
-  if (choice_dialog_.isOpen()) {
-    handleChoiceDialogInput(input);
-    return true;
-  }
-  // The info dialog closes on its own keys and swallows everything else. The
-  // mouse is the terminal's while it is open (raiseOverlays()), so its text
-  // can be selected.
-  if (info_dialog_.isOpen()) {
-    auto id = input.getId();
-    // Not a release: the Enter that opened it, from the command palette, is
-    // released after it is open.
-    if (input.getKind() != InputEvent::Kind::RELEASE &&
-        (id == Key::Escape || id == Key::Enter || id == 'q' || (input.hasCtrl() && id == 'g'))) {
-      closeInfoDialog();
-    }
     return true;
   }
   outline_view_->offerInput(input);
@@ -1505,16 +1495,60 @@ bool InteractiveUI::offerKeyLayers(const cellui::Input & input) {
   return status_line_->offerInput(input);
 }
 
+// A left press makes the widget under it the active one, falling back to the
+// pattern editor where none claims the cell.
+void InteractiveUI::activateAt(const cellui::Input & input) {
+  auto previous_active_element = active_element_.lock();
+  cellui::Widget * hit_widget = dispatcher_.hitTest(input.getY(), input.getX());
+
+  // The octave stepper is edited in place: a press on it, while editing, stays
+  // with it, and the arrows act without taking the focus.
+  if (hit_widget == octave_control_.get() && (octave_control_->isEditing() || octave_control_->hitsArrow(input.getY(), input.getX()))) return;
+
+  active_element_.reset();
+  // status_line_ deliberately isn't a click-activation candidate: it takes the
+  // M-x trigger and its reader whatever is active, and as the active element it
+  // would stop plain keys reaching the pattern editor (its row spans the
+  // screen's bottom). Only the widgets the current view shows - a hidden one
+  // can share a visible one's rect (see layout()).
+  bool activated = false;
+  auto candidates = focusableElements();
+  candidates.push_back(octave_control_);
+  for (cellui::Widget * hit = hit_widget; hit && !activated; hit = hit->parent()) {
+    auto candidate = std::find_if(candidates.begin(), candidates.end(), [hit](const auto & e) { return e.get() == hit; });
+    if (candidate == candidates.end()) continue;
+    active_element_ = *candidate;
+    activated = true;
+  }
+
+  // Where no widget claims the click (the scope strip, the dividers) the
+  // pattern editor takes it, or every key would find no active element. A
+  // click on the menu bar (the top row) leaves the focus where it was.
+  bool on_menu = input.getY() == 0;
+  if (!activated) active_element_ = (on_menu && previous_active_element) ? previous_active_element : pattern_editor_;
+
+  // Leaving the octave stepper mid-edit discards the half-typed value.
+  if (octave_control_->isEditing() && active_element_.lock() != octave_control_) octave_control_->cancelEditing();
+}
+
 bool
 InteractiveUI::offerInput(const cellui::Input & input) {
   bool handled = false;
+
+  // A modal dialog has everything but a resize: its own handlers take the
+  // event from the dispatcher.
+  if (activeModal() && input.getId() != Key::Resize && !(input.hasCtrl() && input.getId() == 'l')) {
+    dispatcher_.offer(input);
+    force_next_render_ = true;
+    return true;
+  }
 
   // Every pointer event goes through the dispatcher first, whatever takes it
   // below: it keeps the held buttons and which widget the press went down on.
   // A terminal reports a drag as the press again, so "was the button already
   // down" is asked before this event is counted.
   bool pointer = input.getId() >= Key::Motion && input.getId() <= Key::Button11;
-  bool button1_held = dispatcher_.pressedButtons() & 1;
+  button1_was_held_ = dispatcher_.pressedButtons() & 1;
   bool pointer_taken = pointer && dispatcher_.offer(input) == cellui::Handled::yes;
 
   // A key goes to the dispatcher alone: the modal layers and the layers in
@@ -1554,7 +1588,7 @@ InteractiveUI::offerInput(const cellui::Input & input) {
     }
     return true;
   }
-  if (octave_control_->isEditing() && octave_control_->offerInput(input)) return true;
+  if (!pointer && octave_control_->isEditing() && octave_control_->offerInput(input)) return true;
   // A command (undo, save, ...) must see a half-typed velocity or delay.
   if (input.getKind() != InputEvent::Kind::RELEASE && (input.hasCtrl() || input.hasAlt())) pattern_editor_->commitPendingValue();
   if (!reader_active && dispatchCommand(input)) return true;
@@ -1565,8 +1599,7 @@ InteractiveUI::offerInput(const cellui::Input & input) {
     // the next frame redraws everything.
     refresh();
     layout();
-    layoutInfoDialog();
-    layoutChoiceDialog();
+    if (auto modal = activeModal()) modal->relayout();
     layoutCommandPalette();
     // Deferred, not a direct renderComponents(true) call - see
     // force_next_render_'s own comment on InteractiveUI.h: this runs from
@@ -1593,70 +1626,10 @@ InteractiveUI::offerInput(const cellui::Input & input) {
       break;
     }
     return true;
-  } else if (input.getId() == Key::Button1 && (octave_control_->arrowPressPending() ||
-                                               (input.getKind() != InputEvent::Kind::RELEASE && octave_control_->hitsArrow(input.getY(), input.getX())))) {
-    // The octave arrows act on click without taking focus from the active element.
-    octave_control_->offerInput(input);
-    return true;
-  } else if (input.getId() == Key::Button1 && (input.getKind() == InputEvent::Kind::RELEASE || button1_held)) {
-    // A release, or a press repeating as a drag moves, belongs to the
-    // widget the button went down on - it must not hand focus to whatever
-    // the pointer is over now. The release also ends the press everywhere,
-    // wherever it lands.
-    if (input.getKind() == InputEvent::Kind::RELEASE) {
-      clip_grid_->releaseMouse();
-      pattern_editor_->releaseMouse();
-    }
-  } else if (input.getId() == Key::Button1) {
-    auto previous_active_element = active_element_.lock();
-    active_element_.reset();
-
-    // status_line_ deliberately isn't a click-activation candidate: its own
-    // input handling (the M-x trigger, and its reader while one's open) is
-    // already reached unconditionally a few lines below, regardless of
-    // active_element_ - becoming the active element bought it nothing, and
-    // cost everything else, since its own offerInput() returns false for
-    // any keystroke that isn't M-x/reader-related, so the active_element_
-    // fallback stopped reaching pattern_editor_ at all (no widget owns
-    // plain arrow keys/note entry the way pattern_editor_ does) the moment
-    // a click landed anywhere on the status line's own row - which spans
-    // the entire bottom row, so this was very easy to trigger by accident.
-    // Only the widgets the current view shows - a hidden one can share a
-    // visible one's rect (see layout()), and a click must activate
-    // whichever is visible.
-    // The widget under the pointer, or the shown one it sits in.
-    bool activated = false;
-    auto candidates = focusableElements();
-    candidates.push_back(octave_control_);
-    for (cellui::Widget * hit = dispatcher_.hitTest(input.getY(), input.getX()); hit && !activated; hit = hit->parent()) {
-      auto candidate = std::find_if(candidates.begin(), candidates.end(), [hit](const auto & e) { return e.get() == hit; });
-      if (candidate == candidates.end()) continue;
-      active_element_ = *candidate;
-      activated = true;
-    }
-
-    // Fall back to the pattern editor (in every view) if the click landed
-    // somewhere no widget claims (e.g.
-    // the FFT/heatmap/loudness scope strip, or the dividers between
-    // them). Without this, active_element_ was left permanently empty (a
-    // real, confirmed bug): every subsequent keyboard command routed
-    // through it (offerInput()'s active_element_ fallback below, and
-    // Launchpad button commands via executeCommand()) silently no-op'd -
-    // including plain Up/Down arrow - until the user happened to click
-    // directly back on the workspace.
-    // A click on the menu bar (the top row) leaves focus where it was.
-    bool on_menu = input.getY() == 0;
-    if (!activated) active_element_ = (on_menu && previous_active_element) ? previous_active_element : pattern_editor_;
-
-    // A click that moves focus away from the octave stepper while it's
-    // mid-edit discards the half-typed value rather than leaving it stuck
-    // showing a stale "selected" field forever - see SpinBox::
-    // cancelEditing()'s own comment. Not needed when the click lands back
-    // on octave_control_ itself (its own offerInput(), called below via
-    // active_element_, handles that click directly).
-    if (previous_active_element == octave_control_ && active_element_.lock() != octave_control_) {
-      octave_control_->cancelEditing();
-    }
+  } else if (input.getId() == Key::Button1 && input.getKind() == InputEvent::Kind::RELEASE) {
+    // The release ends the press everywhere, wherever it lands.
+    clip_grid_->releaseMouse();
+    pattern_editor_->releaseMouse();
   }
 
   if (!handled) {
@@ -1710,9 +1683,9 @@ InteractiveUI::setStatus(std::string s) {
 
 void
 InteractiveUI::showInfoDialog(const std::string & title, const std::string & markdown) {
-  info_dialog_title_ = title;
-  info_dialog_markdown_ = markdown;
-  layoutInfoDialog();
+  redraw_requested_ = true;
+  cellui::InfoModal dialog(*this, getPlane(), eventLoop(), title, markdown);
+  dialog.showModal();
   force_next_render_ = true;
 }
 
@@ -1724,10 +1697,15 @@ void InteractiveUI::showChoiceDialog(const std::string & title, std::vector<Choi
   }
   std::vector<std::string> labels;
   for (auto & choice : choices) labels.push_back(choice.label);
-  choice_callback_ = std::move(on_choose);
-  choice_dialog_.open(title, std::move(labels), current);
-  layoutChoiceDialog();
+  int index;
+  {
+    redraw_requested_ = true;
+    cellui::ChoiceModal dialog(*this, getPlane(), eventLoop(), title, std::move(labels), current);
+    index = dialog.showModal();
+  }
   force_next_render_ = true;
+  // Called once the dialog is gone: it may report on the status line.
+  if (index >= 0 && on_choose) on_choose(index);
 }
 
 // How the active widgets bind `command` on this display, the focused one first.
@@ -1773,48 +1751,6 @@ void InteractiveUI::handleCommandPaletteInput(const cellui::Input & input) {
   command_palette_.close();
   force_next_render_ = true;
   if (!name.empty() && !getController().sendCommand(name)) setStatus("Invalid command");
-}
-
-void InteractiveUI::layoutModalScrim() {
-  if (!choice_dialog_.isOpen() && info_dialog_title_.empty()) {
-    modal_scrim_.close();
-    return;
-  }
-  auto [screen_rows, screen_cols] = getDim();
-  modal_scrim_.show(getPlane(), screen_rows, screen_cols, getPlane().getStyles().theme.modal_backdrop);
-}
-
-void InteractiveUI::layoutChoiceDialog() {
-  if (!choice_dialog_.isOpen()) return;
-  layoutModalScrim();
-  auto [screen_rows, screen_cols] = getDim();
-  choice_dialog_.show(getPlane(), screen_rows, screen_cols);
-}
-
-void InteractiveUI::handleChoiceDialogInput(const cellui::Input & input) {
-  auto result = choice_dialog_.offerInput(input);
-  if (result == ChoiceDialog::Result::NONE) {
-    layoutChoiceDialog(); // redraw with the moved selection
-    force_next_render_ = true;
-    return;
-  }
-  auto index = choice_dialog_.selected();
-  // Closed before the callback runs: it may report on the status line, and
-  // nothing should be left modal while it does.
-  auto callback = std::move(choice_callback_);
-  closeChoiceDialog();
-  if (result == ChoiceDialog::Result::CHOSEN && callback) callback(index);
-}
-
-// Centers the dialog on the screen.
-void
-InteractiveUI::layoutInfoDialog() {
-  if (info_dialog_title_.empty()) return;
-  layoutModalScrim();
-  auto [screen_rows, screen_cols] = getDim();
-  auto width = std::min(60, screen_cols);
-  info_dialog_.show(getPlane(), info_dialog_title_, info_dialog_markdown_, width, screen_rows);
-  info_dialog_.center(screen_rows, screen_cols);
 }
 
 cellui::EventLoop &
@@ -2154,7 +2090,7 @@ InteractiveUI::startUI(AudioAPI &, MidiInput & midi, LaunchpadIO & launchpad_io)
   constexpr auto kSteadyFrameInterval = std::chrono::milliseconds(25);
   // A view that scrolls smoothly is shown at the display's pace, not the steady one.
   constexpr auto kAnimatedFrameInterval = std::chrono::milliseconds(16);
-  auto animating = [&]() { return (clip_grid_ && getView() == View::LIVE && clip_grid_->scrolling()) || (arrangement_grid_ && arrangement_grid_->animating()) || (outline_view_ && outline_view_->animating()) || choice_dialog_.animating(); };
+  auto animating = [&]() { return (clip_grid_ && getView() == View::LIVE && clip_grid_->scrolling()) || (arrangement_grid_ && arrangement_grid_->animating()) || (outline_view_ && outline_view_->animating()) || (activeModal() && activeModal()->animating()); };
   auto min_frame_interval = [&]() { return animating() ? kAnimatedFrameInterval : kSteadyFrameInterval; };
   auto last_frame = std::chrono::steady_clock::now() - kSteadyFrameInterval;
   bool frame_pending = false;

@@ -130,6 +130,7 @@ void ChoiceDialog::show(Plane & parent, int screen_rows, int screen_cols) {
     list_plane_->setMouseCursor(MouseCursor::POINTER);
     // Over the box, at its height.
     list_plane_->setElevation(plane_->elevation());
+    list_plane_->setCastsShadow(false);
   }
   list_plane_->move(y_ + kTopRows, x_);
   list_plane_->resize(rows, width_ - 1);
