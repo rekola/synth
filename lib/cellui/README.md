@@ -31,7 +31,7 @@ at configure time, GTK is optional). Headers are `cellui/X.h` in
   per-display keymap profiles), `KeyReader` (Escape as Meta).
 - **Widgets.** `Widget` is the widget base; on top of it `ChoiceDialog`,
   `CommandPalette`, `InfoDialog`, `InlineEditor`, `SpinBox`, `MenuBar`,
-  `CoverArt`, and the line chart.
+  and the line chart.
 - **Backends.** `Backend` is what an application needs of any display
   (`DisplayInfo`, `BackendEvent`s in, frames out). `cellui/term/` is the terminal
   (key and mouse parsing, capability discovery, frame diffing, kitty/iTerm2/Sixel
@@ -98,7 +98,7 @@ and the measurements so far support, and then what is only a hope.
 `cellui_gallery` prints the gallery page: every text style, the theme's colour
 tokens, the level meter ramp, the sub-cell glyphs, width and truncation of
 wide and combining characters, a Markdown document, a choice list, the dialogs,
-the meters, a spin box and cover art.
+the meters, and a spin box.
 
     build-cellui/cellui_gallery            # 24-bit colour escape sequences
     build-cellui/cellui_gallery --plain    # the text alone

@@ -263,17 +263,13 @@ Gallery::Gallery(Plane & plane, const Theme & theme) {
   page.skip(5);
 
   page.skip();
-  page.heading("Spin box and cover art");
+  page.heading("Spin box");
   spin_ = std::make_unique<SpinBox>(plane, "Octave", 0, 8, [this] { return octave_; },
                                     [this](int v) { octave_ = v; }, theme.surface_panel, theme.text_primary);
   spin_->resize(1, spin_->preferredWidth());
   spin_->move(page.row(), 0);
   spin_->render(plane.getStyles(), true);
-  cover_ = std::make_unique<CoverArt>(plane);
-  cover_->resize(4, CoverArt::widthForHeight(4));
-  cover_->move(page.row(), 30);
-  cover_->render(plane.getStyles(), true);
-  page.skip(5);
+  page.skip(2);
 
   page.skip();
   page.heading("Dials");
