@@ -669,6 +669,22 @@ TEST(terminal_ui_menu_click_opens_a_section_and_runs_an_item) {
   CHECK(f.terminal.info().focus == focus);
 }
 
+// The arrangement grid takes the arrow keys and Enter: Right moves along the
+// bars, Enter hands the cell over to the pattern editor and moves the transport there.
+TEST(terminal_ui_arrangement_grid_arrows_move_the_cursor_and_enter_commits_it) {
+  UIFixture f(repoSong("demo3.xml"), UI::View::ARRANGEMENT);
+  clickCell(f, 3, 20);
+  CHECK(f.terminal.info().focus == "arrangement-grid");
+  auto start = f.controller->getPlaybackInfo().getAbsolutePosition();
+  f.press(cellui::Key::Right);
+  f.press(cellui::Key::Right);
+  CHECK(f.terminal.info().focus == "arrangement-grid");
+  CHECK(f.controller->getPlaybackInfo().getAbsolutePosition() == start);
+  f.press(cellui::Key::Enter);
+  CHECK(f.terminal.info().focus == "pattern-editor");
+  CHECK(f.controller->getPlaybackInfo().getAbsolutePosition() > start);
+}
+
 // A click on a dial opens its editor, on that dial.
 TEST(terminal_ui_clip_grid_click_on_a_send_opens_its_editor) {
   UIFixture f(repoSong("demo3.xml"), UI::View::LIVE);

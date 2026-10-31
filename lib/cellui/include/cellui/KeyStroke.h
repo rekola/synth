@@ -1,6 +1,7 @@
 #pragma once
 
 #include <cellui/Input.h>
+#include <cellui/InputEvents.h>
 
 #include <cstdint>
 
@@ -13,6 +14,10 @@ namespace KeyStroke {
 inline uint64_t pack(int id, bool ctrl, bool alt, bool shift, bool meta) {
   return (static_cast<uint64_t>(id) << 4) |
     (ctrl ? 1u : 0u) | (alt ? 2u : 0u) | (shift ? 4u : 0u) | (meta ? 8u : 0u);
+}
+
+inline uint64_t pack(int id, const Modifiers & mods) {
+  return pack(id, mods.ctrl, mods.alt, mods.shift, mods.meta);
 }
 
 inline uint64_t pack(const Input & input) {
