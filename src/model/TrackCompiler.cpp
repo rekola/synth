@@ -4,6 +4,7 @@
 #include "../bus/BusEffectRegistry.h"
 #include "../instruments/GenericInstrument.h"
 #include "../instruments/InstrumentProvider.h"
+#include "../util/FloatText.h"
 
 #include <algorithm>
 #include <cstdlib>
@@ -100,7 +101,7 @@ TrackCompiler::compileNode(const doc::Document & document, doc::NodeId id, const
       auto name = std::get_if<std::string>(generator->find("name"));
       auto value_text = std::get_if<std::string>(generator->find("value"));
       if (!name || !value_text) continue;
-      auto value = std::strtof(value_text->c_str(), nullptr);
+      auto value = float_text::parse(*value_text);
       if (auto generator_id = sf2GeneratorIdForName(*name)) generic->addGeneratorOverride(*generator_id, value);
       else generic->addUnknownGeneratorOverride(*name, value);
     }

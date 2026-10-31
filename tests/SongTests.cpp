@@ -14,6 +14,10 @@
 #include "../src/audio/AudioBuffer.h"
 #include "../src/ambisonic/ChannelConfiguration.h"
 
+#include "../src/state/MemoryParameterSource.h"
+
+#include <clocale>
+#include <cstdio>
 #include <filesystem>
 #include <fstream>
 #include <sstream>
@@ -320,6 +324,57 @@ TEST(generator_override_round_trips_through_save_and_load) {
   }
 
   fs::remove(scratch_path);
+}
+
+// A window toolkit sets the process locale; with a decimal comma a float
+// must still be written and read as "1234.5".
+TEST(floats_round_trip_through_the_song_file_under_a_comma_locale) {
+  namespace fs = std::filesystem;
+  auto scratch_path = (fs::path(TESTS_SCRATCH_DIR) / "float_locale_scratch.xml").string();
+
+  std::string previous = std::setlocale(LC_ALL, nullptr);
+  bool comma = false;
+  for (const char * name : {"de_DE.UTF-8", "fa_IR.UTF-8", "fi_FI.UTF-8", "fr_FR.UTF-8", "sv_SE.UTF-8"}) {
+    if (std::setlocale(LC_ALL, name) && std::localeconv()->decimal_point[0] != '.') {
+      comma = true;
+      break;
+    }
+  }
+  if (!comma) std::fprintf(stderr, "  (no comma-decimal locale installed: the locale was the C one)\n");
+
+  Song song;
+  auto instrument = make_unique<GenericInstrument>();
+  instrument->setFrom("piano.acoustic.grand");
+  instrument->addGeneratorOverride(SF2Generator::InitialFilterFc, 1234.5f);
+  song.addInstrument(move(instrument));
+  song.save(scratch_path);
+  auto saved = readFile(scratch_path);
+
+  InstrumentProvider provider;
+  Song reloaded;
+  bool opened = reloaded.open(scratch_path, provider);
+  float value = 0.0f;
+  if (opened) {
+    auto * loaded = dynamic_cast<GenericInstrument *>(reloaded.getInstrumentPool().getInstruments()[0].get());
+    if (loaded) {
+      auto it = loaded->getGeneratorOverrides().find(SF2Generator::InitialFilterFc);
+      if (it != loaded->getGeneratorOverrides().end()) value = it->second;
+    }
+  }
+
+  MemoryParameterSource bag;
+  bag.set("x", 0.25f);
+  float bag_value = bag.get<float>("x", -1.0f);
+  std::string bag_text = bag.get<std::string>("x");
+
+  std::setlocale(LC_ALL, previous.c_str());
+  fs::remove(scratch_path);
+
+  CHECK(saved.find("value=\"1234.5\"") != string::npos);
+  CHECK(opened);
+  CHECK_NEAR(value, 1234.5f, 1e-5f);
+  CHECK_NEAR(bag_value, 0.25f, 1e-6f);
+  CHECK(bag_text == "0.25");
 }
 
 // A pool slot's own custom description (Instrument::getDescription(),

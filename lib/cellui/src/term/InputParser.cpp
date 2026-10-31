@@ -1,5 +1,6 @@
 #include <cellui/term/InputParser.h>
 
+#include <cellui/NumberParse.h>
 #include <cellui/Utf8.h>
 
 #include <cmath>
@@ -76,6 +77,13 @@ int colorComponent(const std::string & hex) {
     case 3: return v >> 4;
     default: return v >> 8;
   }
+}
+
+// A decimal number rounded to a whole one, 0 when it is none.
+int roundedNumber(const std::string & s) {
+  double v = 0;
+  if (parseFloat(s.c_str(), s.c_str() + s.size(), v).ec != std::errc()) return 0;
+  return static_cast<int>(std::lround(v));
 }
 
 bool parseRgb(const std::string & s, int & r, int & g, int & b) {
@@ -795,8 +803,7 @@ void InputParser::dispatchString() {
       size_t semi2 = v.find(';');
       if (semi2 == std::string::npos) return;
       e.reply = ReplyKind::ITERM_CELL_SIZE;
-      e.params = {static_cast<int>(std::lround(std::atof(v.substr(0, semi2).c_str()))),
-                  static_cast<int>(std::lround(std::atof(v.substr(semi2 + 1).c_str())))};
+      e.params = {roundedNumber(v.substr(0, semi2)), roundedNumber(v.substr(semi2 + 1))};
     } else {
       return;
     }

@@ -1,5 +1,7 @@
 #include <cellui/Color.h>
 
+#include <cellui/NumberParse.h>
+
 #include <algorithm>
 #include <cctype>
 #include <cstdlib>
@@ -415,9 +417,13 @@ std::vector<std::string> arguments(std::string_view s) {
 // A number, or a percentage of `percent_of`; "none" is 0.
 float number(const std::string & tok, float percent_of) {
   if (tok == "none") return 0.0f;
-  char * end = nullptr;
-  float v = std::strtof(tok.c_str(), &end);
-  if (end && *end == '%') return v / 100.0f * percent_of;
+  const char * begin = tok.c_str();
+  const char * last = begin + tok.size();
+  if (begin != last && *begin == '+') begin++;  // allowed here, not by parseFloat()
+  float v = 0.0f;
+  ParseResult r = parseFloat(begin, last, v);
+  if (r.ec != std::errc()) return 0.0f;
+  if (r.ptr != last && *r.ptr == '%') return v / 100.0f * percent_of;
   return v;
 }
 

@@ -102,6 +102,45 @@ with no restrictions on use, provided the authors are cited when the data is
 used in any research or commercial application.
 ```
 
+
+### fast_float (`third_party/fast_float/`)
+
+Apache-2.0 OR MIT OR BSL-1.0; used under the MIT licence. Vendored from
+https://github.com/fastfloat/fast_float, release `v8.0.2` (the single-header
+`fast_float.h`). It is `cellui`'s floating-point number parser on platforms
+whose standard library lacks a usable `std::from_chars` for floats
+(`lib/cellui/src/NumberParse.cpp`).
+
+```
+MIT License
+
+Copyright (c) 2021 The fast_float authors
+
+Permission is hereby granted, free of charge, to any
+person obtaining a copy of this software and associated
+documentation files (the "Software"), to deal in the
+Software without restriction, including without
+limitation the rights to use, copy, modify, merge,
+publish, distribute, sublicense, and/or sell copies of
+the Software, and to permit persons to whom the Software
+is furnished to do so, subject to the following
+conditions:
+
+The above copyright notice and this permission notice
+shall be included in all copies or substantial portions
+of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF
+ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED
+TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A
+PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT
+SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY
+CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION
+OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR
+IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
+DEALINGS IN THE SOFTWARE.
+```
+
 ## Adapted source (not under `third_party/`)
 
 ### SoundFont loader (`src/instruments/SoundFont.cpp`, `src/state/EnvelopeState.h`)

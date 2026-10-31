@@ -6,6 +6,7 @@
 #include "PercussionTrack.h"
 #include "SampleTrack.h"
 #include "../instruments/Additive.h"
+#include "../util/FloatText.h"
 #include "../instruments/FM.h"
 #include "../instruments/GenericInstrument.h"
 #include "../instruments/Noise.h"
@@ -58,7 +59,7 @@ std::unique_ptr<Track> makeTrack(std::string_view name) {
   return nullptr;
 }
 
-static std::string floatText(float value) { return fmt::format("{}", value); }
+static std::string floatText(float value) { return float_text::format(value); }
 
 void ParamBag::set(const std::string & name, float value) { values_[name] = floatText(value); }
 
@@ -69,7 +70,7 @@ int ParamBag::getIntImpl(const std::string & name, int default_value) const {
 
 float ParamBag::getFloatImpl(const std::string & name, float default_value) const {
   auto it = values_.find(name);
-  return it != values_.end() ? std::strtof(it->second.c_str(), nullptr) : default_value;
+  return it != values_.end() ? float_text::parse(it->second) : default_value;
 }
 
 std::string ParamBag::getTextImpl(const std::string & name, const std::string & default_value) const {
@@ -96,7 +97,7 @@ int NodeParameterSource::getIntImpl(const std::string & name, int default_value)
 
 float NodeParameterSource::getFloatImpl(const std::string & name, float default_value) const {
   auto text = find(name);
-  return text ? std::strtof(text->c_str(), nullptr) : default_value;
+  return text ? float_text::parse(*text) : default_value;
 }
 
 std::string NodeParameterSource::getTextImpl(const std::string & name, const std::string & default_value) const {

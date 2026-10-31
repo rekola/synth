@@ -176,7 +176,7 @@ endif()
 # Apple platforms or its GDI+ one on Windows. The cell rasterizer (the GTK
 # window's, the terminal's backdrops) is not built on Windows, whose window
 # draws cells itself.
-target_sources(cellui PRIVATE src/Dial.cpp src/DialImage.cpp src/HeatmapImage.cpp src/NativeContext.cpp src/PixelCharts.cpp src/LineImage.cpp src/SparklineImage.cpp src/WaveformImage.cpp)
+target_sources(cellui PRIVATE src/Dial.cpp src/NumberParse.cpp src/DialImage.cpp src/HeatmapImage.cpp src/NativeContext.cpp src/PixelCharts.cpp src/LineImage.cpp src/SparklineImage.cpp src/WaveformImage.cpp)
 if(NOT WIN32)
   target_sources(cellui PRIVATE src/CanvasRasterizer.cpp)
   target_compile_definitions(cellui PRIVATE CELLUI_CANVAS_RASTERIZER)
@@ -191,6 +191,8 @@ endif()
 target_compile_definitions(cellui PRIVATE CELLUI_PIXEL_SCOPES)
 # canvas' headers are reached as SYSTEM includes.
 target_include_directories(cellui SYSTEM PUBLIC ${canvas_SOURCE_DIR}/include)
+# fast_float, vendored in the repository's third_party/ (NumberParse.cpp).
+target_include_directories(cellui SYSTEM PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/../../third_party)
 target_link_libraries(cellui PUBLIC canvas)
 target_include_directories(cellui PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/include)
 target_include_directories(cellui PRIVATE ${UNISTRING_INCLUDE_DIR} ${CMAKE_CURRENT_SOURCE_DIR}/src)
@@ -251,6 +253,7 @@ add_executable(cellui_tests
   tests/LineEditorTests.cpp
   tests/MenuBarTests.cpp
   tests/MeterTests.cpp
+  tests/NumberParseTests.cpp
   tests/Utf8Tests.cpp)
 if(NOT WIN32)
   target_sources(cellui_tests PRIVATE tests/BackdropEmulationTests.cpp tests/CanvasRasterizerTests.cpp tests/EventLoopTests.cpp tests/ThreadPostsTests.cpp tests/TerminalSessionTests.cpp tests/TestBackendTests.cpp tests/HeatmapImageTests.cpp tests/LineImageTests.cpp
