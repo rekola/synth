@@ -94,8 +94,8 @@ class OutlineView : public UIElement {
   // The focus level is still easing: the loop keeps drawing frames.
   bool isAnimating() const { return fades_.active() || focus_fade_drawn_; }
 
-  // Shows a modal list (title, labels, current index) and calls back with the chosen index.
-  using Chooser = std::function<void(const std::string &, std::vector<std::string>, int, std::function<void(int)>)>;
+  // Shows a modal list (title, label and value of each entry, current index) and calls back with the chosen value.
+  using Chooser = std::function<void(const std::string &, std::vector<std::pair<std::string, int>>, int, std::function<void(const int &)>)>;
   void setChooser(Chooser choose) { choose_ = std::move(choose); }
 
   OutlineView(Plane & parent) : UIElement(parent) {
@@ -244,9 +244,8 @@ protected:
   // Asks for the target track in a modal list ("New track" last), made only
   // for the question.
   void openTargetPicker();
-  // The chosen label, matched against compatibleTargetTrackRows()'s labels
-  // or "New track"; a miss leaves selected_target_track_id_ untouched.
-  void applyTargetPickerSelection(const std::string & selection);
+  // The chosen track id, kNewTrackTargetId for a fresh track.
+  void applyTargetPickerSelection(int track_id);
   // Key::Delete/Key::Backspace on a Track or pool Instruments row - see
   // this class's own header comment. A no-op on any other row, and on a
   // song's own last remaining playable track (Song::removeTrack()'s floor).

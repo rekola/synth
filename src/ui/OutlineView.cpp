@@ -594,40 +594,22 @@ void
 OutlineView::openTargetPicker() {
   if (!choose_) return;
 
-  auto candidates = compatibleTargetTrackRows();
-  std::vector<std::string> labels;
-  for (auto * candidate : candidates) labels.push_back(candidate->label);
-  labels.push_back("New track");
-
-  // Starts on whatever is the current choice, "New track" last.
+  // The compatible tracks, then "New track"; starts on the current choice.
+  std::vector<std::pair<std::string, int>> entries;
   auto target_id = resolveTargetTrackId();
-  auto current = static_cast<int>(candidates.size());
-  for (size_t i = 0; i < candidates.size(); i++) {
-    if (candidates[i]->ref_id == target_id) {
-      current = static_cast<int>(i);
-      break;
-    }
+  auto current = -1;
+  for (auto * candidate : compatibleTargetTrackRows()) {
+    if (candidate->ref_id == target_id) current = static_cast<int>(entries.size());
+    entries.push_back({candidate->label, candidate->ref_id});
   }
-  choose_("Target track", labels, current, [this, labels](int index) {
-    applyTargetPickerSelection(labels[static_cast<size_t>(index)]);
-  });
+  if (current < 0) current = static_cast<int>(entries.size());
+  entries.push_back({"New track", kNewTrackTargetId});
+  choose_("Target track", std::move(entries), current, [this](const int & track_id) { applyTargetPickerSelection(track_id); });
 }
 
-void
-OutlineView::applyTargetPickerSelection(const string & selection) {
-  if (selection.empty()) return; // nothing was ever highlighted - leave the previous choice untouched
-  if (selection == "New track") {
-    selected_target_track_id_ = kNewTrackTargetId;
-    details_dirty_ = true; // the "[t] Target: ..." line's own text just changed with no cursor move to otherwise trigger a redraw
-    return;
-  }
-  for (auto * candidate : compatibleTargetTrackRows()) {
-    if (candidate->label == selection) {
-      selected_target_track_id_ = candidate->ref_id;
-      details_dirty_ = true;
-      return;
-    }
-  }
+void OutlineView::applyTargetPickerSelection(int track_id) {
+  selected_target_track_id_ = track_id;
+  details_dirty_ = true; // the "[t] Target: ..." line's own text just changed with no cursor move to otherwise trigger a redraw
 }
 
 void

@@ -59,7 +59,7 @@ class InteractiveUI : public UI {
 
   void setStatus(std::string s) override;
   void showInfoDialog(const std::string & title, const std::string & markdown) override;
-  void showChoiceDialog(const std::string & title, std::vector<Choice> choices, int current,
+  void showChoiceDialog(const std::string & title, std::vector<std::string> labels, int current,
                         std::function<void(int)> on_choose) override;
 
   // Checks the active element's registry before UI's own (mirrors Emacs

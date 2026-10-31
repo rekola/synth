@@ -254,7 +254,7 @@ TEST(terminal_ui_choice_dialog_entries_show_over_the_raised_box) {
     CHECK(f.terminal.text().find("Alpha entry") != std::string::npos);
     CHECK(f.terminal.text().find("Beta entry") != std::string::npos);
   });
-  f.ui->showChoiceDialog("Pick one", {{"Alpha entry", "a"}, {"Beta entry", "b"}}, 0, [](int) {});
+  f.ui->showChoiceDialog("Pick one", {"Alpha entry", "Beta entry"}, 0, [](int) {});
 }
 
 TEST(terminal_ui_ctrl_keypad_operators_change_the_track_instrument) {
