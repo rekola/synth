@@ -28,8 +28,8 @@ TEST(link_class_for_bandwidth_is_the_best_class_it_is_enough_for) {
   CHECK(linkClassForBandwidth(t, 20e6) == LinkClass::FULL);
   CHECK(linkClassForBandwidth(t, t.full) == LinkClass::FULL);
   CHECK(linkClassForBandwidth(t, t.full - 1) == LinkClass::HZ_30);
-  CHECK(linkClassForBandwidth(t, 3e6) == LinkClass::HZ_15);
-  CHECK(linkClassForBandwidth(t, 500e3) == LinkClass::HZ_5);
+  CHECK(linkClassForBandwidth(t, 200e3) == LinkClass::HZ_15);
+  CHECK(linkClassForBandwidth(t, 80e3) == LinkClass::HZ_5);
   CHECK(linkClassForBandwidth(t, 30e3) == LinkClass::HZ_1);
   // A margin asks for more than the threshold.
   CHECK(linkClassForBandwidth(t, t.full * 1.2, 1.5) == LinkClass::HZ_30);

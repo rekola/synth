@@ -171,7 +171,7 @@ def t7(probe):
 # link that does not stays at full speed, a pinned class holds, and none of it flaps.
 def t8(probe):
     cases = [  # (picture, link bandwidth, the class it is, in enum order: 0 full, 1 30, 2 15, 3 5, 4 1)
-        ("328x80", 20e6, 0), ("328x80", 5.5e6, 1), ("232x80", 3e6, 2), ("80x80", 500e3, 3), ("16x16", 30e3, 4)]
+        ("328x80", 20e6, 0), ("328x80", 450e3, 1), ("232x80", 200e3, 2), ("80x80", 80e3, 3), ("16x16", 30e3, 4)]
     seen = []
     ok = True
     for img, bw, want in cases:
@@ -179,7 +179,7 @@ def t8(probe):
         link = log.get("link", {})
         got, changes = int(link.get("class", -1)), int(link.get("changes", 99))
         ok = ok and got == want and changes <= 1
-        seen.append("%s: class %d (want %d), %d change%s, \"%s\"" % ("%.2g MB/s" % (bw / 1e6), got, want, changes, "" if changes == 1 else "s", link.get("description", "")))
+        seen.append("%s: class %d (want %d), %d change%s, \"%s\"" % ("%.3g kB/s" % (bw / 1e3), got, want, changes, "" if changes == 1 else "s", link.get("description", "")))
     res, log = run(probe, Link(bandwidth=20e6, up_ms=5, down_ms=5), ["--mode", "churn", "--seconds", "8", "--img", "328x80", "--pin", "15"])
     link = log.get("link", {})
     pinned_ok = link.get("class") == "2" and link.get("pinned") == "1"

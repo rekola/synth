@@ -506,9 +506,16 @@ deflate ratio on real charts is known.
    window vsync and fps), the status bar, `--link-class` and `set-link-class`,
    `TestBackend::setLinkStatus()`. Harness checks: the class at five bandwidths, no flapping on the
    524/589 noise, a pinned class stays.
-2. **Deflate, PNG and picture quality** (3.1, 3.2): the encoder and its round-trip tests; bytes per
-   frame per protocol before and after on the real charts; the kitty fallback on an error reply
-   tested with the harness's emulated terminal answering one.
+2. **Deflate, PNG and picture quality** (3.1, 3.2): **deflate done** (`Deflate.{h,cpp}`: package-merge
+   Huffman, lazy matching, SSE2 compare with a bit-identical portable path; round trips through an
+   independent inflate; real pictures within about 1% of zlib 6 at 2-3 times the speed of zlib 1, the
+   synthetic smooth heatmap within 8%, which is the test's ceiling; the tests also caught a fixed-code
+   table that was two symbols short). Kitty uploads go `o=z` unless that saves under 10%, and an
+   error reply to one turns compression off and sends the picture raw; iTerm2's PNG uses it too.
+   **Measured through the real app** (`measure_link.py`, kitty, 60 frames/s): playing in Live View
+   363 kB/s, in Arrangement 403 kB/s, against 5.5-6.4 MB/s before (about 15 times less), and
+   `LinkThresholds` are now 570 / 290 / 145 / 60 kB/s. Still to do in this phase: the palette PNG for
+   REDUCED/LOW picture quality (3.2).
 3. **Sixel** (3.3): palette and damage.
 4. **Shared pictures and dials** (3.4, 3.5): the registry, `drawSharedImageAt()`, the byte cap, the
    16-position, four-look dial set.

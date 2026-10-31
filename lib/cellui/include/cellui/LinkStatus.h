@@ -32,11 +32,11 @@ struct LinkStatus {
 };
 
 // The bandwidth, in bytes a second, a class needs: what its profile sends, as measured, over the
-// share of the link it may use. The figures are provisional: they are the uncompressed demands of
-// the playing UI (about 6.4, 3.2, 1.6 MB/s for full, 30 Hz and 15 Hz, and 40 kB/s of text at 5 Hz)
-// over 0.7, and are replaced by the measured demands once pictures are compressed.
+// share of the link it may use. The figures are the kitty demands of the playing UI with pictures
+// deflated (about 400, 200 and 100 kB/s for full, 30 Hz and 15 Hz, and 40 kB/s of text at 5 Hz)
+// over 0.7; a protocol whose pictures compress worse (Sixel) will want its own once phase 3 measures it.
 struct LinkThresholds {
-  double full = 9.1e6, hz30 = 4.6e6, hz15 = 2.3e6, hz5 = 60e3;
+  double full = 570e3, hz30 = 290e3, hz15 = 145e3, hz5 = 60e3;
 };
 
 // The class a bandwidth is enough for; `margin` > 1 asks for that much more than the threshold.
