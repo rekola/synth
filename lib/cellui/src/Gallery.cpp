@@ -76,7 +76,9 @@ Color readableOn(const Color & bg) {
 
 }  // namespace
 
-Gallery::Gallery(Plane & plane, const Theme & theme) {
+Gallery::Gallery(Plane & plane, const Theme & theme) : Gallery(plane, theme, *cellCharts()) { }
+
+Gallery::Gallery(Plane & plane, const Theme & theme, const Charts & charts) {
   const StyleProvider & styles = plane.getStyles();
   int width = plane.getDim().second;
 
@@ -247,18 +249,17 @@ Gallery::Gallery(Plane & plane, const Theme & theme) {
       float t = static_cast<float>(i) / static_cast<float>(values.size());
       values[i] = std::clamp(0.85f - 0.7f * std::sqrt(t) + 0.1f * std::sin(static_cast<float>(i) * 0.9f), 0.0f, 1.0f);
     }
-    spectrum_ = cellCharts()->lineChart(plane);
+    spectrum_ = charts.lineChart(plane);
     spectrum_->resize(4, 40);
     spectrum_->move(page.row(), 0);
     spectrum_->setValues(values);
 
     // Sparklines side by side, each with a peak marker; the last two at full scale.
-    auto charts = cellCharts();
     SparklineLook look{plane.getStyles().window_bg_color, std::nullopt};
     const std::vector<SparklineReading> readings = {
       { 0.7f, 0.8f, false }, { 0.3f, 0.5f, false }, { 0.12f, 0.2f, false }, { 0.5f, 0.6f, false },
       { 0.02f, 0.05f, false }, { 1.0f, 1.0f, true }, { 0.0f, 0.0f, false } };
-    charts->drawSparkline(plane, page.row(), 44, 5, readings, look, 0, plane.getDim().first, 0);
+    charts.drawSparkline(plane, page.row(), 44, 5, readings, look, 0, plane.getDim().first, 0);
   }
   page.skip(5);
 

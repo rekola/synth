@@ -13,6 +13,8 @@
 
 namespace cellui {
 
+class Charts;
+
 // The gallery page, drawn onto `plane` when constructed: every text style,
 // the theme's colour tokens, the sub-cell glyph tables, the level meter ramp,
 // a Markdown document, wide and combining characters, a choice list, an info
@@ -22,7 +24,11 @@ namespace cellui {
 // only, so any backend can show it.
 class Gallery {
  public:
+  // The charts are the cell versions unless `charts` says otherwise (a
+  // display that shows pictures passes chartsFor()). A picture needs the
+  // root plane to know the cell size (BufferPlane::setCellPixelSize()).
   Gallery(Plane & plane, const Theme & theme);
+  Gallery(Plane & plane, const Theme & theme, const Charts & charts);
 
   // The number of rows the page uses.
   int rows() const { return rows_; }
