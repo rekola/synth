@@ -176,11 +176,6 @@ class Widget {
     }
     return *this;
   }
-#if 0
-  Widget & putstrN(int y, int x, const std::string & s, int limit) {
-    
-  }
-#endif
   Widget & move(int y, int x) {
     if (plane_) plane_->move(y, x);
     return *this;

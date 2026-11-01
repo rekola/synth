@@ -96,7 +96,6 @@ add_library(synth_engine STATIC
 	src/instruments/PadSynthTable.cpp
 	src/instruments/InstrumentLibrary.cpp
 	src/Controller.cpp
-	src/ui/InstrumentList.cpp
 	src/instruments/SoundFont.cpp
 	src/instruments/SF2Modulator.cpp
 	src/model/Song.cpp
