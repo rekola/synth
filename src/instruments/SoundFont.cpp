@@ -1085,7 +1085,7 @@ class SoundFontVoice : public InstrumentVoice {
     // SoundFontVoice's own isActive() (which does NOT consult children)
     // goes false and clearFinishedVoices() reaps the whole subtree anyway.
     // Same recursion precedent as applyChannelPressure() below.
-    VoiceState::killNote();
+    killChildren();
   }
 
   void stopNote() override {
@@ -1111,7 +1111,7 @@ class SoundFontVoice : public InstrumentVoice {
       loopEnd_ = loopStart_;
     }
 
-    // See killNote()'s comment above. Deliberately VoiceState::killNote(),
+    // See killNote()'s comment above. Deliberately killChildren(),
     // not stopNote(): a modulator child's own envelope only ever advances
     // via process(), called exclusively from within SoundFontVoice::
     // render() on *its own* ampenv_/modenv_ - render() never recurses into
@@ -1119,7 +1119,7 @@ class SoundFontVoice : public InstrumentVoice {
     // today), so a child put into RELEASE via stopNote() would sit there
     // forever, never reaching DONE. Jumping straight to DONE is the only
     // way this child ever reports itself inactive at all.
-    VoiceState::killNote();
+    killChildren();
   }
 
   // Reclaims this voice quickly without a hard cut - see VoiceState::
@@ -1149,12 +1149,12 @@ class SoundFontVoice : public InstrumentVoice {
       loopEnd_ = loopStart_;
     }
 
-    // See killNote()'s comment above for why VoiceState::killNote(), not
+    // See killNote()'s comment above for why killChildren(), not
     // stopNote()/fastRelease(): a modulator child's envelope only ever
     // advances via process(), never called on children, so it must be
     // jumped straight to DONE rather than put into a RELEASE it can never
     // finish on its own.
-    VoiceState::killNote();
+    killChildren();
   }
 
   // Every distinct non-zero SF2 exclusive class (region.group) this
@@ -1448,6 +1448,15 @@ SoundFontVoice::render(int numSamples) {
     // comment on encodePosition()).
     auto dryGainMono = noteGain * ampenv_.getLevel();
 
+    // 0Uxx/0Dxx slide: the pitch ratio moves linearly across the whole call,
+    // sampled per sample inside this block (exactly 1 when no slide).
+    const int block_start = totalSamples - numSamples - blockSamples;
+    const float slide_span = static_cast<float>(totalSamples);
+    const float slide_a = getSlideRatioStart() + (getSlideRatioEnd() - getSlideRatioStart()) * static_cast<float>(block_start) / slide_span;
+    const float slide_b = getSlideRatioStart() + (getSlideRatioEnd() - getSlideRatioStart()) * static_cast<float>(block_start + blockSamples) / slide_span;
+    double slide = slide_a;
+    const double slide_step = blockSamples > 0 ? static_cast<double>(slide_b - slide_a) / blockSamples : 0.0;
+
     // Silence-kill threshold: a long-tailed release (common for GM pad/
     // string patches) can sit well below audibility for most of its
     // authored duration, still consuming full render cost every block. Only
@@ -1510,7 +1519,8 @@ SoundFontVoice::render(int numSamples) {
       dryGainMono += dryGainStep;
 
       // Next sample.
-      sourceSamplePosition_ += pitchRatio;
+      sourceSamplePosition_ += pitchRatio * slide;
+      slide += slide_step;
       if (sourceSamplePosition_ >= loopEndDbl && isLooping) sourceSamplePosition_ -= (loopEnd_ - loopStart_ + 1.0);
     }
     

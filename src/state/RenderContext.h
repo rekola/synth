@@ -148,6 +148,28 @@ class RenderContext {
     return pending_azimuth_ticks_[track_id];
   }
 
+  // 0Uxx/0Dxx: from `frame`, raise every sounding voice of the track by
+  // `cents` in all, linearly over `frames` frames.
+  struct PitchSlide {
+    float cents;
+    int frames;
+  };
+  void addPendingPitchSlide(int track_id, int frame, float cents, int frames) {
+    pending_pitch_slides_[track_id][frame].push_back({cents, frames});
+  }
+  std::map<int, std::vector<PitchSlide> > & getPendingPitchSlides(int track_id) {
+    return pending_pitch_slides_[track_id];
+  }
+
+  // The transport stopped or jumped: slides not yet begun are dropped, and
+  // the epoch tells each track to end the ones running (it freezes them
+  // where they are).
+  void noteTransportJump() {
+    pending_pitch_slides_.clear();
+    transport_epoch_++;
+  }
+  int getTransportEpoch() const { return transport_epoch_; }
+
   // A SampleTrack content's own trigger (SongState.h's per-row scheduling -
   // a fresh instance becoming active, a looping clip's own later lap, or a
   // track's own background bed starting or being jumped into) due at a specific
@@ -192,6 +214,9 @@ class RenderContext {
     for (auto & td : pending_azimuth_ticks_) {
       if (!td.second.empty()) return false;
     }
+    for (auto & td : pending_pitch_slides_) {
+      if (!td.second.empty()) return false;
+    }
     for (auto & td : pending_sample_events_) {
       if (!td.second.empty()) return false;
     }
@@ -217,6 +242,15 @@ class RenderContext {
       }
     }
 
+    for (auto & [track_id, slides] : pending_pitch_slides_) {
+      auto old_slides = slides;
+      slides.clear();
+      for (auto & [frame, list] : old_slides) {
+        auto new_frame = frame + offset;
+        if (new_frame >= 0) slides[new_frame] = list;
+      }
+    }
+
     for (auto & [ track_id, events ] : pending_sample_events_) {
       auto old_events = events;
       events.clear();
@@ -236,8 +270,10 @@ class RenderContext {
   ChannelConfiguration channel_config_;
   std::unordered_map<int, std::map<int, std::vector<TrackEvent> > > pending_events_;
   std::unordered_map<int, std::map<int, float> > pending_azimuth_ticks_;
+  std::unordered_map<int, std::map<int, std::vector<PitchSlide> > > pending_pitch_slides_;
   std::unordered_map<int, std::map<int, std::vector<SampleTrackEvent> > > pending_sample_events_;
   float bpm_ = 0.0f;
+  int transport_epoch_ = 0;
 };
 
 #endif

@@ -4,6 +4,8 @@
 #include "../state/PositionedVoice.h"
 #include "../dsp/HashField.h"
 
+#include <cmath>
+
 namespace {
 // Fixed compile-time seed, not drawn from any shared sequence - matches
 // SoundFont.cpp's kPercussionJitterSeed/bus/GranularCloud.cpp's
@@ -64,14 +66,35 @@ class InstrumentVoice : public PositionedVoice {
 
   bool isActive() const override { return freq_ != 0.0f; }
 
+  // 0Uxx/0Dxx slide: the pitch offset (cents, relative to where this voice
+  // started) at the chunk's first and last sample. The first call sets the
+  // origin, so a note started mid-slide begins at its own pitch.
+  void setPitchRamp(double start_cents, double end_cents) override {
+    VoiceState::setPitchRamp(start_cents, end_cents);
+    if (!slide_origin_set_) {
+      slide_origin_ = start_cents;
+      slide_origin_set_ = true;
+    }
+    slide_ratio_start_ = std::exp2(static_cast<float>(start_cents - slide_origin_) / 1200.0f);
+    slide_ratio_end_ = std::exp2(static_cast<float>(end_cents - slide_origin_) / 1200.0f);
+  }
+
 protected:
   double getSourceSamplePosition() const { return sourceSamplePosition_; }
 
   inline void stepForward(int frames) {
-    sourceSamplePosition_ += freq_ * frames;
+    // The increment of sample k is f0 + (f1 - f0) * k / frames (it reaches f1
+    // at the next chunk's first sample), so the chunk covers exactly the sum
+    // of that over k < frames - the position the next chunk must start from.
+    const double f0 = static_cast<double>(getFrequency()), f1 = static_cast<double>(getFrequencyEnd());
+    sourceSamplePosition_ += f0 * frames + (f1 - f0) * 0.5 * (frames - 1);
   }
 
-  float getFrequency() const { return freq_; }
+  // The frequency at the chunk's first sample, and at its last.
+  float getFrequency() const { return freq_ * slide_ratio_start_; }
+  float getFrequencyEnd() const { return freq_ * slide_ratio_end_; }
+  float getSlideRatioStart() const { return slide_ratio_start_; }
+  float getSlideRatioEnd() const { return slide_ratio_end_; }
   float getDetune() const { return detune_; }
 
   double sourceSamplePosition_;
@@ -79,6 +102,9 @@ protected:
 private:
   float freq_ = 0.0f;
   float detune_;
+  double slide_origin_ = 0.0;
+  bool slide_origin_set_ = false;
+  float slide_ratio_start_ = 1.0f, slide_ratio_end_ = 1.0f;
 };
 
 #endif

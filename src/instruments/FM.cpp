@@ -22,6 +22,7 @@ public:
    double sample_rate = getChannelConfiguration().getAudioOutSampleRate();
    double pos = getSourceSamplePosition() / sample_rate;
    double rate = static_cast<double>(getFrequency()) / sample_rate;
+   double rate_slope = frames > 0 ? (static_cast<double>(getFrequencyEnd()) / sample_rate - rate) / frames : 0.0;
    constexpr double two_pi = 2.0 * M_PI;
 
    if (static_cast<int>(dry_.size()) != frames) dry_.resize(static_cast<size_t>(frames));
@@ -39,6 +40,7 @@ public:
 
      index_.advance();
      pos += rate;
+     rate += rate_slope;
    }
 
    stepForward(frames);

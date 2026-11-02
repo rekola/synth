@@ -145,7 +145,8 @@ class SongState : public TrackState {
   // `breaks_only` applies nothing but a pattern break - for a track
   // Live View has taken over, whose arrangement automation doesn't
   // apply while the song's flow still does.
-  void applyRowCommands(const Pattern & pattern, int pattern_row, int track_id, int frame_offset, bool breaks_only = false) {
+  // `edo_steps` is the song tuning's steps per octave, the unit of 0Uxx/0Dxx.
+  void applyRowCommands(const Pattern & pattern, int pattern_row, int track_id, int frame_offset, bool breaks_only = false, int edo_steps = 0) {
     for (auto & command : pattern.getCommandsAt(pattern_row)) {
 	if (!command.isDefined()) continue;
 	if (breaks_only && !command.isPatternBreak()) continue;
@@ -154,6 +155,13 @@ class SongState : public TrackState {
           pending_break_row_ = command.getBreakRow();
         } else if (command.isRetrigger()) {
           scheduleRetrigger(track_id, frame_offset, command.getRetriggerIntervalTicks(), command.getRetriggerVolumeCode());
+        } else if (command.isPitchSlide()) {
+          // The whole amount ramps over this row, whatever the tick count.
+          int row_samples = getChannelConfiguration().getSampleInterval(tempo_);
+          if (edo_steps > 0 && row_samples > 0) {
+            float cents = command.getPitchSlideSteps() * 1200.0f / static_cast<float>(edo_steps);
+            if (cents != 0.0f) render_context_.addPendingPitchSlide(track_id, frame_offset, cents, row_samples);
+          }
         } else if (command.isAzimuthSlide()) {
           scheduleAzimuthSlide(track_id, frame_offset, command.getAzimuthSlidePerTick());
         } else if (command.isExtentSet()) {
@@ -607,9 +615,9 @@ class SongState : public TrackState {
 	    auto background_it = arrangement.getPatternsByTrack().find(track_id);
 	    if (background_it != arrangement.getPatternsByTrack().end()) {
 	      auto background_row = background_it->second.getEffectiveRow(row_idx, 0);
-              applyRowCommands(background_it->second, background_row, track_id, i, taken_over);
+              applyRowCommands(background_it->second, background_row, track_id, i, taken_over, edoStepsFor(content.scalars.tuning));
             }
-            if (from_clip) applyRowCommands(*active_pattern, effective_row, track_id, i);
+            if (from_clip) applyRowCommands(*active_pattern, effective_row, track_id, i, false, edoStepsFor(content.scalars.tuning));
           }
 	}
 	
@@ -765,7 +773,10 @@ class SongState : public TrackState {
 #endif
   
   bool isPlaying() const { return is_playing_; }
-  void setIsPlaying(bool b) { is_playing_ = b; }
+  void setIsPlaying(bool b) {
+    if (is_playing_ && !b) render_context_.noteTransportJump();
+    is_playing_ = b;
+  }
 
   // See render()'s own comment on recording_muted_'s use - set/cleared by
   // PlaybackControlEvent::SET_RECORDING_MUTE, pushed by LaunchpadManager/
@@ -825,6 +836,7 @@ class SongState : public TrackState {
   // sidesteps that entirely. See LaunchpadManager/PatternEditor's own
   // auto-stop-after-recording code for the concrete case this fixed.
   void setPosition(int absolute_row) {
+    render_context_.noteTransportJump();
     sample_pos_ = 0;
     absolute_pos_ = absolute_row < 0 ? 0 : absolute_row;
     position_edit_seq_++;
@@ -840,6 +852,7 @@ class SongState : public TrackState {
   // counter behind wherever Controller's own per-buffer edit counter
   // already was.
   void setPositionWithEditSeq(int absolute_row, int edit_seq) {
+    render_context_.noteTransportJump();
     sample_pos_ = 0;
     absolute_pos_ = absolute_row < 0 ? 0 : absolute_row;
     position_edit_seq_ = edit_seq;

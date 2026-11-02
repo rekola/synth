@@ -50,6 +50,7 @@ public:
     // frequency by this same single ratio, which preserves each partial's
     // cents-distance from the fundamental exactly.
     double rate = static_cast<double>(getFrequency()) / static_cast<double>(table_base_freq);
+    double rate_slope = frames > 0 ? (static_cast<double>(getFrequencyEnd()) / static_cast<double>(table_base_freq) - rate) / frames : 0.0;
 
     // The table is a long noise-like loop, so a note may start anywhere in
     // it; the start is hashed from the note's coordinate, so simultaneous
@@ -74,6 +75,7 @@ public:
       dry_[static_cast<size_t>(k)] = gain * sample;
 
       table_pos += rate;
+      rate += rate_slope;
     }
 
     table_pos_ = std::fmod(table_pos, table_len);

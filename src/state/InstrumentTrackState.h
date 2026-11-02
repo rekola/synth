@@ -42,6 +42,17 @@ public:
   AudioBuffer render(int frames, const InstrumentPool & instruments, RenderContext & context) override {
     clearFinishedVoices();
 
+    // A stop or seek ends the slides: voices keep the pitch they have, and
+    // no later note inherits a half-done glide.
+    if (context.getTransportEpoch() != slide_epoch_) {
+      slide_epoch_ = context.getTransportEpoch();
+      if (!pitch_slides_.empty()) {
+        completed_slide_cents_ = slidePosition(0);
+        pitch_slides_.clear();
+        slide_ramp_pending_ = true; // one more call flattens the voices' ramp
+      }
+    }
+
     // Render each chunk (processing note-on/off events as they come due)
     // without committing to a final shape up front - a voice triggered
     // mid-block can carry a send no earlier chunk this block had. Collect
@@ -53,6 +64,7 @@ public:
     if (instrument) {
       auto & pending_events = context.getPendingEvents(getTrackId());
       auto & pending_azimuth = context.getPendingAzimuthTicks(getTrackId());
+      auto & pending_slides = context.getPendingPitchSlides(getTrackId());
 
       for (int i = 0; i < frames; ) {
 	int render_size = frames - i;
@@ -101,8 +113,25 @@ public:
 	  if (it != pending_azimuth.end() && it->first - i < render_size) render_size = it->first - i;
 	}
 
-	chunks.emplace_back(i, renderVoices(render_size));
-	i += render_size;
+        if (!pending_slides.empty()) {
+          auto it = pending_slides.begin();
+          assert(i <= it->first);
+          if (i == it->first) {
+            for (auto & slide : it->second) {
+              if (slide.frames > 0 && slide.cents != 0.0f) pitch_slides_.push_back({static_cast<double>(slide.cents), slide.frames, 0});
+            }
+            it = pending_slides.erase(it);
+          }
+          if (it != pending_slides.end() && it->first - i < render_size) render_size = it->first - i;
+        }
+
+        // A running slide ends exactly where its row does, so cut the chunk
+        // there: the voices interpolate over a whole chunk.
+        for (auto & slide : pitch_slides_) render_size = std::min(render_size, slide.length - slide.elapsed);
+
+        advancePitchSlides(render_size);
+        chunks.emplace_back(i, renderVoices(render_size));
+        i += render_size;
       }
     }
 
@@ -330,11 +359,51 @@ protected:
   }
 
 private:
-  int instrument_id_;
-  SpatialMode spatial_mode_ = SpatialMode::AUTO;
-  std::unordered_map<int, float> column_pressure_;
-  // The note being started by render() right now, for noteOn() to read.
-  NoteOverride note_override_;
+ // The slide position (cents) `extra` frames into the coming chunk: the
+ // finished slides' amounts plus each running one's share by its absolute
+ // place in its row.
+ double slidePosition(int extra) const {
+   double cents = completed_slide_cents_;
+   for (auto & slide : pitch_slides_) {
+     int elapsed = std::min(slide.elapsed + extra, slide.length);
+     cents += slide.cents * static_cast<double>(elapsed) / static_cast<double>(slide.length);
+   }
+   return cents;
+ }
+
+ // Hands each sounding voice the slide position at the chunk's first and
+ // last sample (the end being the next chunk's start), then moves on.
+ void advancePitchSlides(int frames) {
+   const bool active = !pitch_slides_.empty();
+   if (active || slide_ramp_pending_) {
+     double start = slidePosition(0), end = slidePosition(frames);
+     for (auto & [column, voices] : voices_) {
+       for (auto & voice : voices)
+         if (voice->isActive()) voice->setPitchRamp(start, end);
+     }
+   }
+   slide_ramp_pending_ = active;
+   for (auto & slide : pitch_slides_) slide.elapsed += frames;
+   for (auto & slide : pitch_slides_)
+     if (slide.elapsed >= slide.length) completed_slide_cents_ += slide.cents;
+   pitch_slides_.erase(std::remove_if(pitch_slides_.begin(), pitch_slides_.end(), [](const PitchSlideRamp & s) { return s.elapsed >= s.length; }), pitch_slides_.end());
+ }
+
+ struct PitchSlideRamp {
+   double cents;
+   int length;
+   int elapsed;
+ };
+ std::vector<PitchSlideRamp> pitch_slides_;
+ double completed_slide_cents_ = 0.0;
+ int slide_epoch_ = 0;             // the transport epoch the slides were last checked against
+ bool slide_ramp_pending_ = false; // the last chunk had a slide running: voices still hold its end
+
+ int instrument_id_;
+ SpatialMode spatial_mode_ = SpatialMode::AUTO;
+ std::unordered_map<int, float> column_pressure_;
+ // The note being started by render() right now, for noteOn() to read.
+ NoteOverride note_override_;
 };
 
 #endif

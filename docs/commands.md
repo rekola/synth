@@ -77,6 +77,8 @@ alone. Any other command typed in the fx column is stored but does nothing.
 | `YAxy` | Send A's own equivalent of `YMxy` - same encoding, targeting Send A instead of Volume. `A` for Send **A**. | Own |
 | `YBxy` | Send B's own equivalent of `YMxy` - same encoding, targeting Send B instead of Volume. `B` for Send **B**. | Own |
 | `YZxy` | Set azimuth with an explicit glide, timed the same way `YMxy`/etc. are - wall-clock seconds. `Z` for a**Z**imuth. Not called `YPxy`/matched to `-Pxx`'s own encoding: `-Pxx`'s `xx` only reaches half the circle, which would throw away exactly the range a live Pan press can actually reach, so `x` here instead spans the *full* circle in 16 steps of 22.5 degrees, -180 degrees at `0`, dead front at `8`, up to +157.5 at `F` (+180 is the same direction as -180) - every Launchpad Pan pad target is exactly one step; `y` is the same duration encoding as `YMxy`. Recorded automatically by a Launchpad Pan fader press. | Own |
+| `-Uxx` | Slide pitch up - `xx` (hex) is in 1/16ths of one scale step of the song's tuning (`10` = one step: 100 cents in 12-EDO, about 38.7 in 31-EDO). The whole amount ramps linearly across the row, the phase increment interpolated per sample within each audio chunk (the slide's position is computed absolutely at each chunk end, so chunk length doesn't matter), independent of ticks per row, on every voice sounding in the track, including one started on the same row. A note that starts late in the row (a delay or swing) glides at the same rate as the others from its own pitch, so it gets only the rest of the amount. On a percussion track a hit slides too, a step being the song's tuning's. The offset is cumulative per voice, adds to the note's fine-tune and resets with the next note; no memory, so `U00` does nothing and a slide continues only while the command is repeated. | Renoise (`Uxx`), generalised to the tuning |
+| `-Dxx` | Slide pitch down - as `-Uxx`, lowering the pitch. | Renoise (`Dxx`), generalised to the tuning |
 | `YLxx` | Slide azimuth left - decrease the track's azimuth by `xx` degrees per tick (12 ticks/row) for the duration of this row, moving both the track's own position and every currently-sounding voice. `L` for **L**eft. | Own |
 | `YRxx` | Slide azimuth right - same as `YLxx` but increasing azimuth (this engine's convention: positive azimuth = right). `R` for **R**ight. | Own |
 
@@ -84,8 +86,6 @@ alone. Any other command typed in the fx column is stored but does nothing.
 
 | Command | Description | Source |
 |---|---|---|
-| `-Uxx` | Slide pitch up | Renoise (`Uxx`) |
-| `-Dxx` | Slide pitch down | Renoise (`Dxx`) |
 | `-Gxx` | Glide to note | Renoise (`Gxx`) |
 | `-Vxx` | Vibrato | Renoise (`Vxy`) |
 | `-Ixx` | Fade in | Renoise (`Ixx`) |

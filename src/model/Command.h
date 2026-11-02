@@ -141,6 +141,16 @@ class Command {
     return values_[1] == 'L' ? -magnitude : magnitude;
   }
 
+  // 0Uxx/0Dxx - slide pitch up/down by `xx` sixteenths of one scale step of
+  // the song's tuning, spread over the row. No memory: 00 does nothing.
+  bool isPitchSlide() const { return values_[0] == '0' && (values_[1] == 'U' || values_[1] == 'D'); }
+  // Signed scale steps (positive up) for isPitchSlide().
+  float getPitchSlideSteps() const {
+    auto hi = digit(values_[2], 16), lo = digit(values_[3], 16);
+    float magnitude = static_cast<float>((hi < 0 ? 0 : hi) * 16 + (lo < 0 ? 0 : lo)) / 16.0f;
+    return values_[1] == 'D' ? -magnitude : magnitude;
+  }
+
   // 0Rxy - retrigger the track's most recently played note every `y` ticks
   // (constants::TICKS_PER_ROW per row) for the rest of this row, changing
   // its velocity by `x` at each retrigger. `y` = 0 retriggers nothing.
