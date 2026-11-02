@@ -773,7 +773,10 @@ class SongState : public TrackState {
 #endif
   
   bool isPlaying() const { return is_playing_; }
-  void setIsPlaying(bool b) { is_playing_ = b; }
+  void setIsPlaying(bool b) {
+    if (is_playing_ && !b) render_context_.noteTransportJump();
+    is_playing_ = b;
+  }
 
   // See render()'s own comment on recording_muted_'s use - set/cleared by
   // PlaybackControlEvent::SET_RECORDING_MUTE, pushed by LaunchpadManager/
@@ -833,6 +836,7 @@ class SongState : public TrackState {
   // sidesteps that entirely. See LaunchpadManager/PatternEditor's own
   // auto-stop-after-recording code for the concrete case this fixed.
   void setPosition(int absolute_row) {
+    render_context_.noteTransportJump();
     sample_pos_ = 0;
     absolute_pos_ = absolute_row < 0 ? 0 : absolute_row;
     position_edit_seq_++;
@@ -848,6 +852,7 @@ class SongState : public TrackState {
   // counter behind wherever Controller's own per-buffer edit counter
   // already was.
   void setPositionWithEditSeq(int absolute_row, int edit_seq) {
+    render_context_.noteTransportJump();
     sample_pos_ = 0;
     absolute_pos_ = absolute_row < 0 ? 0 : absolute_row;
     position_edit_seq_ = edit_seq;

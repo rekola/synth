@@ -261,3 +261,37 @@ TEST(pitch_slide_gives_a_delayed_note_only_the_rest_of_the_row) {
   }
   CHECK(held > 50);
 }
+
+// A seek ends a slide in flight: the first notes after the jump don't glide.
+TEST(pitch_slide_does_not_survive_a_seek) {
+  Song song;
+  song.addInstrument(make_unique<Oscillator>(WaveformType::SINE));
+  auto & track = song.addTrack(make_unique<InstrumentTrack>(0));
+  auto arrangement = song.getArrangement();
+  arrangement.setNote(0, track.getInternalId(), 0, Note(240, 100));
+  arrangement.setCommand(0, track.getInternalId(), Command("0UFF"));
+  arrangement.setNote(3, track.getInternalId(), 0, Note(240, 100)); // the note after the jump
+
+  ChannelConfiguration config(44100, 1);
+  auto mixer = createMixer(config, MixerType::AMBISONIC_STEREO);
+  SongState state(config);
+  state.initialize(song);
+  state.setIsPlaying(true);
+
+  int row = config.getSampleInterval(song.getTempo());
+  state.renderBlock(row / 2, song, *mixer); // halfway through the slide
+  mixer->encode();
+  state.setPosition(3);
+  state.renderBlock(row, song, *mixer);
+  auto out = mixer->encode();
+  const float * left = out.getChannelData(0);
+  vector<double> times;
+  for (int i = 1; i < out.numberOfFrames(); i++) {
+    if (left[i - 1] < 0 && left[i] >= 0) times.push_back(i - 1 + static_cast<double>(-left[i - 1]) / static_cast<double>(left[i] - left[i - 1]));
+  }
+  CHECK(times.size() > 20);
+  double f_first = 44100.0 / (times[2] - times[1]);
+  for (size_t k = 1; k + 1 < times.size(); k++) {
+    CHECK(fabs(44100.0 / (times[k + 1] - times[k]) / f_first - 1.0) < 0.01);
+  }
+}

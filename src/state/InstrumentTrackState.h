@@ -42,6 +42,17 @@ public:
   AudioBuffer render(int frames, const InstrumentPool & instruments, RenderContext & context) override {
     clearFinishedVoices();
 
+    // A stop or seek ends the slides: voices keep the pitch they have, and
+    // no later note inherits a half-done glide.
+    if (context.getTransportEpoch() != slide_epoch_) {
+      slide_epoch_ = context.getTransportEpoch();
+      if (!pitch_slides_.empty()) {
+        completed_slide_cents_ = slidePosition(0);
+        pitch_slides_.clear();
+        slide_ramp_pending_ = true; // one more call flattens the voices' ramp
+      }
+    }
+
     // Render each chunk (processing note-on/off events as they come due)
     // without committing to a final shape up front - a voice triggered
     // mid-block can carry a send no earlier chunk this block had. Collect
@@ -385,6 +396,7 @@ private:
  };
  std::vector<PitchSlideRamp> pitch_slides_;
  double completed_slide_cents_ = 0.0;
+ int slide_epoch_ = 0;             // the transport epoch the slides were last checked against
  bool slide_ramp_pending_ = false; // the last chunk had a slide running: voices still hold its end
 
  int instrument_id_;

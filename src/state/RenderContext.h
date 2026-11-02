@@ -161,6 +161,15 @@ class RenderContext {
     return pending_pitch_slides_[track_id];
   }
 
+  // The transport stopped or jumped: slides not yet begun are dropped, and
+  // the epoch tells each track to end the ones running (it freezes them
+  // where they are).
+  void noteTransportJump() {
+    pending_pitch_slides_.clear();
+    transport_epoch_++;
+  }
+  int getTransportEpoch() const { return transport_epoch_; }
+
   // A SampleTrack content's own trigger (SongState.h's per-row scheduling -
   // a fresh instance becoming active, a looping clip's own later lap, or a
   // track's own background bed starting or being jumped into) due at a specific
@@ -264,6 +273,7 @@ class RenderContext {
   std::unordered_map<int, std::map<int, std::vector<PitchSlide> > > pending_pitch_slides_;
   std::unordered_map<int, std::map<int, std::vector<SampleTrackEvent> > > pending_sample_events_;
   float bpm_ = 0.0f;
+  int transport_epoch_ = 0;
 };
 
 #endif
