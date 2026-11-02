@@ -615,9 +615,9 @@ class SongState : public TrackState {
 	    auto background_it = arrangement.getPatternsByTrack().find(track_id);
 	    if (background_it != arrangement.getPatternsByTrack().end()) {
 	      auto background_row = background_it->second.getEffectiveRow(row_idx, 0);
-              applyRowCommands(background_it->second, background_row, track_id, i, taken_over, edoStepsFor(tuning));
+              applyRowCommands(background_it->second, background_row, track_id, i, taken_over, edoStepsFor(content.scalars.tuning));
             }
-            if (from_clip) applyRowCommands(*active_pattern, effective_row, track_id, i, false, edoStepsFor(tuning));
+            if (from_clip) applyRowCommands(*active_pattern, effective_row, track_id, i, false, edoStepsFor(content.scalars.tuning));
           }
 	}
 	

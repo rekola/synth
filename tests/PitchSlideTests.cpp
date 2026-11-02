@@ -295,3 +295,39 @@ TEST(pitch_slide_does_not_survive_a_seek) {
     CHECK(fabs(44100.0 / (times[k + 1] - times[k]) / f_first - 1.0) < 0.01);
   }
 }
+
+#include "../src/instruments/InstrumentProvider.h"
+
+#ifndef TESTS_FIXTURES_DIR
+#define TESTS_FIXTURES_DIR "."
+#endif
+
+// A percussion hit slides too, its step being the song's tuning's (a drum
+// key has no scale step of its own).
+TEST(pitch_slide_moves_a_percussion_hit) {
+  InstrumentProvider provider;
+  Song song;
+  CHECK(song.open(string(TESTS_FIXTURES_DIR) + "/percussion_retrigger.xml", provider));
+  int track_id = song.getRootTrackIds()[0];
+  auto arrangement = song.getArrangement();
+  arrangement.setCommand(0, track_id, Command("0UFF"));
+
+  ChannelConfiguration config(44100, 1);
+  auto mixer = createMixer(config, MixerType::AMBISONIC_STEREO);
+  SongState state(config);
+  state.initialize(song);
+  state.setIsPlaying(true);
+
+  int row = config.getSampleInterval(song.getTempo());
+  state.renderBlock(row, song, *mixer);
+  auto out = mixer->encode();
+  const float * left = out.getChannelData(0);
+  vector<double> times;
+  for (int i = 1; i < out.numberOfFrames(); i++) {
+    if (left[i - 1] < 0 && left[i] >= 0) times.push_back(i - 1 + static_cast<double>(-left[i - 1]) / static_cast<double>(left[i] - left[i - 1]));
+  }
+  CHECK(times.size() > 3);
+  double f_first = 44100.0 / (times[1] - times[0]);
+  double f_last = 44100.0 / (times.back() - times[times.size() - 2]);
+  CHECK(f_last > 1.4 * f_first); // 255/16 steps of 12-EDO is over an octave
+}
