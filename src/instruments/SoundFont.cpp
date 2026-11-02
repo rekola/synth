@@ -1067,11 +1067,6 @@ class SoundFontVoice : public InstrumentVoice {
   }
   float getChannelPressure() const override { return sf2_channel_pressure_; }
 
-  void adjustPitchCents(float cents) override {
-    InstrumentVoice::adjustPitchCents(cents);
-    if (voiceRegion_) calcPitchRatio(0);
-  }
-
   AudioBuffer render(int numSamples) override;
   
   void killNote() override {
@@ -1176,7 +1171,6 @@ class SoundFontVoice : public InstrumentVoice {
     auto note = apparentPlayingKey_ + voiceRegion_->transpose + voiceRegion_->tune / 100.0;
     auto adjustedPitch = voiceRegion_->pitch_keycenter + (note - voiceRegion_->pitch_keycenter) * (voiceRegion_->pitch_keytrack / 100.0);
     if (pitchShift) adjustedPitch += pitchShift;
-    adjustedPitch += getSlideCents() / 100.0; // 0Uxx/0Dxx slide
     pitchInputTimecents_ = adjustedPitch * 100.0;
     pitchOutputFactor_ = voiceRegion_->sample_rate / (tsf_timecents2Secsd(voiceRegion_->pitch_keycenter * 100.0) * getChannelConfiguration().getAudioOutSampleRate());
   }
@@ -1454,6 +1448,15 @@ SoundFontVoice::render(int numSamples) {
     // comment on encodePosition()).
     auto dryGainMono = noteGain * ampenv_.getLevel();
 
+    // 0Uxx/0Dxx slide: the pitch ratio moves linearly across the whole call,
+    // sampled per sample inside this block (exactly 1 when no slide).
+    const int block_start = totalSamples - numSamples - blockSamples;
+    const float slide_span = static_cast<float>(totalSamples);
+    const float slide_a = getSlideRatioStart() + (getSlideRatioEnd() - getSlideRatioStart()) * static_cast<float>(block_start) / slide_span;
+    const float slide_b = getSlideRatioStart() + (getSlideRatioEnd() - getSlideRatioStart()) * static_cast<float>(block_start + blockSamples) / slide_span;
+    double slide = slide_a;
+    const double slide_step = blockSamples > 0 ? static_cast<double>(slide_b - slide_a) / blockSamples : 0.0;
+
     // Silence-kill threshold: a long-tailed release (common for GM pad/
     // string patches) can sit well below audibility for most of its
     // authored duration, still consuming full render cost every block. Only
@@ -1516,7 +1519,8 @@ SoundFontVoice::render(int numSamples) {
       dryGainMono += dryGainStep;
 
       // Next sample.
-      sourceSamplePosition_ += pitchRatio;
+      sourceSamplePosition_ += pitchRatio * slide;
+      slide += slide_step;
       if (sourceSamplePosition_ >= loopEndDbl && isLooping) sourceSamplePosition_ -= (loopEnd_ - loopStart_ + 1.0);
     }
     

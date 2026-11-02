@@ -66,23 +66,32 @@ class InstrumentVoice : public PositionedVoice {
 
   bool isActive() const override { return freq_ != 0.0f; }
 
-  // Cumulative slide offset (0Uxx/0Dxx), in cents on top of the note and
-  // its fine-tune; starts at 0 with each new voice.
-  void adjustPitchCents(float cents) override {
-    VoiceState::adjustPitchCents(cents);
-    slide_cents_ += cents;
-    slide_ratio_ = std::exp2(slide_cents_ / 1200.0f);
+  // 0Uxx/0Dxx slide: the pitch offset (cents, relative to where this voice
+  // started) at the chunk's first and last sample. The first call sets the
+  // origin, so a note started mid-slide begins at its own pitch.
+  void setPitchRamp(double start_cents, double end_cents) override {
+    VoiceState::setPitchRamp(start_cents, end_cents);
+    if (!slide_origin_set_) {
+      slide_origin_ = start_cents;
+      slide_origin_set_ = true;
+    }
+    slide_ratio_start_ = std::exp2(static_cast<float>(start_cents - slide_origin_) / 1200.0f);
+    slide_ratio_end_ = std::exp2(static_cast<float>(end_cents - slide_origin_) / 1200.0f);
   }
 
 protected:
   double getSourceSamplePosition() const { return sourceSamplePosition_; }
 
   inline void stepForward(int frames) {
-    sourceSamplePosition_ += getFrequency() * frames;
+    // The increment ramps linearly across the chunk, so the mean is exact.
+    sourceSamplePosition_ += 0.5 * (static_cast<double>(getFrequency()) + static_cast<double>(getFrequencyEnd())) * frames;
   }
 
-  float getFrequency() const { return freq_ * slide_ratio_; }
-  float getSlideCents() const { return slide_cents_; }
+  // The frequency at the chunk's first sample, and at its last.
+  float getFrequency() const { return freq_ * slide_ratio_start_; }
+  float getFrequencyEnd() const { return freq_ * slide_ratio_end_; }
+  float getSlideRatioStart() const { return slide_ratio_start_; }
+  float getSlideRatioEnd() const { return slide_ratio_end_; }
   float getDetune() const { return detune_; }
 
   double sourceSamplePosition_;
@@ -90,8 +99,9 @@ protected:
 private:
   float freq_ = 0.0f;
   float detune_;
-  float slide_cents_ = 0.0f;
-  float slide_ratio_ = 1.0f;
+  double slide_origin_ = 0.0;
+  bool slide_origin_set_ = false;
+  float slide_ratio_start_ = 1.0f, slide_ratio_end_ = 1.0f;
 };
 
 #endif

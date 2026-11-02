@@ -206,11 +206,13 @@ class VoiceState : public TreeNode<VoiceState> {
     }
   }
 
-  // 0Uxx/0Dxx pitch slide: adds `cents` to the voice's cumulative slide
-  // offset (InstrumentVoice overrides; groups recurse to their leaves).
-  virtual void adjustPitchCents(float cents) {
+  // 0Uxx/0Dxx pitch slide: the track's absolute slide position in cents at
+  // the first and the last sample of the coming chunk. The voice's own
+  // offset is relative to the position it was started at (InstrumentVoice
+  // overrides; groups recurse to their leaves).
+  virtual void setPitchRamp(double start_cents, double end_cents) {
     for (auto & [id, child] : getChildren()) {
-      child->adjustPitchCents(cents);
+      child->setPitchRamp(start_cents, end_cents);
     }
   }
 
