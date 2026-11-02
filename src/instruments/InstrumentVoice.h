@@ -4,6 +4,8 @@
 #include "../state/PositionedVoice.h"
 #include "../dsp/HashField.h"
 
+#include <cmath>
+
 namespace {
 // Fixed compile-time seed, not drawn from any shared sequence - matches
 // SoundFont.cpp's kPercussionJitterSeed/bus/GranularCloud.cpp's
@@ -64,14 +66,23 @@ class InstrumentVoice : public PositionedVoice {
 
   bool isActive() const override { return freq_ != 0.0f; }
 
+  // Cumulative slide offset (0Uxx/0Dxx), in cents on top of the note and
+  // its fine-tune; starts at 0 with each new voice.
+  void adjustPitchCents(float cents) override {
+    VoiceState::adjustPitchCents(cents);
+    slide_cents_ += cents;
+    slide_ratio_ = std::exp2(slide_cents_ / 1200.0f);
+  }
+
 protected:
   double getSourceSamplePosition() const { return sourceSamplePosition_; }
 
   inline void stepForward(int frames) {
-    sourceSamplePosition_ += freq_ * frames;
+    sourceSamplePosition_ += getFrequency() * frames;
   }
 
-  float getFrequency() const { return freq_; }
+  float getFrequency() const { return freq_ * slide_ratio_; }
+  float getSlideCents() const { return slide_cents_; }
   float getDetune() const { return detune_; }
 
   double sourceSamplePosition_;
@@ -79,6 +90,8 @@ protected:
 private:
   float freq_ = 0.0f;
   float detune_;
+  float slide_cents_ = 0.0f;
+  float slide_ratio_ = 1.0f;
 };
 
 #endif

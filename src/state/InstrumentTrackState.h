@@ -101,8 +101,22 @@ public:
 	  if (it != pending_azimuth.end() && it->first - i < render_size) render_size = it->first - i;
 	}
 
-	chunks.emplace_back(i, renderVoices(render_size));
-	i += render_size;
+        auto & pending_slides = context.getPendingPitchSlides(getTrackId());
+        if (!pending_slides.empty()) {
+          auto it = pending_slides.begin();
+          assert(i <= it->first);
+          if (i == it->first) {
+            for (auto & slide : it->second) {
+              if (slide.frames > 0 && slide.cents != 0.0f) pitch_slides_.push_back({slide.cents / static_cast<float>(slide.frames), slide.frames});
+            }
+            it = pending_slides.erase(it);
+          }
+          if (it != pending_slides.end() && it->first - i < render_size) render_size = it->first - i;
+        }
+
+        advancePitchSlides(render_size);
+        chunks.emplace_back(i, renderVoices(render_size));
+        i += render_size;
       }
     }
 
@@ -330,11 +344,34 @@ protected:
   }
 
 private:
-  int instrument_id_;
-  SpatialMode spatial_mode_ = SpatialMode::AUTO;
-  std::unordered_map<int, float> column_pressure_;
-  // The note being started by render() right now, for noteOn() to read.
-  NoteOverride note_override_;
+ // Moves every sounding voice along the in-flight 0Uxx/0Dxx slides by this
+ // chunk's share, so the pitch ramps linearly per audio chunk.
+ void advancePitchSlides(int frames) {
+   float cents = 0.0f;
+   for (auto & slide : pitch_slides_) {
+     int n = std::min(frames, slide.remaining);
+     cents += slide.cents_per_frame * static_cast<float>(n);
+     slide.remaining -= n;
+   }
+   pitch_slides_.erase(std::remove_if(pitch_slides_.begin(), pitch_slides_.end(), [](const PitchSlideRamp & s) { return s.remaining <= 0; }), pitch_slides_.end());
+   if (cents == 0.0f) return;
+   for (auto & [column, voices] : voices_) {
+     for (auto & voice : voices)
+       if (voice->isActive()) voice->adjustPitchCents(cents);
+   }
+ }
+
+ struct PitchSlideRamp {
+   float cents_per_frame;
+   int remaining;
+ };
+ std::vector<PitchSlideRamp> pitch_slides_;
+
+ int instrument_id_;
+ SpatialMode spatial_mode_ = SpatialMode::AUTO;
+ std::unordered_map<int, float> column_pressure_;
+ // The note being started by render() right now, for noteOn() to read.
+ NoteOverride note_override_;
 };
 
 #endif

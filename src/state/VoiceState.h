@@ -202,6 +202,14 @@ class VoiceState : public TreeNode<VoiceState> {
     }
   }
 
+  // 0Uxx/0Dxx pitch slide: adds `cents` to the voice's cumulative slide
+  // offset (InstrumentVoice overrides; groups recurse to their leaves).
+  virtual void adjustPitchCents(float cents) {
+    for (auto & [id, child] : getChildren()) {
+      child->adjustPitchCents(cents);
+    }
+  }
+
   // Send Main/A/B (InstrumentTrackState::setSendMain()/setSendA()/
   // setSendB(), the Launchpad/UI Send knobs) pushed to every already-
   // sounding voice, not just future notes - unlike adjustAzimuth() above,

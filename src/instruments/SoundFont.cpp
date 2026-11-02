@@ -1067,6 +1067,11 @@ class SoundFontVoice : public InstrumentVoice {
   }
   float getChannelPressure() const override { return sf2_channel_pressure_; }
 
+  void adjustPitchCents(float cents) override {
+    InstrumentVoice::adjustPitchCents(cents);
+    if (voiceRegion_) calcPitchRatio(0);
+  }
+
   AudioBuffer render(int numSamples) override;
   
   void killNote() override {
@@ -1085,7 +1090,7 @@ class SoundFontVoice : public InstrumentVoice {
     // SoundFontVoice's own isActive() (which does NOT consult children)
     // goes false and clearFinishedVoices() reaps the whole subtree anyway.
     // Same recursion precedent as applyChannelPressure() below.
-    VoiceState::killNote();
+    VoiceState::killNote(); // NOLINT(bugprone-parent-virtual-call): skips InstrumentVoice::killNote on purpose
   }
 
   void stopNote() override {
@@ -1119,7 +1124,7 @@ class SoundFontVoice : public InstrumentVoice {
     // today), so a child put into RELEASE via stopNote() would sit there
     // forever, never reaching DONE. Jumping straight to DONE is the only
     // way this child ever reports itself inactive at all.
-    VoiceState::killNote();
+    VoiceState::killNote(); // NOLINT(bugprone-parent-virtual-call): skips InstrumentVoice::killNote on purpose
   }
 
   // Reclaims this voice quickly without a hard cut - see VoiceState::
@@ -1154,7 +1159,7 @@ class SoundFontVoice : public InstrumentVoice {
     // advances via process(), never called on children, so it must be
     // jumped straight to DONE rather than put into a RELEASE it can never
     // finish on its own.
-    VoiceState::killNote();
+    VoiceState::killNote(); // NOLINT(bugprone-parent-virtual-call): skips InstrumentVoice::killNote on purpose
   }
 
   // Every distinct non-zero SF2 exclusive class (region.group) this
@@ -1171,6 +1176,7 @@ class SoundFontVoice : public InstrumentVoice {
     auto note = apparentPlayingKey_ + voiceRegion_->transpose + voiceRegion_->tune / 100.0;
     auto adjustedPitch = voiceRegion_->pitch_keycenter + (note - voiceRegion_->pitch_keycenter) * (voiceRegion_->pitch_keytrack / 100.0);
     if (pitchShift) adjustedPitch += pitchShift;
+    adjustedPitch += getSlideCents() / 100.0; // 0Uxx/0Dxx slide
     pitchInputTimecents_ = adjustedPitch * 100.0;
     pitchOutputFactor_ = voiceRegion_->sample_rate / (tsf_timecents2Secsd(voiceRegion_->pitch_keycenter * 100.0) * getChannelConfiguration().getAudioOutSampleRate());
   }
