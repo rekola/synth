@@ -223,3 +223,41 @@ TEST(pitch_slide_ends_at_the_end_of_its_row_inside_a_longer_block) {
   }
   CHECK(held > 50);
 }
+
+// A note delayed into the slide's row glides at the row's rate from its own
+// pitch, so it gets only the rest of the amount (half, for a half-row delay).
+TEST(pitch_slide_gives_a_delayed_note_only_the_rest_of_the_row) {
+  Song song;
+  song.addInstrument(make_unique<Oscillator>(WaveformType::SINE));
+  auto & track = song.addTrack(make_unique<InstrumentTrack>(0));
+  auto arrangement = song.getArrangement();
+  Note note(240, 100);
+  note.setDelay(0x80); // half a row
+  arrangement.setNote(0, track.getInternalId(), 0, note);
+  arrangement.setCommand(0, track.getInternalId(), Command("0UFF"));
+
+  ChannelConfiguration config(44100, 1);
+  auto mixer = createMixer(config, MixerType::AMBISONIC_STEREO);
+  SongState state(config);
+  state.initialize(song);
+  state.setIsPlaying(true);
+
+  int row = config.getSampleInterval(song.getTempo());
+  state.renderBlock(2 * row - 1, song, *mixer);
+  auto out = mixer->encode();
+  const float * left = out.getChannelData(0);
+  vector<double> times;
+  for (int i = 1; i < out.numberOfFrames(); i++) {
+    if (left[i - 1] < 0 && left[i] >= 0) times.push_back(i - 1 + static_cast<double>(-left[i - 1]) / static_cast<double>(left[i] - left[i - 1]));
+  }
+  CHECK(times.size() > 8);
+  double f_first = 44100.0 / (times[1] - times[0]);
+  double f_end = f_first * exp2(0.5 * (255.0 / 16.0) / 31.0);
+  int held = 0;
+  for (size_t k = 0; k + 1 < times.size(); k++) {
+    if (times[k] < row + 50) continue;
+    held++;
+    CHECK(fabs(44100.0 / (times[k + 1] - times[k]) / f_end - 1.0) < 0.015);
+  }
+  CHECK(held > 50);
+}
