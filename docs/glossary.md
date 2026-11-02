@@ -111,25 +111,28 @@ sense. The names are the author’s own; the chords have no settled
 name in the just-intonation literature. See otonal and utonal.
 
 **Otonal and utonal**
-Two 7-note scales that mirror each other around the tonic. Both are
-given here on C. Otonal (1/1 7/6 5/4 4/3 3/2 5/3 7/4, on C: C D♯ E F G
-A A♯): all seven are harmonics (12, 14, 15, 16, 18, 20, 21) of one low
-fundamental, so the scale is otonal in Harry Partch’s sense. Note that
-the fundamental is not the tonic but the note a fifth below it (F for
-C otonal): the tonic sits on identity 3, not 1. It holds the 4:5:6:7
-chords C E G A♯ and F A C D♯, pure major triads on C and F, and a pure
-minor triad on A. Utonal (1/1 8/7 6/5 4/3 3/2 8/5 12/7, on C: C E𝄫 E♭
-F G A♭ B𝄫) is the otonal scale turned upside down: all seven are
-undertones of one high fundamental, a twelfth above the tonic (G for C
-utonal). It holds the 1/7:1/6:1/5:1/4 chords E𝄫 F A♭ C and B𝄫 C E♭ G,
-pure minor triads on C and F, and a pure major triad on A♭. Neither
-scale has a major or minor triad on every degree, but the gaps are
-filled by narrow triads (see narrow major and narrow minor), which
-divide the fourth instead of the fifth. Partch’s Otonalities and
-Utonalities are six-note chords over the odd identities 1, 3, 5, 7, 9
-and 11; these scales drop 11 and add 15 and 21, and are the
-author’s own. Their chords are tabled in
-[otonal-and-utonal.md](otonal-and-utonal.md).
+Two scales that mirror each other around the tonic, built by dividing
+intervals at their arithmetic and harmonic means. Both are given here
+on C. Dividing the octave C–C′ gives G (arithmetic mean) and F
+(harmonic mean); dividing each new note’s interval to the nearer of C
+and C′ gives four notes a step, of which the superparticular results
+are kept. Otonal keeps the arithmetic means. Its 7-note form is 1/1
+7/6 5/4 4/3 3/2 5/3 7/4, on C: C D♯ E F G A A♯↑, all harmonics (12,
+14, 15, 16, 18, 20, 21) of one fundamental, so the scale is otonal in
+Harry Partch’s sense; the fundamental is not the tonic but the note a
+fifth below it (F for C otonal), the tonic sitting on identity 3. Its
+chords are the two 4:5:6:7 chords C E G A♯↑ and F A C D♯, each read
+from every one of its notes, so that every degree has a chord and
+every chord contains the tonic; the major triad 4:5:6 and the narrow
+major triad 6:7:8 are these chords with a note removed. Utonal keeps
+the harmonic means and is the otonal scale turned upside down: 1/1 8/7
+6/5 4/3 3/2 8/5 12/7, on C: C E𝄫 E♭ F G A♭ B𝄫, undertones of the note
+a twelfth above the tonic (G for C utonal). Its chords are the
+mirrors, E𝄫 F A♭ C and B𝄫 C E♭ G (1/7:1/6:1/5:1/4), with the minor and
+narrow minor triads as their subsets. A further step of divisions
+extends both scales to 11 notes. Partch’s Otonalities and Utonalities
+are chords, not scales; these scales and their chords are the author’s
+own. Their chords are tabled in otonal-and-utonal.md.
 
 **Performance effect**
 An effect held on a track from the Launchpad's Custom grid (stutter,
