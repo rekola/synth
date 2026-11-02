@@ -69,6 +69,7 @@ TEST(pitch_slide_up_and_down_shift_the_held_note_by_the_given_steps) {
 }
 
 #include "../src/instruments/OscillatorKernel.h"
+#include "../src/instruments/PitchDrift.h"
 #include "../src/instruments/OscillatorVoice.h"
 #include "../src/ambisonic/SphericalPosition.h"
 
@@ -330,4 +331,25 @@ TEST(pitch_slide_moves_a_percussion_hit) {
   double f_first = 44100.0 / (times[1] - times[0]);
   double f_last = 44100.0 / (times.back() - times[times.size() - 2]);
   CHECK(f_last > 1.4 * f_first); // 255/16 steps of 12-EDO is over an octave
+}
+
+// A drifting oscillator under a slide scales its wander by the pitch it has
+// at each moment, not the block's starting pitch.
+TEST(oscillator_kernel_drift_phase_follows_the_sliding_rate) {
+  const int frames = 2000;
+  const double rate = 0.05, slope = 2e-5;
+  PitchDriftClock clock(400.0);
+  PitchDriftMember member(7, 50.0f);
+  std::vector<PitchDriftPoint> points;
+  for (size_t g = 0; g <= oscillator_kernel::paddedFrames(frames) / dsp::kLanes; g++) points.push_back(clock.at(g * dsp::kLanes));
+  points.back() = clock.at(frames);
+  std::vector<float> out(oscillator_kernel::paddedFrames(frames), 0.0f);
+  double got = oscillator_kernel::mix(WaveformType::SINE, 0.5f, 0.0, rate, 1.0f, frames, out.data(), &member, points.data(), slope);
+
+  PitchDriftMember reference(7, 50.0f);
+  auto term = [&](int n) { return (rate + slope * n) * reference.deviation(clock.at(static_cast<uint64_t>(n))); };
+  double expected = 0.0;
+  for (int n = 0; n < frames; n++) expected += 0.5 * (term(n) + term(n + 1));
+  CHECK(fabs(expected) > 0.05); // the wander matters here
+  CHECK(fabs(got - expected) < 2e-3);
 }

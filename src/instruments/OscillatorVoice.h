@@ -208,10 +208,10 @@ public:
       for (auto & member : buckets_[b].members) {
 	const double step = member.ratio * rate;
         const double slope = member.ratio * rate_slope;
-        oscillator_kernel::mix(type_, pulse_width_, member.phase, step, member.level, frames, row, &member.drift, drifting ? drift_points_.data() : nullptr, slope);
+        const double drift_phase = oscillator_kernel::mix(type_, pulse_width_, member.phase, step, member.level, frames, row, &member.drift, drifting ? drift_points_.data() : nullptr, slope);
         member.phase += step * frames + 0.5 * slope * frames * frames;
-        if (drifting && member.drift.active()) member.phase += step * (member.drift.integral(drift_points_[groups]) - member.drift.integral(drift_points_[0]));
-	member.phase -= std::floor(member.phase);
+        if (drifting && member.drift.active()) member.phase += drift_phase;
+        member.phase -= std::floor(member.phase);
       }
     }
 

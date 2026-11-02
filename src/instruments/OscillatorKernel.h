@@ -28,7 +28,8 @@ inline size_t paddedFrames(int frames) {
 // exact phase integral and plays at its instantaneous rate, so the result
 // doesn't depend on how the block was cut. `rate_slope` is the change of
 // `rate` per sample (a pitch slide): the phase is the exact integral of it.
-void mix(WaveformType type, float pulse_width, double phase, double rate, float level, int frames, float * out, PitchDriftMember * drift = nullptr, const PitchDriftPoint * points = nullptr, double rate_slope = 0.0);
+// Returns the drift's phase over the whole block (cycles; 0 without drift).
+double mix(WaveformType type, float pulse_width, double phase, double rate, float level, int frames, float * out, PitchDriftMember * drift = nullptr, const PitchDriftPoint * points = nullptr, double rate_slope = 0.0);
 }
 
 #endif
