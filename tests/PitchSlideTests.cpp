@@ -187,3 +187,39 @@ TEST(fm_pitch_ramp_is_continuous_across_chunks) {
   }
   CHECK(worst < 1e-3f);
 }
+
+// A slide ends where its row does, even inside a longer block: the glide
+// must not stretch to the end of the block.
+TEST(pitch_slide_ends_at_the_end_of_its_row_inside_a_longer_block) {
+  Song song;
+  song.addInstrument(make_unique<Oscillator>(WaveformType::SINE));
+  auto & track = song.addTrack(make_unique<InstrumentTrack>(0));
+  auto arrangement = song.getArrangement();
+  arrangement.setNote(0, track.getInternalId(), 0, Note(240, 100));
+  arrangement.setCommand(0, track.getInternalId(), Command("0UFF"));
+
+  ChannelConfiguration config(44100, 1);
+  auto mixer = createMixer(config, MixerType::AMBISONIC_STEREO);
+  SongState state(config);
+  state.initialize(song);
+  state.setIsPlaying(true);
+
+  int row = config.getSampleInterval(song.getTempo());
+  state.renderBlock(2 * row - 1, song, *mixer); // the slide row and almost the next, one block
+  auto out = mixer->encode();
+  const float * left = out.getChannelData(0);
+  vector<double> times;
+  for (int i = 1; i < out.numberOfFrames(); i++) {
+    if (left[i - 1] < 0 && left[i] >= 0) times.push_back(i - 1 + static_cast<double>(-left[i - 1]) / static_cast<double>(left[i] - left[i - 1]));
+  }
+  CHECK(times.size() > 8);
+  double f_first = 44100.0 / (times[1] - times[0]);
+  double f_end = f_first * exp2((255.0 / 16.0) / 31.0);
+  int held = 0;
+  for (size_t k = 0; k + 1 < times.size(); k++) {
+    if (times[k] < row + 50) continue; // after the slide row
+    held++;
+    CHECK(fabs(44100.0 / (times[k + 1] - times[k]) / f_end - 1.0) < 0.01);
+  }
+  CHECK(held > 50);
+}

@@ -114,6 +114,10 @@ public:
           if (it != pending_slides.end() && it->first - i < render_size) render_size = it->first - i;
         }
 
+        // A running slide ends exactly where its row does, so cut the chunk
+        // there: the voices interpolate over a whole chunk.
+        for (auto & slide : pitch_slides_) render_size = std::min(render_size, slide.length - slide.elapsed);
+
         advancePitchSlides(render_size);
         chunks.emplace_back(i, renderVoices(render_size));
         i += render_size;
