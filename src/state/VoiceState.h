@@ -30,6 +30,14 @@ class VoiceState : public TreeNode<VoiceState> {
   }
 
  protected:
+  // Kills only the children, for a voice whose own killNote() has nothing
+  // else of the base's to do.
+  void killChildren() {
+    for (auto & [id, child] : getChildren()) {
+      child->killNote();
+    }
+  }
+
   // Gathers children into an accumulator of `accumulator_config`'s shape
   // rather than always this node's own getChannelConfiguration() - used
   // directly (not through the render() override above) by ChorusVoiceState/
@@ -101,11 +109,7 @@ class VoiceState : public TreeNode<VoiceState> {
     }
   }
 
-  virtual void killNote() {
-    for (auto & [ id, child ] : getChildren()) {
-      child->killNote();
-    }
-  }
+  virtual void killNote() { killChildren(); }
 
   // Reclaim a voice quickly without a hard cut - used by
   // InstrumentTrackState::retriggerVoices()/chokeExclusiveClasses() (see
