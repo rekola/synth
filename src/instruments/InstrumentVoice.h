@@ -83,8 +83,11 @@ protected:
   double getSourceSamplePosition() const { return sourceSamplePosition_; }
 
   inline void stepForward(int frames) {
-    // The increment ramps linearly across the chunk, so the mean is exact.
-    sourceSamplePosition_ += 0.5 * (static_cast<double>(getFrequency()) + static_cast<double>(getFrequencyEnd())) * frames;
+    // The increment of sample k is f0 + (f1 - f0) * k / frames (it reaches f1
+    // at the next chunk's first sample), so the chunk covers exactly the sum
+    // of that over k < frames - the position the next chunk must start from.
+    const double f0 = static_cast<double>(getFrequency()), f1 = static_cast<double>(getFrequencyEnd());
+    sourceSamplePosition_ += f0 * frames + (f1 - f0) * 0.5 * (frames - 1);
   }
 
   // The frequency at the chunk's first sample, and at its last.

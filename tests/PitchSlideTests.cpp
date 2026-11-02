@@ -148,3 +148,42 @@ TEST(pitch_slide_is_smooth_within_one_chunk) {
     }
   }
 }
+
+#include "../src/instruments/FM.h"
+
+// FM keeps its phase across chunks: one ramp over 2N samples equals the same
+// ramp cut in two pieces (each piece ending at the next one's first
+// increment), sample for sample.
+TEST(fm_pitch_ramp_is_continuous_across_chunks) {
+  ChannelConfiguration config(44100, 1);
+  FM fm;
+  auto make = [&]() {
+    auto voice = fm.playNote(config, SphericalPosition{0.0f, 1.0f, 0}, SpatialMode::AUTO, Tuning::EDO12, 1.0f, 0.8f, 69, SendLevels{}, NoteCoordinate{});
+    return voice;
+  };
+  const int n = 512;
+  const double cents_per_ratio = 1200.0 / std::log(2.0);
+  auto cents = [&](double ratio) { return cents_per_ratio * std::log(ratio); };
+  // Frequency ratio rising linearly 1 -> 1.5 over 2n samples.
+  auto ratio_at = [&](int k) { return 1.0 + 0.5 * k / (2.0 * n); };
+
+  auto whole = make();
+  whole->setPitchRamp(0.0, 0.0);
+  whole->setPitchRamp(cents(ratio_at(0)), cents(ratio_at(2 * n)));
+  auto a = whole->render(2 * n);
+
+  auto cut = make();
+  cut->setPitchRamp(0.0, 0.0);
+  cut->setPitchRamp(cents(ratio_at(0)), cents(ratio_at(n)));
+  auto b1 = cut->render(n);
+  cut->setPitchRamp(cents(ratio_at(n)), cents(ratio_at(2 * n)));
+  auto b2 = cut->render(n);
+
+  const float * wa = a.getChannelData(0);
+  float worst = 0.0f;
+  for (int i = 0; i < n; i++) {
+    worst = max(worst, fabsf(wa[i] - b1.getChannelData(0)[i]));
+    worst = max(worst, fabsf(wa[n + i] - b2.getChannelData(0)[i]));
+  }
+  CHECK(worst < 1e-3f);
+}

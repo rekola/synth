@@ -53,6 +53,7 @@ public:
     if (instrument) {
       auto & pending_events = context.getPendingEvents(getTrackId());
       auto & pending_azimuth = context.getPendingAzimuthTicks(getTrackId());
+      auto & pending_slides = context.getPendingPitchSlides(getTrackId());
 
       for (int i = 0; i < frames; ) {
 	int render_size = frames - i;
@@ -101,7 +102,6 @@ public:
 	  if (it != pending_azimuth.end() && it->first - i < render_size) render_size = it->first - i;
 	}
 
-        auto & pending_slides = context.getPendingPitchSlides(getTrackId());
         if (!pending_slides.empty()) {
           auto it = pending_slides.begin();
           assert(i <= it->first);
