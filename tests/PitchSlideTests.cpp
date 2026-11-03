@@ -406,7 +406,7 @@ TEST(pitch_glide_moves_a_sounding_note_to_the_target_and_holds) {
   auto out = renderGlideRows([](auto & arrangement, int id) {
     arrangement.setNote(1, id, 0, Note(244, 100));
     arrangement.setCommand(1, id, Command("0G20"));
-    arrangement.setCommand(2, id, Command("0G20"));
+    arrangement.setCommand(2, id, Command("0G00")); // repeats the last rate
   },
                              row);
   double f0 = frequencyBetween(out, 100, row - 100);
@@ -417,7 +417,7 @@ TEST(pitch_glide_moves_a_sounding_note_to_the_target_and_holds) {
   CHECK(mid > f0 * 1.003 && mid < f0 * exp2(2.0 / 31.0));
 }
 
-// No memory: the glide moves only on rows that carry it.
+// The glide moves only on rows that carry it.
 TEST(pitch_glide_stops_on_the_first_row_without_it) {
   int row = 0;
   auto out = renderGlideRows([](auto & arrangement, int id) {
@@ -457,4 +457,125 @@ TEST(pitch_glide_with_nothing_sounding_plays_the_note) {
   },
                              row);
   CHECK(frequencyBetween(out, 100, row - 100) > 1000.0);
+}
+
+// G00 with no rate issued before does nothing: the row's note just plays.
+TEST(pitch_glide_g00_without_an_earlier_rate_does_nothing) {
+  int row = 0;
+  auto out = renderGlideRows([](auto & arrangement, int id) {
+    arrangement.setNote(1, id, 0, Note(244, 100));
+    arrangement.setCommand(1, id, Command("0G00"));
+  },
+                             row);
+  double f0 = frequencyBetween(out, 100, row - 100);
+  // Played at once, not glided: the new pitch is there from the start of its row.
+  double in_row = frequencyBetween(out, row + 100, 2 * row - 100);
+  CHECK_NEAR(static_cast<float>(in_row / f0), exp2f(4.0f / 31.0f), 0.01f);
+}
+
+// G00 carries a slow glide over several rows (one step a row, four steps away).
+TEST(pitch_glide_g00_carries_a_long_glide_over_rows) {
+  int row = 0;
+  auto out = renderGlideRows([](auto & arrangement, int id) {
+    arrangement.setNote(1, id, 0, Note(244, 100));
+    arrangement.setCommand(1, id, Command("0G10"));
+    arrangement.setCommand(2, id, Command("0G00"));
+    arrangement.setCommand(3, id, Command("0G00"));
+  },
+                             row);
+  double f0 = frequencyBetween(out, 100, row - 100);
+  double end = frequencyBetween(out, 3 * row + 3 * row / 4, 4 * row - 100); // last quarter: 3 steps in
+  CHECK(end > f0 * exp2(2.5 / 31.0) && end < f0 * exp2(3.2 / 31.0));
+}
+
+// The target's tuning correction (+hh/-hh fx, as just intonation writes it) is
+// part of the pitch the glide lands on.
+TEST(pitch_glide_lands_on_the_target_notes_tuning_correction) {
+  int row = 0;
+  auto out = renderGlideRows([](auto & arrangement, int id) {
+    Note target(244, 100);
+    target.setTuningCorrection(80); // 80 cents sharp
+    arrangement.setNote(1, id, 0, target);
+    arrangement.setCommand(1, id, Command("0G80")); // eight steps a row: the 235 cents arrive within the row
+  },
+                             row);
+  double f0 = frequencyBetween(out, 100, row - 100);
+  double held = frequencyBetween(out, 3 * row + 100, 4 * row - 100);
+  CHECK_NEAR(static_cast<float>(held / f0), exp2f(4.0f / 31.0f + 80.0f / 1200.0f), 0.01f);
+}
+
+namespace {
+// Power of the left channel at `hz` over [from, to) (Goertzel).
+double powerAt(const AudioBuffer & out, int from, int to, double hz) {
+  const float * left = out.getChannelData(0);
+  const double w = 2.0 * M_PI * hz / 44100.0, c = 2.0 * cos(w);
+  double s1 = 0.0, s2 = 0.0;
+  for (int i = from; i < to; i++) {
+    double s = left[i] + c * s1 - s2;
+    s2 = s1;
+    s1 = s;
+  }
+  return s1 * s1 + s2 * s2 - c * s1 * s2;
+}
+
+// Two note columns an octave-and-a-bit apart: 240 (1760 Hz) and 271 (3520 Hz).
+template <typename F>
+AudioBuffer renderTwoColumns(F setup, int & row_samples) {
+  Song song;
+  song.addInstrument(make_unique<Oscillator>(WaveformType::SINE));
+  auto & track = song.addTrack(make_unique<InstrumentTrack>(0));
+  auto arrangement = song.getArrangement();
+  int id = track.getInternalId();
+  arrangement.setNote(0, id, 0, Note(240, 100));
+  arrangement.setNote(0, id, 1, Note(271, 100));
+  setup(arrangement, id);
+
+  ChannelConfiguration config(44100, 1);
+  auto mixer = createMixer(config, MixerType::AMBISONIC_STEREO);
+  SongState state(config);
+  state.initialize(song);
+  state.setIsPlaying(true);
+  row_samples = config.getSampleInterval(song.getTempo());
+  state.renderBlock(4 * row_samples - 1, song, *mixer);
+  return mixer->encode();
+}
+} // namespace
+
+// Each note column glides by its own fx rate: column 0 one step a row, column 1
+// four. A row later neither moves, so the columns end a step and four steps up.
+TEST(pitch_glide_runs_separately_in_each_note_column) {
+  int row = 0;
+  auto out = renderTwoColumns([](auto & arrangement, int id) {
+    Note slow(244, 100), fast(275, 100);
+    slow.setFx("G10");
+    fast.setFx("G40");
+    arrangement.setNote(1, id, 0, slow);
+    arrangement.setNote(1, id, 1, fast);
+  },
+                              row);
+  const int from = 3 * row + 100, to = 4 * row - 100;
+  double slow_end = 1760.0 * exp2(1.0 / 31.0), slow_wrong = 1760.0 * exp2(4.0 / 31.0);
+  double fast_end = 3520.0 * exp2(4.0 / 31.0), fast_wrong = 3520.0 * exp2(1.0 / 31.0);
+  CHECK(powerAt(out, from, to, slow_end) > 10.0 * powerAt(out, from, to, slow_wrong));
+  CHECK(powerAt(out, from, to, fast_end) > 10.0 * powerAt(out, from, to, fast_wrong));
+}
+
+// G00 in the effect column carries each column on at the rate it last had.
+TEST(pitch_glide_g00_repeats_each_columns_own_rate) {
+  int row = 0;
+  auto out = renderTwoColumns([](auto & arrangement, int id) {
+    Note slow(244, 100), fast(275, 100);
+    slow.setFx("G10");
+    fast.setFx("G40");
+    arrangement.setNote(1, id, 0, slow);
+    arrangement.setNote(1, id, 1, fast);
+    arrangement.setCommand(2, id, Command("0G00"));
+  },
+                              row);
+  const int from = 3 * row + 100, to = 4 * row - 100;
+  // Column 0 had a second row at its slow rate (two steps in); column 1 was already there.
+  double slow_end = 1760.0 * exp2(2.0 / 31.0), slow_wrong = 1760.0 * exp2(1.0 / 31.0);
+  double fast_end = 3520.0 * exp2(4.0 / 31.0);
+  CHECK(powerAt(out, from, to, slow_end) > 10.0 * powerAt(out, from, to, slow_wrong));
+  CHECK(powerAt(out, from, to, fast_end) > 10.0 * powerAt(out, from, to, 3520.0 * exp2(2.0 / 31.0)));
 }

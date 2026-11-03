@@ -46,7 +46,7 @@ public:
     // no later note inherits a half-done glide.
     if (context.getTransportEpoch() != slide_epoch_) {
       slide_epoch_ = context.getTransportEpoch();
-      glide_frames_left_ = 0; // voices hold the pitch they have
+      for (auto & [column, rate] : glide_rates_) rate.frames_left = 0; // voices hold the pitch they have
       if (!pitch_slides_.empty()) {
         completed_slide_cents_ = slidePosition(0);
         pitch_slides_.clear();
@@ -136,16 +136,20 @@ public:
           assert(i <= it->first);
           if (i == it->first) {
             for (auto & glide : it->second) {
-              glide_cents_per_frame_ = glide.cents_per_frame;
-              glide_frames_left_ = glide.frames;
-              glide_instant_ = glide.instant;
-              if (glide.instant) jumpGlides();
+              // Column -1 is every column with a voice; a later entry for one
+              // column overrides it.
+              if (glide.column >= 0) {
+                setGlideRate(glide.column, glide);
+              } else {
+                for (auto & [column, voices] : voices_) setGlideRate(column, glide);
+              }
             }
             it = pending_glides.erase(it);
           }
           if (it != pending_glides.end() && it->first - i < render_size) render_size = it->first - i;
         }
-        if (glide_frames_left_ > 0) render_size = std::min(render_size, glide_frames_left_);
+        for (auto & [column, rate] : glide_rates_)
+          if (rate.frames_left > 0) render_size = std::min(render_size, rate.frames_left);
 
         // A running slide ends exactly where its row does, so cut the chunk
         // there: the voices interpolate over a whole chunk.
@@ -398,15 +402,19 @@ private:
    const double cents = 1200.0 * std::log2(static_cast<double>(getFrequencyFor(tuning, note_value)) / anchor->second.hz) + static_cast<double>(fine - anchor->second.fine_cents);
    target->setPitchGlideTarget(cents);
    glide_in_use_ = true;
-   if (glide_instant_ && glide_frames_left_ > 0) target->jumpPitchGlide();
+   setGlideRate(column, {column, note_override_.glide_cents_per_frame, note_override_.glide_frames, note_override_.glide_instant});
    return true;
  }
 
- void jumpGlides() {
-   for (auto & [column, voices] : voices_) {
-     for (auto & voice : voices)
-       if (voice->isActive()) voice->jumpPitchGlide();
-   }
+ // A column's glide rate from now on; an instant one lands the column's
+ // voices on their targets at once.
+ void setGlideRate(int column, const RenderContext::PitchGlide & glide) {
+   glide_rates_[column] = {glide.cents_per_frame, glide.frames, glide.instant};
+   if (!glide.instant) return;
+   auto voices = voices_.find(column);
+   if (voices == voices_.end()) return;
+   for (auto & voice : voices->second)
+     if (voice->isActive()) voice->jumpPitchGlide();
  }
 
  // Moves every voice toward its glide target for the coming chunk (the row's
@@ -414,16 +422,18 @@ private:
  // nothing sounds.
  void advancePitchGlides(int frames) {
    if (!glide_in_use_) return;
-   const double rate = glide_frames_left_ > 0 && !glide_instant_ ? static_cast<double>(glide_cents_per_frame_) : 0.0;
    bool any = false;
    for (auto & [column, voices] : voices_) {
+     auto found = glide_rates_.find(column);
+     const bool running = found != glide_rates_.end() && found->second.frames_left > 0 && !found->second.instant;
+     const double rate = running ? static_cast<double>(found->second.cents_per_frame) : 0.0;
      for (auto & voice : voices) {
        if (!voice->isActive()) continue;
        voice->advancePitchGlide(rate, frames);
        any = true;
      }
    }
-   glide_frames_left_ = std::max(0, glide_frames_left_ - frames);
+   for (auto & [column, rate] : glide_rates_) rate.frames_left = std::max(0, rate.frames_left - frames);
    if (!any) glide_in_use_ = false;
  }
 
@@ -432,9 +442,12 @@ private:
    float fine_cents;
  };
  std::unordered_map<int, GlideAnchor> glide_anchors_; // per column: the note its newest voice began on
- float glide_cents_per_frame_ = 0.0f;
- int glide_frames_left_ = 0;
- bool glide_instant_ = false;
+ struct GlideRate {
+   float cents_per_frame = 0.0f;
+   int frames_left = 0;
+   bool instant = false;
+ };
+ std::unordered_map<int, GlideRate> glide_rates_; // per column: how its glide moves, while its row lasts
  bool glide_in_use_ = false;
 
  // The slide position (cents) `extra` frames into the coming chunk: the

@@ -30,7 +30,13 @@
 // cents (a +hh / -hh fx).
 struct NoteOverride {
   bool has_azimuth = false, has_extent = false, has_detune = false;
-  bool has_glide = false; // the row carries 0Gxx: glide the column's sounding note here
+  // 0Gxx for this note's column: glide the column's sounding note here, at
+  // `glide_cents_per_frame` for the `glide_frames` left of the row (instantly
+  // when `glide_instant`).
+  bool has_glide = false;
+  float glide_cents_per_frame = 0;
+  int glide_frames = 0;
+  bool glide_instant = false;
   float azimuth = 0, extent = 0, detune_cents = 0;
 };
 
@@ -162,15 +168,17 @@ class RenderContext {
     return pending_pitch_slides_[track_id];
   }
 
-  // 0Gxx: from `frame`, sounding notes that have a glide target move toward
-  // it by `cents_per_frame` for `frames` frames (instantly when `instant`).
+  // 0Gxx: from `frame`, the sounding notes of `column` (-1: every column)
+  // that have a glide target move toward it by `cents_per_frame` for
+  // `frames` frames (instantly when `instant`).
   struct PitchGlide {
+    int column;
     float cents_per_frame;
     int frames;
     bool instant;
   };
-  void addPendingPitchGlide(int track_id, int frame, float cents_per_frame, int frames, bool instant) {
-    pending_pitch_glides_[track_id][frame].push_back({cents_per_frame, frames, instant});
+  void addPendingPitchGlide(int track_id, int frame, int column, float cents_per_frame, int frames, bool instant) {
+    pending_pitch_glides_[track_id][frame].push_back({column, cents_per_frame, frames, instant});
   }
   std::map<int, std::vector<PitchGlide> > & getPendingPitchGlides(int track_id) {
     return pending_pitch_glides_[track_id];
