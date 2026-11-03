@@ -151,6 +151,18 @@ class Command {
     return values_[1] == 'D' ? -magnitude : magnitude;
   }
 
+  // 0Gxx - glide the sounding note of a column to the note on this row (which
+  // is not retriggered) by `xx` sixteenths of a scale step per row; FF is
+  // instant. Like the slides it has no memory: it moves only on rows that
+  // carry it.
+  bool isPitchGlide() const { return values_[0] == '0' && values_[1] == 'G'; }
+  int getPitchGlideCode() const {
+    auto hi = digit(values_[2], 16), lo = digit(values_[3], 16);
+    return (hi < 0 ? 0 : hi) * 16 + (lo < 0 ? 0 : lo);
+  }
+  float getPitchGlideSteps() const { return static_cast<float>(getPitchGlideCode()) / 16.0f; }
+  bool isPitchGlideInstant() const { return getPitchGlideCode() == 0xFF; }
+
   // 0Rxy - retrigger the track's most recently played note every `y` ticks
   // (constants::TICKS_PER_ROW per row) for the rest of this row, changing
   // its velocity by `x` at each retrigger. `y` = 0 retriggers nothing.

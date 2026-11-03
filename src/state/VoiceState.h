@@ -216,6 +216,26 @@ class VoiceState : public TreeNode<VoiceState> {
     }
   }
 
+  // 0Gxx glide (InstrumentVoice overrides; groups recurse to their leaves).
+  // The target is in cents from the pitch the voice started at; each chunk
+  // the voice moves toward it by `cents_per_frame` (0 holds), and a jump
+  // lands on it at once.
+  virtual void setPitchGlideTarget(double cents) {
+    for (auto & [id, child] : getChildren()) {
+      child->setPitchGlideTarget(cents);
+    }
+  }
+  virtual void advancePitchGlide(double cents_per_frame, int frames) {
+    for (auto & [id, child] : getChildren()) {
+      child->advancePitchGlide(cents_per_frame, frames);
+    }
+  }
+  virtual void jumpPitchGlide() {
+    for (auto & [id, child] : getChildren()) {
+      child->jumpPitchGlide();
+    }
+  }
+
   // Send Main/A/B (InstrumentTrackState::setSendMain()/setSendA()/
   // setSendB(), the Launchpad/UI Send knobs) pushed to every already-
   // sounding voice, not just future notes - unlike adjustAzimuth() above,

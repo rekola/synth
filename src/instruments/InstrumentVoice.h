@@ -75,8 +75,31 @@ class InstrumentVoice : public PositionedVoice {
       slide_origin_ = start_cents;
       slide_origin_set_ = true;
     }
-    slide_ratio_start_ = std::exp2(static_cast<float>(start_cents - slide_origin_) / 1200.0f);
-    slide_ratio_end_ = std::exp2(static_cast<float>(end_cents - slide_origin_) / 1200.0f);
+    slide_start_cents_ = start_cents - slide_origin_;
+    slide_end_cents_ = end_cents - slide_origin_;
+    updateRatios();
+  }
+
+  // 0Gxx glide: the glide offset is separate from the slide offset and the
+  // two add. It moves a chunk at a time, linearly across the chunk.
+  void setPitchGlideTarget(double cents) override {
+    VoiceState::setPitchGlideTarget(cents);
+    glide_target_ = cents;
+  }
+  void advancePitchGlide(double cents_per_frame, int frames) override {
+    VoiceState::advancePitchGlide(cents_per_frame, frames);
+    const double distance = glide_target_ - glide_now_;
+    const double step = cents_per_frame * frames;
+    const double start = glide_now_;
+    if (step > 0.0 && distance != 0.0) glide_now_ = std::fabs(distance) <= step ? glide_target_ : glide_now_ + std::copysign(step, distance);
+    if (start == glide_start_ && glide_now_ == glide_end_) return;
+    glide_start_ = start;
+    glide_end_ = glide_now_;
+    updateRatios();
+  }
+  void jumpPitchGlide() override {
+    VoiceState::jumpPitchGlide();
+    glide_now_ = glide_target_;
   }
 
 protected:
@@ -93,6 +116,7 @@ protected:
   // The frequency at the chunk's first sample, and at its last.
   float getFrequency() const { return freq_ * slide_ratio_start_; }
   float getFrequencyEnd() const { return freq_ * slide_ratio_end_; }
+  // The pitch ratio (slide and glide) at the chunk's first and last sample.
   float getSlideRatioStart() const { return slide_ratio_start_; }
   float getSlideRatioEnd() const { return slide_ratio_end_; }
   float getDetune() const { return detune_; }
@@ -102,8 +126,15 @@ protected:
 private:
   float freq_ = 0.0f;
   float detune_;
+  void updateRatios() {
+    slide_ratio_start_ = std::exp2(static_cast<float>(slide_start_cents_ + glide_start_) / 1200.0f);
+    slide_ratio_end_ = std::exp2(static_cast<float>(slide_end_cents_ + glide_end_) / 1200.0f);
+  }
+
   double slide_origin_ = 0.0;
   bool slide_origin_set_ = false;
+  double slide_start_cents_ = 0.0, slide_end_cents_ = 0.0;
+  double glide_target_ = 0.0, glide_now_ = 0.0, glide_start_ = 0.0, glide_end_ = 0.0;
   float slide_ratio_start_ = 1.0f, slide_ratio_end_ = 1.0f;
 };
 
