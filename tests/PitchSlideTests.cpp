@@ -353,3 +353,108 @@ TEST(oscillator_kernel_drift_phase_follows_the_sliding_rate) {
   CHECK(fabs(expected) > 0.05); // the wander matters here
   CHECK(fabs(got - expected) < 2e-3);
 }
+
+// ---- 0Gxx glide ----
+
+TEST(pitch_glide_command_parses_rate_and_instant) {
+  Command half("0G08");
+  CHECK(half.isPitchGlide());
+  CHECK_NEAR(half.getPitchGlideSteps(), 0.5f, 1e-6f);
+  CHECK(!half.isPitchGlideInstant());
+  CHECK(Command("0GFF").isPitchGlideInstant());
+  CHECK(Command("0G00").getPitchGlideCode() == 0);
+  CHECK(!Command("0U10").isPitchGlide());
+}
+
+namespace {
+// Mean frequency of the left channel over [from, to), from rising zero crossings.
+double frequencyBetween(const AudioBuffer & out, int from, int to) {
+  const float * left = out.getChannelData(0);
+  vector<double> times;
+  for (int i = max(from, 1); i < to; i++) {
+    if (left[i - 1] < 0 && left[i] >= 0) times.push_back(i - 1 + static_cast<double>(-left[i - 1]) / static_cast<double>(left[i] - left[i - 1]));
+  }
+  if (times.size() < 3) return 0.0;
+  return 44100.0 * static_cast<double>(times.size() - 1) / (times.back() - times.front());
+}
+
+// Four rows of a sine: row 0 note 240 (31-EDO A6); the others from `setup`.
+template <typename F>
+AudioBuffer renderGlideRows(F setup, int & row_samples) {
+  Song song;
+  song.addInstrument(make_unique<Oscillator>(WaveformType::SINE));
+  auto & track = song.addTrack(make_unique<InstrumentTrack>(0));
+  auto arrangement = song.getArrangement();
+  int id = track.getInternalId();
+  arrangement.setNote(0, id, 0, Note(240, 100));
+  setup(arrangement, id);
+
+  ChannelConfiguration config(44100, 1);
+  auto mixer = createMixer(config, MixerType::AMBISONIC_STEREO);
+  SongState state(config);
+  state.initialize(song);
+  state.setIsPlaying(true);
+  row_samples = config.getSampleInterval(song.getTempo());
+  state.renderBlock(4 * row_samples - 1, song, *mixer);
+  return mixer->encode();
+}
+} // namespace
+
+// Two steps a row toward a note four steps up takes two rows, then holds.
+TEST(pitch_glide_moves_a_sounding_note_to_the_target_and_holds) {
+  int row = 0;
+  auto out = renderGlideRows([](auto & arrangement, int id) {
+    arrangement.setNote(1, id, 0, Note(244, 100));
+    arrangement.setCommand(1, id, Command("0G20"));
+    arrangement.setCommand(2, id, Command("0G20"));
+  },
+                             row);
+  double f0 = frequencyBetween(out, 100, row - 100);
+  double held = frequencyBetween(out, 3 * row + 100, 4 * row - 100);
+  CHECK_NEAR(static_cast<float>(held / f0), exp2f(4.0f / 31.0f), 0.01f);
+  // Midway through the glide it is between the two.
+  double mid = frequencyBetween(out, row + row / 4, row + 3 * row / 4);
+  CHECK(mid > f0 * 1.003 && mid < f0 * exp2(2.0 / 31.0));
+}
+
+// No memory: the glide moves only on rows that carry it.
+TEST(pitch_glide_stops_on_the_first_row_without_it) {
+  int row = 0;
+  auto out = renderGlideRows([](auto & arrangement, int id) {
+    arrangement.setNote(1, id, 0, Note(244, 100));
+    arrangement.setCommand(1, id, Command("0G10")); // one step a row
+  },
+                             row);
+  double f0 = frequencyBetween(out, 100, row - 100);
+  double after = frequencyBetween(out, 3 * row + 100, 4 * row - 100);
+  CHECK_NEAR(static_cast<float>(after / f0), exp2f(1.0f / 31.0f), 0.01f);
+}
+
+TEST(pitch_glide_ff_is_instant) {
+  int row = 0;
+  auto out = renderGlideRows([](auto & arrangement, int id) {
+    arrangement.setNote(1, id, 0, Note(244, 100));
+    arrangement.setCommand(1, id, Command("0GFF"));
+  },
+                             row);
+  double f0 = frequencyBetween(out, 100, row - 100);
+  double in_row = frequencyBetween(out, row + 100, 2 * row - 100);
+  CHECK_NEAR(static_cast<float>(in_row / f0), exp2f(4.0f / 31.0f), 0.01f);
+
+  // The note is not retriggered: the wave carries on without a phase jump.
+  const float * left = out.getChannelData(0);
+  float typical = 0.0f, at_boundary = 0.0f;
+  for (int i = 1; i < row - 1; i++) typical = max(typical, fabsf(left[i] - left[i - 1]));
+  for (int i = row - 3; i < row + 4; i++) at_boundary = max(at_boundary, fabsf(left[i] - left[i - 1]));
+  CHECK(at_boundary < 1.2f * typical);
+}
+
+// A glide row with nothing sounding plays the note as usual.
+TEST(pitch_glide_with_nothing_sounding_plays_the_note) {
+  int row = 0;
+  auto out = renderGlideRows([](auto & arrangement, int id) {
+    arrangement.setCommand(0, id, Command("0G10")); // on row 0, where the note starts
+  },
+                             row);
+  CHECK(frequencyBetween(out, 100, row - 100) > 1000.0);
+}

@@ -162,6 +162,13 @@ class SongState : public TrackState {
             float cents = command.getPitchSlideSteps() * 1200.0f / static_cast<float>(edo_steps);
             if (cents != 0.0f) render_context_.addPendingPitchSlide(track_id, frame_offset, cents, row_samples);
           }
+        } else if (command.isPitchGlide()) {
+          // The rate for this row; the notes carry the target (NoteOverride::has_glide).
+          int row_samples = getChannelConfiguration().getSampleInterval(tempo_);
+          if (edo_steps > 0 && row_samples > 0 && command.getPitchGlideCode() > 0) {
+            float cents_per_row = command.getPitchGlideSteps() * 1200.0f / static_cast<float>(edo_steps);
+            render_context_.addPendingPitchGlide(track_id, frame_offset, cents_per_row / static_cast<float>(row_samples), row_samples, command.isPitchGlideInstant());
+          }
         } else if (command.isAzimuthSlide()) {
           scheduleAzimuthSlide(track_id, frame_offset, command.getAzimuthSlidePerTick());
         } else if (command.isExtentSet()) {
@@ -576,7 +583,21 @@ class SongState : public TrackState {
 	    auto track = content.tracks->master->getChildByInternalId(track_id);
 	    auto tuning = track && track->getType() == TrackType::PERCUSSION_CONTROL ? Tuning::PERCUSSION : content.scalars.tuning;
 
-	    for (size_t j = 0; j < notes.size(); j++) {
+            // Whether this row carries a glide (0Gxx): a clip's own wins over the
+            // track's background, as with every command.
+            bool row_glides = false;
+            {
+              auto has_glide = [](const Pattern & pattern, int pattern_row) {
+                for (auto & command : pattern.getCommandsAt(pattern_row))
+                  if (command.isDefined() && command.isPitchGlide() && command.getPitchGlideCode() > 0) return true;
+                return false;
+              };
+              auto glide_background = arrangement.getPatternsByTrack().find(track_id);
+              if (from_clip) row_glides = has_glide(*active_pattern, effective_row);
+              if (!row_glides && !taken_over && glide_background != arrangement.getPatternsByTrack().end()) row_glides = has_glide(glide_background->second, glide_background->second.getEffectiveRow(row_idx, 0));
+            }
+
+            for (size_t j = 0; j < notes.size(); j++) {
 	      if (notes[j].isDefined()) {
 		auto & note = notes[j];
 		float velocity = note.isOff() ? 0.0f : note.getVelocityAsFloat();
@@ -597,8 +618,10 @@ class SongState : public TrackState {
 		    else if (fx.isExtentSet()) { note_override.has_extent = true; note_override.extent = fx.getExtentSetMeters(); }
 		  }
 		}
-		render_context_.addPendingEvent(track_id, i + delay_samples, int(j), tuning, velocity, note_value, NoteCoordinate(song_structure_.getOrdinalFor(track_id), row_idx, int(j)), note_override);
-		if (note.isOff()) last_notes_[track_id].erase(int(j));
+                auto event_override = note_override;
+                if (row_glides && note_value >= 0 && velocity > 0.0f) event_override.has_glide = true;
+                render_context_.addPendingEvent(track_id, i + delay_samples, int(j), tuning, velocity, note_value, NoteCoordinate(song_structure_.getOrdinalFor(track_id), row_idx, int(j)), event_override);
+                if (note.isOff()) last_notes_[track_id].erase(int(j));
 		else if (note_value >= 0 && velocity > 0.0f) {
 		  LastNote last { int(j), tuning, velocity, note_value, row_idx, note_override };
 		  last_notes_[track_id][int(j)] = last;

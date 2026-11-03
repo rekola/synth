@@ -30,6 +30,7 @@
 // cents (a +hh / -hh fx).
 struct NoteOverride {
   bool has_azimuth = false, has_extent = false, has_detune = false;
+  bool has_glide = false; // the row carries 0Gxx: glide the column's sounding note here
   float azimuth = 0, extent = 0, detune_cents = 0;
 };
 
@@ -161,11 +162,26 @@ class RenderContext {
     return pending_pitch_slides_[track_id];
   }
 
+  // 0Gxx: from `frame`, sounding notes that have a glide target move toward
+  // it by `cents_per_frame` for `frames` frames (instantly when `instant`).
+  struct PitchGlide {
+    float cents_per_frame;
+    int frames;
+    bool instant;
+  };
+  void addPendingPitchGlide(int track_id, int frame, float cents_per_frame, int frames, bool instant) {
+    pending_pitch_glides_[track_id][frame].push_back({cents_per_frame, frames, instant});
+  }
+  std::map<int, std::vector<PitchGlide> > & getPendingPitchGlides(int track_id) {
+    return pending_pitch_glides_[track_id];
+  }
+
   // The transport stopped or jumped: slides not yet begun are dropped, and
   // the epoch tells each track to end the ones running (it freezes them
   // where they are).
   void noteTransportJump() {
     pending_pitch_slides_.clear();
+    pending_pitch_glides_.clear();
     transport_epoch_++;
   }
   int getTransportEpoch() const { return transport_epoch_; }
@@ -217,6 +233,9 @@ class RenderContext {
     for (auto & td : pending_pitch_slides_) {
       if (!td.second.empty()) return false;
     }
+    for (auto & td : pending_pitch_glides_) {
+      if (!td.second.empty()) return false;
+    }
     for (auto & td : pending_sample_events_) {
       if (!td.second.empty()) return false;
     }
@@ -239,6 +258,15 @@ class RenderContext {
       for (auto & [ frame, delta ] : old_ticks) {
 	auto new_frame = frame + offset;
 	if (new_frame >= 0) ticks[new_frame] += delta;
+      }
+    }
+
+    for (auto & [track_id, glides] : pending_pitch_glides_) {
+      auto old_glides = glides;
+      glides.clear();
+      for (auto & [frame, list] : old_glides) {
+        auto new_frame = frame + offset;
+        if (new_frame >= 0) glides[new_frame] = list;
       }
     }
 
@@ -271,6 +299,7 @@ class RenderContext {
   std::unordered_map<int, std::map<int, std::vector<TrackEvent> > > pending_events_;
   std::unordered_map<int, std::map<int, float> > pending_azimuth_ticks_;
   std::unordered_map<int, std::map<int, std::vector<PitchSlide> > > pending_pitch_slides_;
+  std::unordered_map<int, std::map<int, std::vector<PitchGlide> > > pending_pitch_glides_;
   std::unordered_map<int, std::map<int, std::vector<SampleTrackEvent> > > pending_sample_events_;
   float bpm_ = 0.0f;
   int transport_epoch_ = 0;

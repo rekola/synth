@@ -168,9 +168,10 @@ Found 2026-07-11, not yet fixed.
   buffer's held notes, a song end's tail in an offline render - so the answer
   likely distinguishes a pause from those. Needs a design decision first.
 
-- **`0Uxx`/`0Dxx` pitch slides don't move `Additive` instruments.** An
-  `AdditiveVoice` builds its partial bank once, at note-on, from the note's
-  frequency (`AdditiveVoice::buildBank()`), so the slide offset
-  (`InstrumentVoice::adjustPitchCents()`) never reaches it and a held note
-  keeps its pitch. Not fixed - would need the bank rebuilt or its partials
-  scaled as the offset changes.
+- **`0Uxx`/`0Dxx` pitch slides and `0Gxx` glides don't move `Additive`
+  instruments.** An `AdditiveVoice` builds its partial bank once, at note-on,
+  from the note's frequency (`AdditiveVoice::trigger()`), so the slide offset
+  (`InstrumentVoice::setPitchRamp()`) and the glide
+  (`InstrumentVoice::advancePitchGlide()`) never reach it and a held note keeps
+  its pitch; a glide row's note starts its own voice. Not fixed - would need
+  the bank rebuilt or its partials scaled as the pitch changes.

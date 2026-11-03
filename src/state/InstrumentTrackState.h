@@ -46,6 +46,7 @@ public:
     // no later note inherits a half-done glide.
     if (context.getTransportEpoch() != slide_epoch_) {
       slide_epoch_ = context.getTransportEpoch();
+      glide_frames_left_ = 0; // voices hold the pitch they have
       if (!pitch_slides_.empty()) {
         completed_slide_cents_ = slidePosition(0);
         pitch_slides_.clear();
@@ -65,6 +66,7 @@ public:
       auto & pending_events = context.getPendingEvents(getTrackId());
       auto & pending_azimuth = context.getPendingAzimuthTicks(getTrackId());
       auto & pending_slides = context.getPendingPitchSlides(getTrackId());
+      auto & pending_glides = context.getPendingPitchGlides(getTrackId());
 
       for (int i = 0; i < frames; ) {
 	int render_size = frames - i;
@@ -94,7 +96,11 @@ public:
                 // oscillators so they don't comb-filter when summed. The
                 // live-audition path (Player.cpp) calls the same noteOn().
                 note_override_ = ev.getNoteOverride();
-                noteOn(ev.getId(), *instrument, ev.getTuning(), ev.getVelocity(), ev.getNoteValue(), ev.getNoteCoordinate());
+                // A 0Gxx row glides the column's sounding note instead of
+                // starting this one; with nothing sounding it plays as usual.
+                if (!(note_override_.has_glide && startGlide(ev.getId(), ev.getTuning(), ev.getNoteValue()))) {
+                  noteOn(ev.getId(), *instrument, ev.getTuning(), ev.getVelocity(), ev.getNoteValue(), ev.getNoteCoordinate());
+                }
                 note_override_ = {};
 	      }
 	    }
@@ -125,11 +131,28 @@ public:
           if (it != pending_slides.end() && it->first - i < render_size) render_size = it->first - i;
         }
 
+        if (!pending_glides.empty()) {
+          auto it = pending_glides.begin();
+          assert(i <= it->first);
+          if (i == it->first) {
+            for (auto & glide : it->second) {
+              glide_cents_per_frame_ = glide.cents_per_frame;
+              glide_frames_left_ = glide.frames;
+              glide_instant_ = glide.instant;
+              if (glide.instant) jumpGlides();
+            }
+            it = pending_glides.erase(it);
+          }
+          if (it != pending_glides.end() && it->first - i < render_size) render_size = it->first - i;
+        }
+        if (glide_frames_left_ > 0) render_size = std::min(render_size, glide_frames_left_);
+
         // A running slide ends exactly where its row does, so cut the chunk
         // there: the voices interpolate over a whole chunk.
         for (auto & slide : pitch_slides_) render_size = std::min(render_size, slide.length - slide.elapsed);
 
         advancePitchSlides(render_size);
+        advancePitchGlides(render_size);
         chunks.emplace_back(i, renderVoices(render_size));
         i += render_size;
       }
@@ -184,6 +207,8 @@ public:
     auto voice = instrument.playNote(getChannelConfiguration(), resolved_position, spatial_mode_, tuning, detune, velocity, note_value, getSends(), note_coord);
     chokeExclusiveClasses(*voice);
     addVoice(column, move(voice));
+    // A later glide in this column is measured from this note.
+    glide_anchors_[column] = {static_cast<double>(getFrequencyFor(tuning, note_value)), note_override_.has_detune ? note_override_.detune_cents : 0.0f};
   }
 
   // noteOn() with a per-note override, as a pattern note's fx gives one.
@@ -359,6 +384,59 @@ protected:
   }
 
 private:
+ // 0Gxx: points the column's newest sounding voice at the note's pitch, in
+ // cents from the pitch that voice started at. False when none sounds.
+ bool startGlide(int column, Tuning tuning, int note_value) {
+   auto anchor = glide_anchors_.find(column);
+   auto voices = voices_.find(column);
+   if (anchor == glide_anchors_.end() || voices == voices_.end()) return false;
+   VoiceState * target = nullptr;
+   for (auto & voice : voices->second)
+     if (voice->isActive()) target = voice.get();
+   if (!target) return false;
+   const float fine = note_override_.has_detune ? note_override_.detune_cents : 0.0f;
+   const double cents = 1200.0 * std::log2(static_cast<double>(getFrequencyFor(tuning, note_value)) / anchor->second.hz) + static_cast<double>(fine - anchor->second.fine_cents);
+   target->setPitchGlideTarget(cents);
+   glide_in_use_ = true;
+   if (glide_instant_ && glide_frames_left_ > 0) target->jumpPitchGlide();
+   return true;
+ }
+
+ void jumpGlides() {
+   for (auto & [column, voices] : voices_) {
+     for (auto & voice : voices)
+       if (voice->isActive()) voice->jumpPitchGlide();
+   }
+ }
+
+ // Moves every voice toward its glide target for the coming chunk (the row's
+ // rate while a 0Gxx row runs, else holding), and ends the bookkeeping once
+ // nothing sounds.
+ void advancePitchGlides(int frames) {
+   if (!glide_in_use_) return;
+   const double rate = glide_frames_left_ > 0 && !glide_instant_ ? static_cast<double>(glide_cents_per_frame_) : 0.0;
+   bool any = false;
+   for (auto & [column, voices] : voices_) {
+     for (auto & voice : voices) {
+       if (!voice->isActive()) continue;
+       voice->advancePitchGlide(rate, frames);
+       any = true;
+     }
+   }
+   glide_frames_left_ = std::max(0, glide_frames_left_ - frames);
+   if (!any) glide_in_use_ = false;
+ }
+
+ struct GlideAnchor {
+   double hz;
+   float fine_cents;
+ };
+ std::unordered_map<int, GlideAnchor> glide_anchors_; // per column: the note its newest voice began on
+ float glide_cents_per_frame_ = 0.0f;
+ int glide_frames_left_ = 0;
+ bool glide_instant_ = false;
+ bool glide_in_use_ = false;
+
  // The slide position (cents) `extra` frames into the coming chunk: the
  // finished slides' amounts plus each running one's share by its absolute
  // place in its row.
