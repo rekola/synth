@@ -159,6 +159,10 @@ static bool parsePatternContent(XMLElement & pattern_element, Pattern & pattern,
 	if (fx_text) note.setFx(fx_text);
 	pattern.setNote(row, start_column + i, note);
       }
+    } else if (fx_text) {
+      // No note: a cell that only carries fx.
+      Note fx_only;
+      if (fx_only.setFx(fx_text)) pattern.setNote(row_text ? atoi(row_text) : 0, column_text ? atoi(column_text) : 0, fx_only);
     }
   }
 
@@ -323,15 +327,17 @@ static void storePatternContent(XMLDocument & doc, XMLElement * pattern_element,
       // (e.g. a chord's lower note deleted while a higher one stays
       // defined - Pattern::deleteNote only trims trailing entries), so
       // skip it here rather than assuming the vector itself never holds one.
-      if (!note.isDefined()) continue;
-      auto note_text = note.toString(tuning);
+      // A cell with only fx (no note) is kept, as a <note> with no text.
+      if (!note.hasContent()) continue;
       auto note_element = doc.NewElement("note");
       note_element->SetAttribute("row", static_cast<int>(row));
       if (col > 0) note_element->SetAttribute("column", static_cast<int>(col));
-      if (note.getVelocity() != constants::DEFAULT_VELOCITY) note_element->SetAttribute("velocity", note.getVelocity());
-      if (note.getDelay() > 0) note_element->SetAttribute("delay", note.getDelay());
+      if (note.isDefined()) {
+        if (note.getVelocity() != constants::DEFAULT_VELOCITY) note_element->SetAttribute("velocity", note.getVelocity());
+        if (note.getDelay() > 0) note_element->SetAttribute("delay", note.getDelay());
+      }
       if (note.hasFx()) note_element->SetAttribute("fx", std::string(note.getFx()).c_str());
-      note_element->SetText(note_text.c_str());
+      if (note.isDefined()) note_element->SetText(note.toString(tuning).c_str());
       pattern_element->InsertEndChild(note_element);
     }
   }

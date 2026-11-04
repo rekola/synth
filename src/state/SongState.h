@@ -654,8 +654,30 @@ class SongState : public TrackState {
 		  last_notes_[track_id][int(j)] = last;
 		  if (fx.isRetrigger()) scheduleNoteRetrigger(track_id, i + delay_samples, last, fx.getRetriggerIntervalTicks(), fx.getRetriggerVolumeCode());
 		}
-	      }
-	    }
+              } else if (notes[j].hasFx()) {
+                // A cell with only fx starts and stops no note; the fx acts on its
+                // column: a glide rate (G00 repeats the column's last), or a
+                // retrigger of the column's last note.
+                std::string text = std::string("0") + std::string(notes[j].getFx());
+                std::replace(text.begin(), text.end(), Note::kFxEmpty, '-');
+                Command fx;
+                if (fx.setData(text)) {
+                  int row_samples = getChannelConfiguration().getSampleInterval(tempo_);
+                  int glide_edo = edoStepsFor(content.scalars.tuning);
+                  if (fx.isPitchGlide()) {
+                    int code = fx.getPitchGlideCode() > 0 ? fx.getPitchGlideCode() : rememberedGlideCode(track_id, int(j));
+                    if (fx.getPitchGlideCode() > 0) last_glide_codes_[track_id][int(j)] = code;
+                    if (code > 0 && glide_edo > 0 && row_samples > 0) {
+                      float cents_per_row = static_cast<float>(code) / 16.0f * 1200.0f / static_cast<float>(glide_edo);
+                      render_context_.addPendingPitchGlide(track_id, i, int(j), cents_per_row / static_cast<float>(row_samples), row_samples, code == 0xFF);
+                    }
+                  } else if (fx.isRetrigger()) {
+                    auto remembered = last_notes_[track_id].find(int(j));
+                    if (remembered != last_notes_[track_id].end()) scheduleNoteRetrigger(track_id, i, remembered->second, fx.getRetriggerIntervalTicks(), fx.getRetriggerVolumeCode());
+                  }
+                }
+              }
+            }
 
 	    // Commands come from the track's own background pattern - one
 	    // shared place regardless of which clip (if any) plays there, so
