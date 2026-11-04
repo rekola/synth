@@ -184,6 +184,7 @@ The major things that are missing are the following:
 * Adaptive just intonation, which tunes each note against what sounds with it in any track
 * Continuous MIDI recording with retroactive capture
 * Drag & Drop
+* Collaborative Editing
 
 ### Minor Missing Features
 
