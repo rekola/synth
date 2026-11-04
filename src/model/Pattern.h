@@ -54,7 +54,7 @@ class Pattern : public SongObject {
   void setNotes(int row, const std::vector<Note> & n) {
     auto key = static_cast<unsigned short>(row);
     auto columns = n;
-    while (!columns.empty() && !columns.back().isDefined()) columns.pop_back();
+    while (!columns.empty() && !columns.back().hasContent()) columns.pop_back();
     if (columns.empty()) notes_.erase(key);
     else notes_[key] = std::move(columns);
   }
@@ -64,15 +64,15 @@ class Pattern : public SongObject {
     auto & columns = notes_[key];
     while (note_column >= static_cast<int>(columns.size())) columns.push_back(Note());
     columns[static_cast<size_t>(note_column)] = note;
-    while (!columns.empty() && !columns.back().isDefined()) columns.pop_back();
+    while (!columns.empty() && !columns.back().hasContent()) columns.pop_back();
     if (columns.empty()) notes_.erase(key);
   }
 
   int pushNote(int row, Note note) {
     auto & columns = notes_[static_cast<unsigned short>(row)];
     for (int i = 0; i < static_cast<int>(columns.size()); i++) {
-      if (!columns[static_cast<size_t>(i)].isDefined()) {
-	columns[static_cast<size_t>(i)] = note;
+      if (!columns[static_cast<size_t>(i)].hasContent()) {
+        columns[static_cast<size_t>(i)] = note;
 	return i;
       }
     }
@@ -91,8 +91,8 @@ class Pattern : public SongObject {
       auto & nv = it->second;
       if (column < static_cast<int>(nv.size())) {
 	nv[static_cast<size_t>(column)].clear();
-	while (!nv.empty() && !nv.back().isDefined()) nv.pop_back();
-	if (nv.empty()) notes_.erase(it);
+        while (!nv.empty() && !nv.back().hasContent()) nv.pop_back();
+        if (nv.empty()) notes_.erase(it);
       }
     }
   }
@@ -111,7 +111,7 @@ class Pattern : public SongObject {
       for (auto & n : nv) {
 	if (n.isDefined() && n.getValue() == value) n.clear();
       }
-      while (!nv.empty() && !nv.back().isDefined()) nv.pop_back();
+      while (!nv.empty() && !nv.back().hasContent()) nv.pop_back();
       if (nv.empty()) it = notes_.erase(it);
       else ++it;
     }
