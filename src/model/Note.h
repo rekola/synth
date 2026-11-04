@@ -94,6 +94,10 @@ class Note {
   }
   float getDelayAsFloat() const { return delay / 255.0f; }
   bool isDefined() const { return value >= 0 || velocity > 0; }
+  // A cell worth keeping: a note, or only fx (a command for the column, such
+  // as 0Gxx's glide rate or a retrigger, with no note of its own). Storage and
+  // display go by this; playback and editing of notes by isDefined().
+  bool hasContent() const { return isDefined() || hasFx(); }
   bool isOff() const { return value >= 0 && velocity == 0; }
   bool isAftertouch() const { return value == -1 && velocity > 0; }
 

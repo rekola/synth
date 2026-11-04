@@ -579,3 +579,63 @@ TEST(pitch_glide_g00_repeats_each_columns_own_rate) {
   CHECK(powerAt(out, from, to, slow_end) > 10.0 * powerAt(out, from, to, slow_wrong));
   CHECK(powerAt(out, from, to, fast_end) > 10.0 * powerAt(out, from, to, 3520.0 * exp2(2.0 / 31.0)));
 }
+
+// ---- a cell with only fx ----
+
+#include <filesystem>
+
+#ifndef TESTS_SCRATCH_DIR
+#define TESTS_SCRATCH_DIR "."
+#endif
+
+TEST(a_cell_with_only_fx_is_kept_and_survives_a_save_and_load) {
+  Song song;
+  song.addInstrument(make_unique<Oscillator>(WaveformType::SINE));
+  auto & track = song.addTrack(make_unique<InstrumentTrack>(0));
+  int id = track.getInternalId();
+  auto arrangement = song.getArrangement();
+  arrangement.setNote(0, id, 0, Note(240, 100));
+  Note fx_only;
+  CHECK(fx_only.setFx("G10"));
+  CHECK(!fx_only.isDefined() && fx_only.hasContent());
+  arrangement.setNote(2, id, 1, fx_only);
+
+  auto notes = arrangement.getNotes(2, id);
+  CHECK(notes.size() == 2);
+  CHECK(notes[1].hasFx() && !notes[1].isDefined());
+
+  auto path = (std::filesystem::path(TESTS_SCRATCH_DIR) / "fx_only_cell_scratch.xml").string();
+  song.save(path);
+  InstrumentProvider provider;
+  Song reloaded;
+  CHECK(reloaded.open(path, provider));
+  auto again = reloaded.getArrangement().getNotes(2, reloaded.getRootTrackIds()[0]);
+  CHECK(again.size() == 2);
+  CHECK(again[1].hasFx() && !again[1].isDefined());
+  CHECK(string(again[1].getFx()) == "G10");
+
+  // Clearing the fx removes the cell again.
+  arrangement.setNote(2, id, 1, Note());
+  CHECK(arrangement.getNotes(2, id).empty());
+}
+
+// G00 in a cell with no note carries that column's glide on at its own rate,
+// and the cell neither stops nor retriggers the sounding note.
+TEST(an_fx_only_cell_carries_a_columns_glide_on) {
+  int row = 0;
+  auto out = renderTwoColumns([](auto & arrangement, int id) {
+    Note slow(244, 100), fast(275, 100), carry;
+    slow.setFx("G10");
+    fast.setFx("G40");
+    carry.setFx("G00");
+    arrangement.setNote(1, id, 0, slow);
+    arrangement.setNote(1, id, 1, fast);
+    arrangement.setNote(2, id, 0, carry); // column 0 only: a second step; column 1 has arrived
+  },
+                              row);
+  const int from = 3 * row + 100, to = 4 * row - 100;
+  double slow_end = 1760.0 * exp2(2.0 / 31.0), slow_wrong = 1760.0 * exp2(1.0 / 31.0);
+  CHECK(powerAt(out, from, to, slow_end) > 10.0 * powerAt(out, from, to, slow_wrong));
+  // Column 1 still sounds, where its glide left it.
+  CHECK(powerAt(out, from, to, 3520.0 * exp2(4.0 / 31.0)) > 10.0 * powerAt(out, from, to, 3520.0 * exp2(2.0 / 31.0)));
+}
