@@ -202,7 +202,7 @@ Things that are easy to get wrong without the scoped files loaded:
 - Commands (`CommandRegistry` names, run by both a key and M-x) live in
   `UI::initializeCommands()`, not `InteractiveUI`, unless they need a
   terminal-only prompt or widget. Pattern-editor selection/copy-paste is the
-  permanent exception and stays in `InteractiveUI`.
+  permanent exception and stays in the widgets (`PatternEditor`, `ClipGrid`).
 - There are two keymaps: the terminal one (Emacs: **C-x C-c** quits, **M-x**
   opens the palette, **C-SPC**/**C-w**/**M-w**/**C-y** mark/kill/copy/yank)
   and the desktop one (Ctrl+Q, Ctrl+Shift+P, Ctrl+X/C/V). Where Emacs has a

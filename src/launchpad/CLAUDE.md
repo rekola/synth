@@ -124,7 +124,7 @@ entry. Defaults to `LIVE`.
   Clip switch between the views; repeating the entry gesture or CC95/96/97
   leaves; everything else does nothing. Edits go through
   `Controller::setTempo()` (20-300) and `setSwing()` (50-75 %; the second
-  note of each eighth-note pair plays late, `swing.h`), also the
+  note of each eighth-note pair plays late, `model/Swing.h`), also the
   `tempo-`/`swing-increase`/`-decrease` commands. Library rhythms carry their
   own swing, adopted on Add to Song.
 
