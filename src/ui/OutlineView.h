@@ -107,6 +107,13 @@ class OutlineView : public UIElement {
   }
 
   bool offerInput(const cellui::Input & input) override;
+  // The events, for the modal popup the app routes them to.
+  bool keyDown(const cellui::KeyDown & e);
+  bool keyUp(const cellui::KeyUp & e);
+  bool mouseDown(int row, int col);
+  bool mouseUp(int row, int col);
+  bool wheel(const cellui::Wheel & e);
+
   bool render(const StyleProvider & styles, bool refresh, bool focused);
   // Closes the details popup - for when this panel stops being shown
   // (the popup is a separate plane that would otherwise stay up).
@@ -192,11 +199,6 @@ protected:
   // convention - a press, or a drag while held, only shows what is
   // pressed; the release acts on it.
   bool handleClick(int screen_y, int screen_x, bool release);
-  bool keyDown(const cellui::KeyDown & e);
-  bool keyUp(const cellui::KeyUp & e);
-  bool mouseDown(int row, int col);
-  bool mouseUp(int row, int col);
-  bool wheel(const cellui::Wheel & e);
   // What a click at the screen position lands on: a tree row (data_
   // index) or a button, or neither.
   struct ClickTarget {
