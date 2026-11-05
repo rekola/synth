@@ -5,7 +5,7 @@
 [![Windows x86-64](https://github.com/rekola/synth/actions/workflows/ci-windows-x86_64.yml/badge.svg)](https://github.com/rekola/synth/actions/workflows/ci-windows-x86_64.yml)
 [![macOS ARM64](https://github.com/rekola/synth/actions/workflows/ci-macos-arm64.yml/badge.svg)](https://github.com/rekola/synth/actions/workflows/ci-macos-arm64.yml)
 
-![Screenshot of Live View](https://raw.githubusercontent.com/rekola/synth/refs/heads/main/assets/screenshot1.png)
+![Screenshot of Live View](https://raw.githubusercontent.com/rekola/synth/refs/heads/main/assets/screenshot2.png)
 
 A microtonal, multiparadigm music production system that combines a live sequencer with a traditional tracker.
 
