@@ -23,6 +23,25 @@ The grid of clips inside Live View: one column per track, one row per scene,
 each slot triggered on the next bar. On a Launchpad it is the pad grid in the
 Live mode (the device's Session button). See launchpad.md and scenes.md.
 
+**Gamut**
+The complete set of notes available to a system of music, from which
+its scales are drawn. The word is Guido of Arezzo’s (c. 991–after
+1033), who named the lowest note of his system Γ, gamma, and sang it
+as ut; the whole range from gamma-ut upward became the gamut, first
+the full scale of medieval music and then any complete range. The
+twelve chromatic notes are the gamut behind the tempered major and
+minor scales, the 22 śruti behind the scales of Indian music. A gamut
+may be fixed, every note having one ratio to the tonic, or may contain
+pairs of notes a comma apart, as the śruti do; a just major scale with
+free modulation has no gamut at all, only an unbounded lattice. In the
+application a gamut is a rule for tuning every key, and a scale is a
+selection from it: the just-intonation tuner tunes any gamut note a
+song uses, whether or not it is in the scale, and the scale decides
+the keys where two gamut notes share a step and which notes the
+Launchpad and keyboard show. Keys with no gamut note stay
+tempered. The otonal and utonal scales are the first steps of the
+application’s superparticular gamut (see otonal and utonal).
+
 **Groove**
 The general word for rhythmic feel: how a pattern's timing (and often
 accents) deviates from a rigid grid. Swing is the simplest groove. Other
