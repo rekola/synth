@@ -167,7 +167,9 @@ void FramePacer::onAck(TimePoint t_ack) {
     }
   } else {
     double delay = micros(t_ack, f.sent) - size / bandwidth_ * 1e6;
-    if (frame_acks_ > static_cast<size_t>(config_.rtt_refine_after)) rtt_min_us_ = std::min(rtt_min_us_, std::max(0.0, delay));
+    // From its last byte to its reply is never less than the round trip. Less the transfer time it
+    // is not a bound: on a link with a small buffer most of the frame crossed before that byte.
+    if (frame_acks_ > static_cast<size_t>(config_.rtt_refine_after)) rtt_min_us_ = std::min(rtt_min_us_, micros(t_ack, f.sent));
     // Started before the reply to the one before: the link was never left idle between them. (The
     // last byte is no test: with a small buffer in front of a fast link it is taken long after the
     // frame began, and after that reply.)
