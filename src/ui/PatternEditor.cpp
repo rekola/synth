@@ -1892,19 +1892,13 @@ PatternEditor::commitPendingValue() {
 bool PatternEditor::mouseDown(const cellui::MouseDown & e) {
   if (e.button != 1) return false;
   getController().getSong().breakTypingRun();
-  if (inline_editor_.isOpen()) {
-    if (e.input) inline_editor_.offerInput(*e.input);
-    return true;
-  }
+  if (inline_editor_.isOpen()) return true;
   return handleMouse(e.row, e.col, false);
 }
 
 bool PatternEditor::mouseUp(const cellui::MouseUp & e) {
   if (e.button != 1) return false;
-  if (inline_editor_.isOpen()) {
-    if (e.input) inline_editor_.offerInput(*e.input);
-    return true;
-  }
+  if (inline_editor_.isOpen()) return true;
   return handleMouse(e.row, e.col, true);
 }
 
@@ -1935,7 +1929,8 @@ PatternEditor::offerInput(const cellui::Input & input) {
 }
 
 bool PatternEditor::keyUp(const cellui::KeyUp & e) {
-  // The release of a held note key stops its note; any other release is inert.
+  // The release of the key that opened the editor must not reach the notes; a held note key's release stops its note.
+  if (inline_editor_.keyUp()) return true;
   auto & song = getController().getSong();
   auto & info = getController().getPlaybackInfo();
   bool transport_owns_row = info.isPlaying() && source_->cursorFollowsTransport();
@@ -1999,8 +1994,7 @@ bool PatternEditor::keyDown(const cellui::KeyDown & e) {
   }
 
   // While the locator or track-name editor is open it owns every key.
-  // (Its text field is edited from the Input the key came as.)
-  if (e.input && inline_editor_.offerInput(*e.input)) return true;
+  if (inline_editor_.key(e)) return true;
 
   pointer_scroll_ = false;
 

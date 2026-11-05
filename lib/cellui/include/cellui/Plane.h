@@ -3,6 +3,7 @@
 #include <cellui/Backdrop.h>
 #include <cellui/BackdropLayer.h>
 #include <cellui/Input.h>
+#include <cellui/InputEvents.h>
 #include <cellui/KeymapProfile.h>
 #include <cellui/MouseCursor.h>
 #include <cellui/StyleProvider.h>
@@ -213,7 +214,7 @@ class Plane {
   }
   virtual std::unique_ptr<Plane> createChild() = 0;
   virtual void drawBorder() = 0;
-  virtual bool offerInput(const Input & input) = 0;
+  virtual bool offerKey(const KeyDown & e) = 0;
 
   // A one-line text field. y/x/rows/cols position and size it in this
   // plane's own coordinates: x == -1 (the default) means right after the

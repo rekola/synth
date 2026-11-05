@@ -659,9 +659,9 @@ void BufferPlane::showReaderIndicator(int x, const std::string & s) {
   indicator_->moveToTop();
 }
 
-bool BufferPlane::offerInput(const Input & input) {
+bool BufferPlane::offerKey(const KeyDown & e) {
   if (editor_) {
-    editor_->offerInput(input);
+    editor_->key(e);
     drawReader();
     return true;
   }

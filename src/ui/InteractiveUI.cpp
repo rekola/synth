@@ -1535,7 +1535,7 @@ bool InteractiveUI::offerKeyLayers(const cellui::Input & input) {
   bool reader_active = status_line_->isReaderActive() || pattern_editor_->isReaderActive() || clip_grid_->isReaderActive();
   if (!reader_active && dispatchCommand(input)) return true;
   if (offerMenu(input)) return true;
-  return status_line_->offerInput(input);
+  return input.getKind() == cellui::Input::Kind::RELEASE ? status_line_->keyUp(cellui::KeyUp{input.getId()}) : status_line_->keyDown(cellui::InputDispatcher::keyDownFor(input));
 }
 
 // The menu tracks an item's display text, not any notion of a command:
@@ -1682,7 +1682,7 @@ InteractiveUI::offerInput(const cellui::Input & input) {
   // The status line only reads keys (its reader and the command prompt
   // shortcut); the pointer is none of its business.
   if (!handled && !pointer) {
-    handled |= status_line_->offerInput(input);
+    handled |= input.getKind() == cellui::Input::Kind::RELEASE ? status_line_->keyUp(cellui::KeyUp{input.getId()}) : status_line_->keyDown(cellui::InputDispatcher::keyDownFor(input));
   }
 
   if (!handled) {
