@@ -43,8 +43,8 @@ in `InteractiveUI` only while it needs a `StatusLine` prompt or a concrete
 widget pointer with no abstract stand-in. The permanent exception is
 pattern-editor selection/copy-paste (`set-mark`/`kill-region`/
 `kill-ring-save`/`yank`/`exchange-point-and-mark`): a GUI's copy-paste
-follows GUI conventions, not Emacs mark-and-kill, so these belong in
-`InteractiveUI` for good.
+follows GUI conventions, not Emacs mark-and-kill, so these stay in the
+widgets' own registries (`PatternEditor`, `ClipGrid`) for good.
 
 Dispatch: `KeyStroke.h`/`Keymap.h`/`CommandRegistry.h` map key stroke →
 command name → callable; widgets fill `keymap_`/`commands_` in their
@@ -53,8 +53,8 @@ unbound falling through to manual handling. `Controller::sendCommand()` (what
 the palette calls) falls back to `UI::executeCommand()` — the active element's
 registry, then UI's — for names it doesn't know, so M-x reaches both
 Controller-level and per-widget commands. Not migrated: `StatusLine`,
-`OutlineView`, `InstrumentList` (dead code). Every command needs a line in
-`ui/CommandDescriptions.cpp` (a test fails otherwise).
+`OutlineView`. Every command needs a line in `ui/CommandDescriptions.cpp`
+(a test fails otherwise).
 
 ## Keymaps and the command palette
 
@@ -103,14 +103,14 @@ Controller-level and per-widget commands. Not migrated: `StatusLine`,
 - **There is always a region**, degenerating to the single note under the
   cursor (`getEffectiveSelectionBounds()`); kill/copy/yank/transpose never
   say "No selection". It is therefore always shown: the region highlight *is*
-  the cursor (no separate current-column highlight). On the effect column the
-  region always widens to every note column of the row — an effect command
-  applies to the whole row — and kill/copy/yank then also carry the row's
-  `Command` (`SelectionBounds::includes_command`, the `include_command`
-  parameter of `PatternBlockOps`); `transpose-region-*` never touch
-  `Command`. The effect column's character validation stays permissive (any
-  letter: mnemonics use non-hex letters); only velocity/delay nibble entry is
-  strict `0-9a-f`.
+  the cursor (no separate current-column highlight). The region's
+  `SelectionScope` decides what it carries: within note columns only,
+  `NOTE_COLUMN`; on the effect column only, `COMMAND` (just the track's
+  `Command`s, `PatternBlockOps`' `...PatternBlockCommand()`); spanning both,
+  or several tracks, `TRACK` (whole cells) — an effect command applies to the
+  whole row. `transpose-region-*` never touch `Command`. The effect
+  column's character validation stays permissive (any letter: mnemonics use
+  non-hex letters); only velocity/delay nibble entry is strict `0-9a-f`.
 - `getEffectiveSelectionBounds()` must run *after* `render()` commits
   `current_cursor` from `new_cursor`, or the region lags a frame. Killing a
   track's last note in its last voice slot shrinks `num_subtracks_` and can
