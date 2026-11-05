@@ -1,11 +1,21 @@
 #include "TestFramework.h"
 
+#include <cellui/InputDispatcher.h>
 #include <cellui/BufferPlane.h>
 #include <cellui/MenuBar.h>
 
 using namespace cellui;
 
 namespace {
+
+bool offer(MenuBar & m, const Input & in) {
+  int id = in.getId();
+  bool release = in.getKind() == Input::Kind::RELEASE;
+  if (id == Key::Button1) return release && m.mouseUp(in.getY(), in.getX());
+  if (id == Key::Button4 || id == Key::Button5) return m.wheel(id == Key::Button4);
+  if (release) return false;
+  return m.keyDown(InputDispatcher::keyDownFor(in));
+}
 
 std::vector<MenuBar::Section> sections() {
   return {
@@ -31,18 +41,18 @@ TEST(menubar_header_and_open_section) {
   root.refresh();
   CHECK(b.toPlainText() == "  File  Help\n");
   CHECK(b.at(0, 2).bold && b.at(0, 2).underline && !b.at(0, 3).bold);
-  CHECK(menu.offerInput(key('f', true)));
+  CHECK(offer(menu, key('f', true)));
   root.refresh();
   CHECK(b.toPlainText() == "  File  Help\n   Open\n   ────\n   Quit\n");
   CHECK(menu.selectedItem() == 0);
   // Down skips the separator, and wraps.
-  menu.offerInput(key(cellui::Key::Down));
+  offer(menu, key(cellui::Key::Down));
   CHECK(menu.selectedItem() == 2);
-  menu.offerInput(key(cellui::Key::Down));
+  offer(menu, key(cellui::Key::Down));
   CHECK(menu.selectedItem() == 0);
-  menu.offerInput(key(cellui::Key::Right));
+  offer(menu, key(cellui::Key::Right));
   CHECK(menu.openSection() == 1 && menu.selectedItem() == 0);
-  menu.offerInput(key(cellui::Key::Enter));
+  offer(menu, key(cellui::Key::Enter));
   CHECK(!menu.isOpen());
   auto a = menu.takeActivated();
   CHECK(a && a->first == 1 && a->second == 0);
@@ -57,18 +67,18 @@ TEST(menubar_mouse) {
   MenuBar menu(*plane);
   menu.setSections(sections());
   menu.layout(30);
-  CHECK(menu.offerInput(click(0, 3)));
+  CHECK(offer(menu, click(0, 3)));
   CHECK(menu.openSection() == 0);
-  CHECK(!menu.offerInput(click(2, 4)));  // the separator
-  CHECK(menu.offerInput(click(3, 4)));
+  CHECK(!offer(menu, click(2, 4)));  // the separator
+  CHECK(offer(menu, click(3, 4)));
   auto a = menu.takeActivated();
   CHECK(a && a->first == 0 && a->second == 2);
   CHECK(!menu.isOpen());
-  CHECK(menu.offerInput(click(0, 9)));
+  CHECK(offer(menu, click(0, 9)));
   CHECK(menu.openSection() == 1);
-  CHECK(menu.offerInput(click(0, 9)));
+  CHECK(offer(menu, click(0, 9)));
   CHECK(!menu.isOpen());
-  CHECK(!menu.offerInput(key(cellui::Key::Escape)));
+  CHECK(!offer(menu, key(cellui::Key::Escape)));
 }
 
 TEST(menubar_panel_stays_on_screen_and_is_opaque_without_a_border) {

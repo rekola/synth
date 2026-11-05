@@ -1,6 +1,7 @@
 #include "TestFramework.h"
 
 #include <cellui/BufferPlane.h>
+#include <cellui/InputDispatcher.h>
 #include <cellui/Widget.h>
 
 using namespace cellui;
@@ -207,9 +208,9 @@ TEST(bufferplane_reader_edits_a_field_and_places_the_cursor) {
   line->putstr(0, 0, "an old long message");
   line->showReader("M-x ");
   CHECK(line->readerActive());
-  for (char c : std::string("sav")) line->offerInput(Input(c, -1, -1, false, false, false, false));
-  line->offerInput(Input(cellui::Key::Left, -1, -1, false, false, false, false));
-  line->offerInput(Input('X', -1, -1, false, true, false, false, Input::Kind::UNKNOWN, 'X'));
+  for (char c : std::string("sav")) line->offerKey(InputDispatcher::keyDownFor(Input(c, -1, -1, false, false, false, false)));
+  line->offerKey(InputDispatcher::keyDownFor(Input(cellui::Key::Left, -1, -1, false, false, false, false)));
+  line->offerKey(InputDispatcher::keyDownFor(Input('X', -1, -1, false, true, false, false, Input::Kind::UNKNOWN, 'X')));
   root.refresh();
   CHECK(b.toPlainText() == "\nM-x saXv\n");
   auto & bp = static_cast<BufferPlane &>(*line);

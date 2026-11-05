@@ -2,6 +2,7 @@
 
 #include <cellui/Color.h>
 #include <cellui/Input.h>
+#include <cellui/InputEvents.h>
 #include <cellui/Plane.h>
 
 #include <memory>
@@ -60,8 +61,11 @@ class MenuBar {
   // Takes effect on the next draw().
   void setColors(const Colors & colors) { colors_ = colors; }
 
-  // Whether the input was the menu's.
-  bool offerInput(const Input & input);
+  // Whether the event was the menu's.
+  bool mouseUp(int screen_y, int screen_x);
+  bool keyDown(const KeyDown & e);
+  // The wheel steps the highlight of an open section.
+  bool wheel(bool up);
 
   void open(int section);
   void close();

@@ -32,6 +32,9 @@
 
 class Synth;
 #include <cellui/Input.h>
+#include <cellui/InputDispatcher.h>
+#include <cellui/InputEvents.h>
+#include <cellui/Signal.h>
 #include "StyleProvider.h"
 class Song;
 class VisibleTrackInfo;
@@ -300,32 +303,37 @@ public:
   void setCharts(const cellui::Charts * scopes) { charts_ = scopes; }
   void focusCell(const Song::EditPlace & place) { focus_cell_ = place; }
 private:
-  bool offerInputKey(const cellui::Input & input);
-  static bool anyMeterLive(const PlaybackInfo & info, const std::vector<int> & track_ids);
+ bool keyDown(const cellui::KeyDown & e);
+ bool keyUp(const cellui::KeyUp & e);
+ bool mouseDown(const cellui::MouseDown & e);
+ bool mouseUp(const cellui::MouseUp & e);
+ bool wheel(const cellui::Wheel & e);
+ std::vector<cellui::Connection> connections_;
+ static bool anyMeterLive(const PlaybackInfo & info, const std::vector<int> & track_ids);
 
-  int current_score_playing_row = 0;
-  int current_score_pattern = 0;  
-  int current_score_total_columns = 0;
-  // .row/.track is where the grid is scrolled to; .col is only meaningful
-  // when .track's own width alone exceeds the screen (see GridPosition.h,
-  // PatternScroll.h) - scrolling whole tracks can't keep the cursor's own
-  // always-on highlight (its note/velocity/delay group, not just its own
-  // column - see VisibleTrackInfo::getNoteColumnRange) in view by itself
-  // then, so .col picks which of .track's own columns is the first one
-  // actually drawn. Meaningless for any other track, which always renders
-  // from its own column 0.
-  GridPosition current_scroll_;
-  int current_tempo = 0;
-  // Last frame's PlaybackInfo::getVoiceCount() - lets the sparkline catch
-  // the one extra redraw needed right as the last voice finishes (see
-  // render()'s own use of it), not just while it's still sounding.
-  int current_voice_count_ = 0;
-  // A track's sparkline smoothing, by track id, and whether any meter drawn
-  // last was still showing a level (the heading keeps redrawing until they
-  // have all fallen back to silent).
-  struct MeterSmoothing {
-    level_meter::Ballistics ballistics;
-    std::chrono::steady_clock::time_point last_update;
+ int current_score_playing_row = 0;
+ int current_score_pattern = 0;
+ int current_score_total_columns = 0;
+ // .row/.track is where the grid is scrolled to; .col is only meaningful
+ // when .track's own width alone exceeds the screen (see GridPosition.h,
+ // PatternScroll.h) - scrolling whole tracks can't keep the cursor's own
+ // always-on highlight (its note/velocity/delay group, not just its own
+ // column - see VisibleTrackInfo::getNoteColumnRange) in view by itself
+ // then, so .col picks which of .track's own columns is the first one
+ // actually drawn. Meaningless for any other track, which always renders
+ // from its own column 0.
+ GridPosition current_scroll_;
+ int current_tempo = 0;
+ // Last frame's PlaybackInfo::getVoiceCount() - lets the sparkline catch
+ // the one extra redraw needed right as the last voice finishes (see
+ // render()'s own use of it), not just while it's still sounding.
+ int current_voice_count_ = 0;
+ // A track's sparkline smoothing, by track id, and whether any meter drawn
+ // last was still showing a level (the heading keeps redrawing until they
+ // have all fallen back to silent).
+ struct MeterSmoothing {
+   level_meter::Ballistics ballistics;
+   std::chrono::steady_clock::time_point last_update;
   };
   std::unordered_map<int, MeterSmoothing> meter_smoothing_;
   bool meters_showing_ = false;
@@ -483,7 +491,8 @@ private:
   // A left-button press picks a cell, dragging from it selects a region;
   // handleMouse() tells a drag from a fresh press by the button not having
   // been released in between.
-  bool handleMouse(const cellui::Input & input);
+  bool handleMouse(int screen_y, int screen_x, bool release);
+
  public:
   bool isMouseDown() const { return mouse_down_; }
   void releaseMouse() { mouse_down_ = false; }

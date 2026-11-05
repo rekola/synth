@@ -19,10 +19,13 @@ class ChoiceModal : public ModalDialog {
 
  protected:
   void layout(Plane & screen, int rows, int cols) override;
-  void offerInput(const Input & input) override;
+  void keyDown(const KeyDown & e) override;
+  void mouseUp(const MouseUp & e) override;
+  void wheel(const Wheel & e) override;
   void close() override { dialog_.close(); }
 
  private:
+  void handle(ChoiceDialog::Result result);
   ChoiceDialog dialog_;
 };
 
