@@ -114,24 +114,24 @@ class InputDispatcher {
     int row = input.getY(), col = input.getX();
     float x = input.getFx(), y = input.getFy();
     auto kind = input.getKind();
-    if (id == Key::Motion) return mouseMove(MouseMove{ x, y, row, col, pressed_, mods, &input });
+    if (id == Key::Motion) return mouseMove(MouseMove{ x, y, row, col, pressed_, mods });
     if (id >= Key::Button1 && id <= Key::Button11) {
       int button = id - Key::Button1 + 1;
       if (button <= 3) {
-        if (kind == Input::Kind::RELEASE) return mouseUp(MouseUp{ x, y, row, col, button, mods, &input });
+        if (kind == Input::Kind::RELEASE) return mouseUp(MouseUp{ x, y, row, col, button, mods });
         // A held button's press again is the pointer dragging.
-        if (kind == Input::Kind::REPEAT) return mouseMove(MouseMove{ x, y, row, col, pressed_, mods, &input });
-        return mouseDown(MouseDown{ x, y, row, col, button, mods, &input });
+        if (kind == Input::Kind::REPEAT) return mouseMove(MouseMove{ x, y, row, col, pressed_, mods });
+        return mouseDown(MouseDown{ x, y, row, col, button, mods });
       }
       if (button <= 7 && kind != Input::Kind::RELEASE) {
         // Wheel: 4 up, 5 down, 6 left, 7 right.
-        Wheel wheel{ x, y, row, col, button == 7 ? 1 : button == 6 ? -1 : 0, button == 4 ? 1 : button == 5 ? -1 : 0, mods, &input };
+        Wheel wheel{ x, y, row, col, button == 7 ? 1 : button == 6 ? -1 : 0, button == 4 ? 1 : button == 5 ? -1 : 0, mods };
         return this->wheel(wheel);
       }
       return Handled::no;
     }
     if (id == Key::Resize) return Handled::no;
-    if (kind == Input::Kind::RELEASE) return keyUp(KeyUp{ id, mods, &input });
+    if (kind == Input::Kind::RELEASE) return keyUp(KeyUp{ id, mods });
     return keyDown(keyDownFor(input));
   }
 
@@ -139,7 +139,7 @@ class InputDispatcher {
   // Input directly.
   static KeyDown keyDownFor(const Input & input) {
     Modifiers mods{ input.hasShift(), input.hasCtrl(), input.hasAlt(), input.hasMeta() };
-    KeyDown down{ input.getId(), mods, "", input.getKind() == Input::Kind::REPEAT, &input,
+    KeyDown down{ input.getId(), mods, "", input.getKind() == Input::Kind::REPEAT,
                   input.getKind() != Input::Kind::UNKNOWN, input.getTimestamp() };
     int ch = input.getTrueCaseId();
     if (!mods.ctrl && !mods.alt && !mods.meta && ch >= 0x20 && ch != 0x7f && ch < Key::First) appendUtf8(down.text, ch);

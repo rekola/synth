@@ -636,10 +636,10 @@ ClipGrid::offerInput(const cellui::Input & input) {
   using cellui::Input;
   if (input.getId() == Key::Button1)
     return input.getKind() == Input::Kind::RELEASE
-               ? mouseUp(cellui::MouseUp{input.getFx(), input.getFy(), input.getY(), input.getX(), 1, {}, &input})
-               : mouseDown(cellui::MouseDown{input.getFx(), input.getFy(), input.getY(), input.getX(), 1, {}, &input});
+               ? mouseUp(cellui::MouseUp{input.getFx(), input.getFy(), input.getY(), input.getX(), 1, {}})
+               : mouseDown(cellui::MouseDown{input.getFx(), input.getFy(), input.getY(), input.getX(), 1, {}});
   if (input.getKind() == Input::Kind::RELEASE)
-    return keyUp(cellui::KeyUp{input.getId(), {}, &input});
+    return keyUp(cellui::KeyUp{input.getId(), {}});
   return keyDown(cellui::InputDispatcher::keyDownFor(input));
 }
 

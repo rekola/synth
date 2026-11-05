@@ -22,9 +22,6 @@ struct KeyDown {
   Modifiers mods;
   std::string text;
   bool repeat = false;
-  // The Input this came from when it was offered as one (InputDispatcher::offer()),
-  // valid while the event is handled: for a widget that still takes an Input.
-  const Input * input = nullptr;
   // The display reports this key's release (a plain terminal never does).
   bool release_reported = false;
   // When the display got the key, for telling a chord from taps in quick succession.
@@ -35,7 +32,6 @@ struct KeyDown {
 struct KeyUp {
   int key = 0;
   Modifiers mods;
-  const Input * input = nullptr;  // as KeyDown::input
 };
 
 // A pointer position: x and y in cells from the top left, with a fraction
@@ -45,7 +41,6 @@ struct MouseDown {
   int row = 0, col = 0;
   int button = 1;  // 1 left, 2 middle, 3 right
   Modifiers mods;
-  const Input * input = nullptr;  // as offered through InputDispatcher::offer(), while handled
 };
 
 // buttons: the held ones, bit n-1 for button n; 0 for plain hover.
@@ -54,7 +49,6 @@ struct MouseMove {
   int row = 0, col = 0;
   unsigned buttons = 0;
   Modifiers mods;
-  const Input * input = nullptr;  // as offered through InputDispatcher::offer(), while handled
 };
 
 struct MouseUp {
@@ -62,7 +56,6 @@ struct MouseUp {
   int row = 0, col = 0;
   int button = 1;
   Modifiers mods;
-  const Input * input = nullptr;  // as offered through InputDispatcher::offer(), while handled
 };
 
 // dy > 0 is up (content moves down), dx > 0 is right, in steps of one notch.
@@ -71,7 +64,6 @@ struct Wheel {
   int row = 0, col = 0;
   int dx = 0, dy = 0;
   Modifiers mods;
-  const Input * input = nullptr;  // as offered through InputDispatcher::offer(), while handled
 };
 
 // The pointer came onto a widget (outermost first) or left it (deepest
