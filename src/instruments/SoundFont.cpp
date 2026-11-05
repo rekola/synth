@@ -1024,12 +1024,12 @@ class SoundFontVoice : public InstrumentVoice {
     velocity_ = velocity;
 
     bool first_play = apparentPlayingKey_ == 0.0;
-    
-    apparentPlayingKey_ = log2(frequency * getDetune() / 440) * 12 + 69;
+
+    apparentPlayingKey_ = log2(frequency * getDetune() / kNominalStandardPitchHz) * 12 + 69;
 
     if (first_play) {
       // use correctly rounded midiKey for envelopes (should we use detune?)
-      auto midiKey = int(round(log2(frequency / 440) * 12 + 69));
+      auto midiKey = int(round(log2(frequency / kNominalStandardPitchHz) * 12 + 69));
       auto midiVelocity = (short)(velocity * 127);
       if (midiVelocity > 127) midiVelocity = 127;
 
@@ -1841,7 +1841,7 @@ public:
     bool has_preset = preset_ < f->presets_.size();
     bool is_percussion = has_preset && f->presets_[preset_].bank == 128;
     bool is_arc_family = has_preset && isPitchedArcFamily(f->presets_[preset_]);
-    int midiKey = (tuning == Tuning::PERCUSSION) ? note_value : int(round(log2(getFrequencyFor(tuning, note_value) / 440) * 12 + 69));
+    int midiKey = (tuning == Tuning::PERCUSSION) ? note_value : int(round(log2(getFrequencyFor(tuning, note_value) / kNominalStandardPitchHz) * 12 + 69));
 
     if (mode == SpatialMode::AUTO) {
       if (is_percussion) return applyPercussionOffset(position, midiKey, note_coord);
@@ -1878,7 +1878,7 @@ public:
       // unnecessary precision loss; every other tuning's note_value is a
       // scale-step index, not a MIDI key, and still needs the real Hz
       // round-trip to find the nearest 12-EDO-mapped SF2 sample key.
-      int midiKey = (tuning == Tuning::PERCUSSION) ? note_value : int(round(log2(frequency / 440) * 12 + 69));
+      int midiKey = (tuning == Tuning::PERCUSSION) ? note_value : int(round(log2(frequency / kNominalStandardPitchHz) * 12 + 69));
       auto midiVelocity = (short)(velocity * 127);
       if (midiVelocity > 127) midiVelocity = 127;
 

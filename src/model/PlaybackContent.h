@@ -27,6 +27,7 @@
 struct SongScalars {
   int tempo = 140;
   int swing = swing::kStraight;
+  float standard_pitch = kNominalStandardPitchHz;
   TimeSignature time_signature{4, 4};
   RunningBars running_bars;
   Tuning tuning = Tuning::EDO31;
@@ -38,7 +39,7 @@ struct SongScalars {
   just_intonation::ScaleCorrections scale_corrections;
 
   bool operator==(const SongScalars & o) const {
-    return tempo == o.tempo && swing == o.swing && time_signature == o.time_signature && running_bars.signature == o.running_bars.signature &&
+    return tempo == o.tempo && swing == o.swing && standard_pitch == o.standard_pitch && time_signature == o.time_signature && running_bars.signature == o.running_bars.signature &&
            running_bars.origin == o.running_bars.origin && tuning == o.tuning && ear_height == o.ear_height && floor_reflection_enabled == o.floor_reflection_enabled &&
            floor_reflection_strength == o.floor_reflection_strength && ground_absorption == o.ground_absorption &&
            scale_corrections == o.scale_corrections;

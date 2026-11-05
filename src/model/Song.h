@@ -127,6 +127,14 @@ class Song : public SongObject {
   // everything scheduled, never baked into note data. Callers editing it
   // live do it inside a Song::Edit, which is how the audio thread notices.
   int getSwing() const { return read(songschema::kSwing); }
+
+  // The standard pitch: A4's frequency in Hz (440 unless set). Any positive
+  // value; anything else is ignored. Read at playback for every block, so a
+  // change retunes the sounding notes at once.
+  float getStandardPitch() const { return read(songschema::kStandardPitch); }
+  void setStandardPitch(float hz) {
+    if (hz > 0.0f && std::isfinite(hz)) write("set standard pitch", songschema::kStandardPitch, hz);
+  }
   void setSwing(int percent) { write("set swing", songschema::kSwing, swing::clamp(percent)); }
 
   // ---- Bars and time signatures. A row is a sixteenth note.

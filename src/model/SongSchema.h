@@ -16,6 +16,7 @@ inline const doc::Prop<int> kTempo{"tempo", 140};
 inline const doc::Prop<int> kTimeNumerator{"timeNumerator", 4};
 inline const doc::Prop<int> kTimeDenominator{"timeDenominator", 4};
 inline const doc::Prop<int> kSwing{"swing", 50};  // swing::kStraight
+inline const doc::Prop<float> kStandardPitch{"standardPitch", 440.0f}; // kNominalStandardPitchHz
 inline const doc::Prop<bool> kRecordQuantize{"recordQuantize", false};
 inline const doc::Prop<float> kEarHeight{"earHeight", constants::DEFAULT_EAR_HEIGHT};
 inline const doc::Prop<bool> kFloorReflection{"floorReflection", constants::DEFAULT_FLOOR_REFLECTION_ENABLED};

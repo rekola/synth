@@ -40,21 +40,55 @@ static inline int edoStepsFor(Tuning tuning) {
   return 0;
 }
 
-// PERCUSSION reuses the EDO12 formula (steps=12, center=69) rather than
-// returning something derived from edoStepsFor(PERCUSSION) == 0 - a
-// percussion note's own frequency (when one is even needed, e.g. a
-// non-SoundFont percussion voice) is meaningless as a scale degree, but
-// still has to resolve to *some* pitch, and 12-EDO/A440 is as good a
-// convention as any single fixed one.
+// The nominal standard pitch: the frequency every note is computed against
+// (getFrequencyFor()), and the A4 of MIDI key 69 wherever a frequency is
+// matched to a MIDI key (SoundFont region choice, key tracking). The song's
+// own standard pitch is applied on top of it as a ratio, at the voices
+// (RenderContext::globalPitchCents()), so the MIDI mapping never moves.
+inline constexpr float kNominalStandardPitchHz = 440.0f;
+
+// The note the standard pitch is the frequency of (A4) in each tuning.
+// PERCUSSION reuses EDO12's (a percussion note's frequency, when one is
+// needed at all, is MIDI's).
+constexpr int referenceNoteFor(Tuning tuning) {
+  switch (tuning) {
+    case Tuning::EDO12:
+    case Tuning::PERCUSSION:
+      return 69;
+    case Tuning::EDO19:
+      return 109;
+    case Tuning::EDO31:
+      return 178;
+    case Tuning::EDO53:
+      return 304;
+  }
+  return 69;
+}
+
+// The one note-to-frequency formula, at the nominal standard pitch:
+// kNominalStandardPitchHz * 2^((note - reference) / steps). Each tuning's
+// divisor is a literal so the arithmetic (a reciprocal multiply under
+// -ffast-math) stays exactly what renders have always used.
 inline float getFrequencyFor(Tuning tuning, int note_value) {
+  auto from = [&](Tuning t) { return note_value - referenceNoteFor(t); };
   switch (tuning) {
   case Tuning::EDO12:
-  case Tuning::PERCUSSION: return 440.0f * powf(2.0f, (note_value - 69) / 12.0f);
-  case Tuning::EDO19: return 440.0f * powf(2.0f, (note_value - 109) / 19.0f);
-  case Tuning::EDO31: return 440.0f * powf(2.0f, (note_value - 178) / 31.0f);
-  case Tuning::EDO53: return 440.0f * powf(2.0f, (note_value - 304) / 53.0f);
+  case Tuning::PERCUSSION:
+    return kNominalStandardPitchHz * powf(2.0f, from(Tuning::EDO12) / 12.0f);
+  case Tuning::EDO19:
+    return kNominalStandardPitchHz * powf(2.0f, from(Tuning::EDO19) / 19.0f);
+  case Tuning::EDO31:
+    return kNominalStandardPitchHz * powf(2.0f, from(Tuning::EDO31) / 31.0f);
+  case Tuning::EDO53:
+    return kNominalStandardPitchHz * powf(2.0f, from(Tuning::EDO53) / 53.0f);
   }
   return 0.0f;
+}
+
+// A standard pitch as cents from the nominal one (0 at 440 Hz).
+inline double standardPitchCents(float standard_pitch_hz) {
+  if (!(standard_pitch_hz > 0.0f) || !std::isfinite(standard_pitch_hz)) return 0.0;
+  return 1200.0 * std::log2(static_cast<double>(standard_pitch_hz) / static_cast<double>(kNominalStandardPitchHz));
 }
 
 // The const Note & overload lives in Note.h, not here - Note.h already

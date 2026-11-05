@@ -344,7 +344,12 @@ split into **Implemented** (`ZBxx` pattern break; `0Pxx` azimuth set;
 `0Lxx` Volume set; the real-time
 `Y`-namespace commands `YLxx`/`YRxx` (azimuth slide left/right) and
 `YMxy`/`YAxy`/`YBxy`/`YZxy` (Volume/Send A/Send B/azimuth, each with an
-explicit glide duration) - see `SongState.h`'s command-handling loop) and
+explicit glide duration), `YUxx`/`YDxx` (the song's pitch slide: a song-level
+offset in sixteenths of a step, `RenderContext::globalPitchCents()`, applied
+with the song's standard pitch (`Song::getStandardPitch()`, A4, 440 Hz unless
+set) to every voice as a ratio after all per-track pitch effects; a seek
+recomputes it, `SongState::rescanGlobalPitch()`) - see `SongState.h`'s
+command-handling loop) and
 **Planned**
 (accepted/stored but currently no-ops at playback time). A command's own
 first character is either `Z` (global, not track-scoped), `Y` (this
