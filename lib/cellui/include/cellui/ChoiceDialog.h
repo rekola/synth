@@ -10,6 +10,7 @@
 #include <vector>
 
 #include <cellui/Input.h>
+#include <cellui/InputEvents.h>
 
 namespace cellui {
 
@@ -47,9 +48,11 @@ class ChoiceDialog {
   // Call again after a resize or any change of selection.
   void show(Plane & parent, int screen_rows, int screen_cols);
 
-  // Feeds one input event; the dialog swallows everything, so the caller
-  // only needs the result.
-  Result offerInput(const cellui::Input & input);
+  // Feed one event; the dialog swallows everything, so the caller only needs
+  // the result. A click is resolved on release.
+  Result key(const KeyDown & e);
+  Result click(int row, int col);
+  Result wheel(bool up);
 
   int selected() const { return list_.selected(); }
 
