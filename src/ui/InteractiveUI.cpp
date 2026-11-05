@@ -756,31 +756,6 @@ InteractiveUI::initializeWidgets() {
                                                    cellui::Phase::capture));
   key_connections_.push_back(on<cellui::KeyDown>([modal](const cellui::KeyDown & e, cellui::EventContext &) { return modal(e.input); }, cellui::Phase::capture));
   key_connections_.push_back(on<cellui::KeyUp>([modal](const cellui::KeyUp & e, cellui::EventContext &) { return modal(e.input); }, cellui::Phase::capture));
-  for (cellui::Widget * widget : std::initializer_list<cellui::Widget *>{pattern_editor_.get()}) {
-    auto offer = [widget](const cellui::Input * input) {
-      return input && widget->offerInput(*input) ? cellui::Handled::yes : cellui::Handled::no;
-    };
-    key_connections_.push_back(widget->on<cellui::KeyDown>([offer](const cellui::KeyDown & e, cellui::EventContext &) { return offer(e.input); }));
-    key_connections_.push_back(widget->on<cellui::KeyUp>([offer](const cellui::KeyUp & e, cellui::EventContext &) { return offer(e.input); }));
-  }
-
-  // The pattern editor takes the left button
-  // and the wheel as dispatcher events, handing the Input they came from to
-  // offerInput(). The dispatcher's grab keeps a drag and its release with the
-  // widget the press went down on.
-  for (cellui::Widget * widget : std::initializer_list<cellui::Widget *>{pattern_editor_.get()}) {
-    auto offer = [widget](const cellui::Input * input) {
-      return input && widget->offerInput(*input) ? cellui::Handled::yes : cellui::Handled::no;
-    };
-    key_connections_.push_back(widget->on<cellui::MouseDown>([offer](const cellui::MouseDown & e, cellui::EventContext &) {
-      return e.button == 1 ? offer(e.input) : cellui::Handled::no;
-    }));
-    key_connections_.push_back(widget->on<cellui::MouseUp>([offer](const cellui::MouseUp & e, cellui::EventContext &) {
-      return e.button == 1 ? offer(e.input) : cellui::Handled::no;
-    }));
-    key_connections_.push_back(widget->on<cellui::Wheel>([offer](const cellui::Wheel & e, cellui::EventContext &) { return offer(e.input); }));
-  }
-
   // The octave stepper takes the left button only.
   key_connections_.push_back(octave_control_->on<cellui::MouseDown>([this](const cellui::MouseDown & e, cellui::EventContext &) {
     return e.button == 1 && e.input && octave_control_->offerInput(*e.input) ? cellui::Handled::yes : cellui::Handled::no;

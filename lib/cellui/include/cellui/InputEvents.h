@@ -1,5 +1,6 @@
 #pragma once
 
+#include <chrono>
 #include <string>
 
 namespace cellui {
@@ -26,6 +27,8 @@ struct KeyDown {
   const Input * input = nullptr;
   // The display reports this key's release (a plain terminal never does).
   bool release_reported = false;
+  // When the display got the key, for telling a chord from taps in quick succession.
+  std::chrono::steady_clock::time_point timestamp{};
 };
 
 // Only where DisplayInfo::key_release.
