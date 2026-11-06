@@ -87,7 +87,6 @@ class ArrangementGrid : public UIElement {
   // of its own to show) regardless of focus, since it's not this widget's
   // own local state to gate on that the way the cursor cell's is.
   bool render(const StyleProvider & styles, bool refresh, bool focused, int selected_track_id);
-  bool offerInput(const cellui::Input & input) override;
   // A key that went down; the widget's own handler for KeyDown.
   bool keyDown(const cellui::KeyDown & key);
 
@@ -96,7 +95,7 @@ class ArrangementGrid : public UIElement {
   // cursor's bar, where PatternEditor should land. Not a
   // commands_-registered command - Enter plays the same special,
   // directly-checked role here that it already does in PatternEditor's
-  // own offerInput().
+  // own keyDown().
   void setCommitCallback(std::function<void(int track_id, int row)> cb) { commit_callback_ = std::move(cb); }
 
   // Song::getRootTrackIds() filtered down to color-eligible tracks only

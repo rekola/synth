@@ -121,11 +121,6 @@ ArrangementGrid::ensureCursorVisible(int bar_count, int visible_rows, int visibl
   viewport_.cols.reveal(cursor_bar_);
 }
 
-bool ArrangementGrid::offerInput(const cellui::Input & input) {
-  if (input.getKind() == cellui::Input::Kind::RELEASE) return false;
-  return keyDown(cellui::InputDispatcher::keyDownFor(input));
-}
-
 bool ArrangementGrid::keyDown(const cellui::KeyDown & key) {
   if (dispatchCommand(key.key, key.mods)) return true;
 

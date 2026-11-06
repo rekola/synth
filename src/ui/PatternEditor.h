@@ -50,11 +50,10 @@ class PatternEditor : public UIElement {
   // playhead-row tint is transport state, not input focus - the same
   // either way.
   bool render(const StyleProvider & styles, bool refresh, bool focused);
-  bool offerInput(const cellui::Input & input) override;
   void handleMidiEvent(const MidiEvent & ev);
 
   // Mirrors StatusLine::isReaderActive(): while this widget's inline editor
-  // is open, UI::offerInput() must not let a global keybinding (Space/
+  // is open, UI::keyDown() must not let a global keybinding (Space/
   // toggle-playing, C-x C-c/quit, ...) steal a keystroke meant for it.
   bool isReaderActive() const { return inline_editor_.isOpen(); }
   // The focus level is still easing: the loop keeps drawing frames.
@@ -244,7 +243,7 @@ protected:
   void renderRow(const StyleProvider & styles, int heading_height, const std::vector<int> & track_ids, const std::unordered_map<int, VisibleTrackInfo> & track_info, int row, bool highlight, const SelectionBounds & sel_bounds, bool focused);
 
   // Opens the locator editor for the cursor's current row - called
-  // once offerInput() sees Enter pressed while the cursor is parked on
+  // once keyDown() sees Enter pressed while the cursor is parked on
   // the locator slot (Right arrow past the last track's last column).
   // Positions the reader at locator_screen_row_/locator_screen_col_,
   // cached by renderRow() itself (whenever it draws the cursor's own row)
@@ -279,7 +278,7 @@ protected:
   // own comment on why that's the field to check instead of a one-off
   // bool, and getEffectiveSelectionBounds()/isHighlighted() for the two
   // places it actually matters. Reaching the slot must not start editing
-  // on its own; only Enter (see offerInput()) does that
+  // on its own; only Enter (see keyDown()) does that
   // (startLocatorEdit()).
   GridPosition current_cursor, new_cursor;
 
@@ -361,7 +360,7 @@ private:
   // safe key, the same reasoning midi_input_ above already relies
   // on for MIDI note numbers). Populated on a fresh note-on press, erased
   // and used to target the right STOP_NOTE on that same key's eventual
-  // Kitty-protocol release - see offerInput()'s raw note-entry code.
+  // Kitty-protocol release - see keyDown()'s raw note-entry code.
   struct ActiveKeyboardNote { int note_column, row, track_id; int cleared_to = -1; };
   std::unordered_map<int, ActiveKeyboardNote> active_keyboard_notes_;
 

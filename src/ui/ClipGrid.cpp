@@ -83,7 +83,7 @@ ClipGrid::ClipGrid(Plane & parent) : UIElement(parent) {
   connections_.push_back(on<cellui::Wheel>([this, handled](const cellui::Wheel & e, cellui::EventContext &) { return handled(wheel(e)); }));
   // Mute/Solo apply to the cursor's own column (a per-track state, not
   // tied to any particular row), same as the 'l' loop toggle stays a
-  // manual offerInput() branch below rather than a command - there's
+  // manual keyDown() branch below rather than a command - there's
   // nothing else in this app either binding is likely to collide with.
   commands_.define("rename", [this]() { startRename(); });
   commands_.define("rename-track", [this]() {
@@ -631,18 +631,6 @@ void ClipGrid::startRename() {
     startTrackRename(song, track_ids);
 }
 
-bool
-ClipGrid::offerInput(const cellui::Input & input) {
-  using cellui::Input;
-  if (input.getId() == Key::Button1)
-    return input.getKind() == Input::Kind::RELEASE
-               ? mouseUp(cellui::MouseUp{input.getFx(), input.getFy(), input.getY(), input.getX(), 1, {}})
-               : mouseDown(cellui::MouseDown{input.getFx(), input.getFy(), input.getY(), input.getX(), 1, {}});
-  if (input.getKind() == Input::Kind::RELEASE)
-    return keyUp(cellui::KeyUp{input.getId(), {}});
-  return keyDown(cellui::InputDispatcher::keyDownFor(input));
-}
-
 // The editors: a rename or a dial being typed into takes every key.
 bool ClipGrid::keyUp(const cellui::KeyUp &) { return isReaderActive(); }
 
@@ -768,7 +756,7 @@ ClipGrid::render(const StyleProvider & styles, bool refresh, bool focused) {
   if (!focused) {
     for (auto & [key, dial] : dials_) dial->cancelEdit();
   }
-  const Song & song = getController().getSong(); // see offerInput()'s own comment on why const
+  const Song & song = getController().getSong(); // see keyDown()'s own comment on why const
   auto track_ids = song.getPlayableTrackIds();
   auto num_tracks = static_cast<int>(track_ids.size());
 

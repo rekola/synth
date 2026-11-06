@@ -5,7 +5,7 @@
 
 #include <cmath>
 
-// PatternEditor::offerInput()'s ColumnType::TRACK_FX branch relies on
+// PatternEditor::keyDown()'s ColumnType::TRACK_FX branch relies on
 // updateData() to validate a raw InputEvent::getId() codepoint itself
 // (see its own comment for why a synthesized special-key code - arrows,
 // F-keys, Insert, PageUp, ... - must never reach values_ untested), rather

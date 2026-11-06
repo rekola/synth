@@ -34,7 +34,7 @@ carries the app's object as an opaque `getAppContext()`.
   arbitrarily later by a key into one Meta event (Emacs's indefinite
   ESC-as-Meta; no timing window) and know when the "ESC-" indicator is due.
 - Theme (`Theme`, `StyleProvider`), `Plane`, `Widget` (`Widget.h`: the plane,
-  drawing, `offerInput(const Input &)`, keymap and prefix-key dispatch),
+  drawing, keymap and prefix-key dispatch),
   `UIMenu`, `Viewport.h`, the generic widgets (`ChoiceList`/`ChoiceDialog`,
   `InlineEditor`, `SpinBox`, `Dial`, `LineChart`, `HeatmapChart`, `InfoDialog`,
   `CommandPalette` with `FuzzyMatch.h`, `ModalDialog`), `Gallery.h`.

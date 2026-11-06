@@ -91,7 +91,6 @@ class ClipGrid : public UIElement {
   // marked, faintly, in that track's own column. Unset, nothing is.
   void setTrackClipSource(std::function<int(int track_id)> source) { track_clip_source_ = std::move(source); }
   // Kept for the bare Escape; the same calls as the dispatcher's events.
-  bool offerInput(const cellui::Input & input) override;
   // See PatternEditor::isReaderActive()/cancelReaderEdit().
   bool isReaderActive() const { return inline_editor_.isOpen() || isDialEditing(); }
   // A bare Escape closes an open editor at once.
@@ -171,7 +170,7 @@ class ClipGrid : public UIElement {
   // of this row axis at all - they're shown inline on the header row
   // instead (see this class's own header comment). The header row is
   // logical row 0 but never holds the cursor; rename away from a clip renames
-  // the track instead (see offerInput()).
+  // the track instead (see keyDown()).
   enum class RowKind { HEADER,
                        CLIP,
                        SENDS,
