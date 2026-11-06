@@ -376,6 +376,30 @@ TEST(sixel_images_with_few_colours_are_drawn_exactly_and_not_dithered) {
   CHECK(s == encodeSixel(g, 0, 0, 16, 12, all, fs));
 }
 
+// A Sixel colour has 101 levels a channel, so 256 greys are 101 colours: they fit 128 registers, and the
+// flat colour among them is drawn as it is and not as a mean with its neighbours.
+TEST(sixel_colours_the_terminal_cannot_tell_apart_are_one_register) {
+  Image img;
+  img.width = 256;
+  img.height = 12;
+  for (int y = 0; y < 12; y++) {
+    for (int x = 0; x < 256; x++) {
+      uint8_t v = y < 6 ? static_cast<uint8_t>(x) : 50;
+      img.pixels.push_back(Image::pack(v, v, v));
+    }
+  }
+  std::vector<bool> all(256 * 12, true);
+  std::string s = encodeSixel(img, 0, 0, 256, 12, all, Dither{}, 128);
+  size_t definitions = 0;  // "#<register>;2;": a grey of 2 percent holds ";2;" three times itself
+  for (size_t i = s.find('#'); i != std::string::npos; i = s.find('#', i + 1)) {
+    size_t j = i + 1;
+    while (j < s.size() && s[j] >= '0' && s[j] <= '9') j++;
+    if (j > i + 1 && s.compare(j, 3, ";2;") == 0) definitions++;
+  }
+  CHECK(definitions == 101);
+  CHECK(count(s, ";2;20;20;20") == 1);  // 50 of 255
+}
+
 // More colours than registers: cut down to the registers, and the colours between them dithered.
 TEST(sixel_images_with_more_colours_than_registers_use_no_more_registers_and_are_dithered) {
   Image g = greys();

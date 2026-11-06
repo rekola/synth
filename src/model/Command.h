@@ -1,6 +1,7 @@
 #ifndef _COMMAND_H_
 #define _COMMAND_H_
 
+#include "SendFader.h"
 #include "../util/digit.h"
 
 #include <algorithm>
@@ -302,19 +303,14 @@ class Command {
   bool isSendBGlide() const { return values_[0] == 'Y' && values_[1] == 'B'; }
 
   // x (values_[2], one hex digit - a non-hex character parses as 0, same
-  // as digit()'s own contract) maps linearly in dB, same -80dB..0dB span
-  // getSendSetLinear() uses, at nibble instead of byte resolution.
-  // Returns dB directly, not linear gain (unlike getSendSetLinear()) -
-  // LeafTrackState::glideSendMain()/A()/B(), the consumer here, interpolates
-  // in dB (see that class's own comment for why), so this skips a
-  // pointless dB->linear->dB round trip.
+  // as digit()'s own contract) is a send position (SendFader.h): 0 off, 1..15
+  // from -42 dB in 3 dB steps up to unity. Returns dB directly, not linear
+  // gain (unlike getSendSetLinear()) - LeafTrackState::glideSendMain()/A()/B(),
+  // the consumer here, interpolates in dB (see that class's own comment for
+  // why), so this skips a pointless dB->linear->dB round trip.
   float getGlideTargetDb() const {
     auto x = digit(values_[2], 16);
-    float magnitude = static_cast<float>(x < 0 ? 0 : x);
-    // The top nibble is exactly 0 dB; the line below leaves a few millionths
-    // of a dB there once the compiler fuses it or takes the reciprocal of 15.
-    if (x >= 15) return 0.0f;
-    return -80.0f + (magnitude / 15.0f) * 80.0f;
+    return sendPositionToDb(x < 0 ? 0 : x);
   }
 
   // y (values_[3], one hex digit, same permissive parsing) maps
@@ -390,15 +386,11 @@ class Command {
   }
 
   // volumeGlide()/sendAGlide()/sendBGlide()'s own shared builder -
-  // `letter` is 'M'/'A'/'B', `target_db` clamped into the representable
-  // -80..0dB range first (same reasoning makeSendSet()'s own clamp has),
+  // `letter` is 'M'/'A'/'B', `target_db` rounded to the nearest send position,
   // `duration_seconds` clamped into [kMinGlideSeconds, kMaxGlideSeconds]
   // before mapping into its own nibble.
   static Command makeGlideSet(char letter, float target_db, float duration_seconds) {
-    float db = target_db;
-    if (db < -80.0f) db = -80.0f;
-    if (db > 0.0f) db = 0.0f;
-    int target_nibble = static_cast<int>(lround((db + 80.0f) / 80.0f * 15.0f));
+    int target_nibble = sendDbToPosition(target_db);
     float duration = duration_seconds;
     if (duration < kMinGlideSeconds) duration = kMinGlideSeconds;
     if (duration > kMaxGlideSeconds) duration = kMaxGlideSeconds;

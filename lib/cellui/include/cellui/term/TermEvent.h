@@ -30,6 +30,7 @@ enum class ReplyKind {
   TERTIARY_DA,      // text: the unit id, in hex
   XTVERSION,        // text: name and version
   XTGETTCAP,        // text: the body after "1+r" or "0+r"; params[0]: 1 valid, 0 invalid
+  SGR_STATE,        // DECRQSS for the pen; text: the SGR parameters it reports ("0;48:2::1:2:3")
   MODE_REPORT,      // params: mode, state
   KITTY_KEYBOARD,   // params: flags
   XTSMGRAPHICS,     // params: Pi, Ps, values...

@@ -1312,10 +1312,11 @@ PatternEditor::render(const StyleProvider & styles, bool refresh, bool focused) 
     auto margin = pointer_scroll_ ? 0 : std::min(kScrollMargin, (visible - 1) / 2);
     RowAddress top{ view_block_, current_scroll_.row };
     auto line = source_->rowsBetween(top, point);
+    // By page, the cursor comes to the far margin so the view stays still for a page of rows.
     if (line < margin) {
-      top = source_->advance(point, -margin);
+      top = source_->advance(point, page_scroll_ ? -(visible - 1 - margin) : -margin);
     } else if (line > visible - 1 - margin) {
-      top = source_->advance(point, -(visible - 1 - margin));
+      top = source_->advance(point, page_scroll_ ? -margin : -(visible - 1 - margin));
     }
     if (!isLiveMode() && top.row < 0) top = { 0, 0 };
     if (isLiveMode()) {

@@ -153,8 +153,10 @@ TEST(glide_command_parses_mnemonic) {
   CHECK(!unrelated.isVolumeGlide() && !unrelated.isSendAGlide() && !unrelated.isSendBGlide());
 }
 
-TEST(glide_command_decodes_the_full_range_at_nibble_resolution) {
-  CHECK_NEAR(Command("YM00").getGlideTargetDb(), -80.0f, 1e-6f); // x=0 -> -80dB floor
+TEST(glide_command_target_is_a_send_position) {
+  CHECK_NEAR(Command("YM00").getGlideTargetDb(), kSendOffDb, 1e-6f); // x=0 -> off
+  CHECK_NEAR(Command("YM10").getGlideTargetDb(), -42.0f, 1e-6f);     // x=1 -> lowest level
+  CHECK_NEAR(Command("YM70").getGlideTargetDb(), -24.0f, 1e-6f);
   CHECK_NEAR(Command("YMF0").getGlideTargetDb(), 0.0f, 1e-6f); // x=F -> 0dB/unity
   CHECK_NEAR(Command("YM00").getGlideDurationSeconds(), 0.03f, 1e-6f); // y=0 -> fastest
   CHECK_NEAR(Command("YM0F").getGlideDurationSeconds(), 8.0f, 1e-4f); // y=F -> slowest
@@ -172,12 +174,12 @@ TEST(glide_command_decodes_the_full_range_at_nibble_resolution) {
 TEST(glide_command_factories_build_a_real_command_that_round_trips) {
   auto volume = Command::volumeGlide(-20.0f, 0.5f);
   CHECK(volume.isVolumeGlide());
-  CHECK_NEAR(volume.getGlideTargetDb(), -20.0f, 3.0f); // nibble resolution is coarse
+  CHECK_NEAR(volume.getGlideTargetDb(), -21.0f, 1e-6f);             // the nearest position
   CHECK_NEAR(volume.getGlideDurationSeconds(), 0.5f, 0.5f * 0.25f); // a nibble is a factor of ~1.45
 
-  auto send_a = Command::sendAGlide(-80.0f, 0.03f);
+  auto send_a = Command::sendAGlide(-100.0f, 0.03f);
   CHECK(send_a.isSendAGlide());
-  CHECK_NEAR(send_a.getGlideTargetDb(), -80.0f, 1e-6f);
+  CHECK_NEAR(send_a.getGlideTargetDb(), kSendOffDb, 1e-6f);
   CHECK_NEAR(send_a.getGlideDurationSeconds(), 0.03f, 1e-6f);
 
   auto send_b = Command::sendBGlide(0.0f, 8.0f);
@@ -273,4 +275,16 @@ TEST(extent_set_command_maps_xx_linearly_up_to_the_maximum) {
   CHECK_NEAR(Command("0WFF").getExtentSetMeters(), Command::kMaxExtentMeters, 1e-5f);
   CHECK_NEAR(Command("0W80").getExtentSetMeters(), Command::kMaxExtentMeters * 128.0f / 255.0f, 1e-5f);
   CHECK(!Command("0P80").isExtentSet());
+}
+
+TEST(every_send_position_round_trips_through_a_glide_command) {
+  for (int position = 0; position < kSendPositions; position++) {
+    float db = sendPositionToDb(position);
+    CHECK_NEAR(Command::sendBGlide(db, 0.5f).getGlideTargetDb(), db, 1e-6f);
+    CHECK(sendDbToPosition(db) == position);
+  }
+  CHECK(sendPositionToDb(kSendTopPosition) == 0.0f);
+  CHECK(sendDbToPosition(-43.4f) == 1);
+  CHECK(sendDbToPosition(-43.6f) == 0);
+  CHECK(sendDbToPosition(12.0f) == kSendTopPosition);
 }

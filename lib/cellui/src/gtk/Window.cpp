@@ -451,6 +451,7 @@ void Window::Impl::measure(const WindowOptions & options) {
   display_info.key_release = true;
   display_info.precise_mouse = true;
   display_info.hover = true;
+  display_info.drag_drop = true;
 }
 
 void Window::Impl::allocated(int width, int height) {

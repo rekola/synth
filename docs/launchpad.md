@@ -71,6 +71,8 @@ otherwise.
 | Volume / Pan / Send A / Send B | | enter that fader mode |
 | Stop Clip / Mute / Solo / Record Arm | | open the track picker |
 
+The Volume and Send faders rest on 16 levels: off, then -42 to 0 dB in 3 dB steps (the clip grid's dials and the recorded glide commands use the same). Rows 1-7 are -36 dB up to 0 dB in 6 dB steps; pressing the same pad again goes 3 dB below it, and again back. Row 0's first press is -42 dB and pressing it again is off.
+
 All eight show a uniform dim white while mixer submode is off. In mixer
 submode each shows its own color, bright for the active one. A press that
 switches to a different member of the group applies immediately; holding it

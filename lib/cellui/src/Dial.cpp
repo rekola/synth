@@ -105,9 +105,13 @@ std::string Dial::valueText() const {
 
 void Dial::draw() {
   const StyleProvider & styles = plane_.getStyles();
-  // Only the lines change colour: the cursor colour while selected, a brighter one while pressed.
-  Color fg = foreground_.blend(std::clamp(selected_, 0.0f, 1.0f), styles.highlight_bg_color);
+  // Only the lines change colour, and only four ways (so each position has four pictures, however
+  // slowly the selection eases in): the cursor colour while selected, a brighter one while pressed,
+  // halfway to the cursor colour under the pointer.
+  Color fg = foreground_;
   if (pressed_) fg = styles.highlight_bg_color.blend(0.45f, Color(255, 255, 255));
+  else if (selected_ >= 0.5f) fg = styles.highlight_bg_color;
+  else if (hover_) fg = foreground_.blend(0.5f, styles.highlight_bg_color);
   DialReading reading{spec_.letter, fraction(), valueText()};
   reading.editing = editing_;
   reading.edit_text = edit_text_;
@@ -119,11 +123,19 @@ bool Dial::contains(int screen_y, int screen_x) const {
   return y >= row_ && y < row_ + kRows && x >= col_ && x < col_ + kCols && y >= clip_top_ && y < clip_bottom_;
 }
 
+float Dial::snap(float value) const {
+  if (spec_.step <= 0.0f) return value;
+  float top = std::floor((spec_.max - spec_.min) / spec_.step + 0.01f);
+  float k = std::clamp(std::round((value - spec_.min) / spec_.step), 0.0f, top);
+  return k < 0.5f ? spec_.off : spec_.min + k * spec_.step;
+}
+
 void Dial::turn(float base, float delta) {
   // A value above the arc's top stays where it is rather than dropping to it.
-  float top = std::max(spec_.max, base);
+  float top = spec_.step > 0.0f ? spec_.max : std::max(spec_.max, base);
   float value = std::clamp(base + delta, spec_.min - 1.0f, top);
-  if (value < spec_.min) value = spec_.off;
+  if (spec_.step > 0.0f) value = snap(value);
+  else if (value < spec_.min) value = spec_.off;
   if (std::abs(value - value_) < 0.001f) return;
   value_ = value;
   if (on_change) on_change(value);
@@ -163,7 +175,7 @@ void Dial::commitEdit() {
   if (*begin == '+') begin++;  // "+3" is a fine thing to type
   float value = 0.0f;
   if (parseFloat(begin, text.c_str() + text.size(), value).ec != std::errc()) return;  // not a number: the value stays
-  value_ = std::clamp(value, spec_.typed_min, spec_.typed_max);
+  value_ = snap(std::clamp(value, spec_.typed_min, spec_.typed_max));
   if (on_change) on_change(value_);
 }
 
@@ -188,7 +200,7 @@ bool Dial::key(int id, const Modifiers & mods) {
 bool Dial::wheel(int row, int col, bool up, bool shift) {
   if (editing_ || !contains(row, col)) return false;
   float base = std::max(value_, spec_.min);
-  if (shift) {
+  if (shift && spec_.step <= 0.0f) {
     turn(base, (up ? 1.0f : -1.0f) * spec_.wheel_step * spec_.fine);
   } else {
     // A plain step lands on a multiple of itself, so a level between steps (or with float noise)
@@ -232,7 +244,7 @@ bool Dial::press(float fy, int row, int col, bool shift) {
     moved_ = true;
     if (on_turn_begin) on_turn_begin();
   }
-  if (moved_) turn(start_value_, rows_up * spec_.drag_per_row * (shift ? spec_.fine : 1.0f));
+  if (moved_) turn(start_value_, rows_up * spec_.drag_per_row * (shift && spec_.step <= 0.0f ? spec_.fine : 1.0f));
   return true;
 }
 

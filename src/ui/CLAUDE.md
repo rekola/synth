@@ -34,6 +34,17 @@ headers for what moved to cellui. The UI sources are the `synth_ui` library.
   `showChoiceDialog()`/`showInfoDialog()` therefore return once closed; tests
   run their checks in `UIFixture::inModal()`.
 
+## Link profile
+
+`PerformanceProfile.h`: `profileFor(LinkClass)` is what the app draws by link class (`plans/link-degradation.md`
+3.7). `InteractiveUI::applyProfile()` runs when the backend's link handler fires (and once at start, for a pinned
+class). It sets: a cap on autonomous redraws (`frameDue()`: a frame an input or an edit asked for is never held
+back, one only the audio blocks want waits for the class's gap); reduced motion from 15 Hz down, added to the
+user's own setting; the rate of the scopes and the channel meter (`rateDue()`, results that arrive too soon are
+dropped; 0 keeps the last picture); `Backend::setPointerDetail()` (hover and pointer shapes, which cost a
+terminal's link bytes); and `PatternEditor::setPageScroll()`. Not yet by class: Live View's per-column lines, the
+arrangement grid, the backdrop.
+
 ## Where commands live
 
 Commands (`CommandRegistry` names, run by a key or M-x) live in
@@ -224,16 +235,16 @@ Controller-level and per-widget commands. Not migrated: `StatusLine`,
   running without motion.
 - **Sends** are `cellui::Dial`s (`Dial.h`) in identical 5x3 slots: A and B in
   a 4-row Sends group, Main centred in a 3-row group of its own
-  (`SendsDirectionRow`). The pointer is the send's dB over the fader range
-  (`model/SendFader.h`: -36 dB to unity, off below; the arc starts a step
-  lower so the two lowest rows point apart). The plane decides picture or
+  (`SendsDirectionRow`). The pointer is the send's dB over the arc
+  (`model/SendFader.h`: 16 positions, off then -42 to 0 dB in 3 dB steps; the
+  Launchpad faders and the recorded glide commands rest on the same ones). The plane decides picture or
   text (`dial_image::render()` or letter over dB), so a backend without
   pictures needs nothing. Gestures are the widget's: click starts typing a
-  value over the dial (up to +12, no unit; Enter commits, Escape, focus loss
-  or a click elsewhere closes), drag turns it (3 dB a row, Shift 0.3, one
-  undo step per drag), wheel turns it (1 dB, Shift 0.1). `ClipGrid` only
+  value over the dial (rounded to a position, no unit, nothing above 0; Enter
+  commits, Escape, focus loss or a click elsewhere closes), drag turns it
+  (a position a row, one undo step per drag), wheel turns it (a position). `ClipGrid` only
   places the dials, gives them values and `DialSpec`, passes on input, and
-  calls `Dial::startEdit()` on Enter. Every column has a vertical level meter
+  calls `Dial::startEdit()` on Enter. A dial has four looks (normal, pressed, selected from half the cursor's ease-in, and hover, set from the grid's pointer motion), so a position has four pictures. Every column has a vertical level meter
   beside its Main and Direction rows (`LevelMeter.h`: one dB mapping,
   `Ballistics` smoothing block RMS in the power domain, bars shaded green →
   orange → clip red via `StyleProvider::levelColor()`, a `PeakHold` marker);
