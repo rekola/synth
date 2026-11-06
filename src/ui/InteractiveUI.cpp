@@ -1367,6 +1367,7 @@ InteractiveUI::layout() {
   // later, this is the one line to change to move it into a dedicated
   // control bar row instead.
   auto octave_width = octave_control_->preferredWidth();
+  info_line_->setRightReserved(octave_width);
   octave_control_->resize(1, octave_width).move(rows - 2, std::max(0, cols - octave_width));
   status_line_->resize(1, cols - 1).move(rows - 1, 0);
   clearLastRow();
