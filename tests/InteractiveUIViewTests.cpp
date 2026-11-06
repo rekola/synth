@@ -1,6 +1,7 @@
 #include <set>
 #include <chrono>
 #include <thread>
+#include "../src/model/SendFader.h"
 #include "TestFramework.h"
 
 #include "InteractiveUIFixture.h"
@@ -889,7 +890,7 @@ TEST(terminal_ui_clip_grid_dial_editor_shows_the_value_and_typing_replaces_it) {
   CHECK(f.line(static_cast<size_t>(rows.a_bottom())).find("▏") != std::string::npos);
   f.type("-7");
   f.press(cellui::Key::Enter);
-  CHECK_NEAR(sendDbOfFirstTrack(f, 1), -7.0f, 0.01f);
+  CHECK_NEAR(sendDbOfFirstTrack(f, 1), -6.0f, 0.01f); // rounded to a send position
 }
 
 // Dragging a dial up raises it and down lowers it (to off below the lowest
@@ -928,11 +929,13 @@ TEST(terminal_ui_clip_grid_wheel_over_a_dial_turns_it) {
   for (int i = 0; i < 3; i++) f.ui->step(); // frames with nothing to redraw
   auto before = f.line(static_cast<size_t>(rows.caption));
   f.wheel(y, x, false);
-  float whole = std::floor(start); // a plain step lands on a whole dB
-  CHECK_NEAR(sendDbOfFirstTrack(f, 1), whole + 1.0f, 0.05f);
+  // A notch is one send position (3 dB), landing on the table.
+  float one = sendDbOfFirstTrack(f, 1);
+  CHECK(one > start);
+  CHECK(sendPositionToDb(sendDbToPosition(one)) == one || std::fabs(sendPositionToDb(sendDbToPosition(one)) - one) < 0.01f);
   f.wheel(y, x, true);
   f.wheel(y, x, true);
-  CHECK_NEAR(sendDbOfFirstTrack(f, 1), whole - 1.0f, 0.05f);
+  CHECK_NEAR(sendDbOfFirstTrack(f, 1), one - 6.0f, 0.05f);
   CHECK(f.line(static_cast<size_t>(rows.caption)) == before); // the grid did not scroll
 }
 

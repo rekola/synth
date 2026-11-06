@@ -473,6 +473,12 @@ cellui::Dial & ClipGrid::dialAt(int track_id, int send) {
                                               : "B";
     spec.min = kSendArcBottomDb;
     spec.max = 0.0f;
+    spec.step = kSendStepDb;
+    spec.off = kSendOffDb;
+    spec.drag_per_row = kSendStepDb;
+    spec.wheel_step = kSendStepDb;
+    spec.typed_min = kSendOffDb;
+    spec.typed_max = 0.0f;
     slot = std::make_unique<cellui::Dial>(body(), spec);
     slot->setId((uint64_t{1} << 32) | key);
     auto * dial = slot.get();

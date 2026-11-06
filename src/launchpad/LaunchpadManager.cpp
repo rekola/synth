@@ -463,12 +463,11 @@ Color padTrackColor(int ordinal) {
   constexpr float kPanBarScale = 0.55f;
   constexpr float kPanCenterScale = 0.25f;
 
-  // Send A/B/Main fader curve: row 1 is kSendFloorDb (SendFader.h) below
-  // unity (row 7); 6dB/step is a standard, easily-perceived mixing-console
-  // increment. Row 0 is a hard off (see sendRowToDb()), not a further 6dB
-  // step, since a real fader's bottom position is true silence, not just
-  // very quiet.
-  constexpr float SEND_ROW_FLOOR_DB = kSendFloorDb;
+  // A Send fader's rows sit on the shared 16 positions (SendFader.h): row r
+  // is position 2r + 1, so row 7 is unity and row 1 is -36 dB, and a
+  // repeated press goes one position (3 dB) below its row. Row 0's first
+  // press is -42 dB and its repeat is off.
+  constexpr int sendRowToPosition(int row) { return 2 * row + 1; }
 
   // Self-contained (not TreeNode::gainToDecibels(), only reachable from
   // TreeNode<Derived> subclasses - VoiceState/TrackState, neither of which
@@ -478,21 +477,9 @@ Color padTrackColor(int ordinal) {
   // -100dB "off" floor.
   float linearToDb(float linear) { return linear <= 0.00001f ? -100.0f : 20.0f * log10f(linear); }
 
-  // sendLinearToRow()'s own db->row half, factored out so
-  // resolveSendFaderTarget() (whose FaderState already tracks dB, the
-  // same unit sendRowToDb()/Controller::setTrackSendA()/B()/Main() all
-  // use - never linear gain) can reach it directly rather than
-  // double-converting through linearToDb() a second time via
-  // sendLinearToRow() itself.
-  int sendDbToRow(float db) {
-    // Nearer to off than to the lowest real (row-1) step - round down to
-    // the hard-off row rather than the same half-step rounding the real
-    // steps below use, so a value that's genuinely off (or migrated from
-    // one that was) always redraws as row 0, not a barely-lit row 1.
-    if (db <= SEND_ROW_FLOOR_DB - (-SEND_ROW_FLOOR_DB) / 6.0f / 2.0f) return 0;
-    float row = 1.0f + (db - SEND_ROW_FLOOR_DB) * 6.0f / (-SEND_ROW_FLOOR_DB);
-    return std::clamp(static_cast<int>(lround(row)), 0, 7);
-  }
+  // The row a send level lights: each row covers its position and the one
+  // below it.
+  int sendDbToRow(float db) { return std::clamp(sendDbToPosition(db) / 2, 0, 7); }
 
   // A fader press's own glide duration (faderGlideDurationSeconds()) scales
   // between these by press velocity: a hard press moves a full range in
@@ -576,8 +563,7 @@ Color padTrackColor(int ordinal) {
 
 float
 LaunchpadManager::sendRowToDb(int row) {
-  if (row <= 0) return -100.0f;
-  return SEND_ROW_FLOOR_DB + (-SEND_ROW_FLOOR_DB) * static_cast<float>(row - 1) / 6.0f;
+  return sendPositionToDb(sendRowToPosition(std::clamp(row, 0, 7)));
 }
 
 int
@@ -598,15 +584,11 @@ LaunchpadManager::resolveSendFaderTarget(FaderState & fader, float current_value
   bool still_gliding = fader.ramping && std::chrono::duration<float>(now - fader.start_time).count() < fader.duration_seconds;
   is_micro_tap = fader.touched && pressed_row == fader.last_pressed_row && !still_gliding;
   if (is_micro_tap) {
-    // 2 micro-values - 8 rows * 2 = 16 distinct positions, matching the
-    // 4-bit target resolution a recorded `YMxy`/`YAxy`/`YBxy` command can
-    // actually address (see docs/commands.md's own "Recorded fader-glide
-    // commands" section) - a finer live micro-step than that would
-    // silently round away to the same recorded value anyway.
+    // A repeat alternates between the position below the row (step 1) and the
+    // row's own (step 2), so every row reaches both its position and the one
+    // under it: all 16 positions.
     fader.micro_step = fader.micro_step >= 2 ? 1 : fader.micro_step + 1;
-    int next_row = std::min(7, pressed_row + 1); // Send's row 7 is a true ceiling - never wraps
-    float base_value = sendRowToDb(pressed_row);
-    float target = base_value + (sendRowToDb(next_row) - base_value) * static_cast<float>(fader.micro_step) / 2.0f;
+    float target = sendPositionToDb(sendRowToPosition(pressed_row) - (fader.micro_step == 1 ? 1 : 0));
     fader.ramping = false; // instant - nothing left gliding after a micro-tap
     return target;
   }

@@ -65,7 +65,11 @@ struct DialSpec {
   float typed_min = -100.0f, typed_max = 12.0f;  // what may be typed
   float drag_per_row = 3.0f;  // a row dragged
   float wheel_step = 1.0f;    // a wheel step
-  float fine = 0.1f;          // the factor Shift puts on both
+  float fine = 0.1f;          // the factor Shift puts on both (not used with `step`)
+  // With a step above 0 the dial rests only on the arc's steps: `min` is off's place,
+  // then a step every `step` up to `max`. A drag, a wheel notch or a typed value lands
+  // on the nearest.
+  float step = 0.0f;
 };
 
 // A dial that handles itself: the picture or the text version (drawDial()),
@@ -125,6 +129,7 @@ class Dial {
   float fraction() const;
 
  private:
+  float snap(float value) const;
   void turn(float base, float delta);
   std::string valueText() const;
 

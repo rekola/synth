@@ -216,3 +216,40 @@ TEST(dial_widget_wheel_steps_land_on_whole_values_and_committing_off_keeps_it_of
   wheel(f.dial, 3, 5, true);
   CHECK_NEAR(f.dial.value(), -35.0f, 0.001f);  // the first step up from off
 }
+
+TEST(dial_with_steps_rests_only_on_them_by_drag_wheel_and_typing) {
+  StyleProvider styles;
+  CellBuffer buffer{12, 30};
+  BufferPlane plane{buffer, styles};
+  DialSpec spec{"A"};
+  spec.min = -45.0f;
+  spec.step = 3.0f;
+  spec.wheel_step = 3.0f;
+  spec.typed_max = 0.0f;
+  Dial dial{plane, spec};
+  dial.setPosition(2, 3);
+  dial.setValue(-21.0f);
+  // A row dragged is one step, Shift or not.
+  press(dial, 3, 5);
+  press(dial, 2, 5, true);
+  CHECK_NEAR(dial.value(), -18.0f, 1e-4f);
+  dial.release();
+  dial.setValue(-21.0f);
+  wheel(dial, 3, 5, true);
+  CHECK_NEAR(dial.value(), -18.0f, 1e-4f);
+  dial.setValue(-42.0f);
+  wheel(dial, 3, 5, false);
+  CHECK(dial.value() < -99.0f);  // the step below the lowest is off
+  wheel(dial, 3, 5, true);
+  CHECK_NEAR(dial.value(), -42.0f, 1e-4f);
+  dial.setValue(-21.0f);
+  dial.startEdit();
+  for (char c : std::string("-19.4")) key(dial, c);
+  key(dial, Key::Enter);
+  CHECK_NEAR(dial.value(), -18.0f, 1e-4f);  // rounded to the nearest step
+  dial.setValue(-21.0f);
+  dial.startEdit();
+  for (char c : std::string("5")) key(dial, c);
+  key(dial, Key::Enter);
+  CHECK_NEAR(dial.value(), 0.0f, 1e-4f);  // nothing above unity
+}
