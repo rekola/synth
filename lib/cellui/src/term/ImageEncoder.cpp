@@ -93,17 +93,6 @@ Image stretch(const Image & src, int width, int height) {
 
 std::string cup(int row, int col) { return "\x1b[" + std::to_string(row + 1) + ";" + std::to_string(col + 1) + "H"; }
 
-void paletteRgb(int index, int & r, int & g, int & b) {
-  if (index >= 232) {
-    r = g = b = 8 + 10 * (index - 232);
-  } else {
-    int i = index - 16;
-    r = kCubeLevels[i / 36];
-    g = kCubeLevels[(i / 6) % 6];
-    b = kCubeLevels[i % 6];
-  }
-}
-
 // The 8x8 Bayer matrix as thresholds in (0, 1).
 float bayer8(int x, int y) {
   static const float * table = [] {
@@ -128,29 +117,14 @@ float bayer8(int x, int y) {
   return table[(y & 7) * 8 + (x & 7)];
 }
 
-// Of the two entries around `v` on a ramp of `levels`, the upper one when
-// v lies above `threshold` of the way between them.
-int orderedLevel(int v, const int * levels, int count, float threshold) {
-  int i = 0;
-  while (i + 2 < count && v >= levels[i + 1]) i++;
-  float span = static_cast<float>(levels[i + 1] - levels[i]);
-  float frac = std::clamp(static_cast<float>(v - levels[i]) / span, 0.0f, 1.0f);
-  return frac > threshold ? i + 1 : i;
-}
-
-// A pixel's palette index by ordered dithering: each channel between its
-// two cube levels, a grey on the grey ramp (with the cube's black and
-// white at its ends) - exact for any gap, with no search.
-int orderedIndex(int r, int g, int b, float threshold) {
-  int hi = std::max({r, g, b}), lo = std::min({r, g, b});
-  if (hi - lo < 12) {
-    static const int kGreys[26] = {0, 8, 18, 28, 38, 48, 58, 68, 78, 88, 98, 108, 118, 128, 138, 148, 158, 168, 178, 188, 198, 208, 218, 228, 238, 255};
-    int k = orderedLevel((r + g + b) / 3, kGreys, 26, threshold);
-    return k == 0 ? 16 : k == 25 ? 231 : 232 + (k - 1);
-  }
-  return 16 + 36 * orderedLevel(r, kCubeLevels, 6, threshold) + 6 * orderedLevel(g, kCubeLevels, 6, threshold) +
-         orderedLevel(b, kCubeLevels, 6, threshold);
-}
+// Offset, in levels peak to peak, an ordered dither adds before a pixel goes to its nearest register.
+constexpr float kOrderedAmplitude = 12.0f;
+// A pixel off its nearest register by no more than this in any channel is not dithered.
+constexpr int kDitherAbove = 5;
+// A changed Sixel picture is considered for sending in pieces only when the pieces cover less than this
+// share of its cells, and is then sent in whichever way is smaller: a piece repeats the registers it
+// uses, and most changes (a line moving across a chart) touch every row.
+constexpr size_t kPartialBelowPercent = 80;
 
 int percent(int v) { return static_cast<int>(std::lround(v * 100.0 / 255.0)); }
 
@@ -177,6 +151,7 @@ ImageEncoder::Profile ImageEncoder::Profile::from(const Capabilities & caps) {
   p.cell_px_height = caps.display.cell_px_height;
   p.cell_px_width = caps.display.cell_px_width;
   p.sixel_setup = caps.sixel_setup;
+  if (caps.sixel_registers > 0) p.sixel_registers = std::min(caps.sixel_registers, 128);
   return p;
 }
 
@@ -207,77 +182,209 @@ std::vector<uint8_t> encodePng(const Image & image, int x0, int y0, int width, i
   return png;
 }
 
-std::string encodeSixel(const Image & image, int x0, int y0, int width, int height, const std::vector<bool> & keep,
-                        const Dither & dither) {
-  // Each pixel's palette index, dithered.
-  std::vector<int> indices(static_cast<size_t>(width) * static_cast<size_t>(height));
+namespace {
+
+// The colours of a Sixel image: a register each, either exactly the colours the pixels have (when
+// they fit) or their median cut. Made once for a picture, so every piece of it sent later is drawn in
+// the same colours.
+struct SixelPalette {
+  std::vector<uint32_t> rgb;  // 0xRRGGBB per register
+  bool exact = false;         // every pixel's colour is a register: nothing to dither
+  std::unordered_map<uint32_t, int> index;  // (exact) colour -> register
+};
+
+int paletteNearest(const SixelPalette & palette, int r, int g, int b) {
+  int best = 0;
+  long best_d = -1;
+  for (size_t i = 0; i < palette.rgb.size(); i++) {
+    uint32_t c = palette.rgb[i];
+    long dr = static_cast<long>((c >> 16) & 0xff) - r, dg = static_cast<long>((c >> 8) & 0xff) - g, db = static_cast<long>(c & 0xff) - b;
+    long d = 3 * dr * dr + 4 * dg * dg + 2 * db * db;  // green most, blue least
+    if (best_d < 0 || d < best_d) {
+      best_d = d;
+      best = static_cast<int>(i);
+    }
+  }
+  return best;
+}
+
+// The pixels' colours cut into at most `registers` boxes, repeatedly splitting the box with the most
+// pixels times its widest range at the weighted median of that channel; a box's register is its mean.
+SixelPalette makeSixelPalette(const Image & image, int x0, int y0, int width, int height, const std::vector<bool> & keep, int registers) {
+  std::unordered_map<uint32_t, uint32_t> counts;
+  for (int y = 0; y < height; y++) {
+    for (int x = 0; x < width; x++) {
+      uint32_t p = image.pixels[static_cast<size_t>(y0 + y) * static_cast<size_t>(image.width) + static_cast<size_t>(x0 + x)];
+      if (!keep[static_cast<size_t>(y) * static_cast<size_t>(width) + static_cast<size_t>(x)] || Image::alpha(p) < 192) continue;
+      counts[((static_cast<uint32_t>(Image::red(p))) << 16) | (static_cast<uint32_t>(Image::green(p)) << 8) | Image::blue(p)]++;
+    }
+  }
+  SixelPalette palette;
+  std::vector<std::pair<uint32_t, uint32_t>> colours(counts.begin(), counts.end());
+  std::sort(colours.begin(), colours.end());  // a stable order, whatever the hash table did
+  registers = std::max(2, registers);
+  if (colours.size() <= static_cast<size_t>(registers)) {
+    palette.exact = true;
+    for (const auto & [rgb, n] : colours) {
+      palette.index[rgb] = static_cast<int>(palette.rgb.size());
+      palette.rgb.push_back(rgb);
+    }
+    return palette;
+  }
+  struct Box {
+    size_t begin, end;
+    uint64_t pixels = 0;
+    int channel = 0, range = 0;
+  };
+  auto measure = [&](Box & box) {
+    int lo[3] = {255, 255, 255}, hi[3] = {0, 0, 0};
+    box.pixels = 0;
+    for (size_t i = box.begin; i < box.end; i++) {
+      uint32_t c = colours[i].first;
+      int v[3] = {static_cast<int>((c >> 16) & 0xff), static_cast<int>((c >> 8) & 0xff), static_cast<int>(c & 0xff)};
+      for (int k = 0; k < 3; k++) {
+        lo[k] = std::min(lo[k], v[k]);
+        hi[k] = std::max(hi[k], v[k]);
+      }
+      box.pixels += colours[i].second;
+    }
+    box.channel = 1;  // green counts most, so it wins a tie
+    box.range = hi[1] - lo[1];
+    for (int k : {0, 2}) {
+      if (hi[k] - lo[k] > box.range) {
+        box.range = hi[k] - lo[k];
+        box.channel = k;
+      }
+    }
+  };
+  std::vector<Box> boxes = {Box{0, colours.size()}};
+  measure(boxes[0]);
+  while (boxes.size() < static_cast<size_t>(registers)) {
+    size_t pick = boxes.size();
+    double best = 0;
+    for (size_t i = 0; i < boxes.size(); i++) {
+      if (boxes[i].end - boxes[i].begin < 2) continue;
+      double score = static_cast<double>(boxes[i].pixels) * boxes[i].range;
+      if (score > best) {
+        best = score;
+        pick = i;
+      }
+    }
+    if (pick == boxes.size()) break;
+    Box box = boxes[pick];
+    int shift = box.channel == 0 ? 16 : box.channel == 1 ? 8 : 0;
+    std::sort(colours.begin() + static_cast<std::ptrdiff_t>(box.begin), colours.begin() + static_cast<std::ptrdiff_t>(box.end),
+              [&](const auto & a, const auto & b) { return ((a.first >> shift) & 0xff) < ((b.first >> shift) & 0xff); });
+    uint64_t half = box.pixels / 2, seen = 0;
+    size_t cut = box.begin;
+    while (cut + 1 < box.end && seen + colours[cut].second <= half) seen += colours[cut++].second;
+    cut = std::clamp(cut, box.begin + 1, box.end - 1);
+    Box low{box.begin, cut}, high{cut, box.end};
+    measure(low);
+    measure(high);
+    boxes[pick] = low;
+    boxes.push_back(high);
+  }
+  for (const Box & box : boxes) {
+    double sum[3] = {0, 0, 0};
+    for (size_t i = box.begin; i < box.end; i++) {
+      uint32_t c = colours[i].first;
+      double n = colours[i].second;
+      sum[0] += n * static_cast<double>((c >> 16) & 0xff);
+      sum[1] += n * static_cast<double>((c >> 8) & 0xff);
+      sum[2] += n * static_cast<double>(c & 0xff);
+    }
+    double n = static_cast<double>(std::max<uint64_t>(box.pixels, 1));
+    palette.rgb.push_back((static_cast<uint32_t>(std::lround(sum[0] / n)) << 16) | (static_cast<uint32_t>(std::lround(sum[1] / n)) << 8) |
+                          static_cast<uint32_t>(std::lround(sum[2] / n)));
+  }
+  return palette;
+}
+
+// The pixels as Sixel in the colours of `palette`: covered pixels (`keep` false, one entry per pixel)
+// are left transparent. A palette that holds the picture's colours exactly draws them as they are;
+// otherwise each pixel goes to the nearest register, after the dither's offset or with its error
+// carried on.
+std::string encodeSixelWith(const SixelPalette & palette, const Image & image, int x0, int y0, int width, int height,
+                            const std::vector<bool> & keep, const Dither & dither) {
   auto pixel = [&](int x, int y) {
     return image.pixels[static_cast<size_t>(y0 + y) * static_cast<size_t>(image.width) + static_cast<size_t>(x0 + x)];
   };
-  if (dither.method == Dither::Method::FLOYD_STEINBERG) {
-    // Error rows with a border on both sides.
-    std::vector<float> current(static_cast<size_t>(width + 2) * 3, 0.0f), next(current.size(), 0.0f);
-    for (int y = 0; y < height; y++) {
-      std::fill(next.begin(), next.end(), 0.0f);
-      for (int x = 0; x < width; x++) {
-        uint32_t p = pixel(x, y);
+  // Each pixel's register, or -1 when left out.
+  std::vector<int> regs(static_cast<size_t>(width) * static_cast<size_t>(height), -1);
+  bool transparent = height % 6 != 0;
+  auto left_out = [&](size_t i, uint32_t p) { return !keep[i] || Image::alpha(p) < 192; };
+  std::unordered_map<uint32_t, int> cache;  // (offset) colour -> nearest register
+  auto nearest = [&](int r, int g, int b) {
+    uint32_t key = (static_cast<uint32_t>(r) << 16) | (static_cast<uint32_t>(g) << 8) | static_cast<uint32_t>(b);
+    auto it = cache.find(key);
+    if (it != cache.end()) return it->second;
+    int reg = paletteNearest(palette, r, g, b);
+    cache.emplace(key, reg);
+    return reg;
+  };
+  std::vector<float> current(static_cast<size_t>(width + 2) * 3, 0.0f), next(current.size(), 0.0f);
+  bool diffuse = !palette.exact && dither.method == Dither::Method::FLOYD_STEINBERG;
+  for (int y = 0; y < height; y++) {
+    std::fill(next.begin(), next.end(), 0.0f);
+    for (int x = 0; x < width; x++) {
+      size_t i = static_cast<size_t>(y) * static_cast<size_t>(width) + static_cast<size_t>(x);
+      uint32_t p = pixel(x, y);
+      if (left_out(i, p)) {
+        transparent = true;
+        continue;
+      }
+      int r = Image::red(p), g = Image::green(p), b = Image::blue(p);
+      if (palette.exact) {
+        regs[i] = palette.index.at(((static_cast<uint32_t>(r)) << 16) | (static_cast<uint32_t>(g) << 8) | static_cast<uint32_t>(b));
+        continue;
+      }
+      if (diffuse) {
         size_t e = static_cast<size_t>(x + 1) * 3;
-        float want[3] = {Image::red(p) + current[e], Image::green(p) + current[e + 1], Image::blue(p) + current[e + 2]};
+        float want[3] = {static_cast<float>(r) + current[e], static_cast<float>(g) + current[e + 1], static_cast<float>(b) + current[e + 2]};
         int c[3];
         for (size_t k = 0; k < 3; k++) c[k] = static_cast<int>(std::lround(std::clamp(want[k], 0.0f, 255.0f)));
-        int index = nearest256(Color(c[0], c[1], c[2]));
-        indices[static_cast<size_t>(y) * static_cast<size_t>(width) + static_cast<size_t>(x)] = index;
-        int got[3];
-        paletteRgb(index, got[0], got[1], got[2]);
+        int reg = nearest(c[0], c[1], c[2]);
+        regs[i] = reg;
+        uint32_t got = palette.rgb[static_cast<size_t>(reg)];
+        float have[3] = {static_cast<float>((got >> 16) & 0xff), static_cast<float>((got >> 8) & 0xff), static_cast<float>(got & 0xff)};
         for (size_t k = 0; k < 3; k++) {
-          float error = want[k] - static_cast<float>(got[k]);
+          float error = want[k] - have[k];
           current[e + 3 + k] += error * 7.0f / 16.0f;
           next[e - 3 + k] += error * 3.0f / 16.0f;
           next[e + k] += error * 5.0f / 16.0f;
           next[e + 3 + k] += error * 1.0f / 16.0f;
         }
-      }
-      current.swap(next);
-    }
-  } else {
-    std::unordered_map<uint32_t, int> cache;
-    for (int y = 0; y < height; y++) {
-      for (int x = 0; x < width; x++) {
-        uint32_t p = pixel(x, y);
-        int index;
-        if (dither.method == Dither::Method::ORDERED) {
-          index = orderedIndex(Image::red(p), Image::green(p), Image::blue(p), bayer8(dither.origin_x + x, dither.origin_y + y));
-        } else {
-          auto it = cache.find(p & 0x00ffffffu);
-          index = it != cache.end() ? it->second : nearest256(Color(Image::red(p), Image::green(p), Image::blue(p)));
-          cache.emplace(p & 0x00ffffffu, index);
-        }
-        indices[static_cast<size_t>(y) * static_cast<size_t>(width) + static_cast<size_t>(x)] = index;
-      }
-    }
-  }
-
-  // Each pixel's register (its palette index - 16), or -1 when left out.
-  std::vector<int> regs(static_cast<size_t>(width) * static_cast<size_t>(height), -1);
-  std::set<int> used;
-  bool transparent = height % 6 != 0;
-  for (int y = 0; y < height; y++) {
-    for (int x = 0; x < width; x++) {
-      size_t i = static_cast<size_t>(y) * static_cast<size_t>(width) + static_cast<size_t>(x);
-      uint32_t p = image.pixels[static_cast<size_t>(y0 + y) * static_cast<size_t>(image.width) + static_cast<size_t>(x0 + x)];
-      if (!keep[i] || Image::alpha(p) < 192) {
-        transparent = true;
         continue;
       }
-      regs[i] = indices[i] - 16;
-      used.insert(regs[i]);
+      int reg = nearest(r, g, b);
+      if (dither.method == Dither::Method::ORDERED) {
+        // A pixel the nearest register already matches closely stays: a flat area must not turn into a
+        // pattern of near-equal registers. Where the match is poor (a gradient between registers a few
+        // levels apart) an offset fixed to the screen turns the band edge into a fine pattern.
+        uint32_t c = palette.rgb[static_cast<size_t>(reg)];
+        int miss = std::max({std::abs(static_cast<int>((c >> 16) & 0xff) - r), std::abs(static_cast<int>((c >> 8) & 0xff) - g),
+                             std::abs(static_cast<int>(c & 0xff) - b)});
+        if (miss > kDitherAbove) {
+          float offset = (bayer8(dither.origin_x + x, dither.origin_y + y) - 0.5f) * kOrderedAmplitude;
+          reg = nearest(std::clamp(static_cast<int>(std::lround(static_cast<float>(r) + offset)), 0, 255),
+                        std::clamp(static_cast<int>(std::lround(static_cast<float>(g) + offset)), 0, 255),
+                        std::clamp(static_cast<int>(std::lround(static_cast<float>(b) + offset)), 0, 255));
+        }
+      }
+      regs[i] = reg;
     }
+    if (diffuse) current.swap(next);
+  }
+  std::set<int> used;
+  for (int reg : regs) {
+    if (reg >= 0) used.insert(reg);
   }
   std::string out = "\x1bP0;" + std::string(transparent ? "1" : "0") + ";0q\"1;1;" + std::to_string(width) + ";" + std::to_string(height);
   for (int reg : used) {
-    int r, g, b;
-    paletteRgb(reg + 16, r, g, b);
-    out += "#" + std::to_string(reg) + ";2;" + std::to_string(percent(r)) + ";" + std::to_string(percent(g)) + ";" + std::to_string(percent(b));
+    uint32_t c = palette.rgb[static_cast<size_t>(reg)];
+    out += "#" + std::to_string(reg) + ";2;" + std::to_string(percent(static_cast<int>((c >> 16) & 0xff))) + ";" +
+           std::to_string(percent(static_cast<int>((c >> 8) & 0xff))) + ";" + std::to_string(percent(static_cast<int>(c & 0xff)));
   }
   std::vector<int> bits(static_cast<size_t>(width));
   for (int band = 0; band < height; band += 6) {
@@ -315,6 +422,13 @@ std::string encodeSixel(const Image & image, int x0, int y0, int width, int heig
   }
   out += "\x1b\\";
   return out;
+}
+
+}  // namespace
+
+std::string encodeSixel(const Image & image, int x0, int y0, int width, int height, const std::vector<bool> & keep, const Dither & dither,
+                        int registers) {
+  return encodeSixelWith(makeSixelPalette(image, x0, y0, width, height, keep, registers), image, x0, y0, width, height, keep, dither);
 }
 
 std::vector<ImageEncoder::Rect> ImageEncoder::visibleRects(const CellBuffer & frame, const ImagePlacement & p, bool avoid_last_row) const {
@@ -430,9 +544,27 @@ std::string ImageEncoder::kitty(const CellBuffer & frame, const ImagePlacement &
   return out;
 }
 
+namespace {
+
+// Whether any pixel of the rectangle differs between the two pictures (of one size).
+bool pixelsDiffer(const Image & a, const Image & b, int x, int y, int w, int h) {
+  for (int row = y; row < y + h; row++) {
+    size_t at = static_cast<size_t>(row) * static_cast<size_t>(a.width) + static_cast<size_t>(x);
+    if (!std::equal(a.pixels.begin() + static_cast<std::ptrdiff_t>(at), a.pixels.begin() + static_cast<std::ptrdiff_t>(at) + w,
+                    b.pixels.begin() + static_cast<std::ptrdiff_t>(at))) {
+      return true;
+    }
+  }
+  return false;
+}
+
+}  // namespace
+
 std::string ImageEncoder::sixel(const CellBuffer & frame, const ImagePlacement & p, Shown & shown, bool fresh, bool cleared) {
   std::vector<Rect> rects = visibleRects(frame, p, true);
   bool changed = fresh || cleared || shown.version != p.image->version || rects != shown.rects || p.row != shown.row || p.col != shown.col;
+  // Only the picture changed, in the same place and size: the cells that differ are enough.
+  bool same_place = !fresh && !cleared && rects == shown.rects && p.row == shown.row && p.col == shown.col;
   shown.version = p.image->version;
   shown.rects = rects;
   shown.row = p.row;
@@ -443,40 +575,95 @@ std::string ImageEncoder::sixel(const CellBuffer & frame, const ImagePlacement &
   Image natural;
   if (p.image->stretched()) natural = stretch(withoutPad(*p.image), p.image->cols * cw, p.image->rows * ch);
   const Image & img = p.image->stretched() ? natural : *p.image;
-  int r0 = rects[0].row, c0 = rects[0].col, r1 = r0, c1 = c0;
-  for (const Rect & r : rects) {
-    r0 = std::min(r0, r.row);
-    c0 = std::min(c0, r.col);
-    r1 = std::max(r1, r.row + r.rows);
-    c1 = std::max(c1, r.col + r.cols);
-  }
-  int x = (c0 - p.col) * cw, y = (r0 - p.row) * ch;
-  int w = std::min((c1 - c0) * cw, img.width - x), h = std::min((r1 - r0) * ch, img.height - y);
-  if (w <= 0 || h <= 0) return "";
-  std::vector<bool> keep(static_cast<size_t>(w) * static_cast<size_t>(h), false);
-  for (const Rect & r : rects) {
-    for (int py = (r.row - r0) * ch; py < std::min((r.row - r0 + r.rows) * ch, h); py++) {
-      for (int px = (r.col - c0) * cw; px < std::min((r.col - c0 + r.cols) * cw, w); px++) {
-        keep[static_cast<size_t>(py) * static_cast<size_t>(w) + static_cast<size_t>(px)] = true;
-      }
-    }
-  }
+  size_t upload_before = sizes_.upload;
+  bool diff = same_place && shown.sent.width == img.width && shown.sent.height == img.height && shown.sent.pixels.size() == img.pixels.size();
   std::string out;
   if (!sixel_ready_) {
     out += profile_.sixel_setup;
     sixel_ready_ = true;
   }
-  out += cup(r0, c0);
   sizes_.placement += out.size();
-  Dither dither;
-  dither.method = profile_.dither;
-  dither.origin_x = p.col * cw + x;
-  dither.origin_y = p.row * ch + y;
-  size_t before = out.size();
-  out += encodeSixel(img, x, y, w, h, keep, dither);
-  sizes_.upload += out.size() - before;
-  picture_stats_[{p.image->width, p.image->height}].uploads++;
-  picture_stats_[{p.image->width, p.image->height}].bytes += out.size() - before;
+  struct Piece {
+    std::string bytes;
+    size_t position = 0, picture = 0;  // of `bytes`, the cursor positions and the Sixel data
+  };
+  auto piece = [&](Piece & into, const SixelPalette & palette, int x, int y, int w, int h, int row, int col) {
+    std::vector<bool> keep(static_cast<size_t>(w) * static_cast<size_t>(h), true);
+    std::string place = cup(row, col);
+    into.position += place.size();
+    into.bytes += place;
+    Dither dither;
+    dither.method = profile_.dither;
+    dither.origin_x = p.col * cw + x;
+    dither.origin_y = p.row * ch + y;
+    std::string data = encodeSixelWith(palette, img, x, y, w, h, keep, dither);
+    into.picture += data.size();
+    into.bytes += data;
+  };
+  auto emit = [&](Piece & from) {
+    out += from.bytes;
+    sizes_.placement += from.position;
+    sizes_.upload += from.picture;
+    picture_stats_[{p.image->width, p.image->height}].bytes += from.picture + from.position;
+  };
+  for (const Rect & r : rects) {
+    // One Sixel to a rectangle: what lies between two of them (a popup over a chart) is not sent.
+    int x = (r.col - p.col) * cw, y = (r.row - p.row) * ch;
+    int w = std::min(r.cols * cw, img.width - x), h = std::min(r.rows * ch, img.height - y);
+    if (w <= 0 || h <= 0) continue;
+    // Which cells of the rectangle changed.
+    std::vector<char> dirty(static_cast<size_t>(r.rows) * static_cast<size_t>(r.cols), 1);
+    size_t dirty_count = dirty.size();
+    if (diff) {
+      dirty_count = 0;
+      for (int tr = 0; tr < r.rows; tr++) {
+        for (int tc = 0; tc < r.cols; tc++) {
+          int tx = x + tc * cw, ty = y + tr * ch;
+          int tw = std::min(cw, x + w - tx), th = std::min(ch, y + h - ty);
+          bool d = tw > 0 && th > 0 && pixelsDiffer(img, shown.sent, tx, ty, tw, th);
+          dirty[static_cast<size_t>(tr) * static_cast<size_t>(r.cols) + static_cast<size_t>(tc)] = d;
+          dirty_count += d ? 1 : 0;
+        }
+      }
+      if (dirty_count == 0) continue;
+    }
+    // One palette for the rectangle, so the pieces sent are drawn in the colours of the pieces not sent.
+    std::vector<bool> all(static_cast<size_t>(w) * static_cast<size_t>(h), true);
+    SixelPalette palette = makeSixelPalette(img, x, y, w, h, all, profile_.sixel_registers);
+    // The cells to send are a row of them at a time, from the first that changed to the last: each Sixel
+    // carries the definitions of its registers, which cost more than the cells between two changes.
+    std::vector<std::pair<int, int>> spans(static_cast<size_t>(r.rows), {r.cols, -1});
+    size_t span_cells = 0;
+    for (int tr = 0; tr < r.rows; tr++) {
+      for (int tc = 0; tc < r.cols; tc++) {
+        if (dirty[static_cast<size_t>(tr) * static_cast<size_t>(r.cols) + static_cast<size_t>(tc)]) {
+          spans[static_cast<size_t>(tr)].first = std::min(spans[static_cast<size_t>(tr)].first, tc);
+          spans[static_cast<size_t>(tr)].second = tc;
+        }
+      }
+      if (spans[static_cast<size_t>(tr)].second >= 0) span_cells += static_cast<size_t>(spans[static_cast<size_t>(tr)].second + 1 - spans[static_cast<size_t>(tr)].first);
+    }
+    Piece whole;
+    if (!diff || span_cells * 100 > dirty.size() * kPartialBelowPercent) {
+      // Much of it: one Sixel is cheaper than a header and a position for each row.
+      piece(whole, palette, x, y, w, h, r.row, r.col);
+      emit(whole);
+      continue;
+    }
+    Piece rows;
+    for (int tr = 0; tr < r.rows; tr++) {
+      auto [first, last] = spans[static_cast<size_t>(tr)];
+      if (last < 0) continue;
+      int rx = x + first * cw, ry = y + tr * ch;
+      int rw = std::min((last + 1 - first) * cw, x + w - rx), rh = std::min(ch, y + h - ry);
+      if (rw > 0 && rh > 0) piece(rows, palette, rx, ry, rw, rh, r.row + tr, r.col + first);
+    }
+    // Whichever is smaller: the rows that changed, or all of it.
+    piece(whole, palette, x, y, w, h, r.row, r.col);
+    emit(rows.bytes.size() < whole.bytes.size() ? rows : whole);
+  }
+  shown.sent = img;
+  if (sizes_.upload > upload_before) picture_stats_[{p.image->width, p.image->height}].uploads++;
   return out;
 }
 

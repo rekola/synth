@@ -13,8 +13,8 @@
 
 namespace cellui::term {
 
-// How colours go to a palette where the terminal has only one: today a
-// Sixel image's to the 240 xterm cube and grey-ramp entries.
+// How colours go to the registers of a Sixel image when the picture has more
+// colours than the registers.
 struct Dither {
   enum class Method {
     NEAREST,          // the nearest entry everywhere: bands in a gradient
@@ -51,6 +51,9 @@ class ImageEncoder {
     int cell_px_height = 0, cell_px_width = 0;
     // Sent once, before the first Sixel image.
     std::string sixel_setup;
+    // The colour registers one Sixel image may use (the terminal's count, at most 128: more only cost
+    // bytes and passes).
+    int sixel_registers = 128;
     Dither::Method dither = Dither::Method::ORDERED;
     static Profile from(const Capabilities & caps);
   };
@@ -100,6 +103,7 @@ class ImageEncoder {
     uint64_t version = 0;
     int row = 0, col = 0;
     std::vector<Rect> rects;  // what shows of it
+    Image sent;               // (Sixel) the pixels last drawn, to send only the cells that changed
   };
 
   std::string kitty(const CellBuffer & frame, const ImagePlacement & p, Shown & shown, bool fresh, bool cleared);
@@ -118,10 +122,11 @@ class ImageEncoder {
 };
 
 // The pixels encoded as Sixel: covered pixels (where `keep` says false, one
-// entry per pixel) are left transparent, and colours go to the 240 xterm
-// cube and grey-ramp entries, dithered. Exposed for tests.
+// entry per pixel) are left transparent. The registers (at most `registers`)
+// are the picture's own colours: exactly, with no dithering, when they fit,
+// else their median cut, dithered. Exposed for tests.
 std::string encodeSixel(const Image & image, int x, int y, int width, int height, const std::vector<bool> & keep,
-                        const Dither & dither = {});
+                        const Dither & dither = {}, int registers = 256);
 
 // A rectangle of the pixels as a PNG file (8-bit RGBA, stored uncompressed).
 // Exposed for tests.

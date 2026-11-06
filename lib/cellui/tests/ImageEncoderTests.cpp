@@ -39,14 +39,14 @@ TEST(sixel_encoding) {
     img.pixels[static_cast<size_t>(y * 2 + 1)] = Image::pack(0, 0, 0, 0);
   }
   std::vector<bool> keep(12, true);
-  CHECK(encodeSixel(img, 0, 0, 2, 6, keep) == "\x1bP0;1;0q\"1;1;2;6#180;2;100;0;0#180~-\x1b\\");
+  CHECK(encodeSixel(img, 0, 0, 2, 6, keep) == "\x1bP0;1;0q\"1;1;2;6#0;2;100;0;0#0~-\x1b\\");
   // Runs longer than two are counted; colours share a band separated by $.
   Image wide;
   wide.width = 4;
   wide.height = 1;
   wide.pixels = {Image::pack(255, 255, 255), Image::pack(255, 255, 255), Image::pack(255, 255, 255), Image::pack(0, 0, 0)};
   std::vector<bool> all(4, true);
-  CHECK(encodeSixel(wide, 0, 0, 4, 1, all) == "\x1bP0;1;0q\"1;1;4;1#0;2;0;0;0#215;2;100;100;100#0!3?@$#215!3@-\x1b\\");
+  CHECK(encodeSixel(wide, 0, 0, 4, 1, all) == "\x1bP0;1;0q\"1;1;4;1#0;2;0;0;0#1;2;100;100;100#0!3?@$#1!3@-\x1b\\");
 }
 
 TEST(images_compose_into_marked_cells) {
@@ -125,6 +125,43 @@ TEST(sixel_images_redraw_on_change_and_avoid_the_last_row) {
   root.refresh();
   CHECK(enc.encode(b, root.images(), false).empty());
   CHECK(!enc.encode(b, root.images(), true).empty());
+}
+
+// Only the picture changed: the cells that differ are sent, the ones next to each other in a row as one.
+TEST(sixel_images_that_change_send_only_the_cells_that_differ) {
+  StyleProvider styles;
+  CellBuffer b(5, 6);
+  BufferPlane root(b, styles);
+  root.setCellPixelSize(6, 2);
+  auto chart = root.createChild();
+  chart->resize(4, 6);
+  std::vector<uint32_t> pixels = solid(12, 24, Image::pack(255, 0, 0));
+  chart->drawImage(pixels, 12, 24);
+  ImageEncoder enc(profile(PixelProtocol::SIXEL));
+  root.refresh();
+  CHECK(count(enc.encode(b, root.images(), true), "\x1bP") == 1);
+  // The same pixels again: nothing.
+  chart->drawImage(pixels, 12, 24);
+  root.refresh();
+  CHECK(enc.encode(b, root.images(), false).empty());
+  // One pixel of the cell in row 1, column 2 (2 x 6 pixels a cell).
+  pixels[static_cast<size_t>(8 * 12 + 4)] = Image::pack(0, 0, 255);
+  chart->drawImage(pixels, 12, 24);
+  root.refresh();
+  std::string one = enc.encode(b, root.images(), false);
+  CHECK(count(one, "\x1bP") == 1 && one.compare(0, 6, "\x1b[2;3H") == 0 && one.find("\"1;1;2;6") != std::string::npos);
+  // Two neighbours in a row: one piece, four pixels wide.
+  pixels[static_cast<size_t>(8 * 12 + 0)] = Image::pack(0, 255, 0);
+  pixels[static_cast<size_t>(8 * 12 + 2)] = Image::pack(0, 255, 0);
+  chart->drawImage(pixels, 12, 24);
+  root.refresh();
+  std::string two = enc.encode(b, root.images(), false);
+  CHECK(count(two, "\x1bP") == 1 && two.find("\"1;1;4;6") != std::string::npos);
+  // Most of it: the whole picture in one piece.
+  chart->drawImage(solid(12, 24, Image::pack(0, 255, 0)), 12, 24);
+  root.refresh();
+  std::string all = enc.encode(b, root.images(), false);
+  CHECK(count(all, "\x1bP") == 1 && all.find("\"1;1;12;24") != std::string::npos);
 }
 
 TEST(frame_encoder_leaves_image_cells_to_the_image) {
@@ -303,30 +340,62 @@ TEST(padded_stretched_images_place_their_inside) {
   CHECK(count(iterm.encode(b, {p}, true), ";width=4;height=2;") == 1);
 }
 
-// A colour between palette entries is dithered: a mix of entries that
-// averages to it, not the nearest one everywhere.
-TEST(sixel_images_are_dithered) {
+namespace {
+
+// 16 columns of different greys, 10 levels apart, 12 rows.
+Image greys() {
+  Image img;
+  img.width = 16;
+  img.height = 12;
+  for (int y = 0; y < 12; y++) {
+    for (int x = 0; x < 16; x++) img.pixels.push_back(Image::pack(static_cast<uint8_t>(20 + 10 * x), static_cast<uint8_t>(20 + 10 * x), static_cast<uint8_t>(20 + 10 * x)));
+  }
+  return img;
+}
+
+}  // namespace
+
+// The registers are the picture's own colours when they fit: a flat colour that is on no cube is flat.
+TEST(sixel_images_with_few_colours_are_drawn_exactly_and_not_dithered) {
   Dither fs;
   fs.method = Dither::Method::FLOYD_STEINBERG;
   Image img;
   img.width = 12;
   img.height = 12;
-  img.pixels.assign(144, Image::pack(20, 20, 20));  // between the greys 18 and 28
+  img.pixels.assign(144, Image::pack(20, 20, 20));
   std::vector<bool> keep(144, true);
   for (const Dither & d : {Dither{}, fs}) {
     std::string s = encodeSixel(img, 0, 0, 12, 12, keep, d);
-    CHECK(count(s, ";2;7;7;7") == 1);   // grey 18
-    CHECK(count(s, ";2;11;11;11") == 1);  // grey 28
+    CHECK(count(s, ";2;") == 1 && count(s, "#0;2;8;8;8") == 1);  // 20 of 255, as the percent the protocol takes
   }
+  // Every colour of a picture that fits has its own register, whichever dither.
+  Image g = greys();
+  std::vector<bool> all(16 * 12, true);
+  std::string s = encodeSixel(g, 0, 0, 16, 12, all);
+  CHECK(count(s, ";2;") == 16);
+  CHECK(s == encodeSixel(g, 0, 0, 16, 12, all, fs));
+}
+
+// More colours than registers: cut down to the registers, and the colours between them dithered.
+TEST(sixel_images_with_more_colours_than_registers_use_no_more_registers_and_are_dithered) {
+  Image g = greys();
+  std::vector<bool> all(16 * 12, true);
+  Dither nearest;
+  nearest.method = Dither::Method::NEAREST;
+  Dither fs;
+  fs.method = Dither::Method::FLOYD_STEINBERG;
+  for (const Dither & d : {Dither{}, nearest, fs}) CHECK(count(encodeSixel(g, 0, 0, 16, 12, all, d, 4), ";2;") <= 4);
+  std::string ordered = encodeSixel(g, 0, 0, 16, 12, all, Dither{}, 4);
+  CHECK(ordered != encodeSixel(g, 0, 0, 16, 12, all, nearest, 4));
+  CHECK(encodeSixel(g, 0, 0, 16, 12, all, fs, 4) != encodeSixel(g, 0, 0, 16, 12, all, nearest, 4));
+  // The same picture and settings make the same bytes.
+  CHECK(ordered == encodeSixel(g, 0, 0, 16, 12, all, Dither{}, 4));
 }
 
 // The ordered pattern belongs to the screen, not the image: two tiles that
 // meet line up, and a redraw keeps it.
 TEST(ordered_dithering_follows_the_screen) {
-  Image img;
-  img.width = 16;
-  img.height = 12;
-  img.pixels.assign(16 * 12, Image::pack(60, 70, 90));  // between cube levels
+  Image img = greys();
   std::vector<bool> keep(16 * 12, true);
   Dither at;
   at.origin_x = 3;
@@ -336,13 +405,38 @@ TEST(ordered_dithering_follows_the_screen) {
   period.origin_y += 16;
   Dither shifted = at;
   shifted.origin_x += 1;
-  std::string a = encodeSixel(img, 0, 0, 16, 12, keep, at);
-  CHECK(a == encodeSixel(img, 0, 0, 16, 12, keep, period));
-  CHECK(a != encodeSixel(img, 0, 0, 16, 12, keep, shifted));
-  Dither nearest;
-  nearest.method = Dither::Method::NEAREST;
-  CHECK(count(encodeSixel(img, 0, 0, 16, 12, keep, nearest), ";2;") == 1);  // one colour
-  CHECK(count(a, ";2;") > 1);
+  std::string a = encodeSixel(img, 0, 0, 16, 12, keep, at, 3);
+  CHECK(a == encodeSixel(img, 0, 0, 16, 12, keep, period, 3));
+  CHECK(a != encodeSixel(img, 0, 0, 16, 12, keep, shifted, 3));
+}
+
+// Where a popup covers a chart only what shows is sent: a Sixel for each rectangle, not one for the
+// box around them with the covered pixels left transparent.
+TEST(sixel_images_send_each_visible_rectangle_and_not_the_box_around_them) {
+  StyleProvider styles;
+  CellBuffer b(4, 6);
+  BufferPlane root(b, styles);
+  root.setCellPixelSize(6, 2);
+  auto chart = root.createChild();
+  chart->resize(4, 6);
+  chart->drawImage(solid(12, 24, Image::pack(255, 0, 0)), 12, 24);
+  auto popup = root.createChild();
+  popup->resize(2, 2);
+  popup->move(1, 2);
+  popup->putstr(0, 0, "ab");
+  popup->putstr(1, 0, "cd");
+  ImageEncoder enc(profile(PixelProtocol::SIXEL));
+  root.refresh();
+  std::string s = enc.encode(b, root.images(), true);
+  CHECK(count(s, "\x1bP") >= 2);
+  CHECK(s.find("\"1;1;12;18") == std::string::npos);  // the box around everything (three of the four rows)
+  size_t pixels = 0;
+  for (size_t at = s.find("\"1;1;"); at != std::string::npos; at = s.find("\"1;1;", at + 1)) {
+    int w = 0, h = 0;
+    std::sscanf(s.c_str() + at, "\"1;1;%d;%d", &w, &h);
+    pixels += static_cast<size_t>(w * h);
+  }
+  CHECK(pixels == 12u * 18 - 4u * 12);  // the three rows shown, less the four cells the popup covers (2 x 6 pixels each)
 }
 
 TEST(dither_methods_by_name) {
