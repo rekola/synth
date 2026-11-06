@@ -1369,7 +1369,6 @@ InteractiveUI::layout() {
     pattern_editor_->moveToTop();
   }
   info_line_->resize(1, cols).move(rows - 2, 0);
-  transport_button_->resize(1, TransportButton::kWidth).move(rows - 2, 1);
   // Inline in the info bar, right-aligned - a separate plane, created
   // after info_line_ (initializeWidgets()) so it z-orders above whatever
   // info_line_'s own text/padding puts under it (see this file's own
@@ -1475,6 +1474,14 @@ InteractiveUI::renderComponents(bool refresh) {
     info_line_->setLinkText(std::move(text));
   }
   if (info_line_->render(styles_, refresh)) { render = true; statCount("render:info_line_"); }
+  {
+    auto [info_row, info_col] = info_line_->getPosition();
+    (void)info_col;
+    if (transport_button_->getPosition() != std::make_pair(info_row, info_line_->buttonColumn())) {
+      transport_button_->resize(1, TransportButton::kWidth).move(info_row, info_line_->buttonColumn());
+      render = true;
+    }
+  }
   if (transport_button_->render(styles_, refresh)) {
     render = true;
     statCount("render:transport_button_");

@@ -22,6 +22,8 @@ class InfoLine : public UIElement {
   void setLinkText(std::string text) { link_text_ = std::move(text); }
   // Columns at the right end taken by another widget (the octave selector).
   void setRightReserved(int cols) { right_reserved_ = cols; }
+  // The column where the transport button goes: right after the buffer name.
+  int buttonColumn() const { return button_col_; }
 
   bool render(const StyleProvider & styles, bool refresh = false) {
     auto & info = getController().getPlaybackInfo();
@@ -42,11 +44,12 @@ class InfoLine : public UIElement {
     auto num_allocated_voices = info.getAllocatedVoiceCount();
     auto latency_ms = info.getRoundTripLatencyMs();
     auto is_playing = info.isPlaying();
+    auto modified = getController().hasUnsavedChanges();
 
     if (refresh || new_version != current_version_ || new_position != current_position_ ||
         num_voices != current_num_voices_ || num_allocated_voices != current_num_allocated_voices_ ||
         buffer_name != current_buffer_name_ || buffer_names != current_buffer_names_ ||
-        latency_ms != current_latency_ms_ || right_reserved_ != current_right_reserved_ || is_playing != current_is_playing_ || link_text_ != current_link_text_) {
+        latency_ms != current_latency_ms_ || right_reserved_ != current_right_reserved_ || is_playing != current_is_playing_ || modified != current_modified_ || link_text_ != current_link_text_) {
       auto [ rows, cols ] = getDim();
 
       // Controller::getBufferDisplayName()'s own text - basename-only,
@@ -61,10 +64,14 @@ class InfoLine : public UIElement {
       // figure, one that couldn't be measured.
       auto latency = latency_ms < 0 ? std::string() :
         fmt::format(" lat {}{}ms", info.isRoundTripLatencyNominal() ? "~" : "", latency_ms);
-      // The transport button (TransportButton) is laid over the first columns.
+      // As the Emacs mode line: the modified pair ("**" modified, "--" not) and the
+      // remote marker ("-" for a local file), then the name.
+      auto flags = modified ? "**-" : "---";
+      auto prefix = fmt::format(" {} {} ", flags, buffer_display_name);
+      // The transport button (TransportButton) is laid over the blank cells after the name.
+      button_col_ = static_cast<int>(Utf8::displayWidth(prefix));
       // The transport's musical position (Song::formatPosition()).
-      auto s = fmt::format("     {} {}{} voices:{}/{}", buffer_display_name, song.formatPosition(info.getAbsolutePosition()),
-                           latency, num_voices, num_allocated_voices);
+      auto s = prefix + std::string(4, ' ') + fmt::format("{}{} voices:{}/{}", song.formatPosition(info.getAbsolutePosition()), latency, num_voices, num_allocated_voices);
       while (s.size() < static_cast<size_t>(cols)) s += ' ';
 
       putstr(0, 0, s);
@@ -84,6 +91,7 @@ class InfoLine : public UIElement {
       current_num_allocated_voices_ = num_allocated_voices;
       current_latency_ms_ = latency_ms;
       current_is_playing_ = is_playing;
+      current_modified_ = modified;
       current_link_text_ = link_text_;
       current_right_reserved_ = right_reserved_;
       current_buffer_name_ = buffer_name;
@@ -106,7 +114,8 @@ private:
   int current_num_voices_ = 0, current_num_allocated_voices_ = 0;
   int current_latency_ms_ = -1;
   // Stopping at the same row changes nothing else shown.
-  bool current_is_playing_ = false;
+  bool current_is_playing_ = false, current_modified_ = false;
+  int button_col_ = 1;
   std::string link_text_, current_link_text_;
   int right_reserved_ = 0, current_right_reserved_ = 0;
   // Its own dirty-check input too, for the same reason: switching to a
