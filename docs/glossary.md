@@ -30,17 +30,19 @@ its scales are drawn. The word is Guido of Arezzo’s (c. 991–after
 as ut; the whole range from gamma-ut upward became the gamut, first
 the full scale of medieval music and then any complete range. The
 twelve chromatic notes are the gamut behind the tempered major and
-minor scales, the 22 śruti behind the scales of Indian music. A gamut
-may be fixed, every note having one ratio to the tonic, or may contain
-pairs of notes a comma apart, as the śruti do; a just major scale with
-free modulation has no gamut at all, only an unbounded lattice. In the
-application a gamut is a rule for tuning every key, and a scale is a
-selection from it: the just-intonation tuner tunes any gamut note a
-song uses, whether or not it is in the scale, and the scale decides
-the keys where two gamut notes share a step and which notes the
-Launchpad and keyboard show. Keys with no gamut note stay
-tempered. The otonal and utonal scales are the first steps of the
-application’s superparticular gamut (see otonal and utonal).
+minor scales, the 22 śruti behind the scales of Indian music, the 24
+quarter-tones behind the maqāmāt. A gamut may be fixed, every note
+having one ratio to the tonic; may hold pairs of notes a comma apart,
+as the śruti do; or may be tempered, with no ratios at all. A just
+major scale with free modulation has no gamut, only an unbounded
+lattice. In the application a gamut is a rule for tuning every key, a
+set of accidentals, and the scales drawn from it: the just-intonation
+tuner tunes any gamut note a song uses, whether or not it is in the
+scale, and the scale decides the keys where two gamut notes share a
+step and which notes the Launchpad and keyboard show. Keys with no
+gamut note stay tempered. The superparticular gamut (see otonal and
+utonal) is generated in rounds of division and is just; the
+quartertone gamut (see maqāmāt) is 24-EDO and has no ratios.
 
 **Groove**
 The general word for rhythmic feel: how a pattern's timing (and often
@@ -109,6 +111,18 @@ can also be placed into the arrangement.
 The view with the clip launcher, the outline panel and the pattern editor
 showing each track's own clip; Tab switches to and from the arrangement
 view. The Launchpad's Live mode shows the same clip grid on the pads.
+
+**Maqāmāt**
+The scales of the quartertone gamut, the modern Arabic system of 24
+equal quarter-tones standardised in Cairo in 1932. A maqām (plural
+maqāmāt) is a seven-note scale built from two tetrachords, ajnās; in
+practice it also carries a melodic path, a dominant and customary
+modulations, of which the application holds only the scale. The gamut
+is tempered, so the just-intonation tuner leaves its keys as they are;
+the neutral degrees at 150 and 350 cents stand where the medieval
+frets put 12/11 and 27/22. Accidentals: half-flat 𝄳 and half-sharp 𝄲
+(one quarter-tone), ♭ and ♯ (two). The scales are Rāst (C D E𝄳 F G A
+B𝄳, given on C), Bayātī, Ḥijāz, Nahāwand, Kurd, ʿAjam, Ṣabā and Sīkāh.
 
 **Narrow major and narrow minor**
 Two triads that divide the perfect fourth the way major and minor
@@ -199,7 +213,7 @@ note data.
 **Tuning correction**
 A note's pitch offset in cents, stored in its fx as `+hh` or `-hh`
 (commands.md). Not the song's tuning, which always means the EDO
-(12/19/31/53 steps per octave).
+(12/19/24/31/53 steps per octave).
 
 **Unison**
 Several sounds at the same pitch at once; as an interval, 1:1. Exactly alike

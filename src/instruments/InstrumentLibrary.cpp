@@ -392,16 +392,9 @@ namespace {
 // plain "a reasonable middle-register note" rather than a specific
 // authored pitch.
 int centerNoteFor(Tuning tuning) {
-  switch (tuning) {
-  case Tuning::EDO12: return 69;
-  case Tuning::EDO19: return 109;
-  case Tuning::EDO31: return 178;
-  case Tuning::EDO53: return 304;
-  case Tuning::PERCUSSION: return 69;
-  }
-  return 178;
+  auto steps = edoStepsFor(tuning == Tuning::PERCUSSION ? Tuning::EDO12 : tuning);
+  return 5 * steps + (9 * steps + 6) / 12;
 }
-
 }
 
 void prewarmInstrumentTree(const Track & track, const ChannelConfiguration & config, Tuning tuning, int note_value) {

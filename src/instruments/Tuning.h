@@ -9,7 +9,8 @@ enum class Tuning {
   EDO12,
   EDO19,
   EDO31,
-  EDO53
+  EDO53,
+  EDO24
 };
 
 static inline std::string to_string(Tuning tuning) {
@@ -19,6 +20,8 @@ static inline std::string to_string(Tuning tuning) {
   case Tuning::EDO19: return "19edo";
   case Tuning::EDO31: return "31edo";
   case Tuning::EDO53: return "53edo";
+  case Tuning::EDO24:
+    return "24edo";
   default: return "";
   }
 }
@@ -33,6 +36,8 @@ static inline int edoStepsFor(Tuning tuning) {
   switch (tuning) {
   case Tuning::EDO12: return 12;
   case Tuning::EDO19: return 19;
+  case Tuning::EDO24:
+    return 24;
   case Tuning::EDO31: return 31;
   case Tuning::EDO53: return 53;
   case Tuning::PERCUSSION: return 0;
@@ -47,14 +52,9 @@ static inline int edoStepsFor(Tuning tuning) {
 // still has to resolve to *some* pitch, and 12-EDO/A440 is as good a
 // convention as any single fixed one.
 inline float getFrequencyFor(Tuning tuning, int note_value) {
-  switch (tuning) {
-  case Tuning::EDO12:
-  case Tuning::PERCUSSION: return 440.0f * powf(2.0f, (note_value - 69) / 12.0f);
-  case Tuning::EDO19: return 440.0f * powf(2.0f, (note_value - 109) / 19.0f);
-  case Tuning::EDO31: return 440.0f * powf(2.0f, (note_value - 178) / 31.0f);
-  case Tuning::EDO53: return 440.0f * powf(2.0f, (note_value - 304) / 53.0f);
-  }
-  return 0.0f;
+  const int steps = edoStepsFor(tuning == Tuning::PERCUSSION ? Tuning::EDO12 : tuning);
+  const int a4 = 5 * steps + (9 * steps + 6) / 12; // 69, 109, 138, 178, 304
+  return 440.0f * powf(2.0f, float(note_value - a4) / steps);
 }
 
 // The const Note & overload lives in Note.h, not here - Note.h already

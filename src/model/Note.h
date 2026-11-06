@@ -137,9 +137,11 @@ class Note {
 	auto key_name = keyToString(tuning, getValue());
 	if (tuning != Tuning::PERCUSSION) {
 	  if (key_name.size() == 1) key_name += '-';
-	  int period = tuning == Tuning::EDO53 ? 53 : tuning == Tuning::EDO31 ? 31
-	    : tuning == Tuning::EDO19 ? 19 : 12;
-	  int octave = (getValue() / period) - 1;
+          int period = tuning == Tuning::EDO53 ? 53 : tuning == Tuning::EDO31 ? 31
+                                                  : tuning == Tuning::EDO24   ? 24
+                                                  : tuning == Tuning::EDO19   ? 19
+                                                                              : 12;
+          int octave = (getValue() / period) - 1;
 	  // A C-spelled name at the top of the index range (C♭) belongs to
 	  // the next octave number, though its value is still below it.
 	  if (key_name[0] == 'C' && getValue() % period > period / 2) octave++;
@@ -162,6 +164,9 @@ class Note {
 					       "E♭", "D𝄪", "E", "F♭", "E♯", "F", "G𝄫", "F♯",
 					       "G♭", "F𝄪", "G", "A𝄫", "G♯", "A♭", "G𝄪", "A",
 					       "B𝄫", "A♯", "B♭", "A𝄪", "B", "C♭", "B♯" };
+    static const char * note_names_24edo[] = {"C", "C𝄲", "C♯", "D𝄳", "D", "D𝄲", "D♯", "E𝄳",
+                                              "E", "E𝄲", "F", "F𝄲", "F♯", "G𝄳", "G", "G𝄲",
+                                              "G♯", "A𝄳", "A", "A𝄲", "A♯", "B𝄳", "B", "B𝄲"};
     static const char * note_names_19edo[] = { "C", "C♯", "D♭", "D", "D♯", "E♭", "E", "E♯", "F", "F♯",
 					       "G♭", "G", "G♯", "A♭", "A", "A♯", "B♭", "B", "C♭" };
     static const char * note_names_12edo[] = { "C", "C♯", "D", "D♯", "E", "F", "F♯", "G", "G♯", "A", "A♯", "B" };
@@ -235,11 +240,13 @@ class Note {
       return note_names_53edo[value % 53];
     } else if (tuning == Tuning::EDO31) {
       return note_names_31edo[value % 31];
+    } else if (tuning == Tuning::EDO24) {
+      return note_names_24edo[value % 24];
     } else if (tuning == Tuning::EDO19) {
       return note_names_19edo[value % 19];
     } else {
       return note_names_12edo[value % 12];
-    }    
+    }
   }
 
   static inline int stringToKey(Tuning tuning, std::string_view input_value, int default_octave = 4) {
@@ -373,8 +380,42 @@ class Note {
         }
 
         return value;
+      } else if (tuning == Tuning::EDO24) {
+        auto value = (octave + 1) * 24;
+
+        if (letter == 'C')
+          value += 0;
+        else if (letter == 'D')
+          value += 3;
+        else if (letter == 'E')
+          value += 7;
+        else if (letter == 'F')
+          value += 10;
+        else if (letter == 'G')
+          value += 13;
+        else if (letter == 'A')
+          value += 17;
+        else if (letter == 'B')
+          value += 21;
+        else {
+          assert(0);
+        }
+
+        if (accidental == "𝄲" || accidental == "+")
+          value += 1;
+        else if (accidental == "#" || accidental == "♯" || accidental == "𝄱" || accidental == "𝄰")
+          value += 2;
+        else if (accidental == "𝄳" || accidental == "d")
+          value -= 1;
+        else if (accidental == "b" || accidental == "♭" || accidental == "𝄭" || accidental == "𝄬")
+          value -= 2;
+        else {
+          assert(accidental.empty() || accidental == "-" || accidental == "♮" || accidental == "↑" || accidental == "↓");
+        }
+
+        return value;
       } else if (tuning == Tuning::EDO31) {
-	auto value = (octave + 1) * 31;
+        auto value = (octave + 1) * 31;
       
 	// C D𝄫 C♯ D♭ C𝄪 D E𝄫 D♯
 	// E♭ D𝄪/F𝄫 E F♭ E♯ F E𝄪/G𝄫 F♯
@@ -398,7 +439,7 @@ class Note {
 
         return value;
       } else {
-	auto value = (octave + 1) * 53;
+        auto value = (octave + 1) * 53;
       
 	if (letter == 'C' || letter == 'D') value += (letter - 'C') * 9;
 	else if (letter == 'E' || letter == 'F') value += 17 + (letter - 'E') * 5;

@@ -18,6 +18,16 @@ enum class Scale {
   MINOR,
   OTONAL,
   UTONAL,
+
+  // Arabic
+  RAST,
+  BAYATI,
+  HIJAZ,
+  NAHAWAND,
+  KURD,
+  AJAM,
+  SABA,
+  SIKAH
 };
 
 static inline std::string to_string(Scale scale) {
@@ -27,6 +37,22 @@ static inline std::string to_string(Scale scale) {
   case Scale::MINOR: return "minor";
   case Scale::OTONAL: return "otonal";
   case Scale::UTONAL: return "utonal";
+  case Scale::RAST:
+    return "rast";
+  case Scale::BAYATI:
+    return "bayati";
+  case Scale::HIJAZ:
+    return "hijaz";
+  case Scale::NAHAWAND:
+    return "nahawand";
+  case Scale::KURD:
+    return "kurd";
+  case Scale::AJAM:
+    return "ajam";
+  case Scale::SABA:
+    return "saba";
+  case Scale::SIKAH:
+    return "sikah";
   }
   return "";
 }
@@ -44,6 +70,22 @@ static inline std::string scaleLabel(Scale scale) {
       return "Otonal";
     case Scale::UTONAL:
       return "Utonal";
+    case Scale::RAST:
+      return "Rāst";
+    case Scale::BAYATI:
+      return "Bayātī";
+    case Scale::HIJAZ:
+      return "Ḥijāz";
+    case Scale::NAHAWAND:
+      return "Nahāwand";
+    case Scale::KURD:
+      return "Kurd";
+    case Scale::AJAM:
+      return "ʿAjam";
+    case Scale::SABA:
+      return "Ṣabā";
+    case Scale::SIKAH:
+      return "Sīkāh";
   }
   return "";
 }
@@ -53,6 +95,14 @@ static inline Scale scaleFromString(const std::string & text) {
   if (text == "minor") return Scale::MINOR;
   if (text == "otonal") return Scale::OTONAL;
   if (text == "utonal") return Scale::UTONAL;
+  if (text == "rast") return Scale::RAST;
+  if (text == "bayati") return Scale::BAYATI;
+  if (text == "hijaz") return Scale::HIJAZ;
+  if (text == "nahawand") return Scale::NAHAWAND;
+  if (text == "kurd") return Scale::KURD;
+  if (text == "ajam") return Scale::AJAM;
+  if (text == "saba") return Scale::SABA;
+  if (text == "sikah") return Scale::SIKAH;
   return Scale::NONE;
 }
 
@@ -90,6 +140,22 @@ static inline std::vector<std::string_view> scaleDegreeNames(Scale scale) {
     return {"C", "D♭", "D", "D♯", "E", "F", "G", "A", "A𝄰", "C𝄫'", "B"};
   case Scale::UTONAL:
     return {"C", "D𝄭", "C𝄪", "E𝄫", "E♭", "F", "G", "A♭", "B𝄫", "B𝄭", "B↓"};
+  case Scale::RAST:
+    return {"C", "D", "E𝄳", "F", "G", "A", "B𝄳"};
+  case Scale::BAYATI:
+    return {"C", "D𝄳", "E♭", "F", "G", "A♭", "B♭"};
+  case Scale::HIJAZ:
+    return {"C", "D♭", "E", "F", "G", "A♭", "B♭"};
+  case Scale::NAHAWAND:
+    return {"C", "D", "E♭", "F", "G", "A♭", "B♭"};
+  case Scale::KURD:
+    return {"C", "D♭", "E♭", "F", "G", "A♭", "B♭"};
+  case Scale::AJAM:
+    return {"C", "D", "E", "F", "G", "A", "B"};
+  case Scale::SABA:
+    return {"C", "D𝄳", "E♭", "F♭", "G", "A♭", "B♭"};
+  case Scale::SIKAH:
+    return {"C", "D𝄳", "E𝄳", "F𝄲", "G", "A𝄳", "B𝄳"};
   case Scale::NONE: return {};
   }
   return {};
@@ -107,10 +173,8 @@ static inline std::vector<Ratio> scaleDegreeRatios(Scale scale) {
       return {1 / 1_r, 13 / 12_r, 9 / 8_r, 7 / 6_r, 5 / 4_r, 4 / 3_r, 3 / 2_r, 5 / 3_r, 7 / 4_r, 11 / 6_r, 15 / 8_r};
     case Scale::UTONAL:
       return {1 / 1_r, 16 / 15_r, 12 / 11_r, 8 / 7_r, 6 / 5_r, 4 / 3_r, 3 / 2_r, 8 / 5_r, 12 / 7_r, 16 / 9_r, 24 / 13_r};
-    case Scale::NONE:
-    case Scale::MAJOR:
-    case Scale::MINOR:
-      return {};
+    default:
+      break;
   }
   return {};
 }
@@ -123,10 +187,8 @@ static inline Scale pairedScale(Scale scale) {
       return Scale::UTONAL;
     case Scale::UTONAL:
       return Scale::OTONAL;
-    case Scale::NONE:
-    case Scale::MAJOR:
-    case Scale::MINOR:
-      return Scale::NONE;
+    default:
+      break;
   }
   return Scale::NONE;
 }
