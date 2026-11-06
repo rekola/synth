@@ -257,6 +257,103 @@ TEST(terminal_ui_outline_rhythm_target_picker) {
   CHECK(target_line() != before);
 }
 
+// The palette takes the pointer: a click on a listed command runs it, a click
+// outside closes it, and the wheel scrolls the list.
+TEST(terminal_ui_command_palette_click_chooses_a_row_and_outside_cancels) {
+  UIFixture f;
+  f.meta('x');
+  f.type("tgv");
+  auto row_of = [&](const std::string & word) {
+    auto all = f.lines();
+    for (size_t y = 0; y < all.size(); y++)
+      if (all[y].find(word) != std::string::npos) return static_cast<int>(y);
+    return -1;
+  };
+  int y = row_of("toggle-view");
+  CHECK(y >= 0);
+  auto click = [&](int row, int col) {
+    f.terminal.pushMouse(row, col, cellui::Key::Button1);
+    f.ui->step();
+    f.terminal.pushMouse(row, col, cellui::Key::Button1, 0, cellui::Input::Kind::RELEASE);
+    f.ui->step();
+  };
+  click(y, static_cast<int>(f.lines()[static_cast<size_t>(y)].find("toggle-view")) + 2);
+  CHECK(f.terminal.info().focus == "pattern-editor"); // Live View -> Arrangement view, as Enter does
+
+  UIFixture g;
+  g.meta('x');
+  CHECK(g.terminal.info().focus == "command-palette");
+  g.terminal.pushMouse(1, 60, cellui::Key::Button1);
+  g.ui->step();
+  g.terminal.pushMouse(1, 60, cellui::Key::Button1, 0, cellui::Input::Kind::RELEASE);
+  g.ui->step();
+  CHECK(g.terminal.info().focus != "command-palette");
+}
+
+TEST(terminal_ui_command_palette_wheel_scrolls_the_list_and_keeps_it_open) {
+  UIFixture f;
+  f.meta('x');
+  auto before = f.text();
+  for (int i = 0; i < 4; i++) f.wheel(f.terminal.rows() - 4, 20, true);
+  CHECK(f.terminal.info().focus == "command-palette");
+  CHECK(f.text() != before);
+}
+
+// The outline's info popup is modal for the pointer too: the wheel and a press
+// are swallowed, and a click's release closes it.
+TEST(terminal_ui_outline_info_popup_swallows_the_wheel_and_closes_on_a_click) {
+  UIFixture f(repoSong("demo3.xml"), UI::View::LIVE);
+  for (int i = 0; i < 4 && f.terminal.info().focus != "outline-view"; i++) f.otherWindow();
+  f.press(Key::Down);
+  f.press(Key::Down);
+  f.type("?");
+  CHECK(f.text().find("Play note keys to preview") != std::string::npos);
+  f.wheel(5, 5, true);
+  CHECK(f.text().find("Play note keys to preview") != std::string::npos);
+  f.terminal.pushMouse(10, 10, cellui::Key::Button1);
+  f.ui->step();
+  CHECK(f.text().find("Play note keys to preview") != std::string::npos);
+  f.terminal.pushMouse(10, 10, cellui::Key::Button1, 0, cellui::Input::Kind::RELEASE);
+  f.ui->step();
+  CHECK(f.text().find("Play note keys to preview") == std::string::npos);
+}
+
+// A display that reports key releases (a window, a kitty-protocol terminal)
+// holds a note while its key is down and steps a row per note. One that only
+// reports presses cannot tell a chord from quick taps, so keys arriving
+// together are a chord: one row, a note column each.
+TEST(terminal_ui_note_entry_steps_a_row_per_note_with_key_releases_and_chords_without) {
+  auto enter = [](bool with_releases) {
+    UIFixture f("", UI::View::ARRANGEMENT);
+    for (int i = 0; i < 4 && f.terminal.info().focus != "pattern-editor"; i++) f.otherWindow();
+    CHECK(f.terminal.info().focus == "pattern-editor");
+    for (char key : std::string("zxz")) {
+      if (with_releases) {
+        f.terminal.pushKey(key, 0, cellui::Input::Kind::PRESS);
+        f.ui->step();
+        f.terminal.pushKey(key, 0, cellui::Input::Kind::RELEASE);
+        f.ui->step();
+      } else {
+        f.type(std::string(1, key));
+      }
+    }
+    return f.lines();
+  };
+  auto row = [](const std::vector<std::string> & lines, const char * number) {
+    for (auto & line : lines)
+      if (line.compare(0, 4, number) == 0) return line;
+    return std::string();
+  };
+  auto with = enter(true), without = enter(false);
+  // One note a row, in the first note column.
+  CHECK(row(with, " 00 ").find("C-4") != std::string::npos && row(with, " 00 ").find("D") == std::string::npos);
+  CHECK(row(with, " 01 ").find("D") != std::string::npos);
+  CHECK(row(with, " 02 ").find("C-4") != std::string::npos);
+  // The first two keys together are a chord on row 0; the third is the next row.
+  CHECK(row(without, " 00 ").find("C-4") != std::string::npos && row(without, " 00 ").find("D") != std::string::npos);
+  CHECK(row(without, " 01 ").find("C-4") != std::string::npos);
+}
+
 // A click on an outline row moves its cursor there (resolved on release).
 TEST(terminal_ui_outline_click_moves_the_cursor_to_the_row) {
   UIFixture f(repoSong("demo3.xml"), UI::View::LIVE);
