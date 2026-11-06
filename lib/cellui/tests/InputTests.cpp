@@ -367,6 +367,7 @@ struct DragScreen {
   Panel b{ s.top.plane(), 0, 20, 4, 10 };
   Log log;
   bool b_accepts = true;
+  bool a_starts_on_move = false;
   std::vector<Connection> conns;
 
   DragScreen(bool enabled = true) {
@@ -382,7 +383,11 @@ struct DragScreen {
       log.push_back(e.dropped ? "a end dropped" : "a end cancelled");
       return Handled::yes;
     }));
-    conns.push_back(a.on<MouseMove>([this](const MouseMove &, EventContext &) { log.push_back("a mouse move"); return Handled::yes; }));
+    conns.push_back(a.on<MouseMove>([this](const MouseMove &, EventContext &) {
+      log.push_back(a_starts_on_move ? "a starts" : "a mouse move");
+      if (a_starts_on_move) a.postToRoot(StartDrag{ &a, DragPayload{ "thing", 7 } });
+      return Handled::yes;
+    }));
     conns.push_back(a.on<MouseUp>([this](const MouseUp &, EventContext &) { log.push_back("a mouse up"); return Handled::yes; }));
     conns.push_back(b.on<DragOver>([this](const DragOver & e, EventContext &) {
       log.push_back("b over");
@@ -461,6 +466,14 @@ TEST(escape_cancels_a_drag_and_the_rest_of_the_gesture_goes_nowhere) {
   d.s.dispatcher.mouseDown(down(1, 1));
   d.s.dispatcher.mouseMove(move(1, 2, 1));
   CHECK(d.log == (Log{ "a mouse move" }));
+}
+
+TEST(the_move_that_starts_a_drag_is_its_first_move) {
+  DragScreen d;
+  d.a_starts_on_move = true;  // the source starts the session from its own move handler
+  d.s.dispatcher.mouseDown(down(1, 1));
+  d.s.dispatcher.mouseMove(move(1, 25, 1));
+  CHECK(d.log == (Log{ "a starts", "b over", "a move accepted" }));
 }
 
 TEST(a_drag_ghost_follows_the_pointer_and_shows_the_drag_cursor) {

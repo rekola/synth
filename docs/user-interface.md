@@ -131,6 +131,12 @@ They act on the clip under the cursor.
   button instead, which is not clip content and never reaches the clipboard.
 - A clip that is playing is not pulled out from under the playhead: its track
   stops at the next bar and the clip is removed then.
+- **Drag a clip (the window only):** press on a clip and move: the clip comes
+  off its slot and follows the pointer, and the slot it would land on is
+  marked. Release to drop it there (a cut and a yank in one undo step, with
+  the same rules: only onto a track of the same kind, and what is in the slot
+  is replaced). Ctrl at the release copies instead of moving. Escape, or a
+  release where it cannot land, puts it back. The terminal has no drag.
 
 ## Moving a paused playhead
 

@@ -81,6 +81,28 @@ ClipGrid::ClipGrid(Plane & parent) : UIElement(parent) {
   connections_.push_back(on<cellui::MouseDown>([this, handled](const cellui::MouseDown & e, cellui::EventContext &) { return handled(mouseDown(e)); }));
   connections_.push_back(on<cellui::MouseMove>([this, handled](const cellui::MouseMove & e, cellui::EventContext &) { return handled(mouseMove(e)); }));
   connections_.push_back(on<cellui::MouseUp>([this, handled](const cellui::MouseUp & e, cellui::EventContext &) { return handled(mouseUp(e)); }));
+  connections_.push_back(on<cellui::DragOver>([this, handled](const cellui::DragOver & e, cellui::EventContext &) { return handled(dragOver(e)); }));
+  connections_.push_back(on<cellui::DragLeave>([this](const cellui::DragLeave &, cellui::EventContext &) {
+    if (drop_target_) drag_version_++;
+    drop_target_.reset();
+    return cellui::Handled::yes;
+  }));
+  connections_.push_back(on<cellui::Drop>([this, handled](const cellui::Drop & e, cellui::EventContext &) { return handled(drop(e)); }));
+  connections_.push_back(on<cellui::DragMove>([this](const cellui::DragMove & e, cellui::EventContext &) {
+    if (ghost_) {
+      ghost_->setAccepted(e.accepted);
+      ghost_->moveTo(e.y, e.x);
+    }
+    return cellui::Handled::yes;
+  }));
+  connections_.push_back(on<cellui::DragEnd>([this](const cellui::DragEnd &, cellui::EventContext &) {
+    ghost_.reset();
+    drag_source_.reset();
+    drop_target_.reset();
+    drag_candidate_.reset();
+    drag_version_++;
+    return cellui::Handled::yes;
+  }));
   // The dial under the pointer shows it.
   connections_.push_back(on<cellui::MouseMove>([this](const cellui::MouseMove & e, cellui::EventContext &) {
     for (auto & [key, dial] : dials_) dial->setHover(dial->contains(e.row, e.col));
@@ -645,6 +667,116 @@ void ClipGrid::startRename() {
 // The editors: a rename or a dial being typed into takes every key.
 bool ClipGrid::keyUp(const cellui::KeyUp &) { return isReaderActive(); }
 
+// The body of a clip slot: the icon text, the name in the display's own face
+// (in a window a proportional one) cut to `label_cols`, and the loop and
+// edited icons packed against the right edge.
+void ClipGrid::putClipSlot(cellui::Plane & plane, int y, int x, const string & text, const string & label, int label_cols,
+                           bool looping, bool edited, Color fg, Color bg) {
+  plane.setFgColor(fg);
+  plane.setBgColor(bg);
+  plane.putstr(y, x, string(static_cast<size_t>(kColWidth), ' ')); // opaque row background first
+  plane.putstr(y, x, text);
+  if (!label.empty() && x + 3 >= 0) plane.putText(y, x + 3, label_cols, label, cellui::TextStyle{cellui::TextFont::PROPORTIONAL, cellui::TextOverflow::ELLIPSIS, cellui::TextFace{500}});
+  if (looping) plane.putstr(y, x + kColWidth - 2, "↻");
+  if (edited) plane.putstr(y, x + kColWidth - (looping ? 4 : 2), "✎");
+}
+
+std::optional<std::pair<int, int>> ClipGrid::clipSlotAt(int row, int col) const {
+  auto num_tracks = static_cast<int>(getController().getSong().getPlayableTrackIds().size());
+  auto hit = hitTest(row, col, num_tracks);
+  if (hit.column < 0 || hit.column >= num_tracks || hit.logical_row <= 0 || rowKindFor(hit.logical_row) != RowKind::CLIP) return std::nullopt;
+  return std::make_pair(hit.column, hit.physical);
+}
+
+// A clip only lands on a track of the kind it came from (note values mean
+// different things under different tunings, audio only fits audio).
+bool ClipGrid::canHold(int track_id, int track_type) const {
+  auto track = getController().getSong().getMasterTrack().getChildByInternalId(track_id);
+  return track && static_cast<int>(track->getType()) == track_type;
+}
+
+// The clip under the press is picked up: a ghost follows the pointer and its
+// slot shows empty until the drag ends.
+void ClipGrid::startClipDrag(const cellui::MouseMove & e) {
+  if (!drag_candidate_) return;
+  auto candidate = *drag_candidate_;
+  drag_candidate_.reset();
+  auto & song = getController().getSong();
+  auto track_ids = song.getPlayableTrackIds();
+  if (candidate.track_index >= static_cast<int>(track_ids.size())) return;
+  auto track_id = track_ids[static_cast<size_t>(candidate.track_index)];
+  auto clips = song.getClips(track_id);
+  if (candidate.clip_index >= static_cast<int>(clips.size()) || clips[static_cast<size_t>(candidate.clip_index)].isEmpty()) return;
+  auto track = song.getMasterTrack().getChildByInternalId(track_id);
+  ClipDrag drag{track_id, candidate.clip_index, track ? static_cast<int>(track->getType()) : -1, clips[static_cast<size_t>(candidate.clip_index)].toClip()};
+  auto name = std::to_string(candidate.clip_index + 1);
+  if (!drag.clip.getName().empty()) name += " " + drag.clip.getName();
+  bool looping = drag.clip.isLooping();
+  SongStructure structure(song);
+  auto & styles = getPlane().getStyles();
+  Color track_color = structure.getBaselineInfo(track_id).getColor(styles.tracks);
+  // Where in the slot the pointer took hold of it.
+  auto cell = contentCell(e.col - getPosition().second);
+  float grab_x = static_cast<float>(cell % (kColWidth + 1)) + (e.x - static_cast<float>(e.col));
+  float grab_y = e.y - static_cast<float>(e.row);
+  // The grid hands the pointer to the session: its own press is over. A
+  // display without drag and drop refuses, and the press stays a click.
+  if (postToRoot(cellui::StartDrag{this, cellui::DragPayload{"clip", std::move(drag)}}) != cellui::Handled::yes) return;
+  pressed_ = Pressed();
+  drag_source_ = std::make_pair(candidate.track_index, candidate.clip_index);
+  drag_version_++;
+  ghost_ = std::make_unique<cellui::DragGhost>(getPlane(), 1, kColWidth, grab_y, grab_x, [name, looping, track_color](cellui::Plane & plane, bool accepted) {
+    auto & st = plane.getStyles();
+    Color fg = st.clip_text_color, bg = track_color;
+    // Dimmed where it cannot land.
+    if (!accepted) {
+      fg = fg.blend(0.5f, st.grid_bg_color);
+      bg = bg.blend(0.6f, st.grid_bg_color);
+    }
+    plane.setLift(st.theme.elevation.card);
+    putClipSlot(plane, 0, 0, " ▸ ", name, kColWidth - 3 - std::max(2, looping ? 2 : 0), looping, false, fg, bg);
+  });
+  ghost_->moveTo(e.y, e.x);
+}
+
+bool ClipGrid::dragOver(const cellui::DragOver & e) {
+  auto * drag = e.payload.get<ClipDrag>();
+  if (!drag) return false;
+  auto slot = clipSlotAt(e.row, e.col);
+  std::optional<std::pair<int, int>> target;
+  bool accepted = false;
+  if (slot) {
+    auto track_ids = getController().getSong().getPlayableTrackIds();
+    // Its own slot is accepted and does nothing.
+    accepted = canHold(track_ids[static_cast<size_t>(slot->first)], drag->track_type);
+    if (accepted && !(drag_source_ && *drag_source_ == *slot)) target = slot;
+  }
+  if (target != drop_target_) {
+    drop_target_ = target;
+    drag_version_++;
+  }
+  return accepted;
+}
+
+// Moves the clip to the slot (Ctrl copies it), as a yank of what a kill would
+// have taken: whatever is at the slot goes, and a moved clip's slot empties
+// the way a kill empties it.
+bool ClipGrid::drop(const cellui::Drop & e) {
+  auto * drag = e.payload.get<ClipDrag>();
+  auto slot = clipSlotAt(e.row, e.col);
+  if (!drag || !slot) return false;
+  auto & song = getController().getSong();
+  auto track_ids = song.getPlayableTrackIds();
+  auto target_track = track_ids[static_cast<size_t>(slot->first)];
+  if (!canHold(target_track, drag->track_type)) return false;
+  if (target_track == drag->track_id && slot->second == drag->clip_index) return true;
+  Song::Edit edit(song, e.mods.ctrl ? "copy clip" : "move clip");
+  placeClipCopy(song, target_track, slot->second, drag->clip);
+  if (!e.mods.ctrl) getController().getClipPlayer().deleteClip(drag->track_id, drag->clip_index);
+  getController().log(e.mods.ctrl ? "Copied clip" : "Moved clip");
+  return true;
+}
+
 bool ClipGrid::mouseDown(const cellui::MouseDown & e) {
   if (e.button != 1) return false;
   if (inline_editor_.isOpen()) return true;
@@ -654,18 +786,34 @@ bool ClipGrid::mouseDown(const cellui::MouseDown & e) {
     if (dial->contains(e.row, e.col)) return true;
     dial->cancelEdit();
   }
-  return handleMouse(e.row, e.col, e.y, e.mods.shift, false);
+  bool taken = handleMouse(e.row, e.col, e.y, e.mods.shift, false);
+  // A press on a clip may turn into a drag.
+  drag_candidate_.reset();
+  if (taken) {
+    if (auto slot = clipSlotAt(e.row, e.col)) {
+      auto track_ids = getController().getSong().getPlayableTrackIds();
+      auto clips = getController().getSong().getClips(track_ids[static_cast<size_t>(slot->first)]);
+      if (slot->second < static_cast<int>(clips.size()) && !clips[static_cast<size_t>(slot->second)].isEmpty())
+        drag_candidate_ = DragCandidate{slot->first, slot->second, e.y, e.x};
+    }
+  }
+  return taken;
 }
 
 // The pointer moving with the button held: the pressed cell follows it.
 bool ClipGrid::mouseMove(const cellui::MouseMove & e) {
   if (!(e.buttons & 1)) return false;
   if (inline_editor_.isOpen() || isDialEditing()) return true;
+  if (drag_candidate_ && cellui::dragStarted(drag_candidate_->y, drag_candidate_->x, e.y, e.x)) {
+    startClipDrag(e);
+    if (ghost_) return true;
+  }
   return handleMouse(e.row, e.col, e.y, e.mods.shift, false);
 }
 
 bool ClipGrid::mouseUp(const cellui::MouseUp & e) {
   if (e.button != 1) return false;
+  drag_candidate_.reset();
   if (inline_editor_.isOpen()) return true;
   if (isDialEditing()) return true;
   return handleMouse(e.row, e.col, e.y, e.mods.shift, true);
@@ -888,11 +1036,12 @@ ClipGrid::render(const StyleProvider & styles, bool refresh, bool focused) {
       cursor_track_index_ == current_cursor_track_index_ && cursor_row_ == current_cursor_row_ && cursor_send_ == current_cursor_send_ &&
       col_axis_.shown() == current_shown_col_ && row_axis_.shown() == current_shown_row_ &&
       focused == current_focused_ && focused_clip_id == current_focused_clip_id_ && pressed_ == current_pressed_ &&
-      pressed_.physical == current_pressed_.physical) {
+      pressed_.physical == current_pressed_.physical && drag_version_ == current_drag_version_) {
     return false;
   }
   current_focused_clip_id_ = focused_clip_id;
   current_pressed_ = pressed_;
+  current_drag_version_ = drag_version_;
   current_song_version_ = new_version;
   current_cursor_track_index_ = cursor_track_index_;
   current_cursor_row_ = cursor_row_;
@@ -1050,7 +1199,8 @@ ClipGrid::render(const StyleProvider & styles, bool refresh, bool focused) {
         // ensureClipAt()), so an in-bounds but still-empty filler renders
         // as the plain "nothing here" stop icon below, same as a row
         // genuinely past the list's own end.
-        bool has_real_clip = clip_row < clips.size() && !clips[clip_row].isEmpty();
+        bool has_real_clip = clip_row < clips.size() && !clips[clip_row].isEmpty() &&
+                             !(drag_source_ && *drag_source_ == std::make_pair(track_index, static_cast<int>(clip_row))); // its clip is in the air
         if (has_real_clip) {
           auto clip = clips[clip_row];
           // The number as the pattern editor counts clips, then the name if it has one.
@@ -1141,19 +1291,17 @@ ClipGrid::render(const StyleProvider & styles, bool refresh, bool focused) {
           row_fg = styles.highlight_fg_color;
           row_bg = styles.row_pressed_bg_color;
         }
+        if (drop_target_ && *drop_target_ == std::make_pair(track_index, static_cast<int>(clip_row))) {
+          row_fg = styles.highlight_fg_color;
+          row_bg = styles.drop_target_bg_color;
+        }
         // A clip stands on the grid like a card. The cursor stands as high,
         // so no clip's shadow falls on it, but casts none of its own.
         if (is_cursor_cell)
           body_plane.setLift(styles.theme.elevation.card, false, false);
         else
           body_plane.setLift(styles.theme.elevation.card);
-        body_plane.setFgColor(row_fg);
-        body_plane.setBgColor(row_bg);
-        body_plane.putstr(y, x, string(static_cast<size_t>(kColWidth), ' ')); // opaque row background first
-        body_plane.putstr(y, x, text);
-        if (!clip_label.empty() && x + 3 >= 0) body_plane.putText(y, x + 3, label_cols, clip_label, cellui::TextStyle{cellui::TextFont::PROPORTIONAL, cellui::TextOverflow::ELLIPSIS, cellui::TextFace{500}});
-        if (has_real_clip && clips[clip_row].isLooping()) body_plane.putstr(y, x + kColWidth - 2, "↻");
-        if (is_edited_clip) body_plane.putstr(y, x + kColWidth - (has_real_clip && clips[clip_row].isLooping() ? 4 : 2), "✎");
+        putClipSlot(body_plane, y, x, text, clip_label, label_cols, has_real_clip && clips[clip_row].isLooping(), is_edited_clip, row_fg, row_bg);
         if (glyph) {
           body_plane.setFgColor(glyph_fg);
           body_plane.putstr(y, x + 1, glyph);

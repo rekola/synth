@@ -6,6 +6,7 @@
 #include "LevelMeter.h"
 
 #include <cellui/Dial.h>
+#include <cellui/DragDrop.h>
 #include <cellui/Fade.h>
 #include <cellui/Viewport.h>
 #include <cellui/WheelAcceleration.h>
@@ -317,6 +318,35 @@ class ClipGrid : public UIElement {
   bool keyUp(const cellui::KeyUp & e);
   bool mouseDown(const cellui::MouseDown & e);
   bool mouseMove(const cellui::MouseMove & e);
+
+  // --- Dragging a clip (window only, cellui/DragDrop.h). A press on a clip
+  // slot is a candidate; moving on with the button held starts the drag. The
+  // slot shows empty while its clip is in the air, and the cell it would land
+  // on shows marked. A drop moves the clip (Ctrl copies it) under the rules of
+  // yank: only onto a track of the same kind.
+  struct ClipDrag {
+    int track_id = 0, clip_index = 0, track_type = -1;
+    Clip clip;
+  };
+  struct DragCandidate {
+    int track_index = 0, clip_index = 0;
+    float y = 0, x = 0;
+  };
+  static void putClipSlot(cellui::Plane & plane, int y, int x, const std::string & text, const std::string & label, int label_cols,
+                          bool looping, bool edited, Color fg, Color bg);
+  // The (track column, clip index) of the clip slot at a cell, on a real track.
+  std::optional<std::pair<int, int>> clipSlotAt(int row, int col) const;
+  // Whether `track_id` can hold a clip from a track of `track_type`.
+  bool canHold(int track_id, int track_type) const;
+  void startClipDrag(const cellui::MouseMove & e);
+  bool dragOver(const cellui::DragOver & e);
+  bool drop(const cellui::Drop & e);
+  std::optional<DragCandidate> drag_candidate_;
+  // The slot being dragged from and the one it would land on, (column, clip index).
+  std::optional<std::pair<int, int>> drag_source_, drop_target_;
+  std::unique_ptr<cellui::DragGhost> ghost_;
+  // Counts changes to the above, for the redraw.
+  unsigned drag_version_ = 0, current_drag_version_ = 0;
   bool mouseUp(const cellui::MouseUp & e);
   bool wheel(const cellui::Wheel & e);
   std::vector<cellui::Connection> connections_;
