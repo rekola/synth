@@ -42,63 +42,21 @@ bool isPitched(const Note & note) {
   return note.isDefined() && !note.isOff() && !note.isAftertouch();
 }
 
-// (row, column) -> the correction in cents of a pitched note.
-using CorrectionMap = map<pair<int, int>, int>;
-
-// The first row of the chord window `row` is in.
-int windowStart(const IntonationContext & context, int row) {
-  int index = context.bars.barIndex(row);
-  int first = index - (((index % kChordWindowBars) + kChordWindowBars) % kChordWindowBars);
-  return context.bars.barStartRow(first);
+bool untuneNote(Note & note) {
+  if (!note.hasTuningCorrection()) return false;
+  note.clearFx();
+  return true;
 }
 
-// The chord-aware correction of every pitched note of `pattern`: the notes
-// that start in a window and the ones still held into it are one chord, its
-// lowest note the bass the others are tuned above.
-CorrectionMap chordCorrections(const PatternView & pattern, const IntonationContext & context) {
-  CorrectionMap result;
-  int edo = edoStepsFor(context.tuning);
-  if (edo <= 0) return result;
-
-  // Each column's events in row order: a note value, or -1 for an off.
-  map<int, vector<pair<int, int> > > columns;
-  set<int> windows;
-  for (auto & [row, notes] : pattern.getNotesByRow()) {
-    for (size_t column = 0; column < notes.size(); column++) {
-      auto & note = notes[column];
-      if (isPitched(note)) {
-        columns[static_cast<int>(column)].push_back({row, note.getValue()});
-        windows.insert(windowStart(context, row));
-      } else if (note.isOff()) {
-        columns[static_cast<int>(column)].push_back({row, -1});
-      }
-    }
-  }
-
-  for (int start : windows) {
-    int end = context.bars.barStartRow(context.bars.barIndex(start) + kChordWindowBars);
-    int bass = INT_MAX;
-    for (auto & [column, events] : columns) {
-      auto it = lower_bound(events.begin(), events.end(), make_pair(start, INT_MIN));
-      if (it != events.begin() && prev(it)->second >= 0) bass = min(bass, prev(it)->second); // held into the window
-      for (auto i = it; i != events.end() && i->first < end; ++i) {
-        if (i->second >= 0) bass = min(bass, i->second);
-      }
-    }
-    for (auto & [column, events] : columns) {
-      for (auto i = lower_bound(events.begin(), events.end(), make_pair(start, INT_MIN)); i != events.end() && i->first < end; ++i) {
-        if (i->second >= 0) result[{i->first, column}] = just_intonation::correctionCentsInChord(edo, i->second, bass, context.key, context.scale);
-      }
-    }
-  }
-  return result;
-}
-
-// Writes `corrections` onto the pitched notes of `pattern_rows` in note
+// Writes the gamut corrections onto the pitched notes of `pattern_rows` in note
 // columns [note_lo, note_hi]; with `only_tuned`, only onto notes that already
-// carry one.
-void writeCorrections(PatternView pattern, const set<int> & pattern_rows, const CorrectionMap & corrections,
+// carry one. A key with no gamut note gets +00, which marks it as tuned. A
+// scale with no gamut tunes nothing: an apply writes nothing, and a retune
+// (`only_tuned`) removes the corrections it finds.
+void writeCorrections(PatternView pattern, const set<int> & pattern_rows, const IntonationContext & context,
                       int note_lo, int note_hi, bool only_tuned, TuningSummary & summary) {
+  bool tempered = context.scale.empty();
+  if (tempered && !only_tuned) return;
   for (int row : pattern_rows) {
     auto notes = pattern.getNotes(row);
     if (notes.empty()) continue;
@@ -107,10 +65,15 @@ void writeCorrections(PatternView pattern, const set<int> & pattern_rows, const 
     for (int i = note_lo; i <= hi; i++) {
       auto & note = notes[static_cast<size_t>(i)];
       if (!isPitched(note) || (only_tuned && !note.hasTuningCorrection())) continue;
-      auto found = corrections.find({row, i});
-      if (found == corrections.end()) continue;
+      if (tempered) {
+        if (untuneNote(note)) {
+          summary.notes++;
+          changed = true;
+        }
+        continue;
+      }
       if (note.hasFx() && !note.hasTuningCorrection()) summary.replaced++;
-      note.setTuningCorrection(found->second);
+      note.setTuningCorrection(context.scale.forNote(note.getValue()).value_or(0));
       summary.notes++;
       changed = true;
     }
@@ -125,7 +88,7 @@ void writeCorrections(PatternView pattern, const set<int> & pattern_rows, const 
 }
 
 // Tunes the notes of one track in rows [row_lo, row_hi] and note columns
-// [note_lo, note_hi]. The chord context comes from each row's whole pattern.
+// [note_lo, note_hi].
 TuningSummary tuneTrackRows(PatternGrid & grid, int row_lo, int row_hi, int track_id, int note_lo, int note_hi,
                             const IntonationContext & context, bool only_tuned) {
   map<doc::NodeId, pair<PatternView, set<int> > > patterns;
@@ -139,15 +102,9 @@ TuningSummary tuneTrackRows(PatternGrid & grid, int row_lo, int row_hi, int trac
   }
   TuningSummary summary;
   for (auto & [node, entry] : patterns) {
-    writeCorrections(entry.first, entry.second, chordCorrections(entry.first, context), note_lo, note_hi, only_tuned, summary);
+    writeCorrections(entry.first, entry.second, context, note_lo, note_hi, only_tuned, summary);
   }
   return summary;
-}
-
-bool untuneNote(Note & note) {
-  if (!note.hasTuningCorrection()) return false;
-  note.clearFx();
-  return true;
 }
 
 // Every pattern that holds notes, each once: each track's background, then
@@ -213,10 +170,9 @@ TuningSummary tuneSongPatterns(Song & song, SongScope scope, const IntonationCon
   TuningSummary summary;
   forEachSongPattern(song, scope, [&](int track_id, PatternView pattern) {
     if (isPercussionTrack(song, track_id)) return;
-    auto corrections = chordCorrections(pattern, context);
     set<int> rows;
-    for (auto & [position, cents] : corrections) rows.insert(position.first);
-    writeCorrections(pattern, rows, corrections, 0, numeric_limits<int>::max(), only_tuned, summary);
+    for (auto & [row, notes] : pattern.getNotesByRow()) rows.insert(row);
+    writeCorrections(pattern, rows, context, 0, numeric_limits<int>::max(), only_tuned, summary);
   });
   return summary;
 }
@@ -496,9 +452,9 @@ void transposeSong(Song & song, SongScope scope, bool up) {
     });
   });
   // The notes (and the key, when it moves) have changed place together; a
-  // tuned note gets the correction for its new place in its chord.
+  // tuned note gets the correction for its new place against the key.
   int new_key = move_key ? key + delta : key;
-  IntonationContext context{song.getTuning(), new_key, song.getArrangementBars(),
+  IntonationContext context{song.getTuning(), new_key,
                             just_intonation::scaleCorrectionsFor(song.getTuning(), song.getScale(), new_key)};
   tuneSongPatterns(song, scope, context, true);
   if (move_key) song.setKey(new_key);
@@ -549,10 +505,9 @@ int retuneSong(Song & song) {
   TuningSummary summary;
   for (auto & entry : songPatterns(song)) {
     if (isPercussionTrack(song, entry.track_id)) continue;
-    auto corrections = chordCorrections(entry.pattern, context);
     set<int> rows;
-    for (auto & [position, cents] : corrections) rows.insert(position.first);
-    writeCorrections(entry.pattern, rows, corrections, 0, numeric_limits<int>::max(), true, summary);
+    for (auto & [row, notes] : entry.pattern.getNotesByRow()) rows.insert(row);
+    writeCorrections(entry.pattern, rows, context, 0, numeric_limits<int>::max(), true, summary);
   }
   return summary.notes;
 }
@@ -651,7 +606,7 @@ pastePatternBlockLocators(Song & song, int first_row, const vector<string> & blo
 
 IntonationContext
 intonationContextOf(const Song & song) {
-  return {song.getTuning(), song.getKey(), song.getArrangementBars(),
+  return {song.getTuning(), song.getKey(),
           just_intonation::scaleCorrectionsFor(song.getTuning(), song.getScale(), song.getKey())};
 }
 

@@ -107,7 +107,7 @@ TEST(every_gamut_note_has_a_mirror_that_mirrors_back) {
 TEST(the_just_scales_are_selections_from_the_gamut) {
   CHECK((setOf(scaleGamutIndices(Scale::OTONAL)) == std::set<std::size_t>{0, 1, 2, 3, 5, 7, 9, 11, 13, 15, 17}));
   CHECK((setOf(scaleGamutIndices(Scale::UTONAL)) == std::set<std::size_t>{0, 1, 2, 4, 6, 8, 10, 12, 14, 16, 18}));
-  CHECK(scaleGamutIndices(Scale::MAJOR).empty());
+  CHECK(scaleGamutIndices(Scale::RAST).empty());
 
   auto ratios = [](Scale scale) {
     std::vector<Ratio> out;
@@ -168,11 +168,13 @@ TEST(53_edo_has_no_collisions_so_every_gamut_note_is_tuned_in_either_scale) {
   }
 }
 
-TEST(a_step_shared_by_notes_outside_the_scale_goes_to_the_scales_side_then_the_lowest_ratio) {
-  // 12-EDO step 2 holds 9/8, 12/11 and 8/7. In an otonal song 9/8 is the scale's
-  // own; in a utonal one 12/11 and 8/7 are both in the scale and the lower wins.
+TEST(a_step_shared_by_notes_goes_to_the_scales_note_then_the_closer) {
+  // 12-EDO step 2 holds 9/8 (4 cents off its step), 12/11 (-49) and 8/7 (31). In
+  // an otonal song 9/8 is the scale's own; in a utonal one 12/11 and 8/7 are
+  // both in the scale and the closer, 9/8's neighbour 8/7 is not, so 12/11 (49)
+  // loses to 8/7 (31).
   CHECK(scaleCorrectionsFor(Tuning::EDO12, Scale::OTONAL, 0).forNote(2) == std::optional<int>(4));
-  CHECK(scaleCorrectionsFor(Tuning::EDO12, Scale::UTONAL, 0).forNote(2) == std::optional<int>(-49));
+  CHECK(scaleCorrectionsFor(Tuning::EDO12, Scale::UTONAL, 0).forNote(2) == std::optional<int>(31));
 }
 
 namespace {

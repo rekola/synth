@@ -133,15 +133,16 @@ Controller-level and per-widget commands. Not migrated: `StatusLine`,
 - Tuning corrections: a note's local fx can be `+hh`/`-hh` cents
   (`Note::setTuningCorrection()`, played as `NoteOverride::detune_cents`); the
   empty fx character is `.` (shown `·`) since `-` is a sign.
-  `apply-just-intonation-region` tunes each pitched note toward a just ratio
-  (`model/JustIntonation.h`: simplest ratio within half a step and 20 cents,
-  primes to 13): the notes starting in a bar of a track plus those held into
-  it are one chord, tuned above its lowest note, which is tuned from the song
-  key. In an otonal/utonal song a scale note gets its exact scale ratio
-  instead, live notes included (`SongScalars::scale_corrections`,
-  `tuneNewNote()`). `+00` marks a note needing none;
+  `apply-just-intonation-region` tunes each pitched note to the gamut note
+  of its key (`model/JustIntonation.h`): the scale names its gamut
+  (`scaleGamut()`: duodene for major/minor, none for the maqamat and
+  `Scale::NONE`), each key gets the gamut note whose nearest step it is, the
+  scale's own note if several, else the closer, else it stays tempered. No
+  chord context, so some triads are a comma off (`docs/user-interface.md`).
+  A scale with no gamut writes nothing and the command says so. Live notes get
+  it too (`SongScalars::scale_corrections`, `tuneNewNote()`). `+00` marks a note needing none;
   `clear-tuning-correction-region` removes them. A "tuned" note is retuned by
-  transposition, by `set-song-scale` (`retuneSong()`) and by `set-song-tuning`
+  transposition, by `set-song-scale` (`retuneSong()`, which removes them for a scale with no gamut) and by `set-song-tuning`
   (`convertSongTuning()` moves every note to the nearest step, a tuned note
   keeping the rest as its correction); `transposeSong()` moves the key with
   the notes when none is left outside its scope. "Tuning" means the song's

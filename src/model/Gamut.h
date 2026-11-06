@@ -49,11 +49,14 @@ struct GamutNote {
   // is one 53-EDO step and ignored elsewhere. The apostrophe of C𝄫' puts it
   // below the octave's C rather than the tonic's, so it stays above 15/8.
   std::string_view spelling;
-  // Index of the mirror note in the same table (itself for 1/1).
+  // Index of the mirror note in the same table (itself for 1/1), or
+  // gamut::kNoMirror when the table is not closed under mirroring.
   std::size_t mirror;
 };
 
 namespace gamut {
+inline constexpr std::size_t kNoMirror = static_cast<std::size_t>(-1);
+
 // The origin of each note is the mean it was made by, in the comment.
 inline constexpr std::array<GamutNote, 19> kSuperparticular = {{
     {Ratio{1, 1}, GamutSide::BOTH, 0, "C", 0},
@@ -121,9 +124,30 @@ inline constexpr std::array<GamutNote, 13> kPythagorean = {{
     {Ratio{729, 512}, GamutSide::BOTH, 6, "G♭↓", 0}, // chain: F♯, 6 fifths up
 }};
 
+// Ellis's duodene: twelve 5-limit notes, one per key of 12-EDO. B♭ is 9/5, not
+// 16/9, so that in minor the v and ♭III triads are pure; F-B♭ is then 27/20,
+// the comma any fixed twelve-note just scale leaves somewhere. By ascending
+// ratio. The spellings mean these ratios in 31 and 53-EDO; the notes are not
+// closed under mirroring (the mirror of 9/5 is 10/9).
+inline constexpr std::array<GamutNote, 12> kDuodene = {{
+    {Ratio{1, 1}, GamutSide::BOTH, 0, "C", kNoMirror},
+    {Ratio{16, 15}, GamutSide::BOTH, 0, "D♭↓", kNoMirror},
+    {Ratio{9, 8}, GamutSide::BOTH, 0, "D", kNoMirror},
+    {Ratio{6, 5}, GamutSide::BOTH, 0, "E♭", kNoMirror},
+    {Ratio{5, 4}, GamutSide::BOTH, 0, "E", kNoMirror},
+    {Ratio{4, 3}, GamutSide::BOTH, 0, "F", kNoMirror},
+    {Ratio{45, 32}, GamutSide::BOTH, 0, "F♯↑", kNoMirror},
+    {Ratio{3, 2}, GamutSide::BOTH, 0, "G", kNoMirror},
+    {Ratio{8, 5}, GamutSide::BOTH, 0, "A♭", kNoMirror},
+    {Ratio{5, 3}, GamutSide::BOTH, 0, "A", kNoMirror},
+    {Ratio{9, 5}, GamutSide::BOTH, 0, "B♭", kNoMirror},
+    {Ratio{15, 8}, GamutSide::BOTH, 0, "B", kNoMirror},
+}};
+
 constexpr bool mirrorsAreConsistent(std::span<const GamutNote> table) {
   for (std::size_t i = 0; i < table.size(); i++) {
     const auto & note = table[i];
+    if (note.mirror == kNoMirror) continue;
     if (note.mirror >= table.size() || table[note.mirror].mirror != i) return false;
     if (table[note.mirror].ratio != note.ratio.mirror()) return false;
   }

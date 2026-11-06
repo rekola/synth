@@ -192,39 +192,41 @@ from its equal-tempered pitch to a just ratio (`model/JustIntonation.h`). The
 correction goes in the note's fx as `+hh` or `-hh` (commands.md), and `+00`
 marks a note as tuned that needs none.
 
-In a song whose scale is otonal, utonal or diamond7 (Partch's 7-limit tonality
-diamond, 13 notes), those scales' notes need no
-guessing: each has one exact ratio to the key (otonal 1/1 7/6 5/4 4/3 3/2 5/3
-7/4, utonal 1/1 8/7 6/5 4/3 3/2 8/5 12/7). A song in either scale has both, the
-11 notes they make together in 31 and 53-EDO (where they share a step in 12 and
-19-EDO, the song's own scale has it). Every note on one of them gets its
-ratio's correction whatever its chord, so any mix and voicing of the two (C E G
-against C E♭ G, F A C E, a chord without the key) comes out pure. They also
-sound that way as they are played - pads, MIDI and keyboard notes - and a
-recorded or typed note of them is written with its correction. Any other note
-is tuned as below, against the exact ratio when its chord's lowest note is a
-scale note.
+The ratios come from the song's scale. Every scale names a gamut (the glossary
+defines the word) and selecting the scale selects the gamut; the song stores
+nothing else:
 
-A note is tuned together with the others of its chord. Per track and per
-pattern (a track's background, or one clip), the notes that start in a bar,
-plus the ones still held into it, are one chord, so an arpeggio is one chord
-because all its steps start in the same bar. The chord's lowest note, the
-bass, is tuned from the song key; every other note is tuned as its interval
-above the bass. The ratio for an interval, or for a step above the key, is the
-simplest one that lands within half a step (and at most 20 cents) of it, so no
-limit is chosen: 31-EDO reaches 7/6 and 11/10, 12-EDO mostly stays with 5-limit
-ratios (plus 7/5 and 15/14). Only primes above 13 are never used. A chord is
-therefore pure against its bass, and the bass keeps the key from drifting
-between chords. A ii chord in C (D F A) is 10:12:15 above its D.
+| Scale | Gamut |
+| --- | --- |
+| major, minor | duodene (Ellis's 12 notes: 1/1 16/15 9/8 6/5 5/4 4/3 45/32 3/2 8/5 5/3 9/5 15/8) |
+| otonal, utonal | superparticular |
+| diamond7 | Partch's 7-limit diamond |
+| Pythagorean Mixolydian | Pythagorean (53-EDO only) |
+| none, the maqamat | no gamut: tempered, no corrections |
 
-What it does not do: chords are per track (a bass track and a pad track agree
-on the root, both measuring it from the key, but not on the upper notes), a
-chord that changes inside a bar is read as one chord, and a held note keeps the
-correction it got when it started. Percussion, offs and aftertouch are skipped;
-any other fx a note had is replaced, and the message says how many. The context
-is read from the whole pattern, so a region that covers part of a chord still
-tunes it as the whole chord, writing only the notes it covers. A run replaces
-earlier corrections, so it can be repeated after editing; the mark stays.
+Each key, a step above the song's key, gets the gamut note whose nearest step
+in the song's tuning is that key. Where several notes have the same key (31-EDO's
+13/12 and 12/11, 12 and 19-EDO's several), the one in the song's scale has it,
+else the one closer to the key in cents. A key no gamut note is nearest to
+stays tempered (`+00`). The rule looks at the key and the note alone, never at
+the chord, so a note sounds the same whatever else is playing, and it sounds
+that way as it is played too - pads, MIDI and keyboard notes - and a recorded
+or typed note is written with its correction.
+
+The price is that some triads are a comma off. The duodene has one note for
+each of its twelve keys, so in C major the D is 9/8, the pure fifth G-D and
+fourth, but D-A is 40/27, 81/80 flat of 3/2, and F-B♭ in minor is 27/20. Any
+fixed twelve-note just scale leaves a comma somewhere; B♭ is 9/5 rather than
+16/9 so that in minor the v and ♭III triads come out pure. (Adaptive just
+intonation, planned, would move the whole scale by a comma at a switch; that
+is a different thing from tuning a chord against its own bass, which is not
+done at all.)
+
+Percussion, offs and aftertouch are skipped; any other fx a note had is
+replaced, and the message says how many. In a song with no scale, or a scale
+with no gamut (the maqamat), the command writes nothing and says so. A run
+replaces earlier corrections, so it can be repeated after editing; the mark
+stays.
 
 Select all first (C-x h) to tune every clip (Live View) or the arrangement
 (Arrangement view); a clip's notes are tuned against the key, so one tuning
@@ -235,7 +237,9 @@ whole song moves the key with the notes when no pitched note is left outside
 the selection, so the corrections stay as they were; otherwise the key stays
 and the notes are retuned against it. Changing the song's scale
 (`set-song-scale`) retunes every tuned note of the song for the new scale, in
-the same undo step; untuned notes stay untuned.
+the same undo step, and removes the corrections of tuned notes when the new
+scale has no gamut; untuned notes stay untuned. Corrections already in a song
+are not migrated: it sounds as it did until retuned.
 Changing the tuning (`set-song-tuning`, Song menu) converts the song by
 pitch: the key moves to the new tuning's nearest step, every other pitched
 note to the step nearest its interval to the key (a tuning correction

@@ -36,13 +36,15 @@ having one ratio to the tonic; may hold pairs of notes a comma apart,
 as the śruti do; or may be tempered, with no ratios at all. A just
 major scale with free modulation has no gamut, only an unbounded
 lattice. In the application a gamut is a rule for tuning every key, a
-set of accidentals, and the scales drawn from it: the just-intonation
-tuner tunes any gamut note a song uses, whether or not it is in the
-scale, and the scale decides the keys where two gamut notes share a
-step and which notes the Launchpad and keyboard show. Keys with no
-gamut note stay tempered. The superparticular gamut (see otonal and
-utonal) is generated in rounds of division and is just; the
-quartertone gamut (see maqāmāt) is 24-EDO and has no ratios.
+set of accidentals, and the scales drawn from it. Every scale names its gamut,
+so choosing the scale chooses the gamut and the song stores nothing else: the
+just-intonation tuner tunes any gamut note a song uses, whether or not it is
+in the scale, and the scale decides the keys where two gamut notes share a
+step. Keys with no gamut note stay tempered, and a scale with no gamut is
+tempered throughout. The duodene (Ellis's twelve 5-limit notes) is the gamut of
+major and minor; the superparticular gamut (see otonal and utonal) is
+generated in rounds of division and is just; the quartertone gamut (see
+maqāmāt) is 24-EDO and has no ratios, so the maqamat have none to tune.
 
 **Groove**
 The general word for rhythmic feel: how a pattern's timing (and often
@@ -65,12 +67,13 @@ exact), so a song's notes stay on its EDO grid and each one carries a
 small tuning correction, in cents, that nudges it toward the pure ratio; see
 user-interface.md.
 
-The simplest way to have it is to give every note one fixed ratio to the
-key. That works in any EDO, 12 included, and every interval between any two
-notes is then a whole-number ratio. What it cannot promise is that every chord
-comes out as simple as it could. In a major scale, the D that suits a G major
-chord is a little too high for a D minor chord, and one fixed D has to be a
-compromise.
+The application gives every key one fixed ratio to the key of the song, taken
+from the gamut of the song's scale. That works in any EDO, 12 included, and
+every interval between any two notes is then a whole-number ratio. What it
+cannot promise is that every chord comes out pure. In a major scale, the D
+that suits a G major chord is a little too high for a D minor chord, and one
+fixed D has to be a compromise: in C major D-A is 40/27, a comma flat of the
+fifth. No tuning of a fixed set of notes avoids a comma somewhere.
 
 The otonal and utonal scales (below) are different. They have no D to argue
 over, so one fixed pitch per note serves: the scale gives it (otonal 1/1 7/6
@@ -82,14 +85,12 @@ together.
 Just intonation that follows the music instead of returning to the key; also
 called adaptive tuning. It is for music where no single pitch per note suits
 every chord, such as the major scale above, where the D wants to differ
-between a G major chord and a D minor chord. Tuning each bar on its own against the key makes
-bars that are pure in themselves but do not fit their neighbours: a note shared
-by two chords, or one that moves by a step, lands on slightly different pitches
-each time. The adaptive kind tunes each note against what is sounding, or has
+between a G major chord and a D minor chord. The adaptive kind tunes each note against what is sounding, or has
 only just sounded, in any track, so a melody over a bass line is pure against
 that bass line, and an arpeggio hangs together although its notes never sound
-at once. It is planned, not yet available. The otonal and utonal scales do not
-need it.
+at once. It is planned, not yet available; when it comes it shifts the whole scale by a
+comma on a switch, which is not tuning a chord against its bass. The otonal
+and utonal scales do not need it.
 
 The price is *drift*. A pure interval is exact only against its own reference,
 and the reference may itself have been tuned against an earlier note, so errors

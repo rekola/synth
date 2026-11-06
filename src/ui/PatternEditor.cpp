@@ -496,6 +496,11 @@ PatternEditor::PatternEditor(Plane & parent)
   // replaces the earlier corrections. A note's other fx is replaced.
   commands_.define("apply-just-intonation-region", [this]() {
     auto & song = getController().getSong();
+    if (intonationContextOf(song).scale.empty()) {
+      getController().log(song.getScale() == Scale::NONE ? "No scale, so no gamut: nothing tuned"
+                                                         : "The " + scaleLabel(song.getScale()) + " scale has no gamut here: nothing tuned");
+      return;
+    }
     Song::Edit edit(song, "apply just intonation");
     auto grid = source_->editGrid(selectionAnchor(), false);
     auto track_ids = trackIds(song);
