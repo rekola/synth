@@ -341,3 +341,41 @@ TEST(pacer_stats_give_the_rate_a_frame_makes_at_the_floor_between_frames) {
   send(p, 1600, 100);
   CHECK(std::fabs(p.stats(at(101)).floor_rate - 100000.0) < 1.0);  // 1600 bytes every 16 ms
 }
+
+TEST(pacer_small_frames_with_late_replies_do_not_lower_the_estimate) {
+  // A fast terminal drawing a nearly still screen: a kilobyte a frame, each reply 40 ms after the last.
+  PacerConfig cfg;
+  cfg.min_frame_interval = Ms(1);
+  FramePacer p(true, cfg);
+  startUp(p, 10000, 1, 10);  // 1 MB/s
+  double before = p.estimatedBytesPerSec();
+  int sent_ms = 100, ack_ms = 150;
+  for (int i = 0; i < 40; i++) {
+    send(p, 1000, sent_ms);
+    sent_ms += 10;
+  }
+  for (int i = 0; i < 40; i++) {
+    p.onAck(at(ack_ms));
+    ack_ms += 40;
+  }
+  CHECK(p.stats(at(3000)).backoffs == 0);
+  CHECK(p.estimatedBytesPerSec() >= before);
+}
+
+TEST(pacer_big_frames_with_late_replies_still_lower_the_estimate) {
+  PacerConfig cfg;
+  cfg.min_frame_interval = Ms(1);
+  FramePacer p(true, cfg);
+  startUp(p, 10000, 1, 10);  // 1 MB/s
+  double before = p.estimatedBytesPerSec();
+  int sent_ms = 100, ack_ms = 150;
+  for (int i = 0; i < 40; i++) {
+    send(p, 20000, sent_ms);
+    sent_ms += 10;
+  }
+  for (int i = 0; i < 40; i++) {
+    p.onAck(at(ack_ms));
+    ack_ms += 100;  // 200 kB/s
+  }
+  CHECK(p.estimatedBytesPerSec() < 0.7 * before);
+}

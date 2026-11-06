@@ -66,6 +66,13 @@ struct PacerConfig {
   // they are sent at on the floor says only what was sent: small frames settle there, with the gap at
   // the floor and a little over, whatever the link could take.
   double link_bound_margin = 1.25;
+  // A frame, or a run of them, of fewer bytes than this says nothing against the estimate: its reply is
+  // late by what the terminal took to draw it and the scheduler to read it, not by what the link took for
+  // so few bytes (a kilobyte a frame, each reply 40 ms late, is 25 kB/s), and a fast link would be taken
+  // for a slow one while the screen is nearly still. Such frames never lower the estimate or count as
+  // queueing; only a bigger one can. A slow link's frames are bigger than this at the picture quality it
+  // gets.
+  size_t min_evidence_bytes = 4096;
   // No acknowledgement for this long halves the estimate; with none ever, or
   // this many times in a row, the terminal is taken not to answer.
   std::chrono::milliseconds stall{1500};

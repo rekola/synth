@@ -192,10 +192,10 @@ void FramePacer::onAck(TimePoint t_ack) {
         while (samples_.size() > config_.sample_window) samples_.pop_front();
         double target = *std::max_element(samples_.begin(), samples_.end());
         if (target >= bandwidth_) bandwidth_ = target;
-        else bandwidth_ += config_.down_weight * (target - bandwidth_);
+        else if (bytes >= config_.min_evidence_bytes) bandwidth_ += config_.down_weight * (target - bandwidth_);
         double gap1 = seconds(t_ack, *last_ack_);
         double send_gap = seconds(f.started, *last_ack_started_);
-        if (!f.probing && !last_ack_probing_ && send_gap > 1e-5 && gap1 > 1e-5) {
+        if (!f.probing && !last_ack_probing_ && send_gap > 1e-5 && gap1 > 1e-5 && f.size.total() >= config_.min_evidence_bytes) {
           lag_ratios_.push_back(gap1 / send_gap);
           while (lag_ratios_.size() > static_cast<size_t>(config_.lag_frames)) lag_ratios_.pop_front();
           if (lag_ratios_.size() == static_cast<size_t>(config_.lag_frames) &&
@@ -205,8 +205,13 @@ void FramePacer::onAck(TimePoint t_ack) {
         }
       }
     }
-    if (rtt_known_ && delay > std::max(config_.delay_ratio * rtt_min_us_, static_cast<double>(config_.delay_floor.count()))) delay_streak_++;
-    else delay_streak_ = 0;
+    if (f.size.total() < config_.min_evidence_bytes) {
+      // Too few bytes to say anything about the link: neither queueing nor its absence.
+    } else if (rtt_known_ && delay > std::max(config_.delay_ratio * rtt_min_us_, static_cast<double>(config_.delay_floor.count()))) {
+      delay_streak_++;
+    } else {
+      delay_streak_ = 0;
+    }
     if (delay_streak_ >= config_.delay_frames) backOff();
   }
   bandwidth_ = std::max(bandwidth_, config_.min_bandwidth);
