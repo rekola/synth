@@ -8,6 +8,7 @@
 #include <cstdlib>
 #include <set>
 #include <unordered_map>
+#include <unordered_set>
 
 namespace cellui::term {
 
@@ -196,6 +197,7 @@ struct SixelPalette {
   std::vector<uint32_t> rgb;  // 0xRRGGBB per register
   bool exact = false;         // every pixel's colour is a register: nothing to dither
   bool grid = false;          // colours are first put on the 101 levels a Sixel colour definition has
+  bool grid_dither = false;   // and a gradient (more colours than registers) is dithered between those levels
   std::unordered_map<uint32_t, int> index;  // (exact) colour -> register
 };
 
@@ -214,10 +216,33 @@ int paletteNearest(const SixelPalette & palette, int r, int g, int b) {
   return best;
 }
 
+// The colour a pixel is shown in on the Sixel grid: its levels snapped to the grid's, after the ordered
+// dither's offset of one grid step if `dither` is given, so a smooth gradient is not banded by the
+// terminal's 101 levels. x and y are the pixel's place in the piece the dither's origin belongs to.
+void gridColour(uint32_t p, const Dither * dither, int x, int y, int & r, int & g, int & b) {
+  float offset = dither ? (bayer8(dither->origin_x + x, dither->origin_y + y) - 0.5f) * (255.0f / 100.0f) : 0.0f;
+  auto snap = [&](int v) { return onSixelGrid(std::clamp(static_cast<int>(std::lround(static_cast<float>(v) + offset)), 0, 255)); };
+  r = snap(Image::red(p)), g = snap(Image::green(p)), b = snap(Image::blue(p));
+}
+
 // The pixels' colours cut into at most `registers` boxes, repeatedly splitting the box with the most
 // pixels times its widest range at the weighted median of that channel; a box's register is its mean.
 SixelPalette makeSixelPalette(const Image & image, int x0, int y0, int width, int height, const std::vector<bool> & keep, int registers,
-                              bool grid = false) {
+                              bool grid = false, const Dither * dither = nullptr) {
+  // A picture with more colours than registers is a gradient (a blurred backdrop): it is dithered, where a
+  // flat one (text, a chart) stays as it is.
+  bool gradient = false;
+  if (grid && dither && dither->method != Dither::Method::NEAREST) {
+    std::unordered_set<uint32_t> distinct;
+    for (int y = 0; y < height && !gradient; y++) {
+      for (int x = 0; x < width && !gradient; x++) {
+        uint32_t p = image.pixels[static_cast<size_t>(y0 + y) * static_cast<size_t>(image.width) + static_cast<size_t>(x0 + x)];
+        if (!keep[static_cast<size_t>(y) * static_cast<size_t>(width) + static_cast<size_t>(x)] || Image::alpha(p) < 192) continue;
+        distinct.insert(p & 0xffffff);
+        gradient = distinct.size() > static_cast<size_t>(std::max(2, registers));
+      }
+    }
+  }
   std::unordered_map<uint32_t, uint32_t> counts;
   for (int y = 0; y < height; y++) {
     for (int x = 0; x < width; x++) {
@@ -226,12 +251,14 @@ SixelPalette makeSixelPalette(const Image & image, int x0, int y0, int width, in
       int r = Image::red(p), g = Image::green(p), b = Image::blue(p);
       // Two colours the terminal cannot tell apart are one: they must not count against the registers,
       // and the median cut must not average a flat colour with its neighbours because of them.
-      if (grid) r = onSixelGrid(r), g = onSixelGrid(g), b = onSixelGrid(b);
+      if (gradient) gridColour(p, dither, x, y, r, g, b);
+      else if (grid) r = onSixelGrid(r), g = onSixelGrid(g), b = onSixelGrid(b);
       counts[(static_cast<uint32_t>(r) << 16) | (static_cast<uint32_t>(g) << 8) | static_cast<uint32_t>(b)]++;
     }
   }
   SixelPalette palette;
   palette.grid = grid;
+  palette.grid_dither = gradient;
   std::vector<std::pair<uint32_t, uint32_t>> colours(counts.begin(), counts.end());
   std::sort(colours.begin(), colours.end());  // a stable order, whatever the hash table did
   registers = std::max(2, registers);
@@ -349,7 +376,8 @@ std::vector<int> mapToRegisters(const SixelPalette & palette, const Image & imag
         continue;
       }
       int r = Image::red(p), g = Image::green(p), b = Image::blue(p);
-      if (palette.grid) r = onSixelGrid(r), g = onSixelGrid(g), b = onSixelGrid(b);
+      if (palette.grid_dither) gridColour(p, &dither, x, y, r, g, b);
+      else if (palette.grid) r = onSixelGrid(r), g = onSixelGrid(g), b = onSixelGrid(b);
       if (palette.exact) {
         regs[i] = palette.index.at(((static_cast<uint32_t>(r)) << 16) | (static_cast<uint32_t>(g) << 8) | static_cast<uint32_t>(b));
         continue;
@@ -450,7 +478,7 @@ std::string encodeSixelWith(const SixelPalette & palette, const Image & image, i
 
 std::string encodeSixel(const Image & image, int x0, int y0, int width, int height, const std::vector<bool> & keep, const Dither & dither,
                         int registers) {
-  return encodeSixelWith(makeSixelPalette(image, x0, y0, width, height, keep, registers, true), image, x0, y0, width, height, keep, dither);
+  return encodeSixelWith(makeSixelPalette(image, x0, y0, width, height, keep, registers, true, &dither), image, x0, y0, width, height, keep, dither);
 }
 
 int pictureColours(PictureQuality quality) {
@@ -902,7 +930,12 @@ std::string ImageEncoder::sixel(const CellBuffer & frame, const ImagePlacement &
     // One palette for the rectangle, so the pieces sent are drawn in the colours of the pieces not sent.
     std::vector<bool> all(static_cast<size_t>(w) * static_cast<size_t>(h), true);
     int registers = pictureColours(quality_) > 0 ? std::min(profile_.sixel_registers, pictureColours(quality_)) : profile_.sixel_registers;
-    SixelPalette palette = makeSixelPalette(img, x, y, w, h, all, registers, true);
+    // The same dither as the pieces', for the rectangle's own origin.
+    Dither palette_dither;
+    palette_dither.method = quality_ == PictureQuality::FULL || p.image->stretched() ? profile_.dither : Dither::Method::NEAREST;
+    palette_dither.origin_x = p.col * cw + x;
+    palette_dither.origin_y = p.row * ch + y;
+    SixelPalette palette = makeSixelPalette(img, x, y, w, h, all, registers, true, &palette_dither);
     // The cells to send are a row of them at a time, from the first that changed to the last: each Sixel
     // carries the definitions of its registers, which cost more than the cells between two changes.
     std::vector<std::pair<int, int>> spans(static_cast<size_t>(r.rows), {r.cols, -1});
