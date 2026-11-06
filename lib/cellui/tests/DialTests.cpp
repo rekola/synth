@@ -199,3 +199,20 @@ TEST(dial_widget_shows_what_is_typed_with_a_caret_and_closing_removes_it) {
   for (int c = 3; c < 9; c++) row += f.buffer.at(3, c).text;
   CHECK(row.find("▏") == std::string::npos);
 }
+
+TEST(dial_widget_wheel_steps_land_on_whole_values_and_committing_off_keeps_it_off) {
+  DialFixture f;
+  f.dial.setValue(-15.46f);
+  wheel(f.dial, 3, 5, true);
+  CHECK_NEAR(f.dial.value(), -15.0f, 0.001f);
+  f.dial.setValue(-15.46f);
+  wheel(f.dial, 3, 5, false);
+  CHECK_NEAR(f.dial.value(), -16.0f, 0.001f);
+  for (int i = 0; i < 60; i++) wheel(f.dial, 3, 5, false);
+  CHECK(f.dial.value() < -99.0f);
+  f.dial.startEdit();
+  key(f.dial, Key::Enter);  // committing the opening text keeps it off
+  CHECK(f.dial.value() < -99.0f);
+  wheel(f.dial, 3, 5, true);
+  CHECK_NEAR(f.dial.value(), -35.0f, 0.001f);  // the first step up from off
+}
