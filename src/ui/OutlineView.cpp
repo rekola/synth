@@ -168,18 +168,20 @@ OutlineView::render(const StyleProvider & styles, bool refresh, bool focused) {
 
   // The rows may have narrowed since the last scroll.
   viewport_.rows.setSmooth(getPlane().smoothScroll());
+  viewport_.cols.setSmooth(getPlane().smoothScroll());
   syncViewport();
   {
     // The view follows where it was scrolled to.
     auto now = std::chrono::steady_clock::now();
     auto seconds = std::min(0.1, std::chrono::duration<double>(now - last_tick_).count());
     viewport_.rows.tick(seconds);
+    viewport_.cols.tick(seconds);
     tickCursor(seconds);
     last_tick_ = now;
   }
 
   if (song.getMajorVersion() != current_song_version_ || viewport_.rows.shown() != current_shown_row_ ||
-      viewport_.cols.offset() != current_column_scroll_ || focused != current_focused_ ||
+      viewport_.cols.shown() != current_column_shown_ || focused != current_focused_ ||
       cursor_y_ != current_cursor_y_) {
     render_all = true;
   }
@@ -195,7 +197,8 @@ OutlineView::render(const StyleProvider & styles, bool refresh, bool focused) {
   if (render_all || cursor_changed || details_dirty_) {
     current_shown_row_ = viewport_.rows.shown();
     current_first_row_ = viewport_.rows.firstShown();
-    current_column_scroll_ = viewport_.cols.offset();
+    current_column_scroll_ = viewport_.cols.firstShown();
+    current_column_shown_ = viewport_.cols.shown();
 
     getPlane().erase();
     renderHeading(styles);
@@ -411,9 +414,10 @@ OutlineView::renderTree(const StyleProvider & styles, bool focused) {
   auto [ pos_y, pos_x ] = getPosition();
   auto tree_rows = treeRows();
   tree_plane_->move(pos_y + kTreeTop, pos_x);
-  tree_plane_->resize(tree_rows, getDim().second);
+  // One column more than fits too, for the plane to shift into view.
+  tree_plane_->resize(tree_rows, getDim().second + (viewport_.cols.smooth() ? 1 : 0));
   // One row more than fits, for the plane to shift into view.
-  tree_plane_->setScrollOffset(viewport_.rows.fraction(), 0);
+  tree_plane_->setScrollOffset(viewport_.rows.fraction(), viewport_.cols.fraction());
   tree_plane_->erase();
   int drawn = tree_rows + (viewport_.rows.smooth() ? 1 : 0);
   bool own_layer = cursorOnOwnLayer();
@@ -430,7 +434,7 @@ OutlineView::renderRow(const StyleProvider & styles, int display_row, bool curso
 
 void OutlineView::drawRow(const StyleProvider & styles, Plane & plane, int display_row, size_t data_row, bool cursor,
                           bool focused) {
-  auto tree_width = getDim().second;
+  auto tree_width = getDim().second + (viewport_.cols.smooth() ? 1 : 0);
   auto fg = [&](const Color & c) { plane.setFgColor(c); };
   auto bg = [&](const Color & c) { plane.setBgColor(c); };
 
