@@ -24,6 +24,9 @@ Color contrasting(const Color & fg, const Color & bg) {
   return extreme.mix(fg, 0.25f);
 }
 
+// The shared pictures the plane tree keeps by key at most.
+constexpr size_t kSharedPictureLimit = 1024;
+
 // Wide enough for the longest status the reader's indicator shows.
 constexpr int kIndicatorCols = 20;
 
@@ -559,6 +562,8 @@ void BufferPlane::drawSharedImageAt(int row, int col, ImageKey key, int width, i
     auto id = std::make_tuple(std::string(key.kind), key.id, width, height);
     auto it = registry.find(id);
     if (it != registry.end()) return it->second;
+    // Bounded: a dial dragged through every value makes a picture for each. The places showing one keep it.
+    if (registry.size() >= kSharedPictureLimit) registry.clear();
     std::vector<uint32_t> pixels = render();
     if (pixels.size() < static_cast<size_t>(width) * static_cast<size_t>(height)) return std::shared_ptr<Image>();
     auto image = std::make_shared<Image>();

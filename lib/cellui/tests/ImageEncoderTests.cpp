@@ -837,3 +837,26 @@ TEST(a_place_that_changes_between_a_shared_picture_and_its_own_frees_only_what_i
   std::string changed = enc.encode(b, root.images(), false);
   CHECK(count(changed, "d=I,i=1") == 0 && count(changed, "a=t,") == 1);
 }
+
+// The registry is bounded: a dial dragged through every value makes a picture for each.
+TEST(the_shared_picture_registry_is_bounded_and_the_places_keep_what_they_show) {
+  StyleProvider styles;
+  CellBuffer b(2, 4);
+  BufferPlane root(b, styles);
+  root.setCellPixelSize(6, 2);
+  auto plane = root.createChild();
+  plane->resize(1, 4);
+  int rendered = 0;
+  auto render = [&]() {
+    rendered++;
+    return flat(2, 6, 1);
+  };
+  plane->drawSharedImageAt(0, 0, {"dial", 0}, 2, 6, render);
+  for (uint64_t id = 1; id <= 1100; id++) plane->drawSharedImageAt(0, 1, {"dial", id}, 2, 6, render);
+  int before = rendered;
+  // The one still shown at the first place is not made again; a key the registry let go of is.
+  plane->drawSharedImageAt(0, 0, {"dial", 0}, 2, 6, render);
+  CHECK(rendered == before);
+  plane->drawSharedImageAt(0, 2, {"dial", 5}, 2, 6, render);
+  CHECK(rendered == before + 1);
+}
