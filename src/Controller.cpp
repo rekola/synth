@@ -1762,6 +1762,13 @@ Controller::beginSampleCapture(int track_id, int latency_frames) {
   // "live" sharing for free.
   content.setBuffer(current_sample);
   content.setOriginalTempo(song->getTempo());
+  // The pitch the take was played against: the standard pitch, moved by the
+  // song's YUxx/YDxx offset as it is now.
+  {
+    int edo = edoStepsFor(song->getTuning());
+    double units = getPlaybackInfo().getGlobalPitchUnits();
+    content.setOriginalStandardPitch(static_cast<float>(song->getStandardPitch() * std::exp2(units / (16.0 * (edo > 0 ? edo : 12)))));
+  }
   content.setNativeSampleRate(channel_config.getAudioOutSampleRate());
   // A reused (non-overdub) clip's own prior trim must never leak into
   // this new take - getSampleContent() on an existing clip returns its

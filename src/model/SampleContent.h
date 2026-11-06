@@ -3,6 +3,7 @@
 
 #include "../audio/AudioBuffer.h"
 #include "WaveformPeaks.h"
+#include "../instruments/Tuning.h"
 
 #include <atomic>
 #include <cmath>
@@ -36,15 +37,14 @@ class SampleContent {
   // and keeps the same identity(); the waveform cache is the UI's own and is
   // rebuilt lazily by whoever needs it.
   SampleContent(const SampleContent & other)
-      : buffer_(other.buffer_), in_point_(other.in_point_), out_point_(other.out_point_),
-        original_tempo_(other.original_tempo_), native_sample_rate_(other.native_sample_rate_),
-        identity_(other.identity_), stretch_cache_(other.sharedStretchCache()) { }
+      : buffer_(other.buffer_), in_point_(other.in_point_), out_point_(other.out_point_), original_tempo_(other.original_tempo_), original_standard_pitch_(other.original_standard_pitch_), native_sample_rate_(other.native_sample_rate_), identity_(other.identity_), stretch_cache_(other.sharedStretchCache()) {}
   SampleContent & operator=(const SampleContent & other) {
     if (this != &other) {
       buffer_ = other.buffer_;
       in_point_ = other.in_point_;
       out_point_ = other.out_point_;
       original_tempo_ = other.original_tempo_;
+      original_standard_pitch_ = other.original_standard_pitch_;
       native_sample_rate_ = other.native_sample_rate_;
       identity_ = other.identity_;
       stretch_cache_ = other.sharedStretchCache();
@@ -98,6 +98,18 @@ class SampleContent {
   // audio to match the song's own current tempo.
   short getOriginalTempo() const { return original_tempo_; }
   void setOriginalTempo(short bpm) { original_tempo_ = bpm; changed(); }
+
+  // The standard pitch (A4, Hz) the audio was recorded at: the song's
+  // standard pitch with its YUxx/YDxx offset at the moment of capture, 440
+  // for anything older. Playback shifts it by the difference to the song's
+  // pitch (resolveSampleAudio()). Non-positive values are ignored.
+  float getOriginalStandardPitch() const { return original_standard_pitch_; }
+  void setOriginalStandardPitch(float hz) {
+    if (validStandardPitch(hz)) {
+      original_standard_pitch_ = hz;
+      changed();
+    }
+  }
 
   // The sample rate getBuffer() is actually at - may differ from the
   // project's own *current* output rate (e.g. a song recorded at 192kHz,
@@ -170,14 +182,16 @@ class SampleContent {
   // some *other* song_tempo (single-slot, so a later trigger at the
   // *original* tempo would otherwise force a wasted rebuild even though
   // nothing about this clip's own audio actually changed).
-  std::shared_ptr<AudioBuffer> getStretchedBuffer(int song_tempo) const {
-    if (!stretch_cache_ || stretch_cache_->song_tempo != song_tempo) return nullptr;
+  // Keyed on the pitch shift too (cents, as resolveSampleAudio() rounds it).
+  std::shared_ptr<AudioBuffer> getStretchedBuffer(int song_tempo, double pitch_cents = 0.0) const {
+    if (!stretch_cache_ || stretch_cache_->song_tempo != song_tempo || stretch_cache_->pitch_cents != pitch_cents) return nullptr;
     return stretch_cache_->buffer;
   }
-  void setStretchedBuffer(std::shared_ptr<AudioBuffer> buffer, int song_tempo) const {
+  void setStretchedBuffer(std::shared_ptr<AudioBuffer> buffer, int song_tempo, double pitch_cents = 0.0) const {
     auto cache = sharedStretchCache();
     cache->buffer = std::move(buffer);
     cache->song_tempo = song_tempo;
+    cache->pitch_cents = pitch_cents;
   }
 
   // Reads/writes in_point_/out_point_/original_tempo_ (<sample in="..."
@@ -195,6 +209,7 @@ class SampleContent {
   std::shared_ptr<AudioBuffer> buffer_;
   float in_point_ = 0.0f, out_point_ = 0.0f;
   short original_tempo_ = 0;
+  float original_standard_pitch_ = kNominalStandardPitchHz;
   int native_sample_rate_ = 0;
 
   // getWaveformPeaks()'s own lazy cache - mutable since a const read can
@@ -217,6 +232,7 @@ class SampleContent {
   struct StretchCache {
     std::shared_ptr<AudioBuffer> buffer;
     int song_tempo = 0;
+    double pitch_cents = 0.0;
   };
   std::shared_ptr<StretchCache> sharedStretchCache() const {
     if (!stretch_cache_) stretch_cache_ = std::make_shared<StretchCache>();

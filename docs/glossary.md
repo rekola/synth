@@ -195,6 +195,15 @@ name, tempo and time signature stored by position. See scenes.md.
 How a track places its notes around its position: `auto` (the instrument
 decides), `ring` (a spiral by note column) or `arc` (by pitch). See spatial.md.
 
+**Standard pitch**
+The frequency of A4 that every note is tuned from: 440 Hz unless the song
+sets another (`Song::getStandardPitch()`, `<song standardPitch="">`, any
+positive value). The song's pitch offset (`YUxx`/`YDxx`, commands.md) moves
+it at playback, never the setting itself. Not the tuning (the EDO).
+Each sample-track take remembers the standard pitch it was recorded at
+(`<sample originalStandardPitch="">`, 440 for older takes) and is
+pitch-shifted from it to the song's when it plays.
+
 **Strike point**
 Where a hammer or pluck meets the string, as a fraction of its length. Modes
 with a node there are not excited: at 1/8, the 8th, 16th and 24th partials.

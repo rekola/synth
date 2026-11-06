@@ -608,6 +608,7 @@ Song::scalars() const {
   SongScalars out;
   out.tempo = getTempo();
   out.swing = getSwing();
+  out.standard_pitch = getStandardPitch();
   out.time_signature = getTimeSignature();
   out.running_bars = getRunningBars();
   out.tuning = getTuning();
@@ -1323,6 +1324,7 @@ Song::loadParameters(const ParameterSource & input) {
   else
     clearRunningBars();
   setSwing(input.get<int>("swing", swing::kStraight));
+  setStandardPitch(input.get<float>("standardPitch", kNominalStandardPitchHz));
   setRecordQuantize(input.get<bool>("recordQuantize", false));
 
   setEarHeight(input.get<float>("earHeight", constants::DEFAULT_EAR_HEIGHT));
@@ -1527,6 +1529,7 @@ Song::storeParameters(ParameterSource & output) const {
     output.set("transportBarOrigin", getRunningBars().origin);
   }
   output.set("swing", getSwing(), swing::kStraight);
+  output.set("standardPitch", getStandardPitch(), kNominalStandardPitchHz);
   if (getRecordQuantize()) output.set("recordQuantize", true);
 
   output.set("earHeight", getEarHeight(), constants::DEFAULT_EAR_HEIGHT);

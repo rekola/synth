@@ -23,6 +23,7 @@ uint64_t digestSample(const SampleContent & content) {
   h = combine(h, std::hash<float>()(content.getInPoint()));
   h = combine(h, std::hash<float>()(content.getOutPoint()));
   h = combine(h, static_cast<uint64_t>(content.getOriginalTempo()));
+  h = combine(h, std::hash<float>()(content.getOriginalStandardPitch()));
   return combine(h, static_cast<uint64_t>(content.getNativeSampleRate()));
 }
 
@@ -66,6 +67,7 @@ contentDigest(const SongScalars & scalars, const Arrangement & arrangement, cons
   uint64_t total = 0;
   uint64_t s = combine(20, static_cast<uint64_t>(scalars.tempo));
   s = combine(s, static_cast<uint64_t>(scalars.swing));
+  s = combine(s, std::hash<float>()(scalars.standard_pitch));
   s = combine(s, static_cast<uint64_t>(scalars.time_signature.numerator * 100 + scalars.time_signature.denominator));
   s = combine(s, static_cast<uint64_t>(scalars.running_bars.signature.numerator * 100 + scalars.running_bars.signature.denominator));
   s = combine(s, static_cast<uint64_t>(scalars.running_bars.origin));

@@ -22,6 +22,7 @@ SampleLayerView::create(ScoreContext context, const SampleContent & content) {
   add(kSampleIn, content.getInPoint());
   add(kSampleOut, content.getOutPoint());
   add(kSampleOriginalTempo, static_cast<int>(content.getOriginalTempo()));
+  add(kSampleOriginalStandardPitch, content.getOriginalStandardPitch());
   add(kSampleNativeRate, content.getNativeSampleRate());
   return context.document->create("sample", std::move(props));
 }

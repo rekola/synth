@@ -29,6 +29,10 @@ class SampleLayerView {
   void setOutPoint(float seconds) { doc::set(*context_.document, node_, scoreschema::kSampleOut, seconds); }
   short getOriginalTempo() const { return static_cast<short>(doc::get(*context_.document, node_, scoreschema::kSampleOriginalTempo)); }
   void setOriginalTempo(short bpm) { doc::set(*context_.document, node_, scoreschema::kSampleOriginalTempo, static_cast<int>(bpm)); }
+  float getOriginalStandardPitch() const { return doc::get(*context_.document, node_, scoreschema::kSampleOriginalStandardPitch); }
+  void setOriginalStandardPitch(float hz) {
+    if (validStandardPitch(hz)) doc::set(*context_.document, node_, scoreschema::kSampleOriginalStandardPitch, hz);
+  }
   int getNativeSampleRate() const { return doc::get(*context_.document, node_, scoreschema::kSampleNativeRate); }
   void setNativeSampleRate(int rate) { doc::set(*context_.document, node_, scoreschema::kSampleNativeRate, rate); }
 

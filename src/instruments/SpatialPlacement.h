@@ -75,7 +75,7 @@ inline SphericalPosition placeOnArc(const SphericalPosition & position, float ke
 // a percussion note value already is one.
 inline float keyFor(Tuning tuning, int note_value) {
   if (tuning == Tuning::PERCUSSION) return static_cast<float>(note_value);
-  return std::log2(getFrequencyFor(tuning, note_value) / 440.0f) * 12.0f + 69.0f;
+  return std::log2(getFrequencyFor(tuning, note_value) / kNominalStandardPitchHz) * 12.0f + 69.0f;
 }
 
 // What an instrument with no placement of its own does for each mode.

@@ -386,15 +386,8 @@ void registerLibraryInstruments(InstrumentProvider & provider) {
 
 namespace {
 
-// A4 (440Hz) in each tuning's own note-value numbering - Tuning.h/Note.h's
-// own per-tuning center, duplicated here in miniature rather than shared,
-// since this is the only place outside Tuning.h itself that ever needs a
-// plain "a reasonable middle-register note" rather than a specific
-// authored pitch.
-int centerNoteFor(Tuning tuning) {
-  auto steps = edoStepsFor(tuning == Tuning::PERCUSSION ? Tuning::EDO12 : tuning);
-  return 5 * steps + (9 * steps + 6) / 12;
-}
+// A reasonable middle-register note: the reference note, A4.
+int centerNoteFor(Tuning tuning) { return referenceNoteFor(tuning); }
 }
 
 void prewarmInstrumentTree(const Track & track, const ChannelConfiguration & config, Tuning tuning, int note_value) {
