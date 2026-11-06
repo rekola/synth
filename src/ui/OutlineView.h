@@ -298,6 +298,7 @@ protected:
   double current_shown_row_ = -1;
   int current_first_row_ = 0;  // the first data row the tree plane was drawn from
   int current_column_scroll_ = 0;
+  double current_column_shown_ = 0;
   std::unique_ptr<Plane> tree_plane_;
   // The cursor's row in the view, a whole number except while it eases.
   double cursor_y_ = 0;
