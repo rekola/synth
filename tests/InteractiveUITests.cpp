@@ -275,6 +275,23 @@ TEST(terminal_ui_ctrl_keypad_operators_change_the_track_instrument) {
   CHECK(instrument_id() == before);
 }
 
+TEST(terminal_ui_next_and_previous_instrument_commands_change_the_track_instrument) {
+  UIFixture f(fixture("center_note.xml"), UI::View::ARRANGEMENT);
+  f.controller->getSong().addInstrument(std::make_unique<Oscillator>(WaveformType::SINE));
+  auto instrument_id = [&] {
+    auto track = f.controller->getSong().getMasterTrack().getChildren().front();
+    return dynamic_cast<const InstrumentTrack &>(*track).getInstrumentId();
+  };
+  if (f.terminal.info().focus != "pattern-editor") f.otherWindow();
+  int before = instrument_id();
+  f.execute("next-instrument");
+  CHECK(instrument_id() == before + 1);
+  f.execute("next-instrument");
+  CHECK(instrument_id() == before + 1);
+  f.execute("previous-instrument");
+  CHECK(instrument_id() == before);
+}
+
 // A song file with no tracks still opens, draws in both views and takes keys.
 TEST(terminal_ui_song_without_tracks_does_not_crash) {
   for (auto view : {UI::View::LIVE, UI::View::ARRANGEMENT}) {
