@@ -599,6 +599,7 @@ void TerminalSession::sendFrame(const CellBuffer & frame, const CursorRequest & 
   if (!layers.empty() || backdrops_.holdsState()) {
     CellBuffer shown = frame;
     std::vector<ImagePlacement> placements = images;
+    backdrops_.setMode(backdropModeFor(link_.status().cls, caps_.display.pictures && caps_.display.cell_px_height > 0));
     backdrops_.apply(shown, placements, layers, caps_.display);
     std::string pixels = images_.encode(shown, placements, encoder_.willClear(shown));
     body = encoder_.encode(shown, cursor, pixels);

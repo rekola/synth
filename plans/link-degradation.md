@@ -578,8 +578,9 @@ deflate ratio on real charts is known.
    rate (15, 5, off), **hover** (any-motion mouse `?1003` becomes drag-only `?1002` from `HZ_15`),
    **pointer-shape updates** (OSC 22) off from `HZ_5`, and **page scrolling** of the pattern editor's cursor
    from `HZ_5` (`Backend::setPointerDetail()`). Still to do: page scrolling of Live View's per-column lines
-   and the arrangement grid, the level meters' own rates, the backdrop choices (static, cell blur, flat dim),
-   the harness run at 50 kB/s.
+   and the arrangement grid, the level meters' own rates, the harness run at 50 kB/s. **Backdrops** by class
+   (`term::backdropModeFor()`, set by `TerminalSession` on each frame): live, static (the blur kept as it was
+   when the dialog opened), cell blur (no pictures) and flat dim, as in the 3.7 table.
 6. **Colours** (section 2): the `ansi16` theme and track-colour table, `MONO` with reverse video;
    grey only if asked.
 7. **Window class** from the frame clock and vsync (section 1).
