@@ -210,7 +210,7 @@ TEST(the_first_modern_tracks_differ_from_each_other_and_on_the_pads) {
 
 TEST(the_light_theme_derives_its_menu_and_picker_from_its_own_surfaces) {
   auto l = Theme::light();
-  CHECK(same(l.menu_bg, l.surface_raised));
+  CHECK(same(l.menu_bg, l.surface_panel));
   CHECK(same(l.menu_section_bg, l.surface_overlay));
   CHECK(same(l.picker_bg, l.surface_overlay));
   CHECK(same(l.picker_fg, l.text_primary));
