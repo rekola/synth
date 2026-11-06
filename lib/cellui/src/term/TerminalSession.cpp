@@ -575,6 +575,8 @@ void TerminalSession::present(const CellBuffer & frame, const CursorRequest & cu
 void TerminalSession::sendFrame(const CellBuffer & frame, const CursorRequest & cursor, const std::vector<ImagePlacement> & images,
                                 const std::vector<BackdropLayer> & layers) {
   frame_presented_ = true;
+  // What the link is worth decides how many colours a picture keeps.
+  images_.setPictureQuality(pictureQualityFor(link_.status().cls));
   std::string body;
   // A backdrop is made of what the terminal can show; the frame and its
   // pictures are copied only then.

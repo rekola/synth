@@ -42,11 +42,12 @@ def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("synth")
     ap.add_argument("--song", default="songs/demo3.xml")
+    ap.add_argument("--link-class", default=None, help="pin the link class (full, 30, 15, 5, 1): picture quality follows it")
     ap.add_argument("--pixels", default="kitty", choices=["kitty", "sixel", "iterm2"], help="the picture protocol the application is told the terminal speaks")
     a = ap.parse_args()
     print("%-42s %9s %9s %9s %9s %8s %9s" % ("scenario (%s, 120x40, unshaped)" % a.pixels, "kB/s", "pictures", "placement", "text etc", "frames/s", "uploads/s"))
     for name, keys, extra in SCENARIOS:
-        cmd = [a.synth, "--null-audio", "--ui", "terminal"] + extra + [a.song]
+        cmd = [a.synth, "--null-audio", "--ui", "terminal"] + (["--link-class", a.link_class] if a.link_class else []) + extra + [a.song]
         res = Link().run(cmd, env={"CELLUI_PIXELS": a.pixels}, keys=keys, duration=15)
         t0, t1 = res.start + 6, res.start + 14
         total = sum(n for t, n in res.series if t0 <= t < t1)

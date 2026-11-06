@@ -121,6 +121,8 @@ float bayer8(int x, int y) {
 constexpr float kOrderedAmplitude = 12.0f;
 // A pixel off its nearest register by no more than this in any channel is not dithered.
 constexpr int kDitherAbove = 5;
+// A picture of this many pixels or fewer is sent in whichever is smaller of its palette PNG and its pixels.
+constexpr size_t kSmallPicturePixels = 16384;
 // A changed Sixel picture is considered for sending in pieces only when the pieces cover less than this
 // share of its cells, and is then sent in whichever way is smaller: a piece repeats the registers it
 // uses, and most changes (a line moving across a chart) touch every row.
@@ -305,14 +307,16 @@ SixelPalette makeSixelPalette(const Image & image, int x0, int y0, int width, in
 // are left transparent. A palette that holds the picture's colours exactly draws them as they are;
 // otherwise each pixel goes to the nearest register, after the dither's offset or with its error
 // carried on.
-std::string encodeSixelWith(const SixelPalette & palette, const Image & image, int x0, int y0, int width, int height,
-                            const std::vector<bool> & keep, const Dither & dither) {
+// Each pixel's register in `palette` (or -1 where it is left out: covered, or too transparent to
+// draw); `transparent` says whether any pixel was, or the height is not a whole number of Sixel bands.
+std::vector<int> mapToRegisters(const SixelPalette & palette, const Image & image, int x0, int y0, int width, int height,
+                                const std::vector<bool> & keep, const Dither & dither, bool & transparent) {
   auto pixel = [&](int x, int y) {
     return image.pixels[static_cast<size_t>(y0 + y) * static_cast<size_t>(image.width) + static_cast<size_t>(x0 + x)];
   };
   // Each pixel's register, or -1 when left out.
   std::vector<int> regs(static_cast<size_t>(width) * static_cast<size_t>(height), -1);
-  bool transparent = height % 6 != 0;
+  transparent = transparent || height % 6 != 0;
   auto left_out = [&](size_t i, uint32_t p) { return !keep[i] || Image::alpha(p) < 192; };
   std::unordered_map<uint32_t, int> cache;  // (offset) colour -> nearest register
   auto nearest = [&](int r, int g, int b) {
@@ -376,6 +380,13 @@ std::string encodeSixelWith(const SixelPalette & palette, const Image & image, i
     }
     if (diffuse) current.swap(next);
   }
+  return regs;
+}
+
+std::string encodeSixelWith(const SixelPalette & palette, const Image & image, int x0, int y0, int width, int height,
+                            const std::vector<bool> & keep, const Dither & dither) {
+  bool transparent = false;
+  std::vector<int> regs = mapToRegisters(palette, image, x0, y0, width, height, keep, dither, transparent);
   std::set<int> used;
   for (int reg : regs) {
     if (reg >= 0) used.insert(reg);
@@ -431,6 +442,98 @@ std::string encodeSixel(const Image & image, int x0, int y0, int width, int heig
   return encodeSixelWith(makeSixelPalette(image, x0, y0, width, height, keep, registers), image, x0, y0, width, height, keep, dither);
 }
 
+int pictureColours(PictureQuality quality) {
+  switch (quality) {
+    case PictureQuality::REDUCED: return 64;
+    case PictureQuality::LOW: return 16;
+    default: return 0;
+  }
+}
+
+PictureQuality pictureQualityFor(LinkClass cls) {
+  switch (cls) {
+    case LinkClass::FULL:
+    case LinkClass::HZ_30: return PictureQuality::FULL;
+    case LinkClass::HZ_15: return PictureQuality::REDUCED;
+    default: return PictureQuality::LOW;
+  }
+}
+
+namespace {
+
+// The picture's pixels as register numbers in a palette made from it.
+struct Indexed {
+  SixelPalette palette;
+  std::vector<int> regs;  // one per pixel
+};
+
+Indexed indexPicture(const Image & image, int x, int y, int width, int height, int colours, bool dithered) {
+  Indexed out;
+  std::vector<bool> all(static_cast<size_t>(width) * static_cast<size_t>(height), true);
+  out.palette = makeSixelPalette(image, x, y, width, height, all, colours);
+  bool transparent = false;
+  Dither dither;  // fixed to the picture, so the same picture is the same bytes
+  dither.method = dithered ? Dither::Method::ORDERED : Dither::Method::NEAREST;
+  out.regs = mapToRegisters(out.palette, image, x, y, width, height, all, dither, transparent);
+  // A pixel too transparent to be drawn takes the first register: a palette PNG here has no alpha.
+  for (int & reg : out.regs) {
+    if (reg < 0) reg = 0;
+  }
+  if (out.palette.rgb.empty()) out.palette.rgb.push_back(0);
+  return out;
+}
+
+}  // namespace
+
+std::vector<uint8_t> encodePalettePng(const Image & image, int x0, int y0, int width, int height, int colours, bool dither) {
+  Indexed picture = indexPicture(image, x0, y0, width, height, std::min(colours, 256), dither);
+  int bits = picture.palette.rgb.size() <= 16 ? 4 : 8;
+  size_t row_bytes = bits == 4 ? (static_cast<size_t>(width) + 1) / 2 : static_cast<size_t>(width);
+  std::vector<uint8_t> raw;
+  raw.reserve(static_cast<size_t>(height) * (row_bytes + 1));
+  for (int y = 0; y < height; y++) {
+    raw.push_back(0);  // filter type 0 (none)
+    for (int x = 0; x < width; x += (bits == 4 ? 2 : 1)) {
+      uint8_t a = static_cast<uint8_t>(picture.regs[static_cast<size_t>(y) * static_cast<size_t>(width) + static_cast<size_t>(x)]);
+      if (bits == 8) {
+        raw.push_back(a);
+      } else {
+        uint8_t b = x + 1 < width ? static_cast<uint8_t>(picture.regs[static_cast<size_t>(y) * static_cast<size_t>(width) + static_cast<size_t>(x) + 1]) : 0;
+        raw.push_back(static_cast<uint8_t>((a << 4) | b));
+      }
+    }
+  }
+  std::vector<uint8_t> png = {0x89, 'P', 'N', 'G', '\r', '\n', 0x1a, '\n'};
+  std::vector<uint8_t> ihdr;
+  put32(ihdr, static_cast<uint32_t>(width));
+  put32(ihdr, static_cast<uint32_t>(height));
+  ihdr.insert(ihdr.end(), {static_cast<uint8_t>(bits), 3, 0, 0, 0});  // indexed colour, no interlace
+  chunk(png, "IHDR", ihdr);
+  std::vector<uint8_t> plte;
+  for (uint32_t c : picture.palette.rgb) {
+    plte.push_back(static_cast<uint8_t>((c >> 16) & 0xff));
+    plte.push_back(static_cast<uint8_t>((c >> 8) & 0xff));
+    plte.push_back(static_cast<uint8_t>(c & 0xff));
+  }
+  chunk(png, "PLTE", plte);
+  chunk(png, "IDAT", zlibCompress(raw));
+  chunk(png, "IEND", {});
+  return png;
+}
+
+std::vector<uint8_t> quantisedRgb(const Image & image, int colours, bool dither) {
+  Indexed picture = indexPicture(image, 0, 0, image.width, image.height, colours, dither);
+  std::vector<uint8_t> rgb;
+  rgb.reserve(picture.regs.size() * 3);
+  for (int reg : picture.regs) {
+    uint32_t c = picture.palette.rgb[static_cast<size_t>(reg)];
+    rgb.push_back(static_cast<uint8_t>((c >> 16) & 0xff));
+    rgb.push_back(static_cast<uint8_t>((c >> 8) & 0xff));
+    rgb.push_back(static_cast<uint8_t>(c & 0xff));
+  }
+  return rgb;
+}
+
 std::vector<ImageEncoder::Rect> ImageEncoder::visibleRects(const CellBuffer & frame, const ImagePlacement & p, bool avoid_last_row) const {
   std::vector<Rect> rects;
   int ch = profile_.cell_px_height, cw = profile_.cell_px_width;
@@ -473,29 +576,62 @@ std::string ImageEncoder::kitty(const CellBuffer & frame, const ImagePlacement &
     if (++next_id_ == 0) next_id_ = 1;
     shown.id = next_id_;
     shown.version = img.version;
-    std::vector<uint8_t> rgb;
-    rgb.reserve(img.pixels.size() * 3);
-    for (uint32_t px : img.pixels) {
-      rgb.push_back(Image::red(px));
-      rgb.push_back(Image::green(px));
-      rgb.push_back(Image::blue(px));
-    }
-    // Compressed when that saves enough to be worth the terminal inflating it.
-    bool deflated = false;
-    if (compress_) {
-      std::vector<uint8_t> z = zlibCompress(rgb);
-      if (z.size() * 10 < rgb.size() * 9) {
-        rgb = std::move(z);
-        deflated = true;
-        deflated_ids_.insert(shown.id);
+    // What goes up: the pixels as they are, or at a lower quality a palette PNG (quantised RGB where the
+    // terminal took no PNG); for a small picture both are made and the smaller sent, as a PNG's headers
+    // and palette can outweigh what the colours save.
+    struct Upload {
+      std::vector<uint8_t> bytes;
+      bool png = false, deflated = false;
+    };
+    auto fullRgb = [&]() {
+      Upload u;
+      u.bytes.reserve(img.pixels.size() * 3);
+      for (uint32_t px : img.pixels) {
+        u.bytes.push_back(Image::red(px));
+        u.bytes.push_back(Image::green(px));
+        u.bytes.push_back(Image::blue(px));
       }
+      return u;
+    };
+    // Compressed when that saves enough to be worth the terminal inflating it.
+    auto deflate = [&](Upload & u) {
+      if (!compress_ || u.png) return;
+      std::vector<uint8_t> z = zlibCompress(u.bytes);
+      if (z.size() * 10 < u.bytes.size() * 9) {
+        u.bytes = std::move(z);
+        u.deflated = true;
+      }
+    };
+    Upload up;
+    int colours = pictureColours(quality_);
+    if (colours > 0) {
+      if (palette_png_) {
+        up.bytes = encodePalettePng(img, 0, 0, img.width, img.height, colours, img.stretched());
+        up.png = true;
+      } else {
+        up.bytes = quantisedRgb(img, colours, img.stretched());
+        deflate(up);
+      }
+      if (img.pixels.size() <= kSmallPicturePixels) {
+        Upload plain = fullRgb();
+        deflate(plain);
+        if (plain.bytes.size() < up.bytes.size()) up = std::move(plain);
+      }
+    } else {
+      up = fullRgb();
+      deflate(up);
     }
+    bool as_png = up.png, deflated = up.deflated;
+    std::vector<uint8_t> & rgb = up.bytes;
+    if (as_png) png_ids_.insert(shown.id);
+    if (deflated) deflated_ids_.insert(shown.id);
     std::string data = base64(rgb);
     for (size_t i = 0; i < data.size() || i == 0; i += kKittyChunk) {
       bool more = i + kKittyChunk < data.size();
       size_t chunk_start = out.size();
       out += "\x1b_G";
-      if (i == 0) out += std::string(deflated ? "o=z," : "") + "a=t,f=24,s=" + std::to_string(img.width) + ",v=" + std::to_string(img.height) + ",i=" + std::to_string(shown.id) + ",";
+      if (i == 0 && as_png) out += "a=t,f=100,i=" + std::to_string(shown.id) + ",";
+      else if (i == 0) out += std::string(deflated ? "o=z," : "") + "a=t,f=24,s=" + std::to_string(img.width) + ",v=" + std::to_string(img.height) + ",i=" + std::to_string(shown.id) + ",";
       out += "q=1,m=" + std::string(more ? "1" : "0") + ";";
       out += data.substr(i, kKittyChunk);
       out += "\x1b\\";
@@ -537,6 +673,7 @@ std::string ImageEncoder::kitty(const CellBuffer & frame, const ImagePlacement &
   }
   if (changed && old_id) {
     deflated_ids_.erase(old_id);
+    png_ids_.erase(old_id);
     std::string del = "\x1b_Ga=d,d=I,i=" + std::to_string(old_id) + ",q=1\x1b\\";
     sizes_.placement += del.size();
     out += del;
@@ -593,7 +730,9 @@ std::string ImageEncoder::sixel(const CellBuffer & frame, const ImagePlacement &
     into.position += place.size();
     into.bytes += place;
     Dither dither;
-    dither.method = profile_.dither;
+    // Dithering is noise to a chart and costs bytes: below full quality only a stretched picture (a blurred
+    // backdrop, a gradient) is dithered, as it would band.
+    dither.method = quality_ == PictureQuality::FULL || p.image->stretched() ? profile_.dither : Dither::Method::NEAREST;
     dither.origin_x = p.col * cw + x;
     dither.origin_y = p.row * ch + y;
     std::string data = encodeSixelWith(palette, img, x, y, w, h, keep, dither);
@@ -629,7 +768,8 @@ std::string ImageEncoder::sixel(const CellBuffer & frame, const ImagePlacement &
     }
     // One palette for the rectangle, so the pieces sent are drawn in the colours of the pieces not sent.
     std::vector<bool> all(static_cast<size_t>(w) * static_cast<size_t>(h), true);
-    SixelPalette palette = makeSixelPalette(img, x, y, w, h, all, profile_.sixel_registers);
+    int registers = pictureColours(quality_) > 0 ? std::min(profile_.sixel_registers, pictureColours(quality_)) : profile_.sixel_registers;
+    SixelPalette palette = makeSixelPalette(img, x, y, w, h, all, registers);
     // The cells to send are a row of them at a time, from the first that changed to the last: each Sixel
     // carries the definitions of its registers, which cost more than the cells between two changes.
     std::vector<std::pair<int, int>> spans(static_cast<size_t>(r.rows), {r.cols, -1});
@@ -683,7 +823,8 @@ std::string ImageEncoder::iterm2(const CellBuffer & frame, const ImagePlacement 
     img.pixelSpan(r.col - p.col, r.cols, cw, true, x0, x1);
     img.pixelSpan(r.row - p.row, r.rows, ch, false, y0, y1);
     if (x1 <= x0 || y1 <= y0) continue;
-    std::vector<uint8_t> png = encodePng(img, x0, y0, x1 - x0, y1 - y0);
+    int colours = pictureColours(quality_);
+    std::vector<uint8_t> png = colours > 0 ? encodePalettePng(img, x0, y0, x1 - x0, y1 - y0, colours, img.stretched()) : encodePng(img, x0, y0, x1 - x0, y1 - y0);
     // Sized in cells, so the terminal's own pixel scale does not matter
     // (and a stretched picture is scaled by it).
     int rows = img.stretched() ? r.rows : (y1 - y0 + ch - 1) / ch, cols = img.stretched() ? r.cols : (x1 - x0 + cw - 1) / cw;
@@ -744,7 +885,13 @@ std::string ImageEncoder::handleKittyReply(const std::string & body) {
   uint32_t id = 0;
   size_t at = keys.find("i=");
   if (at != std::string::npos) id = static_cast<uint32_t>(std::strtoul(keys.c_str() + at + 2, nullptr, 10));
-  if (id && deflated_ids_.erase(id) && compress_) {
+  if (id && png_ids_.erase(id) && palette_png_) {
+    // The terminal refused a palette PNG: quantised RGB from now on, and the refused picture again.
+    palette_png_ = false;
+    for (auto & [key, shown] : shown_) {
+      if (shown.id == id) shown.version = ~uint64_t{0};
+    }
+  } else if (id && deflated_ids_.erase(id) && compress_) {
     // The terminal refused a compressed upload: send raw from now on, and the refused pictures again.
     compress_ = false;
     for (auto & [key, shown] : shown_) {
