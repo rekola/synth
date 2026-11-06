@@ -110,6 +110,7 @@ class TerminalSession : public Backend {
   void redraw() override { encoder_.invalidate(); }
   // Only when the session was opened with the mouse (SessionOptions::mouse).
   void setNativeSelection(bool on) override;
+  void setPointerDetail(bool hover, bool shapes) override;
   // Queues raw bytes and writes what the terminal takes now; the rest goes
   // as it can (never blocks).
   void write(const std::string & bytes);
@@ -142,6 +143,8 @@ class TerminalSession : public Backend {
   bool line_signals_ = false;
   bool mouse_ = true;
   bool mouse_reporting_ = true;
+  bool hover_reported_ = true, shapes_followed_ = true;
+  std::string mouseOn() const { return hover_reported_ ? "\x1b[?1003;1006h" : "\x1b[?1002;1006h"; }
   // Mouse positions are asked for in pixels (mode 1016): the terminal can,
   // the cell size is known and the mouse is reported to the application.
   bool pixel_mouse_on_ = false;

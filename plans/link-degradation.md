@@ -571,11 +571,15 @@ deflate ratio on real charts is known.
    all of them.
 5. **App profile** (3.6, 3.7): scope/meter rates and off, animations, page scrolling, hover, mouse
    reporting. UI tests per class with `TestBackend`; a harness run at 50 kB/s asserts the editor
-   stays usable (key latency, fps). First slice done (`src/ui/PerformanceProfile.h`): `profileFor()` gives
-   each class its **autonomous frame cap** (60/30/15/5/1 a second; a frame the user's input caused is
-   exempt) and **reduced motion** from `HZ_15` down (on top of the user's own setting), applied by
-   `InteractiveUI::applyProfile()` when the link handler fires. Still to do: scope and meter rates and
-   off, page scrolling, hover and mouse reporting, pointer-shape updates, the backdrop choices.
+   stays usable (key latency, fps). Done (`src/ui/PerformanceProfile.h`, applied by
+   `InteractiveUI::applyProfile()` when the link handler fires): the **autonomous frame cap** (60/30/15/5/1 a
+   second; a frame the user's input caused is exempt), **reduced motion** from `HZ_15` down (on top of the
+   user's own setting), **scope rates** (spectrum and heatmap 30/15 Hz, off from `HZ_5`), the **channel meter**
+   rate (15, 5, off), **hover** (any-motion mouse `?1003` becomes drag-only `?1002` from `HZ_15`),
+   **pointer-shape updates** (OSC 22) off from `HZ_5`, and **page scrolling** of the pattern editor's cursor
+   from `HZ_5` (`Backend::setPointerDetail()`). Still to do: page scrolling of Live View's per-column lines
+   and the arrangement grid, the level meters' own rates, the backdrop choices (static, cell blur, flat dim),
+   the harness run at 50 kB/s.
 6. **Colours** (section 2): the `ansi16` theme and track-colour table, `MONO` with reverse video;
    grey only if asked.
 7. **Window class** from the frame clock and vsync (section 1).

@@ -276,7 +276,7 @@ void TerminalSession::enterModes() {
   setup_ += "\x1b[?2004h"; // bracketed paste
   setup_ += "\x1b[?1004h"; // focus reports
   setup_ += "\x1b=";       // application keypad: Ctrl+numpad / and * arrive as keys of their own
-  if (mouse_) setup_ += "\x1b[?1003;1006h";
+  if (mouse_) setup_ += mouseOn();
   pixel_mouse_on_ = wantPixelMouse();
   parser_.setPixelMouse(pixel_mouse_on_, caps_.display.cell_px_height, caps_.display.cell_px_width);
   caps_.display.precise_mouse = pixel_mouse_on_;
@@ -288,7 +288,7 @@ void TerminalSession::enterModes() {
   restore_ += "\x1b[?2026l";
   restore_ += "\x1b[0m";
   restore_ += "\x1b]22;default\x1b\\";
-  if (mouse_) restore_ += "\x1b[?1016l\x1b[?1003;1006l";
+  if (mouse_) restore_ += "\x1b[?1016l\x1b[?1003;1002;1006l";
   restore_ += "\x1b>\x1b[?1004l\x1b[?2004l\x1b[?7h\x1b[?12l\x1b[?25h";
   restore_ += caps_.kitty_keyboard ? "\x1b[<u" : "\x1b[<u\x1b[>4m\x1b[>2m";
   if (caps_.pixels == PixelProtocol::KITTY) restore_ += "\x1b_Ga=d,q=1\x1b\\";
@@ -335,11 +335,27 @@ void TerminalSession::setNativeSelection(bool native) {
   bool on = !native;
   if (!mouse_ || on == mouse_reporting_) return;
   mouse_reporting_ = on;
-  write(on ? "\x1b[?1003;1006h" : "\x1b[?1016l\x1b[?1003;1006l");
+  write(on ? mouseOn() : "\x1b[?1016l\x1b[?1003;1002;1006l");
   // The write above left 1016 off either way.
   pixel_mouse_on_ = false;
   caps_.display.precise_mouse = false;
   updatePixelMouse();
+}
+
+void TerminalSession::setPointerDetail(bool hover, bool shapes) {
+  if (hover != hover_reported_) {
+    hover_reported_ = hover;
+    // Drag motion only, or every motion; the encoding stays on.
+    if (mouse_ && mouse_reporting_) write(hover ? "\x1b[?1002l\x1b[?1003h" : "\x1b[?1003l\x1b[?1002h");
+  }
+  if (shapes != shapes_followed_) {
+    shapes_followed_ = shapes;
+    // Back to the default, and no more updates while off.
+    if (!shapes && shown_cursor_ != MouseCursor::DEFAULT) {
+      shown_cursor_ = MouseCursor::DEFAULT;
+      write(std::string("\x1b]22;") + mouseCursorName(MouseCursor::DEFAULT) + "\x1b\\");
+    }
+  }
 }
 
 void TerminalSession::updatePixelMouse() {
@@ -630,6 +646,7 @@ void TerminalSession::wake() {
 }
 
 void TerminalSession::updateMouseCursor() {
+  if (!shapes_followed_) return;
   MouseCursor cursor = mouseCursorAt(cursor_areas_, pointer_row_, pointer_col_);
   if (cursor == shown_cursor_) return;
   shown_cursor_ = cursor;
