@@ -228,14 +228,16 @@ ScenePatternSource::holdStoppedTracks(int rows) {
   }
 }
 
-bool
-ScenePatternSource::keepTrackLinesVisible(RowAddress top, int rows, int margin) {
+bool ScenePatternSource::keepTrackLinesVisible(RowAddress top, int rows, int margin, bool by_page) {
   bool moved = false;
   for (auto track_id : song().getRootTrackIds()) {
     if (track_id == cursor_track_id_) continue;
     auto line = rowsBetween(top, trackCursor(track_id));
-    auto kept = std::clamp(line, margin, std::max(margin, rows - 1 - margin));
+    auto low = margin, high = std::max(margin, rows - 1 - margin);
+    auto kept = std::clamp(line, low, high);
     if (kept == line) continue;
+    // By page, a line that left comes back at the far end, then stays still for a page.
+    if (by_page) kept = line < low ? high : low;
     offsets()[track_id] = offset(track_id) + kept - line;
     moved = true;
   }

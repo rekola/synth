@@ -139,3 +139,25 @@ TEST(scroll_axis_keeps_the_shown_position_inside_a_shrunk_content) {
   axis.setExtent(30, 10);
   CHECK(axis.offset() == 20 && axis.shown() == 20.0);
 }
+
+TEST(viewport_reveal_by_page_jumps_to_the_far_end_and_then_holds_still) {
+  ScrollAxis axis;
+  axis.setExtent(100, 10);
+  axis.revealByPage(5);
+  CHECK(axis.offset() == 0);
+  // Going forward past the end of the view, the cell comes to the first one: a page of 10 cells to go.
+  axis.revealByPage(10);
+  CHECK(axis.offset() == 10);
+  for (int i = 11; i < 20; i++) {
+    axis.revealByPage(i);
+    CHECK(axis.offset() == 10);
+  }
+  axis.revealByPage(20);
+  CHECK(axis.offset() == 20);
+  // Going back, it comes to the last one.
+  axis.revealByPage(19);
+  CHECK(axis.offset() == 10);
+  // The content's ends still hold it.
+  axis.revealByPage(0);
+  CHECK(axis.offset() == 0);
+}

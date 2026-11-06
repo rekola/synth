@@ -1325,7 +1325,7 @@ PatternEditor::render(const StyleProvider & styles, bool refresh, bool focused) 
     if (isLiveMode()) {
       // The view following a playhead doesn't carry the stopped tracks along.
       if (scene_source_->cursorLocked()) scene_source_->holdStoppedTracks(source_->rowsBetween({ view_block_, current_scroll_.row }, top));
-      if (scene_source_->keepTrackLinesVisible(top, visible, margin)) force_full_redraw_ = true;
+      if (scene_source_->keepTrackLinesVisible(top, visible, margin, page_scroll_)) force_full_redraw_ = true;
     }
     view_block_ = top.block;
     new_row = top.row;

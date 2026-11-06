@@ -635,6 +635,7 @@ void InteractiveUI::applyProfile(cellui::LinkClass cls) {
   if (previous.meter && !profile_.meter) meter_off_since_ = now, meter_cleared_ = false;
   backend_.setPointerDetail(profile_.hover, profile_.pointer_shapes);
   if (pattern_editor_) pattern_editor_->setPageScroll(profile_.page_scroll);
+  if (arrangement_grid_) arrangement_grid_->setPageScroll(profile_.page_scroll);
   bool reduced = user_reduced_motion_ || profile_.reduced_motion;
   if (reduced == styles_.reduced_motion) return;
   styles_.reduced_motion = reduced;

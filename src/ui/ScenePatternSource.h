@@ -99,7 +99,7 @@ class ScenePatternSource : public PatternSource {
   // Brings every track's line (other than the cursor track's) back within
   // `margin` rows of the edges of the `rows` rows starting at `top`, when
   // it has left them. True if any moved.
-  bool keepTrackLinesVisible(RowAddress top, int rows, int margin);
+  bool keepTrackLinesVisible(RowAddress top, int rows, int margin, bool by_page = false);
 
   // `address`, a row of the editor (the cursor track's), as `track_id`'s
   // own: its position moved by as many rows as `address` is from the
