@@ -51,6 +51,7 @@ class Discovery {
   std::string xtversion_name_, xtversion_version_;
   std::string tn_name_;
   bool tcap_rgb_ = false, tcap_hpa_ = false;
+  bool direct_sgr_ = false;  // the terminal reported a 24-bit background it was given
   int da2_pp_ = -1, da2_pv_ = -1;
   std::optional<Color> default_fg_, default_bg_;
   bool kitty_keyboard_ = false;

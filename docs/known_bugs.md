@@ -175,3 +175,16 @@ Found 2026-07-11, not yet fixed.
   (`InstrumentVoice::advancePitchGlide()`) never reach it and a held note keeps
   its pitch; a glide row's note starts its own voice. Not fixed - would need
   the bank rebuilt or its partials scaled as the pitch changes.
+
+- **A terminal whose 256-colour palette was changed with OSC 4 shows wrong
+  colours, and cellui never resets it.** On a terminal that cannot show
+  24-bit colour (xterm with `directColor` off, the Linux console), text
+  colours go through `nearest256()`, which assumes the standard xterm table
+  (cube levels 0, 95, 135, 175, 215, 255 and the grey ramp 8 + 10k). If a
+  terminal theme or another program has redefined entries with OSC 4 and not
+  put them back (OSC 104), the colour picked as nearest is not the one shown,
+  and pictures, which carry exact colours, no longer match the text beside
+  them. cellui neither reads the palette (OSC 4 query) nor resets it. Not
+  fixed - would need querying the 256 entries at start-up to build the table,
+  or an opt-in that sets the theme's own colours and restores the user's on
+  exit, including after a crash.

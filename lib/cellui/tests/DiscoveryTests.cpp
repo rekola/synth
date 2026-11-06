@@ -52,6 +52,21 @@ TEST(discovery_queries_end_with_the_sentinel) {
   CHECK(cq.find("\x1b]11;?") == std::string::npos);
 }
 
+TEST(discovery_reads_24_bit_colour_back_from_the_pen) {
+  std::string q = Discovery(xtermEnv()).queries();
+  CHECK(q.find("\x1b[48;2;1;2;3m\x1bP$qm") != std::string::npos);
+  // An xterm that keeps 24-bit colour reports what it was given; one that maps it to its palette, the entry.
+  // The reply goes in ahead of the last one, the sentinel that ends discovery.
+  auto withPen = [](std::string replies, const std::string & pen) {
+    replies.insert(replies.rfind("\x1b[?"), pen);
+    return replies;
+  };
+  std::string xterm = readFixture("xterm");
+  CHECK(discover(withPen(xterm, "\x1bP1$r0;48:2::1:2:3m\x1b\\")).colors == ColorDepth::TRUECOLOR);
+  CHECK(discover(withPen(xterm, "\x1bP1$r0;48:5:16m\x1b\\")).colors == ColorDepth::C256);
+  CHECK(discover(withPen(xterm, "\x1bP0$r\x1b\\")).colors == ColorDepth::C256);
+}
+
 TEST(discovery_xterm) {
   Capabilities c = discover(readFixture("xterm"));
   CHECK(c.answered);

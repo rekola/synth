@@ -176,6 +176,9 @@ TEST(parser_replies_are_not_keys) {
   p.feed("\x1bP1+r7878=31\x1b\\", now);
   e = p.pop();
   CHECK(e.reply == ReplyKind::XTGETTCAP && e.text == "7878=31");
+  p.feed("\x1bP1$r0;48:2::1:2:3m\x1b\\", now);
+  e = p.pop();
+  CHECK(e.reply == ReplyKind::SGR_STATE && e.text == "0;48:2::1:2:3" && e.params == std::vector<int>({1}));
   CHECK(!p.hasEvents());
 }
 

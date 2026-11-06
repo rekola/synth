@@ -308,7 +308,7 @@ these terminals; xterm's lack of true color applies to synth as well.
 | mlterm | Untested | OK | ? | |
 | Konsole | Untested | OK | ? | True color images, but on HiDPI system images are upscaled |
 | contour | Untested | Inline image layout doesn't work | ? | |
-| xterm | Works | No true color | OK | Sixel support must be enabled in `.Xresources` (see [xterm](#xterm) below), and images have maximum size 1000x1000 |
+| xterm | Works | True color where built with it and `directColor` is on (found by asking the terminal); else the 256-color palette | OK | Sixel support must be enabled in `.Xresources` (see [xterm](#xterm) below), and images have maximum size 1000x1000 |
 | Black Box | Untested | Inline image layout doesn't work | ? | On HiDPI system the images are upscaled, and the terminal and the flatpak system use too much CPU time when idling. |
 | Alacritty | Untested | None | ? | |
 | GNOME Terminal | Works | None | ? | Sixel support is not enabled by default |
@@ -341,8 +341,13 @@ XTerm*faceSize: 12
   monospace font, so it is the same on every machine; name a font such as
   `DejaVu Sans Mono` to pick one. `faceSize` is in points.
 
-Even so, xterm has no true color, so the UI is limited to the 256-color
-palette there.
+xterm shows 24-bit color only when it is built with direct-color support and
+`XTerm*directColor: true` (the default in some builds). The UI asks the
+terminal at start-up by setting a color and reading it back; where xterm
+reports it kept, the UI uses true color, otherwise it is limited to the
+256-color palette. In that case xterm snaps the colors of text to its palette
+while Sixel pictures keep their own, so a picture's flat background can differ
+slightly in shade from the cells beside it.
 
 Reload with `xrdb -merge ~/.Xresources` and start a new xterm; running ones
 keep their old settings. If `TERM` is still `xterm` inside it, check with
