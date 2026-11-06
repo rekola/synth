@@ -324,6 +324,10 @@ ScenePatternSource::setTrackPosition(int track_id, RowAddress address) {
   selected()[track_id] = true;
 }
 
+void ScenePatternSource::selectClip(int track_id) {
+  selected()[track_id] = true;
+}
+
 bool ScenePatternSource::hasClipSelected(int track_id) const {
   if (isPlaying(track_id)) return true;
   auto it = selected().find(track_id);

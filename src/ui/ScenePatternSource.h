@@ -74,6 +74,8 @@ class ScenePatternSource : public PatternSource {
   // False until a clip is picked (or launched) on the track; the track
   // then shows and edits nothing.
   bool hasClipSelected(int track_id) const;
+  // Picks the track's clip at its current position (typing a note there).
+  void selectClip(int track_id);
 
   bool showsClipIndirection() const override { return false; }
   bool hasLocators() const override { return false; }

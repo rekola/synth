@@ -2218,6 +2218,7 @@ bool PatternEditor::keyDown(const cellui::KeyDown & e) {
       // resolved row, not the raw playhead one, the same "a Pattern
       // shorter than its context repeats" transparency getEffectiveRow()
       // already gave the background-only case.
+      if (isLiveMode()) scene_source_->selectClip(track_id);
       auto edit_target = source_->edit(track_id, point);
       auto column_type = track_info.getColumnType(new_cursor.col);
 

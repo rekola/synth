@@ -166,6 +166,7 @@ TEST(scene_source_reads_a_looping_clip_repeating_and_a_one_shot_ending) {
   placeClip(song, longest, 0, 8, true);
   ScenePatternSource source(f.controller);
   CHECK(source.blockLength(0) == 8);
+  for (auto id : {f.track_id, one_shot, longest}) source.setTrackPosition(id, {0, 0});
 
   auto looping = source.read(f.track_id, { 0, 5 });
   CHECK(looping.pattern->getNote(looping.effective_row, 0).getValue() == 60);
@@ -185,6 +186,7 @@ TEST(scene_source_editing_an_empty_slot_creates_a_looping_clip_of_the_scene_leng
   auto other = song.addTrack(make_unique<InstrumentTrack>(0)).getInternalId();
   placeClip(song, other, 1, 2 * f.rows, true);
   ScenePatternSource source(f.controller);
+  source.setTrackPosition(f.track_id, {0, 0});
 
   auto edit = source.edit(f.track_id, { 1, 3 });
   edit.pattern->setNote(edit.effective_row, 0, Note(64, 100));
@@ -206,6 +208,7 @@ TEST(scene_source_editing_past_a_one_shots_end_lengthens_it_to_the_bar) {
   auto other = song.addTrack(make_unique<InstrumentTrack>(0)).getInternalId();
   placeClip(song, other, 0, 2 * f.rows, true);
   ScenePatternSource source(f.controller);
+  source.setTrackPosition(f.track_id, {0, 0});
 
   auto edit = source.edit(f.track_id, { 0, f.rows + 1 });
   edit.pattern->setNote(edit.effective_row, 0, Note(65, 100));
@@ -599,4 +602,19 @@ TEST(arrangement_source_locator_rows_are_absolute_and_scene_source_has_none) {
   CHECK(arrangement.locatorRow({ 0, f.rows + 2 }) == f.rows + 2);
   ScenePatternSource scenes(f.controller);
   CHECK(!scenes.locatorRow({ 0, 0 }).has_value());
+}
+
+TEST(scene_source_shows_nothing_on_a_track_until_a_clip_is_selected) {
+  Fixture f;
+  auto & song = f.song();
+  placeClip(song, f.track_id, 0, 4, true, 1);
+  ScenePatternSource source(f.controller);
+
+  auto before = source.read(f.track_id, {0, 1});
+  CHECK(!before.pattern->getNote(before.effective_row, 0).isDefined());
+  CHECK(!source.hasClipSelected(f.track_id));
+
+  source.setTrackPosition(f.track_id, {0, 0});
+  auto after = source.read(f.track_id, {0, 1});
+  CHECK(after.pattern->getNote(after.effective_row, 0).getValue() == 60);
 }
