@@ -23,15 +23,15 @@ namespace Key = cellui::Key;
 
 namespace {
 
-// The transport row from the info line ("1.1.1"), after the transport glyph and the buffer name.
+// The transport row from the info line ("1.1.1"), after the modified flags, the buffer name and the transport glyph.
 std::string transportRow(const UIFixture & f) {
   std::string info;
   for (const auto & line : f.lines()) {
     if (line.find("voices:") != std::string::npos) info = line;
   }
   std::istringstream in(info);
-  std::string glyph, name, position;
-  in >> glyph >> name >> position;
+  std::string flags, name, glyph, position;
+  in >> flags >> name >> glyph >> position;
   return position;
 }
 

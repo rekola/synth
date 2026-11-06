@@ -1,4 +1,11 @@
 #include "Controller.h"
+
+#include <filesystem>
+#ifdef _WIN32
+#include <io.h>
+#else
+#include <unistd.h>
+#endif
 #include "util/Paths.h"
 
 #include "model/Song.h"
@@ -606,6 +613,16 @@ Controller::hasUnsavedChanges() const {
   if (!song) return false;
   auto it = last_saved_versions_.find(active_buffer_name_);
   return it == last_saved_versions_.end() || song->getVersion() != it->second;
+}
+
+bool Controller::isActiveBufferFileReadOnly() const {
+  std::error_code ec;
+  if (!std::filesystem::is_regular_file(active_buffer_name_, ec)) return false;
+#ifdef _WIN32
+  return _access(active_buffer_name_.c_str(), 2) != 0;
+#else
+  return access(active_buffer_name_.c_str(), W_OK) != 0;
+#endif
 }
 
 bool
