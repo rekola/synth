@@ -94,8 +94,9 @@ saved as a `<note>` with an `fx` attribute and no text.
 
 | Command | Description | Source |
 |---|---|---|
-| `-Vxx` | Vibrato | Renoise (`Vxy`) |
-| `-Ixx` | Fade in | Renoise (`Ixx`) |
-| `-Oxx` | Fade out | Renoise (`Oxx`) |
-| `-Txy` | Tremolo (depth `x`, speed `y`) | Renoise (`Txy`) |
+| `-Axy` | Arpeggio | Renoise (`-Axy`) |
+| `-Vxx` | Vibrato | Renoise (`-Vxy`) |
+| `-Ixx` | Fade in | Renoise (`-Ixx`) |
+| `-Oxx` | Fade out | Renoise (`-Oxx`) |
+| `-Txy` | Tremolo (depth `x`, speed `y`) | Renoise (`-Txy`) |
 | `ZTxx` | Set tempo to `xx` BPM - global like `ZBxx`, not a device-index command, since tempo isn't a per-track parameter. | Renoise (`ZTxx`) |
