@@ -884,3 +884,29 @@ TEST(the_shared_picture_registry_is_bounded_and_the_places_keep_what_they_show) 
   plane->drawSharedImageAt(0, 2, {"dial", 5}, 2, 6, render);
   CHECK(rendered == before + 1);
 }
+
+// A smooth dark gradient has more colours than registers, but on the terminal's 101 levels it would fit
+// them and band: it is dithered between the levels, and a flat picture is not.
+TEST(sixel_gradient_is_dithered_between_the_terminals_levels_and_a_flat_picture_is_not) {
+  Image g;
+  g.width = 300;
+  g.height = 12;
+  g.pixels.resize(300 * 12);
+  for (int y = 0; y < 12; y++)
+    for (int x = 0; x < 300; x++) g.pixels[static_cast<size_t>(y) * 300 + static_cast<size_t>(x)] = Image::pack(10 + x / 6, 10 + y + x / 20, 20 + x / 12);
+  std::vector<bool> all(300 * 12, true);
+  Dither nearest;
+  nearest.method = Dither::Method::NEAREST;
+  std::string banded = encodeSixel(g, 0, 0, 300, 12, all, nearest, 256);
+  std::string dithered = encodeSixel(g, 0, 0, 300, 12, all, Dither{}, 256);
+  CHECK(dithered != banded);
+  // Between two levels the dither uses both, so it needs more of them than the plain mapping.
+  CHECK(count(dithered, ";2;") >= count(banded, ";2;"));
+  // Flat colour, however many ways it is asked for: one register, as before.
+  Image flat;
+  flat.width = 16;
+  flat.height = 12;
+  flat.pixels.assign(16 * 12, Image::pack(33, 33, 33));
+  std::vector<bool> flat_all(16 * 12, true);
+  CHECK(count(encodeSixel(flat, 0, 0, 16, 12, flat_all, Dither{}, 256), ";2;") == 1);
+}
