@@ -30,11 +30,11 @@ if(NOT TARGET canvas)
   include(FetchContent)
   FetchContent_Declare(canvas
     GIT_REPOSITORY https://github.com/rekola/canvas
-    GIT_TAG 2bc306e71a2049112871e78e605aae86cb89c195)
-  FetchContent_GetProperties(canvas)
-  if(NOT canvas_POPULATED)
-    FetchContent_Populate(canvas)
-  endif()
+    GIT_TAG 2bc306e71a2049112871e78e605aae86cb89c195
+    # No CMakeLists there: MakeAvailable only downloads, and the
+    # add_subdirectory below applies our flags.
+    SOURCE_SUBDIR cellui_no_add_subdirectory)
+  FetchContent_MakeAvailable(canvas)
   if(NOT DEFINED CELLUI_CANVAS_CXX_FLAGS)
     set(CELLUI_CANVAS_CXX_FLAGS "${CMAKE_CXX_FLAGS} -w")
   endif()
