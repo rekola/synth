@@ -3906,7 +3906,31 @@ PatternEditor::renderRow(const StyleProvider & styles, int heading_height, const
 	  setBgColor(cell_bg);
 	  auto s = note.toString(tuning);
 	  while (s.size() < 3) s += ' ';
-	  putstr(display_row, current_pos, s);
+	  // The comma arrows (alone or in a sharp or flat) in their own hues; the
+	  // region's foreground inside the highlight, like velocity and delay.
+	  auto comma_hue = [&](std::string_view glyph) -> const Color * {
+	    for (auto up : {"\u2191", "\U0001D130", "\U0001D12C"})
+	      if (glyph == up) return &styles.comma_up_color;
+	    for (auto down : {"\u2193", "\U0001D131", "\U0001D12D"})
+	      if (glyph == down) return &styles.comma_down_color;
+	    return nullptr;
+	  };
+	  int x = current_pos;
+	  for (size_t at = 0; at < s.size();) {
+	    size_t n = 1;
+	    while (at + n < s.size() && (static_cast<unsigned char>(s[at + n]) & 0xC0) == 0x80) n++;
+	    auto piece = s.substr(at, n);
+	    if (auto hue = comma_hue(piece); hue && !cell_is_selected) {
+	      Color c = tintForPlayhead(dim_fixed_color(*hue));
+	      if (!note.isDefined()) c = c.blend(0.5f, cell_bg);
+	      setFgColor(c);
+	    } else {
+	      setFgColor(cell_fg);
+	    }
+	    putstr(display_row, x, piece);
+	    x += Utf8::displayWidth(piece);
+	    at += n;
+	  }
 	  current_pos += 3;
 	} else if (column_type == ColumnType::VELOCITY || column_type == ColumnType::DELAY) {
 	  auto l = track_info.getNoteNumber(k);

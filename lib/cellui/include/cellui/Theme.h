@@ -153,6 +153,9 @@ struct Theme {
   Color data_fx;
   Color data_velocity;
   Color data_delay;
+  // The comma arrows of a note name (↑ ↓ and the sharps and flats that carry one).
+  Color comma_up;
+  Color comma_down;
   // What a modal dialog does to everything behind it.
   Backdrop modal_backdrop;
   // How far above its parent a plane (or a lifted cell) stands, by role, in
@@ -228,6 +231,8 @@ struct Theme {
     t.data_fx = Color("#d65cd6");
     t.data_velocity = Color("#bfa426");
     t.data_delay = Color("#42c1ea");
+    t.comma_up = Color("#ff8a3d");
+    t.comma_down = Color("#5ea0ff");
     return t;
   }
 
@@ -284,6 +289,8 @@ struct Theme {
     t.data_fx = Color("#c58be0");
     t.data_velocity = Color("#d4b03c");
     t.data_delay = Color("#6cc4e0");
+    t.comma_up = Color("#ff9a52");
+    t.comma_down = Color("#6aa8ff");
     t.modal_backdrop = Backdrop{ 2, 0.35f, t.surface_base };
     return t;
   }
@@ -337,6 +344,8 @@ struct Theme {
     t.data_fx = Color("#9b3fc7");
     t.data_velocity = Color("#8a5a00");
     t.data_delay = Color("#0070a0");
+    t.comma_up = Color("#b84a00");
+    t.comma_down = Color("#1f55c4");
     t.modal_backdrop = Backdrop{ 2, 0.3f, t.surface_base };
     return t;
   }
