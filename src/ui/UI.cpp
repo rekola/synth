@@ -457,7 +457,7 @@ UI::initializeCommands() {
   // ratios of a just scale's notes, so the notes that carry a tuning
   // correction are retuned for it in the same edit.
   commands_.define("set-song-scale", [this]() {
-    static const Scale kScales[] = {Scale::NONE, Scale::MAJOR, Scale::MINOR, Scale::OTONAL, Scale::UTONAL, Scale::DIAMOND7, Scale::MIXOLYDIAN, Scale::RAST, Scale::BAYATI, Scale::HIJAZ, Scale::NAHAWAND, Scale::KURD, Scale::AJAM, Scale::SABA, Scale::SIKAH};
+    static const Scale kScales[] = {Scale::NONE, Scale::MAJOR, Scale::MINOR, Scale::OTONAL, Scale::UTONAL, Scale::DIAMOND7, Scale::PYTHAGOREAN_MIXOLYDIAN, Scale::RAST, Scale::BAYATI, Scale::HIJAZ, Scale::NAHAWAND, Scale::KURD, Scale::AJAM, Scale::SABA, Scale::SIKAH};
     std::vector<std::pair<std::string, Scale>> choices;
     int current = -1;
     for (auto scale : kScales) {

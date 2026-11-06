@@ -19,9 +19,9 @@ using namespace ratio_literals;
 
 TEST(the_mixolydian_scale_is_c_d_e_f_g_a_b_flat_of_the_pythagorean_gamut) {
   std::vector<Ratio> ratios;
-  for (auto i : scaleGamutIndices(Scale::MIXOLYDIAN)) ratios.push_back(gamut::kPythagorean[i].ratio);
+  for (auto i : scaleGamutIndices(Scale::PYTHAGOREAN_MIXOLYDIAN)) ratios.push_back(gamut::kPythagorean[i].ratio);
   CHECK((ratios == std::vector<Ratio>{1 / 1_r, 9 / 8_r, 81 / 64_r, 4 / 3_r, 3 / 2_r, 27 / 16_r, 16 / 9_r}));
-  CHECK(scaleFromString(to_string(Scale::MIXOLYDIAN)) == Scale::MIXOLYDIAN);
+  CHECK(scaleFromString(to_string(Scale::PYTHAGOREAN_MIXOLYDIAN)) == Scale::PYTHAGOREAN_MIXOLYDIAN);
   // Every gamut note is 3-limit and sits on its 53-EDO spelling's step.
   for (auto & note : gamut::kPythagorean) {
     CHECK(Note::stringToKey(Tuning::EDO53, std::string(note.spelling) + "4") - Note::stringToKey(Tuning::EDO53, "C-4") ==
@@ -34,15 +34,15 @@ TEST(seikilos_plays_only_scale_notes_each_tuned_to_its_3_limit_ratio_in_96_rows)
   Song song;
   CHECK(song.open(std::string(TESTS_SONGS_DIR) + "/seikilos.xml", provider));
   CHECK(song.getTuning() == Tuning::EDO53);
-  CHECK(song.getScale() == Scale::MIXOLYDIAN);
+  CHECK(song.getScale() == Scale::PYTHAGOREAN_MIXOLYDIAN);
   CHECK(song.getArrangementLength() == 96);
 
   const int key = song.getKey();
   CHECK(key == Note::stringToKey(Tuning::EDO53, "C-4"));
-  auto corrections = just_intonation::scaleCorrectionsFor(Tuning::EDO53, Scale::MIXOLYDIAN, key);
+  auto corrections = just_intonation::scaleCorrectionsFor(Tuning::EDO53, Scale::PYTHAGOREAN_MIXOLYDIAN, key);
 
   std::map<int, Ratio> ratio_of_step; // the scale's degrees
-  for (auto i : scaleGamutIndices(Scale::MIXOLYDIAN)) ratio_of_step.emplace(((gamut::kPythagorean[i].ratio.steps(53) % 53) + 53) % 53, gamut::kPythagorean[i].ratio);
+  for (auto i : scaleGamutIndices(Scale::PYTHAGOREAN_MIXOLYDIAN)) ratio_of_step.emplace(((gamut::kPythagorean[i].ratio.steps(53) % 53) + 53) % 53, gamut::kPythagorean[i].ratio);
 
   int notes = 0;
   auto arrangement = song.getArrangement();

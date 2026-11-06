@@ -100,8 +100,8 @@ inline constexpr std::array<GamutNote, 13> kDiamond7 = {{
 // tonic and six above, octave-reduced and in the order of the chain (the round
 // is the distance from the tonic along it). All are 3-limit. The spellings are
 // 53-EDO's, where the natural notes are the just major scale: the Pythagorean
-// E, A and B♭ are an arrow away from it. 31-EDO ignores the arrows, so there
-// the ditone 81/64 is not E's nearest step; use 53-EDO for this gamut.
+// E, A and B♭ are an arrow away from it. For 53-EDO only: 31-EDO cannot tune
+// it under any spelling (81/64 lies between its steps 10 and 11).
 inline constexpr std::array<GamutNote, 13> kPythagorean = {{
     {Ratio{1024, 729}, GamutSide::BOTH, 6, "F♯↑", 12}, // 6 fifths down
     {Ratio{256, 243}, GamutSide::BOTH, 5, "C♯↑", 11},

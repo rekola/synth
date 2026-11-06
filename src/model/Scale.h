@@ -24,9 +24,9 @@ enum class Scale {
   OTONAL,
   UTONAL,
   DIAMOND7,
-  // C D E F G A B♭ of the Pythagorean gamut. Not yet named after the Babylonian
-  // tuning with this pattern: the mapping is unverified.
-  MIXOLYDIAN,
+  // C D E F G A B♭ of the Pythagorean gamut. To be renamed after the Babylonian
+  // tuning with this pattern once that mapping is verified.
+  PYTHAGOREAN_MIXOLYDIAN,
 
   // Arabic
   RAST,
@@ -48,8 +48,8 @@ static inline std::string to_string(Scale scale) {
   case Scale::UTONAL: return "utonal";
   case Scale::DIAMOND7:
     return "diamond7";
-  case Scale::MIXOLYDIAN:
-    return "mixolydian";
+  case Scale::PYTHAGOREAN_MIXOLYDIAN:
+    return "pythagorean-mixolydian";
   case Scale::RAST:
     return "rast";
   case Scale::BAYATI:
@@ -85,8 +85,8 @@ static inline std::string scaleLabel(Scale scale) {
       return "Utonal";
     case Scale::DIAMOND7:
       return "Diamond (7-limit)";
-    case Scale::MIXOLYDIAN:
-      return "Mixolydian (Pythagorean)";
+    case Scale::PYTHAGOREAN_MIXOLYDIAN:
+      return "Pythagorean Mixolydian";
     case Scale::RAST:
       return "Rāst";
     case Scale::BAYATI:
@@ -113,7 +113,7 @@ static inline Scale scaleFromString(const std::string & text) {
   if (text == "otonal") return Scale::OTONAL;
   if (text == "utonal") return Scale::UTONAL;
   if (text == "diamond7") return Scale::DIAMOND7;
-  if (text == "mixolydian") return Scale::MIXOLYDIAN;
+  if (text == "pythagorean-mixolydian") return Scale::PYTHAGOREAN_MIXOLYDIAN;
   if (text == "rast") return Scale::RAST;
   if (text == "bayati") return Scale::BAYATI;
   if (text == "hijaz") return Scale::HIJAZ;
@@ -161,7 +161,7 @@ static inline std::optional<JustScale> justScale(Scale scale) {
       return JustScale{gamut::kSuperparticular, GamutSide::UTONAL, kJustScaleRound};
     case Scale::DIAMOND7:
       return JustScale{gamut::kDiamond7, std::nullopt, 0};
-    case Scale::MIXOLYDIAN:
+    case Scale::PYTHAGOREAN_MIXOLYDIAN:
       return JustScale{gamut::kPythagorean, std::nullopt, 0, kMixolydianRatios};
     default:
       break;
@@ -202,7 +202,7 @@ static inline std::vector<std::string_view> scaleDegreeNames(Scale scale) {
   case Scale::OTONAL:
   case Scale::UTONAL:
   case Scale::DIAMOND7:
-  case Scale::MIXOLYDIAN: {
+  case Scale::PYTHAGOREAN_MIXOLYDIAN: {
     std::vector<std::string_view> names;
     auto just = justScale(scale);
     if (!just) return names;

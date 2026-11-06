@@ -15,12 +15,12 @@
   (a dotted quarter at 66; the song tempo counts quarters, so 99), the
   octave doubling and the drone.
 
-  The scale is the Mixolydian mode on C of the Pythagorean gamut, C D E F G A
+  The scale is the Pythagorean Mixolydian mode on C, C D E F G A
   B-flat = 1/1 9/8 81/64 4/3 3/2 27/16 16/9. In 53-EDO's notation the plain
   names are the just major scale, so the Pythagorean E, A and B-flat are
   written E-up, A-up and B-flat-down.
 -->
-<song temperament="53edo" key="C-4" scale="mixolydian" tempo="99" timeSignature="6/8" volume="1.0">
+<song temperament="53edo" key="C-4" scale="pythagorean-mixolydian" tempo="99" timeSignature="6/8" volume="1.0">
   <instruments>
     <instrument id="i1" from="string.plucked.harp" />
   </instruments>
