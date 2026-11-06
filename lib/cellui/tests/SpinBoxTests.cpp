@@ -1,11 +1,21 @@
 #include "TestFramework.h"
 
+#include <cellui/InputDispatcher.h>
 #include <cellui/BufferPlane.h>
 #include <cellui/SpinBox.h>
 
 using namespace cellui;
 
 namespace {
+
+bool offer(SpinBox & s, const Input & in) {
+  int id = in.getId();
+  bool release = in.getKind() == Input::Kind::RELEASE;
+  if (id == Key::Button1) return release ? s.release(in.getY(), in.getX()) : s.press(in.getY(), in.getX());
+  if (id == Key::Button4 || id == Key::Button5) return s.wheel(id == Key::Button4);
+  if (release) return s.keyUp();
+  return s.key(InputDispatcher::keyDownFor(in));
+}
 
 Input wheel(int id) { return Input(id, 0, 0, false, false, false, false, Input::Kind::PRESS); }
 Input clickAt(int y, int x) { return Input(cellui::Key::Button1, y, x, false, false, false, false, Input::Kind::RELEASE); }
@@ -58,28 +68,28 @@ TEST(spinbox_render_only_redraws_when_something_changed) {
 
 TEST(spinbox_arrow_clicks_and_wheel_step_within_the_range) {
   Fixture f;
-  CHECK(f.spin.offerInput(clickAt(1, f.plus_x)));
+  CHECK(offer(f.spin, clickAt(1, f.plus_x)));
   CHECK(f.value == 5);
-  CHECK(f.spin.offerInput(clickAt(1, f.minus_x)));
-  CHECK(f.spin.offerInput(clickAt(1, f.minus_x)));
+  CHECK(offer(f.spin, clickAt(1, f.minus_x)));
+  CHECK(offer(f.spin, clickAt(1, f.minus_x)));
   CHECK(f.value == 3);
-  CHECK(f.spin.offerInput(wheel(cellui::Key::Button4)));
+  CHECK(offer(f.spin, wheel(cellui::Key::Button4)));
   CHECK(f.value == 4);
-  CHECK(f.spin.offerInput(wheel(cellui::Key::Button5)));
-  CHECK(f.spin.offerInput(wheel(cellui::Key::Button5)));
+  CHECK(offer(f.spin, wheel(cellui::Key::Button5)));
+  CHECK(offer(f.spin, wheel(cellui::Key::Button5)));
   CHECK(f.value == 2);
   f.value = 8;
-  f.spin.offerInput(wheel(cellui::Key::Button4));
+  offer(f.spin, wheel(cellui::Key::Button4));
   CHECK(f.value == 8);  // clamped at the maximum
 }
 
 TEST(spinbox_pressing_an_arrow_is_pending_until_release) {
   Fixture f;
   Input press(cellui::Key::Button1, 1, f.plus_x, false, false, false, false, Input::Kind::PRESS);
-  CHECK(f.spin.offerInput(press));
+  CHECK(offer(f.spin, press));
   CHECK(f.spin.arrowPressPending());
   CHECK(f.value == 4);
-  CHECK(f.spin.offerInput(clickAt(1, f.plus_x)));
+  CHECK(offer(f.spin, clickAt(1, f.plus_x)));
   CHECK(!f.spin.arrowPressPending());
   CHECK(f.value == 5);
 }
@@ -87,21 +97,21 @@ TEST(spinbox_pressing_an_arrow_is_pending_until_release) {
 TEST(spinbox_typing_a_value_commits_when_no_digit_could_follow) {
   Fixture f;
   CHECK(!f.spin.isEditing());
-  CHECK(!f.spin.offerInput(typed('5')));  // not editing: left to the app
-  CHECK(f.spin.offerInput(clickAt(1, f.field_x)));
+  CHECK(!offer(f.spin, typed('5')));  // not editing: left to the app
+  CHECK(offer(f.spin, clickAt(1, f.field_x)));
   CHECK(f.spin.isEditing());
-  CHECK(f.spin.offerInput(typed('7')));  // 70 > 8, so 7 is final
+  CHECK(offer(f.spin, typed('7')));  // 70 > 8, so 7 is final
   CHECK(!f.spin.isEditing());
   CHECK(f.value == 7);
 }
 
 TEST(spinbox_escape_cancels_an_edit_and_other_keys_end_it) {
   Fixture f;
-  f.spin.offerInput(clickAt(1, f.field_x));
-  CHECK(f.spin.offerInput(typed(cellui::Key::Escape)));
+  offer(f.spin, clickAt(1, f.field_x));
+  CHECK(offer(f.spin, typed(cellui::Key::Escape)));
   CHECK(!f.spin.isEditing());
   CHECK(f.value == 4);
-  f.spin.offerInput(clickAt(1, f.field_x));
-  CHECK(!f.spin.offerInput(typed('x')));  // ended, and left for the app
+  offer(f.spin, clickAt(1, f.field_x));
+  CHECK(!offer(f.spin, typed('x')));  // ended, and left for the app
   CHECK(!f.spin.isEditing());
 }

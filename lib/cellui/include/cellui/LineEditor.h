@@ -1,6 +1,7 @@
 #pragma once
 
 #include <cellui/Input.h>
+#include <cellui/InputEvents.h>
 
 #include <algorithm>
 #include <string>
@@ -31,7 +32,7 @@ class LineEditor {
 
   void insert(const std::string & text);
   // Returns whether the key was an editing key.
-  bool offerInput(const Input & input);
+  bool key(const KeyDown & e);
 
   // What a field `width` columns wide shows: the text from the scroll
   // position, never splitting a wide cluster (a space stands in), and where

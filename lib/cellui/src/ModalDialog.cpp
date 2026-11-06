@@ -13,16 +13,12 @@ ModalDialog::~ModalDialog() {
 void ModalDialog::connect() {
   // Every event is the dialog's: the handlers sit on the root, ahead of the
   // widget an event is aimed at.
-  auto take = [this](const Input * input) {
-    if (input) offerInput(*input);
-    return Handled::yes;
-  };
-  connections_.push_back(root_.on<KeyDown>([take](const KeyDown & e, EventContext &) { return take(e.input); }, Phase::capture));
-  connections_.push_back(root_.on<KeyUp>([take](const KeyUp & e, EventContext &) { return take(e.input); }, Phase::capture));
-  connections_.push_back(root_.on<MouseDown>([take](const MouseDown & e, EventContext &) { return take(e.input); }, Phase::capture));
-  connections_.push_back(root_.on<MouseUp>([take](const MouseUp & e, EventContext &) { return take(e.input); }, Phase::capture));
-  connections_.push_back(root_.on<MouseMove>([take](const MouseMove & e, EventContext &) { return take(e.input); }, Phase::capture));
-  connections_.push_back(root_.on<Wheel>([take](const Wheel & e, EventContext &) { return take(e.input); }, Phase::capture));
+  connections_.push_back(root_.on<KeyDown>([this](const KeyDown & e, EventContext &) { keyDown(e); return Handled::yes; }, Phase::capture));
+  connections_.push_back(root_.on<KeyUp>([this](const KeyUp & e, EventContext &) { keyUp(e); return Handled::yes; }, Phase::capture));
+  connections_.push_back(root_.on<MouseDown>([](const MouseDown &, EventContext &) { return Handled::yes; }, Phase::capture));
+  connections_.push_back(root_.on<MouseUp>([this](const MouseUp & e, EventContext &) { mouseUp(e); return Handled::yes; }, Phase::capture));
+  connections_.push_back(root_.on<MouseMove>([](const MouseMove &, EventContext &) { return Handled::yes; }, Phase::capture));
+  connections_.push_back(root_.on<Wheel>([this](const Wheel & e, EventContext &) { wheel(e); return Handled::yes; }, Phase::capture));
 }
 
 int ModalDialog::showModal() {

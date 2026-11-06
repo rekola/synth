@@ -60,6 +60,13 @@ effect column; Delete/Backspace clear all three characters. Typed in the effect
 column a command acts on the whole track, in a note's fx column on that note
 alone. Any other command typed in the fx column is stored but does nothing.
 
+A cell can carry fx with no note: it starts and stops nothing and the fx acts on
+its column, which a note-less cell has to be able to do for a command that
+carries on from an earlier row. `Gxx`/`G00` there sets or repeats that column's
+glide rate, and `Rxy` retriggers the column's last note; the others (`P`, `W`,
+a tuning correction) need a note to belong to and do nothing. Such a cell is
+saved as a `<note>` with an `fx` attribute and no text.
+
 | Command | Description | Source |
 |---|---|---|
 | `-Pxx` | Set azimuth to an absolute position (as a note's fx: that note's azimuth alone) - `xx` maps linearly from -90 degrees at `00` through +90 at `FF`. | Renoise (adapted) - matches Renoise's own `Pxx` "Track Pan" exactly, `xx` meaning included (`00`/`80`/`FF` = left/center/right), but that's a real, inherited limitation: it only reaches half this engine's own 360-degree azimuth range (the front hemisphere), since Renoise's own panning has no "behind" to reach in the first place. |
@@ -89,8 +96,9 @@ alone. Any other command typed in the fx column is stored but does nothing.
 
 | Command | Description | Source |
 |---|---|---|
-| `-Vxx` | Vibrato | Renoise (`Vxy`) |
-| `-Ixx` | Fade in | Renoise (`Ixx`) |
-| `-Oxx` | Fade out | Renoise (`Oxx`) |
-| `-Txy` | Tremolo (depth `x`, speed `y`) | Renoise (`Txy`) |
+| `-Axy` | Arpeggio | Renoise (`-Axy`) |
+| `-Vxx` | Vibrato | Renoise (`-Vxy`) |
+| `-Ixx` | Fade in | Renoise (`-Ixx`) |
+| `-Oxx` | Fade out | Renoise (`-Oxx`) |
+| `-Txy` | Tremolo (depth `x`, speed `y`) | Renoise (`-Txy`) |
 | `ZTxx` | Set tempo to `xx` BPM - global like `ZBxx`, not a device-index command, since tempo isn't a per-track parameter. | Renoise (`ZTxx`) |

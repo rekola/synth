@@ -233,7 +233,7 @@ quantizeClip(Song & song, int track_id, int clip_index) {
   for (auto & [ row, columns ] : pattern.getNotesByRow()) {
     for (size_t column = 0; column < columns.size(); column++) {
       auto note = columns[column];
-      if (!note.isDefined()) continue;
+      if (!note.hasContent()) continue;
       auto new_row = row + (note.getDelay() >= 128 ? 1 : 0);
       if (new_row >= length) new_row = clip.isLooping() ? new_row % length : length - 1;
       note.setDelay(0);
@@ -257,9 +257,9 @@ quantizeClip(Song & song, int track_id, int clip_index) {
     auto column = entry.column;
     if (entry.note.isOff()) {
       // A row can't hold both a note and its own off.
-      for (int tries = 0; slot(row, column).isDefined() && tries < length; tries++) row = (row + 1) % length;
+      for (int tries = 0; slot(row, column).hasContent() && tries < length; tries++) row = (row + 1) % length;
     } else {
-      while (slot(row, column).isDefined()) column++;
+      while (slot(row, column).hasContent()) column++;
     }
     slot(row, column) = entry.note;
   }

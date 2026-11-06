@@ -11,7 +11,8 @@ enum class Tuning {
   EDO12,
   EDO19,
   EDO31,
-  EDO53
+  EDO53,
+  EDO24
 };
 
 static inline std::string to_string(Tuning tuning) {
@@ -21,6 +22,8 @@ static inline std::string to_string(Tuning tuning) {
   case Tuning::EDO19: return "19edo";
   case Tuning::EDO31: return "31edo";
   case Tuning::EDO53: return "53edo";
+  case Tuning::EDO24:
+    return "24edo";
   default: return "";
   }
 }
@@ -35,6 +38,8 @@ static inline int edoStepsFor(Tuning tuning) {
   switch (tuning) {
   case Tuning::EDO12: return 12;
   case Tuning::EDO19: return 19;
+  case Tuning::EDO24:
+    return 24;
   case Tuning::EDO31: return 31;
   case Tuning::EDO53: return 53;
   case Tuning::PERCUSSION: return 0;
@@ -52,39 +57,16 @@ inline constexpr float kNominalStandardPitchHz = 440.0f;
 // The note the standard pitch is the frequency of (A4) in each tuning.
 // PERCUSSION reuses EDO12's (a percussion note's frequency, when one is
 // needed at all, is MIDI's).
-constexpr int referenceNoteFor(Tuning tuning) {
-  switch (tuning) {
-    case Tuning::EDO12:
-    case Tuning::PERCUSSION:
-      return 69;
-    case Tuning::EDO19:
-      return 109;
-    case Tuning::EDO31:
-      return 178;
-    case Tuning::EDO53:
-      return 304;
-  }
-  return 69;
+inline int referenceNoteFor(Tuning tuning) {
+  const int steps = edoStepsFor(tuning == Tuning::PERCUSSION ? Tuning::EDO12 : tuning);
+  return 5 * steps + (9 * steps + 6) / 12; // 69, 109, 138, 178, 304
 }
 
 // The one note-to-frequency formula, at the nominal standard pitch:
-// kNominalStandardPitchHz * 2^((note - reference) / steps). Each tuning's
-// divisor is a literal so the arithmetic (a reciprocal multiply under
-// -ffast-math) stays exactly what renders have always used.
+// kNominalStandardPitchHz * 2^((note - reference) / steps).
 inline float getFrequencyFor(Tuning tuning, int note_value) {
-  auto from = [&](Tuning t) { return note_value - referenceNoteFor(t); };
-  switch (tuning) {
-  case Tuning::EDO12:
-  case Tuning::PERCUSSION:
-    return kNominalStandardPitchHz * powf(2.0f, from(Tuning::EDO12) / 12.0f);
-  case Tuning::EDO19:
-    return kNominalStandardPitchHz * powf(2.0f, from(Tuning::EDO19) / 19.0f);
-  case Tuning::EDO31:
-    return kNominalStandardPitchHz * powf(2.0f, from(Tuning::EDO31) / 31.0f);
-  case Tuning::EDO53:
-    return kNominalStandardPitchHz * powf(2.0f, from(Tuning::EDO53) / 53.0f);
-  }
-  return 0.0f;
+  const int steps = edoStepsFor(tuning == Tuning::PERCUSSION ? Tuning::EDO12 : tuning);
+  return kNominalStandardPitchHz * powf(2.0f, float(note_value - referenceNoteFor(tuning)) / steps);
 }
 
 // Neither infinite nor NaN, read from the bits: the build's -ffast-math lets

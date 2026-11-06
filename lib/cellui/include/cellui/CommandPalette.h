@@ -2,6 +2,7 @@
 
 #include <cellui/ChoiceList.h>
 #include <cellui/Input.h>
+#include <cellui/InputEvents.h>
 #include <cellui/Plane.h>
 
 #include <memory>
@@ -46,7 +47,10 @@ class CommandPalette {
 
   // Feeds one input event; the palette swallows everything, so the caller
   // only needs the result.
-  Result offerInput(const Input & input);
+  // Keys act on the press; a click is resolved on release.
+  Result key(const KeyDown & e);
+  Result click(int screen_y, int screen_x);
+  Result wheel(bool up);
 
   // The selected command, nullptr when nothing matches.
   const PaletteEntry * chosen() const;

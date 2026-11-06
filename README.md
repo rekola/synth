@@ -5,14 +5,14 @@
 [![Windows x86-64](https://github.com/rekola/synth/actions/workflows/ci-windows-x86_64.yml/badge.svg)](https://github.com/rekola/synth/actions/workflows/ci-windows-x86_64.yml)
 [![macOS ARM64](https://github.com/rekola/synth/actions/workflows/ci-macos-arm64.yml/badge.svg)](https://github.com/rekola/synth/actions/workflows/ci-macos-arm64.yml)
 
-![Screenshot of Live View](https://raw.githubusercontent.com/rekola/synth/refs/heads/main/assets/screenshot1.png)
+![Screenshot of Live View](https://raw.githubusercontent.com/rekola/synth/refs/heads/main/assets/screenshot2.png)
 
 A microtonal, multiparadigm music production system that combines a live sequencer with a traditional tracker.
 
 ## Features
 
 - Live sequencer with sample and note based clips
-- Microtonal: 12, 19, 31 or 53 equal divisions of the octave (EDO), with just intonation
+- Microtonal: 12, 19, 24, 31 or 53 equal divisions of the octave (EDO), with just intonation
 - SoundFont 2 (General MIDI) instruments
 - Headless mode (for art installations or escape rooms)
 - 3D spatial audio (ambisonics), heard binaurally on headphones
@@ -60,7 +60,7 @@ The application draws on several traditions.
 
 ## Scales and Tunings
 
-- **Tunings.** A song is tuned to 12, 19, 31 or 53 equal divisions of the
+- **Tunings.** A song is tuned to 12, 19, 24, 31 or 53 equal divisions of the
   octave (EDO); a new song starts in 31-EDO, which Christiaan Huygens described
   in 1691 and Adriaan Fokker revived: his 31-tone organ, built by Bernard Pels,
   stood in Teylers Museum, Haarlem, from 1950 and is now in the Muziekgebouw

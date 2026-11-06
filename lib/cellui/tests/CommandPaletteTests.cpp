@@ -1,5 +1,6 @@
 #include "TestFramework.h"
 
+#include <cellui/InputDispatcher.h>
 #include <cellui/BufferPlane.h>
 #include <cellui/CommandPalette.h>
 #include <cellui/FuzzyMatch.h>
@@ -9,6 +10,15 @@
 using namespace cellui;
 
 namespace {
+
+CommandPalette::Result offer(CommandPalette & p, const Input & in) {
+  int id = in.getId();
+  bool release = in.getKind() == Input::Kind::RELEASE;
+  if (id == Key::Button1) return release ? p.click(in.getY(), in.getX()) : CommandPalette::Result::NONE;
+  if (id == Key::Button4 || id == Key::Button5) return p.wheel(id == Key::Button4);
+  if (release) return CommandPalette::Result::NONE;
+  return p.key(InputDispatcher::keyDownFor(in));
+}
 
 Input key(int id, bool ctrl = false) {
   return Input(id, 0, 0, false, false, ctrl, false, Input::Kind::PRESS);
@@ -37,7 +47,7 @@ struct Fixture {
     root.refresh();
   }
   void feed(const char * text) {
-    for (const char * c = text; *c; c++) palette.offerInput(type(c));
+    for (const char * c = text; *c; c++) offer(palette, type(c));
     palette.show(root, 20, 80);
     root.refresh();
   }
@@ -93,34 +103,34 @@ TEST(palette_says_when_nothing_matches_and_enter_chooses_nothing) {
   f.feed("zzz");
   CHECK(f.buffer.toPlainText().find("No matching command") != std::string::npos);
   CHECK(f.palette.chosen() == nullptr);
-  CHECK(f.palette.offerInput(key(Key::Enter)) == CommandPalette::Result::NONE);
+  CHECK(offer(f.palette, key(Key::Enter)) == CommandPalette::Result::NONE);
 }
 
 TEST(palette_moves_edits_chooses_and_cancels) {
   Fixture f;
   CHECK(f.palette.chosen()->name == "save-buffer");
-  f.palette.offerInput(key(Key::Down));
+  offer(f.palette, key(Key::Down));
   CHECK(f.palette.chosen()->name == "save-buffer-as");
-  f.palette.offerInput(key('n', true));
+  offer(f.palette, key('n', true));
   CHECK(f.palette.chosen()->name == "toggle-view");
-  f.palette.offerInput(key('p', true));
+  offer(f.palette, key('p', true));
   CHECK(f.palette.chosen()->name == "save-buffer-as");
   f.feed("un");
-  f.palette.offerInput(key(Key::Backspace));
-  f.palette.offerInput(key(Key::Backspace));
+  offer(f.palette, key(Key::Backspace));
+  offer(f.palette, key(Key::Backspace));
   CHECK(f.palette.query().empty());
   f.feed("undo");
-  f.palette.offerInput(key('u', true));
+  offer(f.palette, key('u', true));
   CHECK(f.palette.query().empty());
-  CHECK(f.palette.offerInput(key(Key::Enter)) == CommandPalette::Result::CHOSEN);
-  CHECK(f.palette.offerInput(key(Key::Escape)) == CommandPalette::Result::CANCELLED);
-  CHECK(f.palette.offerInput(key('g', true)) == CommandPalette::Result::CANCELLED);
+  CHECK(offer(f.palette, key(Key::Enter)) == CommandPalette::Result::CHOSEN);
+  CHECK(offer(f.palette, key(Key::Escape)) == CommandPalette::Result::CANCELLED);
+  CHECK(offer(f.palette, key('g', true)) == CommandPalette::Result::CANCELLED);
 }
 
 TEST(palette_ignores_releases_and_modified_letters) {
   Fixture f;
-  f.palette.offerInput(Input('a', 0, 0, false, false, false, false, Input::Kind::RELEASE));
-  f.palette.offerInput(key('a', true));
+  offer(f.palette, Input('a', 0, 0, false, false, false, false, Input::Kind::RELEASE));
+  offer(f.palette, key('a', true));
   CHECK(f.palette.query().empty());
 }
 
@@ -128,10 +138,10 @@ TEST(palette_click_on_a_row_chooses_it_and_outside_cancels) {
   Fixture f;
   // Five commands: the list is on rows 13-17, the description and the query
   // below it.
-  CHECK(f.palette.offerInput(click(15, 10)) == CommandPalette::Result::CHOSEN);
+  CHECK(offer(f.palette, click(15, 10)) == CommandPalette::Result::CHOSEN);
   CHECK(f.palette.chosen()->name == "toggle-view");
   Fixture g;
-  CHECK(g.palette.offerInput(click(0, 10)) == CommandPalette::Result::CANCELLED);
+  CHECK(offer(g.palette, click(0, 10)) == CommandPalette::Result::CANCELLED);
 }
 
 TEST(keymap_finds_the_sequences_for_a_command_per_profile) {
@@ -165,24 +175,24 @@ TEST(shortcuts_are_described_per_profile) {
 TEST(palette_tab_completes_to_the_longest_shared_prefix) {
   Fixture f;
   f.feed("sa");
-  f.palette.offerInput(key(Key::Tab));
+  offer(f.palette, key(Key::Tab));
   CHECK(f.palette.query() == "save-buffer");  // save-buffer and save-buffer-as agree up to here
-  f.palette.offerInput(key(Key::Tab));
+  offer(f.palette, key(Key::Tab));
   CHECK(f.palette.query() == "save-buffer");  // nothing more to add
   CHECK(f.palette.note().empty());
   f.feed("-");
-  f.palette.offerInput(key(Key::Tab));
+  offer(f.palette, key(Key::Tab));
   CHECK(f.palette.query() == "save-buffer-as");
-  f.palette.offerInput(key(Key::Tab));
+  offer(f.palette, key(Key::Tab));
   CHECK(f.palette.note() == "[Sole completion]");
-  f.palette.offerInput(key(Key::Backspace));
+  offer(f.palette, key(Key::Backspace));
   CHECK(f.palette.note().empty());
 }
 
 TEST(palette_tab_with_no_command_starting_with_the_query_says_so) {
   Fixture f;
   f.feed("view");  // matches toggle-view by fuzzy, but no name starts with it
-  f.palette.offerInput(key(Key::Tab));
+  offer(f.palette, key(Key::Tab));
   CHECK(f.palette.query() == "view");
   CHECK(f.palette.note() == "[No match]");
   f.palette.show(f.root, 20, 80);
@@ -193,7 +203,7 @@ TEST(palette_tab_with_no_command_starting_with_the_query_says_so) {
 TEST(palette_tab_completion_ignores_case_and_runs_nothing) {
   Fixture f;
   f.feed("UN");
-  CHECK(f.palette.offerInput(key(Key::Tab)) == CommandPalette::Result::NONE);
+  CHECK(offer(f.palette, key(Key::Tab)) == CommandPalette::Result::NONE);
   CHECK(f.palette.query() == "undo");
 }
 

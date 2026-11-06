@@ -164,7 +164,9 @@ link would allow hundreds of frames a second.
   (b) uses `1.25 * B`. A higher back-to-back sample raises `B` through the rule
   above; otherwise nothing changes.
 - **RTT:** `RTT_min` from the first probe. After about 10 acks it becomes the
-  running minimum of `max(0, t_ack - t_sent - S/B)`.
+  running minimum of `t_ack - t_sent` (`t_sent` is when the last byte is taken,
+  so less `S/B` it fell to zero on a link with a small buffer, and the delay
+  rule then backed off on jitter).
 - **Backoff:** `B *= 0.8` when `(t_ack - t_sent - S/B) > 2 * RTT_min` for two
   consecutive frames, or when ack spacing lags the send rate (the last four ack
   gaps average more than 1.25x the send gaps).
