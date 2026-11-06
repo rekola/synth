@@ -3499,8 +3499,8 @@ PatternEditor::renderRow(const StyleProvider & styles, int heading_height, const
       auto track_id = track_ids[static_cast<size_t>(i)];
       if (per_track_rows) {
         auto own = source_->trackAddress(track_id, address);
-        if (own.block < 0 || own.row < 0) {
-          // Before its first clip the track has no row here - nothing to
+        if (own.block < 0 || own.row < 0 || !source_->showsRows(track_id)) {
+          // No clip chosen yet, or before its first clip the track has no row here - nothing to
           // show, however a neighbouring column scrolls: blank up to its
           // divider.
           auto info_it = all_track_info.find(track_id);
