@@ -496,3 +496,161 @@ TEST(kitty_uploads_are_deflated_and_a_refusal_turns_it_off) {
   std::string again = enc.encode(b, root.images(), false);
   CHECK(count(again, "a=t,f=24,s=6,v=12,i=2,") == 1 && count(again, "o=z") == 0);
 }
+
+namespace {
+
+// The colour type, bit depth, palette and unpacked indices of a palette PNG (empty if it is not one).
+struct PalettePng {
+  int bits = 0, colour_type = -1;
+  std::vector<uint32_t> palette;
+  std::vector<int> indices;  // row by row, width of them each
+};
+
+PalettePng readPalettePng(const std::vector<uint8_t> & png, int width, int height) {
+  PalettePng out;
+  size_t i = 8;
+  std::vector<uint8_t> idat;
+  while (i + 8 <= png.size()) {
+    uint32_t len = be32(png, i);
+    std::string type(png.begin() + static_cast<long>(i + 4), png.begin() + static_cast<long>(i + 8));
+    size_t data = i + 8;
+    if (type == "IHDR") {
+      out.bits = png[data + 8];
+      out.colour_type = png[data + 9];
+    } else if (type == "PLTE") {
+      for (uint32_t k = 0; k + 2 < len; k += 3) out.palette.push_back((uint32_t(png[data + k]) << 16) | (uint32_t(png[data + k + 1]) << 8) | png[data + k + 2]);
+    } else if (type == "IDAT") {
+      auto z = inflate_test::Inflater(png.data() + data, len).zlib();
+      if (z) idat = *z;
+    }
+    i = data + len + 4;
+  }
+  size_t row_bytes = (static_cast<size_t>(width) * static_cast<size_t>(out.bits) + 7) / 8;
+  if (idat.size() < static_cast<size_t>(height) * (row_bytes + 1)) return out;  // not a stream we can read
+  for (int y = 0; y < height; y++) {
+    const uint8_t * row = idat.data() + static_cast<size_t>(y) * (row_bytes + 1) + 1;
+    for (int x = 0; x < width; x++) {
+      int v = out.bits == 8 ? row[x] : (x % 2 == 0 ? row[x / 2] >> 4 : row[x / 2] & 15);
+      out.indices.push_back(v);
+    }
+  }
+  return out;
+}
+
+}  // namespace
+
+TEST(a_palette_png_of_few_colours_gives_them_back_exactly) {
+  Image img;
+  img.width = 5;
+  img.height = 3;
+  const uint32_t colours[3] = {Image::pack(10, 20, 30), Image::pack(200, 100, 50), Image::pack(0, 255, 0)};
+  for (int k = 0; k < 15; k++) img.pixels.push_back(colours[(k * 7) % 3]);
+  PalettePng p = readPalettePng(encodePalettePng(img, 0, 0, 5, 3, 64), 5, 3);
+  CHECK(p.colour_type == 3 && p.bits == 4 && p.palette.size() == 3);  // 4 bits an index up to 16 colours
+  bool same = p.indices.size() == 15;
+  for (size_t k = 0; same && k < 15; k++) {
+    uint32_t c = p.palette[static_cast<size_t>(p.indices[k])];
+    same = Image::red(img.pixels[k]) == ((c >> 16) & 0xff) && Image::green(img.pixels[k]) == ((c >> 8) & 0xff) && Image::blue(img.pixels[k]) == (c & 0xff);
+  }
+  CHECK(same);
+}
+
+TEST(a_palette_png_of_more_colours_than_the_limit_has_no_more_than_the_limit) {
+  Image img;
+  img.width = 40;
+  img.height = 8;
+  for (int k = 0; k < 320; k++) img.pixels.push_back(Image::pack(static_cast<uint8_t>(k % 40 * 6), static_cast<uint8_t>(k / 40 * 30), 90));
+  for (int limit : {16, 64}) {
+    PalettePng p = readPalettePng(encodePalettePng(img, 0, 0, 40, 8, limit), 40, 8);
+    CHECK(p.colour_type == 3 && p.palette.size() <= static_cast<size_t>(limit) && p.bits == (limit <= 16 ? 4 : 8));
+    std::vector<uint8_t> rgb = quantisedRgb(img, limit);
+    std::set<uint32_t> distinct;
+    for (size_t k = 0; k + 2 < rgb.size(); k += 3) distinct.insert((uint32_t(rgb[k]) << 16) | (uint32_t(rgb[k + 1]) << 8) | rgb[k + 2]);
+    CHECK(rgb.size() == 320u * 3 && distinct.size() <= static_cast<size_t>(limit));
+  }
+}
+
+TEST(the_picture_quality_follows_the_link_class) {
+  CHECK(pictureQualityFor(LinkClass::FULL) == PictureQuality::FULL && pictureQualityFor(LinkClass::HZ_30) == PictureQuality::FULL);
+  CHECK(pictureQualityFor(LinkClass::HZ_15) == PictureQuality::REDUCED);
+  CHECK(pictureQualityFor(LinkClass::HZ_5) == PictureQuality::LOW && pictureQualityFor(LinkClass::HZ_1) == PictureQuality::LOW);
+  CHECK(pictureColours(PictureQuality::FULL) == 0 && pictureColours(PictureQuality::REDUCED) == 64 && pictureColours(PictureQuality::LOW) == 16);
+}
+
+TEST(kitty_sends_a_palette_png_at_reduced_quality_and_falls_back_when_the_terminal_refuses) {
+  StyleProvider styles;
+  CellBuffer b(22, 90);
+  BufferPlane root(b, styles);
+  root.setCellPixelSize(6, 2);
+  auto chart = root.createChild();
+  chart->resize(20, 80);
+  // Large enough that the palette PNG is not weighed against the pixels.
+  std::vector<uint32_t> px;
+  for (int k = 0; k < 160 * 120; k++) px.push_back(Image::pack(static_cast<uint8_t>(k % 160 * 1), static_cast<uint8_t>(k / 160 * 2), static_cast<uint8_t>(k % 7 * 30)));
+  chart->drawImage(px, 160, 120);
+  ImageEncoder enc(profile(PixelProtocol::KITTY));
+  enc.setPictureQuality(PictureQuality::REDUCED);
+  root.refresh();
+  std::string first = enc.encode(b, root.images(), true);
+  CHECK(count(first, "a=t,f=100,i=1,") == 1 && count(first, "f=24") == 0);
+  // The payload is a PNG with a palette of at most 64 colours.
+  std::string all_payload;
+  for (size_t at = first.find("\x1b_G"); at != std::string::npos; at = first.find("\x1b_G", at + 1)) {
+    size_t semi = first.find(';', at), end = first.find("\x1b\\", at);
+    if (semi != std::string::npos && end != std::string::npos && semi < end) all_payload += first.substr(semi + 1, end - semi - 1);
+  }
+  std::vector<uint8_t> png = unbase64(all_payload);
+  PalettePng p = readPalettePng(png, 160, 120);
+  CHECK(png.size() > 8 && png[1] == 'P' && p.colour_type == 3 && p.palette.size() <= 64);
+  // Refused: quantised RGB, deflated, from now on, and the same picture again.
+  CHECK(!enc.handleKittyReply("i=1;EINVAL:bad format").empty());
+  CHECK(!enc.palettePng());
+  root.refresh();
+  std::string again = enc.encode(b, root.images(), false);
+  CHECK(count(again, "f=100") == 0 && count(again, "a=t,f=24,s=160,v=120,i=2,") == 1);
+  // At full quality the pixels go as they are.
+  ImageEncoder full(profile(PixelProtocol::KITTY));
+  std::string plain = full.encode(b, root.images(), true);
+  CHECK(count(plain, "f=24") == 1 && count(plain, "f=100") == 0);
+}
+
+// A PNG's headers and palette can outweigh what fewer colours save in a small picture: it is sent as
+// the pixels then, so a lower quality is never larger.
+TEST(a_small_picture_is_sent_in_the_smaller_of_its_palette_png_and_its_pixels) {
+  StyleProvider styles;
+  CellBuffer b(4, 4);
+  BufferPlane root(b, styles);
+  root.setCellPixelSize(6, 2);
+  auto chart = root.createChild();
+  chart->resize(2, 4);
+  std::vector<uint32_t> px;
+  for (int k = 0; k < 8 * 12; k++) px.push_back(Image::pack(static_cast<uint8_t>(k * 2), static_cast<uint8_t>(k % 8 * 30), 40));
+  chart->drawImage(px, 8, 12);
+  root.refresh();
+  ImageEncoder full(profile(PixelProtocol::KITTY)), reduced(profile(PixelProtocol::KITTY));
+  reduced.setPictureQuality(PictureQuality::REDUCED);
+  size_t full_bytes = full.encode(b, root.images(), true).size(), reduced_bytes = reduced.encode(b, root.images(), true).size();
+  CHECK(reduced_bytes <= full_bytes);
+}
+
+TEST(reduced_quality_makes_iterm2_and_sixel_pictures_smaller_with_fewer_colours) {
+  StyleProvider styles;
+  CellBuffer b(4, 12);
+  BufferPlane root(b, styles);
+  root.setCellPixelSize(6, 2);
+  auto chart = root.createChild();
+  chart->resize(2, 12);
+  std::vector<uint32_t> px;
+  for (int k = 0; k < 24 * 12; k++) px.push_back(Image::pack(static_cast<uint8_t>(k % 24 * 10), static_cast<uint8_t>(k / 24 * 20), static_cast<uint8_t>(k * 7)));
+  chart->drawImage(px, 24, 12);
+  root.refresh();
+  for (PixelProtocol protocol : {PixelProtocol::ITERM2, PixelProtocol::SIXEL}) {
+    ImageEncoder full(profile(protocol)), low(profile(protocol));
+    low.setPictureQuality(PictureQuality::LOW);
+    size_t full_bytes = full.encode(b, root.images(), true).size(), low_bytes = low.encode(b, root.images(), true).size();
+    CHECK(low_bytes > 0 && low_bytes < full_bytes);
+  }
+  ImageEncoder sixel(profile(PixelProtocol::SIXEL));
+  sixel.setPictureQuality(PictureQuality::LOW);
+  CHECK(count(sixel.encode(b, root.images(), true), ";2;") <= 16);
+}

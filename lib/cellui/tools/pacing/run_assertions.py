@@ -84,7 +84,8 @@ def t1(probe):
 # 2. A bandwidth cap lowers the frame rate and the estimate follows it.
 def t2(probe):
     bw = 100000
-    res, log = run(probe, Link(bandwidth=bw, up_ms=10, down_ms=10), ["--mode", "churn", "--seconds", "12"])
+    # The class is pinned: the picture quality follows it (check 9), and this check is about the pacing.
+    res, log = run(probe, Link(bandwidth=bw, up_ms=10, down_ms=10), ["--mode", "churn", "--seconds", "12", "--pin", "full"])
     s = frame_size(log)
     want = bw / s
     got = fps_between(log, res.start, 4, 12)
@@ -191,7 +192,20 @@ def t8(probe):
     check("8 link class", ok and pinned_ok and small_ok, "; ".join(seen) + "; pinned at 15 on a 20 MB/s link: class %s pinned %s" % (link.get("class"), link.get("pinned")))
 
 
-TESTS = [t1, t2, t3, t4, t5, t6, t7, t8]
+# 9. A slow link turns the pictures' colours down: the same churn on a 100 kB/s link sends smaller frames
+# than with the class held at full, and so more of them.
+def t9(probe):
+    bw = 100000
+    link = lambda: Link(bandwidth=bw, up_ms=10, down_ms=10)
+    _, held = run(probe, link(), ["--mode", "churn", "--seconds", "14", "--pin", "full"])
+    _, free = run(probe, link(), ["--mode", "churn", "--seconds", "14"])
+    held_size, free_size = frame_size(held), frame_size(free)
+    held_fps, free_fps = held["result"]["fps"], free["result"]["fps"]
+    check("9 picture quality", free_size < 0.8 * held_size and free_fps > 1.2 * held_fps,
+          "frame %.0f B held at full, %.0f B following the class; %.1f fps and %.1f fps" % (held_size, free_size, held_fps, free_fps))
+
+
+TESTS = [t1, t2, t3, t4, t5, t6, t7, t8, t9]
 
 
 def main():
