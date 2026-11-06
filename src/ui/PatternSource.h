@@ -133,6 +133,8 @@ class PatternSource {
 
   // Whether a cell whose notes come from a clip (ReadTarget::is_instance)
   // is drawn tinted, marking that they don't live where they're shown.
+  // Whether the track has rows to show at all; false draws only its header.
+  virtual bool showsRows(int) const { return true; }
   virtual bool showsClipIndirection() const = 0;
   virtual bool hasLocators() const = 0;
   // Whether the cursor row is the transport's position: it follows

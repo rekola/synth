@@ -613,6 +613,7 @@ TEST(scene_source_shows_nothing_on_a_track_until_a_clip_is_selected) {
   auto before = source.read(f.track_id, {0, 1});
   CHECK(!before.pattern->getNote(before.effective_row, 0).isDefined());
   CHECK(!source.hasClipSelected(f.track_id));
+  CHECK(!source.showsRows(f.track_id));
 
   source.setTrackPosition(f.track_id, {0, 0});
   auto after = source.read(f.track_id, {0, 1});
