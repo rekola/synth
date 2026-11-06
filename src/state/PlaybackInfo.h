@@ -151,6 +151,10 @@ class PlaybackInfo {
   // mirrors into the song.
   int getTempo() const { return tempo_; }
   void setTempo(int tempo) { tempo_ = tempo; }
+  // The tempo the last scene change set (0: none); unlike getTempo(), never
+  // one a ZTxx set.
+  int getSceneTempo() const { return scene_tempo_; }
+  void setSceneTempo(int tempo) { scene_tempo_ = tempo; }
   const RunningBars & getRunningBars() const { return running_bars_; }
   void setRunningBars(RunningBars running) { running_bars_ = running; }
   int getSceneSeq() const { return scene_seq_; }
@@ -185,6 +189,7 @@ private:
   int live_start_clock_ = 0;
   int live_seq_ = 0;
   int tempo_ = 0;
+  int scene_tempo_ = 0;
   RunningBars running_bars_;
   int scene_seq_ = 0;
 

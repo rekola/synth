@@ -92,6 +92,7 @@ struct LiveFixture {
     info.setIsPlaying(state->isPlaying());
     info.setSampleInterval(config.getSampleInterval(state->getTempo()));
     info.setTempo(state->getTempo());
+    info.setSceneTempo(state->getSceneTempo());
     info.setRunningBars(state->getRunningBars());
     info.setSceneSeq(state->getSceneSeq());
     info.setSamplePos(state->getSamplePos());
