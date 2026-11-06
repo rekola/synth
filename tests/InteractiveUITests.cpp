@@ -1,4 +1,5 @@
 #include "TestFramework.h"
+#include "../src/ui/PerformanceProfile.h"
 
 #include "InteractiveUIFixture.h"
 
@@ -353,4 +354,28 @@ TEST(a_change_of_link_class_asks_for_a_frame) {
   f.terminal.setLinkStatus(slow); // the UI's handler is the one set at initialize(): a frame is wanted
   f.terminal.eventLoop().iterate(false);
   CHECK(frames == 1);
+}
+
+TEST(profile_caps_autonomous_redraws_by_link_class_and_stills_motion_on_slow_ones) {
+  using cellui::LinkClass;
+  CHECK(profileFor(LinkClass::FULL).autonomous_fps == 60 && !profileFor(LinkClass::FULL).reduced_motion);
+  CHECK(profileFor(LinkClass::HZ_30).autonomous_fps == 30 && !profileFor(LinkClass::HZ_30).reduced_motion);
+  CHECK(profileFor(LinkClass::HZ_15).autonomous_fps == 15 && profileFor(LinkClass::HZ_15).reduced_motion);
+  CHECK(profileFor(LinkClass::HZ_5).autonomous_fps == 5 && profileFor(LinkClass::HZ_1).autonomous_fps == 1);
+}
+
+TEST(frame_due_holds_back_only_what_nobody_asked_for) {
+  using namespace std::chrono;
+  auto idle = milliseconds(100);
+  PerformanceProfile five = profileFor(cellui::LinkClass::HZ_5);
+  // A key's frame is never held back.
+  CHECK(frameDue(milliseconds(1), true, false, five, idle));
+  // Audio-driven news waits for the class's gap (200 ms at 5 a second).
+  CHECK(!frameDue(milliseconds(150), false, true, five, idle));
+  CHECK(frameDue(milliseconds(201), false, true, five, idle));
+  // Where nothing wants a frame, the idle gap holds even at full speed.
+  PerformanceProfile full = profileFor(cellui::LinkClass::FULL);
+  CHECK(!frameDue(milliseconds(50), false, false, full, idle));
+  CHECK(frameDue(milliseconds(101), false, false, full, idle));
+  CHECK(frameDue(milliseconds(17), false, true, full, idle));
 }

@@ -571,7 +571,11 @@ deflate ratio on real charts is known.
    all of them.
 5. **App profile** (3.6, 3.7): scope/meter rates and off, animations, page scrolling, hover, mouse
    reporting. UI tests per class with `TestBackend`; a harness run at 50 kB/s asserts the editor
-   stays usable (key latency, fps).
+   stays usable (key latency, fps). First slice done (`src/ui/PerformanceProfile.h`): `profileFor()` gives
+   each class its **autonomous frame cap** (60/30/15/5/1 a second; a frame the user's input caused is
+   exempt) and **reduced motion** from `HZ_15` down (on top of the user's own setting), applied by
+   `InteractiveUI::applyProfile()` when the link handler fires. Still to do: scope and meter rates and
+   off, page scrolling, hover and mouse reporting, pointer-shape updates, the backdrop choices.
 6. **Colours** (section 2): the `ansi16` theme and track-colour table, `MONO` with reverse video;
    grey only if asked.
 7. **Window class** from the frame clock and vsync (section 1).

@@ -2,6 +2,7 @@
 
 #include "../playback/InputEvent.h"
 #include "../Controller.h"
+#include "PerformanceProfile.h"
 #include "UIMenu.h"
 #include "CommandDescriptions.h"
 #include "HeatmapChart.h"
@@ -474,7 +475,11 @@ InteractiveUI::escapeIndicatorPollTimeoutMs() const {
 void
 InteractiveUI::initialize(std::shared_ptr<Controller> & controller) {
   // A change of the link's class shows in the info line, so a frame is wanted.
-  backend_.setLinkHandler([this](const cellui::LinkStatus &) { backend_.requestFrame(); });
+  backend_.setLinkHandler([this](const cellui::LinkStatus & status) {
+    applyProfile(status.cls);
+    backend_.requestFrame();
+  });
+  applyProfile(backend_.linkStatus().cls);
   const auto & display = backend_.display();
   bool use_pixel = display.pictures && display.cell_px_height > 0 && display.cell_px_width > 0;
   auto root_plane = make_unique<cellui::BufferPlane>(screen_, styles_, controller);
@@ -614,6 +619,16 @@ InteractiveUI::applyTheme(const Theme & theme) {
 }
 
 void InteractiveUI::setReducedMotion(bool reduced) {
+  user_reduced_motion_ = reduced;
+  styles_.reduced_motion = user_reduced_motion_ || profile_.reduced_motion;
+  force_next_render_ = true;
+}
+
+// What the link allows: the user's choice of reduced motion stays on whatever the link.
+void InteractiveUI::applyProfile(cellui::LinkClass cls) {
+  profile_ = profileFor(cls);
+  bool reduced = user_reduced_motion_ || profile_.reduced_motion;
+  if (reduced == styles_.reduced_motion) return;
   styles_.reduced_motion = reduced;
   force_next_render_ = true;
 }
@@ -2311,7 +2326,7 @@ InteractiveUI::startUI(AudioAPI &, MidiInput & midi, LaunchpadIO & launchpad_io)
       // A wake nothing asked a redraw of (the audio blocks, ~190 a second)
       // looks for news at most this often.
       auto now = std::chrono::steady_clock::now();
-      if (!other_wake && !render_pending && !redraw_requested_ && now - last_frame < kIdleFrameInterval) {
+      if (!frameDue(now - last_frame, other_wake || redraw_requested_, render_pending, profile_, kIdleFrameInterval)) {
         count("idle-wake-skipped");
         return;
       }

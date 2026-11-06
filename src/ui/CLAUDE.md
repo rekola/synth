@@ -34,6 +34,13 @@ headers for what moved to cellui. The UI sources are the `synth_ui` library.
   `showChoiceDialog()`/`showInfoDialog()` therefore return once closed; tests
   run their checks in `UIFixture::inModal()`.
 
+## Link profile
+
+`PerformanceProfile.h`: `profileFor(LinkClass)` is what the app draws by link class (`plans/link-degradation.md`
+3.7). `InteractiveUI::applyProfile()` runs when the backend's link handler fires. So far: a cap on autonomous
+redraws (`frameDue()`: a frame an input or an edit asked for is never held back, one only the audio blocks
+want waits for the class's gap) and reduced motion from 15 Hz down, which adds to the user's own setting.
+
 ## Where commands live
 
 Commands (`CommandRegistry` names, run by a key or M-x) live in
