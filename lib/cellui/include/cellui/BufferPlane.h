@@ -7,9 +7,12 @@
 #include <cellui/PlaneInfo.h>
 #include <cellui/Plane.h>
 
+#include <functional>
+#include <map>
 #include <memory>
 #include <optional>
 #include <string>
+#include <tuple>
 #include <utility>
 #include <vector>
 
@@ -132,8 +135,13 @@ class BufferPlane : public Plane {
   void drawImage(const std::vector<uint32_t> & pixels, int width, int height, uint64_t id = 0) override;
   void drawImageAt(int row, int col, const std::vector<uint32_t> & pixels, int width, int height, uint64_t id = 0, int clip_top = INT_MIN,
                    int clip_bottom = INT_MAX) override;
-  // The cell size in pixels, 0 when pixels cannot be shown (root only).
+  void drawSharedImageAt(int row, int col, ImageKey key, int width, int height, const std::function<std::vector<uint32_t>()> & render,
+                         int clip_top = INT_MIN, int clip_bottom = INT_MAX) override;
+  void invalidateSharedImages() override { root().shared_images_.clear(); }
+  // The cell size in pixels, 0 when pixels cannot be shown (root only). A new size empties the shared
+  // pictures: they were drawn for the old one.
   void setCellPixelSize(int height, int width) {
+    if (height != cell_px_h_ || width != cell_px_w_) shared_images_.clear();
     cell_px_h_ = height;
     cell_px_w_ = width;
   }
@@ -167,7 +175,10 @@ class BufferPlane : public Plane {
   void setKeymapProfile(KeymapProfile profile) { keymap_profile_ = profile; }
   KeymapProfile keymapProfile() const override { return root().keymap_profile_; }
   // What displayScale() reports, for the whole tree (root only).
-  void setDisplayScale(double scale) { display_scale_ = scale; }
+  void setDisplayScale(double scale) {
+    if (scale != display_scale_) shared_images_.clear();
+    display_scale_ = scale;
+  }
   double displayScale() const override { return root().display_scale_; }
   // Where the terminal's cursor goes: in the open reader, if any (root only).
   std::optional<std::pair<int, int>> cursorPosition() const;
@@ -262,7 +273,10 @@ class BufferPlane : public Plane {
     uint64_t identity = 0;  // the caller's id, or a hash of the pixels
     bool explicit_id = false;
     int clip_top = INT_MIN, clip_bottom = INT_MAX;  // plane rows it shows in
+    ImageKey shared;  // set for a picture of Plane::drawSharedImageAt()
   };
+  // The pictures of drawSharedImageAt(), by key and size (root only).
+  std::map<std::tuple<std::string, uint64_t, int, int>, std::shared_ptr<Image>> shared_images_;
   std::vector<PlacedImage> images_;
   std::vector<PlacedImage> erased_images_;  // what erase() last took away
 };

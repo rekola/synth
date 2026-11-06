@@ -62,27 +62,36 @@ void drawDial(Plane & plane, int row, int col, int rows, int cols, const DialRea
   }
   unsigned width = static_cast<unsigned>(cols * cell_w), height = static_cast<unsigned>(rows * cell_h);
   float scale = static_cast<float>(plane.displayScale());
-  // The frame redraws far more often than a dial changes: keep the last
-  // pictures by what they show.
-  using Key = std::tuple<std::string, int, uint32_t, uint32_t, uint32_t, unsigned, unsigned, int, std::string>;
+  // The picture depends only on what it shows, so it is shared by key: drawn once for the whole tree,
+  // and dials that show the same (every send of a track at its default, say) are one picture, which a
+  // terminal that stores pictures takes once.
   auto quantized = static_cast<int>(std::clamp(reading.fraction, 0.0f, 1.0f) * 1024.0f + 0.5f);
   auto fg = look.foreground.toSrgb8(), bg = look.background.toSrgb8();
-  auto pack = [](const std::array<uint8_t, 3> & c) { return static_cast<uint32_t>(c[0]) << 16 | static_cast<uint32_t>(c[1]) << 8 | c[2]; };
-  Key key{reading.letter, quantized, pack(fg), pack(bg), reading.editing ? 1u : 0u, width, height, static_cast<int>(scale * 100.0f),
-          reading.editing ? reading.edit_text : std::string()};
-  static thread_local std::map<Key, std::vector<uint32_t>> cache;
-  auto found = cache.find(key);
-  if (found == cache.end()) {
-    if (cache.size() > 512) cache.clear();
-    DialReading quantized_reading = reading;
-    quantized_reading.fraction = static_cast<float>(quantized) / 1024.0f;
-    found = cache.emplace(key, dial_image::render(quantized_reading, look, width, height, scale)).first;
+  auto pack = [](const std::array<uint8_t, 3> & c) { return static_cast<uint64_t>(c[0]) << 16 | static_cast<uint64_t>(c[1]) << 8 | c[2]; };
+  uint64_t hash = 14695981039346656037ull;
+  auto mix = [&](uint64_t v) { hash = (hash ^ v) * 1099511628211ull; };
+  for (char c : reading.letter) mix(static_cast<uint64_t>(static_cast<unsigned char>(c)));
+  mix(static_cast<uint64_t>(quantized));
+  mix(pack(fg));
+  mix(pack(bg));
+  mix(reading.editing ? 1u : 0u);
+  mix(static_cast<uint64_t>(static_cast<int>(scale * 100.0f)));
+  if (reading.editing) {
+    for (char c : reading.edit_text) mix(static_cast<uint64_t>(static_cast<unsigned char>(c)));
   }
-  if (found->second.empty()) {  // canvas has no pixel backend
-    drawCellDial(plane, row, col, rows, cols, reading, look, clip_top, clip_bottom);
-    return;
-  }
-  plane.drawImageAt(row, col, found->second, static_cast<int>(width), static_cast<int>(height), id, clip_top, clip_bottom);
+  bool no_pixels = false;
+  plane.drawSharedImageAt(
+    row, col, ImageKey{"dial", hash}, static_cast<int>(width), static_cast<int>(height),
+    [&]() {
+      DialReading quantized_reading = reading;
+      quantized_reading.fraction = static_cast<float>(quantized) / 1024.0f;
+      std::vector<uint32_t> pixels = dial_image::render(quantized_reading, look, width, height, scale);
+      no_pixels = pixels.empty();
+      return pixels;
+    },
+    clip_top, clip_bottom);
+  if (no_pixels) drawCellDial(plane, row, col, rows, cols, reading, look, clip_top, clip_bottom);  // canvas has no pixel backend
+  (void)id;
 }
 
 float Dial::fraction() const { return std::clamp((value_ - spec_.min) / (spec_.max - spec_.min), 0.0f, 1.0f); }

@@ -103,6 +103,13 @@ carries the app's object as an opaque `getAppContext()`.
   look everywhere. `Plane::setBlend(mode, alpha)` blends a whole plane the
   same way. `Band::lift` raises a band above shadows so a lower area's shadow
   never falls on a cursor or playhead.
+- `Plane::drawSharedImageAt(row, col, ImageKey{kind, id}, w, h, render)`: a picture
+  whose pixels depend only on its key; the root keeps the pictures made by key
+  (`render` runs only for a key no plane has made; a new cell size or display
+  scale, or `invalidateSharedImages()` for a theme, empties it), and the kitty
+  encoder uploads one once however many places show it (a placement id each),
+  keeps it past its last place up to 8 MB and frees the oldest unplaced.
+  Statistics are by the kind (`dial`), or the size for pictures with no key.
 - `Plane::drawImageAt()`: a plane holds one image per cell position, covering
   only the cells it reaches; the same picture (by id or pixel hash) drawn
   again, even after `erase()` or at another position, keeps its key and

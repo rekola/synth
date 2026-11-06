@@ -83,12 +83,13 @@ class ImageEncoder {
     size_t upload = 0, placement = 0;
   };
   const Sizes & lastSizes() const { return sizes_; }
-  // What was uploaded, by picture size, since the last call: how many pictures and how
-  // many bytes of picture data. For measuring what a link carries.
+  // What was uploaded, by the kind of a shared picture ("dial") or the size of any other
+  // ("232x80"), since the last call: how many pictures and how many bytes of picture data. For
+  // measuring what a link carries.
   struct PictureStat {
     size_t uploads = 0, bytes = 0;
   };
-  std::map<std::pair<int, int>, PictureStat> takePictureStats() {
+  std::map<std::string, PictureStat> takePictureStats() {
     auto out = std::move(picture_stats_);
     picture_stats_.clear();
     return out;
@@ -107,6 +108,9 @@ class ImageEncoder {
   // Whether a palette PNG may be sent to kitty. A terminal that refuses one (an error reply to its
   // upload) turns it off for good, and quantised raw RGB, deflated, goes up in its place.
   bool palettePng() const { return palette_png_; }
+  // The most the terminal is asked to keep of shared pictures no placement shows, in bytes.
+  static constexpr size_t kSharedBudget = 8u << 20;
+  void setSharedBudget(size_t bytes) { shared_budget_ = bytes; }
   // Removes every image (kitty graphics; Sixel images go with the text).
   std::string clear();
 
@@ -123,8 +127,21 @@ class ImageEncoder {
     int row = 0, col = 0;
     std::vector<Rect> rects;  // what shows of it
     Image sent;               // (Sixel) the pixels last drawn, to send only the cells that changed
+    bool shared = false;      // (kitty) placed from a shared upload: only its placements go with it
+    uint32_t place_base = 0;  // (kitty, shared) its placement ids are this plus the rectangle's number
+  };
+  // (kitty) A shared picture is uploaded once, whatever the number of placements, and kept after its
+  // last placement goes, up to a budget of bytes (the terminal's own memory) and the oldest unplaced
+  // first. By the picture's version: the tree makes one picture for a key.
+  struct SharedUpload {
+    uint32_t id = 0;
+    size_t bytes = 0;  // what the terminal holds for it, decoded
+    uint64_t last_used = 0;
   };
 
+  void uploadKitty(const Image & img, uint32_t id, std::string & out);
+  std::string kittySharedPlacement(const CellBuffer & frame, const ImagePlacement & p, Shown & shown, bool fresh, bool cleared);
+  void evictSharedUploads(const std::set<uint32_t> & in_use, std::string & out);
   std::string kitty(const CellBuffer & frame, const ImagePlacement & p, Shown & shown, bool fresh, bool cleared);
   std::string sixel(const CellBuffer & frame, const ImagePlacement & p, Shown & shown, bool fresh, bool cleared);
   std::string iterm2(const CellBuffer & frame, const ImagePlacement & p, Shown & shown, bool fresh, bool cleared);
@@ -132,6 +149,10 @@ class ImageEncoder {
 
   Profile profile_;
   std::map<uint64_t, Shown> shown_;
+  std::map<uint64_t, SharedUpload> shared_uploads_;  // by picture version
+  uint64_t tick_ = 0;
+  size_t shared_budget_ = kSharedBudget;
+  uint32_t next_place_ = 0;
   uint32_t next_id_ = 0;
   bool sixel_ready_ = false;
   bool compress_ = true;
@@ -140,7 +161,7 @@ class ImageEncoder {
   std::set<uint32_t> png_ids_;  // kitty ids uploaded as a palette PNG and not yet confirmed
   std::set<uint32_t> deflated_ids_;  // kitty ids uploaded compressed and not yet confirmed
   Sizes sizes_;
-  std::map<std::pair<int, int>, PictureStat> picture_stats_;
+  std::map<std::string, PictureStat> picture_stats_;
 };
 
 // The pixels encoded as Sixel: covered pixels (where `keep` says false, one
