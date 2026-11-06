@@ -529,6 +529,12 @@ deflate ratio on real charts is known.
    --link-class`): Live View playing 360 kB/s full, 258 reduced, 185 low; Arrangement 402, 277, 216.
    On a 100 kB/s link the churn probe sends 7.5 kB frames instead of 25.8 kB, 13 frames a second
    instead of 4 (harness check 9).
+   Below full quality nothing is dithered but the pictures stretched over their cells (a blurred
+   backdrop, a smooth gradient), which would band: dithering is noise to a chart. On the real
+   charts the saving is small, within 3% either way (at 16 registers 3124 B against 3057 B on
+   average, and no change in error), because the dither already touches only a pixel more than 5
+   levels off its register; the rule is for the backdrops and for the palette PNGs, which do not
+   dither at all below full quality unless stretched.
 3. **Sixel** (3.3): palette and damage. **Done**, with these differences from 3.3: the palette is
    made once per rectangle of a picture (exact colours when they fit the registers, else a
    population-weighted median cut; `ImageEncoder::Profile::sixel_registers`, the terminal's count

@@ -654,3 +654,66 @@ TEST(reduced_quality_makes_iterm2_and_sixel_pictures_smaller_with_fewer_colours)
   sixel.setPictureQuality(PictureQuality::LOW);
   CHECK(count(sixel.encode(b, root.images(), true), ";2;") <= 16);
 }
+
+namespace {
+
+// A smooth two-way ramp: red along, green down, blue with both; thousands of colours, a few levels apart.
+Image ramp(int width, int height) {
+  Image img;
+  img.width = width;
+  img.height = height;
+  for (int y = 0; y < height; y++) {
+    for (int x = 0; x < width; x++) {
+      img.pixels.push_back(Image::pack(static_cast<uint8_t>(x * 255 / (width - 1)), static_cast<uint8_t>(y * 255 / (height - 1)),
+                                       static_cast<uint8_t>((x + y) * 255 / (width + height - 2))));
+    }
+  }
+  return img;
+}
+
+// The Sixel bytes for one picture at `quality`, with the profile's dither `method`.
+std::string sixelAt(const Image & picture, PictureQuality quality, Dither::Method method) {
+  ImageEncoder::Profile prof = profile(PixelProtocol::SIXEL);
+  prof.dither = method;
+  ImageEncoder enc(prof);
+  enc.setPictureQuality(quality);
+  int cols = picture.stretched() ? picture.cols : (picture.width + 1) / 2, rows = picture.stretched() ? picture.rows : (picture.height + 5) / 6;
+  CellBuffer b(rows + 1, cols);
+  CellBuffer::Cell marked;
+  marked.image = 1;
+  for (int r = 0; r < rows; r++) {
+    for (int c = 0; c < cols; c++) b.put(r, c, marked);
+  }
+  ImagePlacement place;
+  place.image = std::make_shared<const Image>(picture);
+  place.key = 1;
+  return enc.encode(b, {place}, true);
+}
+
+}  // namespace
+
+// A chart is not dithered below full quality (noise costs bytes a slow link has not got); at full quality
+// the colours the registers cannot hold are.
+TEST(sixel_is_not_dithered_below_full_quality) {
+  Image chart = ramp(64, 60);
+  CHECK(sixelAt(chart, PictureQuality::FULL, Dither::Method::ORDERED) != sixelAt(chart, PictureQuality::FULL, Dither::Method::NEAREST));
+  for (PictureQuality q : {PictureQuality::REDUCED, PictureQuality::LOW}) {
+    CHECK(sixelAt(chart, q, Dither::Method::ORDERED) == sixelAt(chart, q, Dither::Method::NEAREST));
+  }
+  CHECK(sixelAt(chart, PictureQuality::LOW, Dither::Method::ORDERED).size() < sixelAt(chart, PictureQuality::FULL, Dither::Method::ORDERED).size());
+}
+
+// A picture stretched over its cells (a blurred backdrop) is smooth and bands without dithering, so it
+// keeps it at any quality.
+TEST(a_stretched_picture_keeps_its_dither_on_a_slow_link) {
+  Image backdrop = ramp(40, 12);
+  backdrop.cols = 20;
+  backdrop.rows = 2;
+  for (PictureQuality q : {PictureQuality::REDUCED, PictureQuality::LOW}) {
+    CHECK(sixelAt(backdrop, q, Dither::Method::ORDERED) != sixelAt(backdrop, q, Dither::Method::NEAREST));
+  }
+  // The palette PNG of kitty and iTerm2 follows the same rule.
+  Image smooth = ramp(40, 12);
+  CHECK(encodePalettePng(smooth, 0, 0, 40, 12, 4, true) != encodePalettePng(smooth, 0, 0, 40, 12, 4, false));
+  CHECK(encodePalettePng(smooth, 0, 0, 40, 12, 4) == encodePalettePng(smooth, 0, 0, 40, 12, 4, false));
+}

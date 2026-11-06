@@ -38,7 +38,9 @@ struct Dither {
 // How many colours a picture keeps, which a slow link turns instead of the screen's colour: FULL sends
 // the pixels as they are (kitty and iTerm2 RGB, deflated; Sixel up to 128 registers), REDUCED and LOW
 // send a palette of at most 64 and 16 colours (a palette PNG for kitty and iTerm2, that many Sixel
-// registers). Charts have few colours, so REDUCED is close to lossless for them.
+// registers). Charts have few colours, so REDUCED is close to lossless for them. Below FULL nothing
+// is dithered but the pictures stretched over their cells (a blurred backdrop, a smooth gradient),
+// which would band: dithering is noise to a chart, and noise costs bytes a slow link has not got.
 enum class PictureQuality { FULL, REDUCED, LOW };
 // The palette size at a quality; 0 for FULL (no palette: the pixels as they are).
 int pictureColours(PictureQuality quality);
@@ -152,12 +154,13 @@ std::string encodeSixel(const Image & image, int x, int y, int width, int height
 std::vector<uint8_t> encodePng(const Image & image, int x, int y, int width, int height);
 
 // The same as a palette PNG (colour type 3) of at most `colours` colours: the picture's own when they
-// fit, else their median cut and dithered; 8 bits an index, or 4 for 16 colours or fewer. Exposed for
-// tests.
-std::vector<uint8_t> encodePalettePng(const Image & image, int x, int y, int width, int height, int colours);
+// fit, else their median cut (dithered where `dither` says: a smooth picture such as a blurred
+// backdrop bands without it, a chart only grows noise); 8 bits an index, or 4 for 16 colours or fewer.
+// Exposed for tests.
+std::vector<uint8_t> encodePalettePng(const Image & image, int x, int y, int width, int height, int colours, bool dither = false);
 
 // The picture's pixels (R, G, B) with their colours cut down to at most `colours`, as the palette PNG
 // shows them; for a terminal that takes no palette PNG.
-std::vector<uint8_t> quantisedRgb(const Image & image, int colours);
+std::vector<uint8_t> quantisedRgb(const Image & image, int colours, bool dither = false);
 
 }  // namespace cellui::term

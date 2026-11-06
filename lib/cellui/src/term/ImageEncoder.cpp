@@ -467,12 +467,13 @@ struct Indexed {
   std::vector<int> regs;  // one per pixel
 };
 
-Indexed indexPicture(const Image & image, int x, int y, int width, int height, int colours) {
+Indexed indexPicture(const Image & image, int x, int y, int width, int height, int colours, bool dithered) {
   Indexed out;
   std::vector<bool> all(static_cast<size_t>(width) * static_cast<size_t>(height), true);
   out.palette = makeSixelPalette(image, x, y, width, height, all, colours);
   bool transparent = false;
   Dither dither;  // fixed to the picture, so the same picture is the same bytes
+  dither.method = dithered ? Dither::Method::ORDERED : Dither::Method::NEAREST;
   out.regs = mapToRegisters(out.palette, image, x, y, width, height, all, dither, transparent);
   // A pixel too transparent to be drawn takes the first register: a palette PNG here has no alpha.
   for (int & reg : out.regs) {
@@ -484,8 +485,8 @@ Indexed indexPicture(const Image & image, int x, int y, int width, int height, i
 
 }  // namespace
 
-std::vector<uint8_t> encodePalettePng(const Image & image, int x0, int y0, int width, int height, int colours) {
-  Indexed picture = indexPicture(image, x0, y0, width, height, std::min(colours, 256));
+std::vector<uint8_t> encodePalettePng(const Image & image, int x0, int y0, int width, int height, int colours, bool dither) {
+  Indexed picture = indexPicture(image, x0, y0, width, height, std::min(colours, 256), dither);
   int bits = picture.palette.rgb.size() <= 16 ? 4 : 8;
   size_t row_bytes = bits == 4 ? (static_cast<size_t>(width) + 1) / 2 : static_cast<size_t>(width);
   std::vector<uint8_t> raw;
@@ -520,8 +521,8 @@ std::vector<uint8_t> encodePalettePng(const Image & image, int x0, int y0, int w
   return png;
 }
 
-std::vector<uint8_t> quantisedRgb(const Image & image, int colours) {
-  Indexed picture = indexPicture(image, 0, 0, image.width, image.height, colours);
+std::vector<uint8_t> quantisedRgb(const Image & image, int colours, bool dither) {
+  Indexed picture = indexPicture(image, 0, 0, image.width, image.height, colours, dither);
   std::vector<uint8_t> rgb;
   rgb.reserve(picture.regs.size() * 3);
   for (int reg : picture.regs) {
@@ -605,10 +606,10 @@ std::string ImageEncoder::kitty(const CellBuffer & frame, const ImagePlacement &
     int colours = pictureColours(quality_);
     if (colours > 0) {
       if (palette_png_) {
-        up.bytes = encodePalettePng(img, 0, 0, img.width, img.height, colours);
+        up.bytes = encodePalettePng(img, 0, 0, img.width, img.height, colours, img.stretched());
         up.png = true;
       } else {
-        up.bytes = quantisedRgb(img, colours);
+        up.bytes = quantisedRgb(img, colours, img.stretched());
         deflate(up);
       }
       if (img.pixels.size() <= kSmallPicturePixels) {
@@ -729,7 +730,9 @@ std::string ImageEncoder::sixel(const CellBuffer & frame, const ImagePlacement &
     into.position += place.size();
     into.bytes += place;
     Dither dither;
-    dither.method = profile_.dither;
+    // Dithering is noise to a chart and costs bytes: below full quality only a stretched picture (a blurred
+    // backdrop, a gradient) is dithered, as it would band.
+    dither.method = quality_ == PictureQuality::FULL || p.image->stretched() ? profile_.dither : Dither::Method::NEAREST;
     dither.origin_x = p.col * cw + x;
     dither.origin_y = p.row * ch + y;
     std::string data = encodeSixelWith(palette, img, x, y, w, h, keep, dither);
@@ -821,7 +824,7 @@ std::string ImageEncoder::iterm2(const CellBuffer & frame, const ImagePlacement 
     img.pixelSpan(r.row - p.row, r.rows, ch, false, y0, y1);
     if (x1 <= x0 || y1 <= y0) continue;
     int colours = pictureColours(quality_);
-    std::vector<uint8_t> png = colours > 0 ? encodePalettePng(img, x0, y0, x1 - x0, y1 - y0, colours) : encodePng(img, x0, y0, x1 - x0, y1 - y0);
+    std::vector<uint8_t> png = colours > 0 ? encodePalettePng(img, x0, y0, x1 - x0, y1 - y0, colours, img.stretched()) : encodePng(img, x0, y0, x1 - x0, y1 - y0);
     // Sized in cells, so the terminal's own pixel scale does not matter
     // (and a stretched picture is scaled by it).
     int rows = img.stretched() ? r.rows : (y1 - y0 + ch - 1) / ch, cols = img.stretched() ? r.cols : (x1 - x0 + cw - 1) / cw;
