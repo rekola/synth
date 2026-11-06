@@ -254,7 +254,7 @@ Controller-level and per-widget commands. Not migrated: `StatusLine`,
 - **Scrolling and the mouse**: the wheel scrolls the widget under the mouse
   without moving focus, and its view, never its cursor (so never the
   transport); Shift or the sideways wheel scrolls tracks, and the next cursor
-  move brings the view back. A notch moves three rows, more while notches
+  move brings the view back. A notch moves three rows (the outline: one), more while notches
   come quickly (`cellui::WheelAcceleration`); scrolling widgets ease to the
   new position. Left press picks cells: `ClipGrid` shows the cell pressed and
   on release moves cursor and track there and presses the slot like Enter;

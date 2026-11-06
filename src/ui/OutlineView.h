@@ -293,7 +293,7 @@ protected:
   // The tree's rows and columns: its offsets are the "new" scroll positions,
   // and what the last render drew is kept beside them.
   cellui::Viewport viewport_;
-  static constexpr int kWheelRows = 3; // rows one wheel notch scrolls, before acceleration
+  static constexpr int kWheelRows = 1; // rows one wheel notch scrolls, before acceleration
   cellui::WheelAcceleration wheel_acceleration_;
   double current_shown_row_ = -1;
   int current_first_row_ = 0;  // the first data row the tree plane was drawn from
