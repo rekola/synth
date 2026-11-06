@@ -163,7 +163,7 @@ struct Window::Impl {
   Com<ID2D1HwndRenderTarget> target;
   Com<IDWriteTextFormat> formats[4];  // by bold | italic << 1
   Com<IDWriteTextFormat> proportional[4];  // the same in the system UI font
-  std::map<int, Com<IDWriteTextFormat>> weighted;  // proportional, by weight*2 + italic, for the other weights
+  std::map<int, Com<IDWriteTextFormat>> weighted;  // the other weights, by (weight * 2 + italic) * 2 + proportional
   float font_size = 0;
   Com<ID2D1SolidColorBrush> brush;
 
@@ -237,6 +237,7 @@ struct Window::Impl {
   void drawCells(const CellBuffer & cells, bool transparent, int origin_row, int origin_col, double shift_x, double shift_y,
                  const CellRange * only = nullptr);
   // A proportional-text run in the box of `cols` cells at (x, y).
+  IDWriteTextFormat * textFormat(bool prop, int weight, bool italic);
   void drawTextRun(const TextRun & run, float x, float y, int box_cols, const Color & fg);
   // A blend laid over a region: the target has no blend modes, so what is
   // below is drawn again there with every colour blended (blendRegion()).
@@ -370,19 +371,22 @@ ID2D1Bitmap * Window::Impl::bitmapFor(const ImagePlacement & placement) {
   return b.bitmap.get();
 }
 
-void Window::Impl::drawTextRun(const TextRun & run, float x, float y, int box_cols, const Color & fg) {
-  IDWriteTextFormat * format = nullptr;
-  if (run.font == TextFont::PROPORTIONAL && run.weight != kWeightNormal && run.weight != kWeightBold) {
-    Com<IDWriteTextFormat> & slot = weighted[run.weight * 2 + (run.italic ? 1 : 0)];
-    if (!slot) {
-      dwrite->CreateTextFormat(L"Segoe UI", nullptr, static_cast<DWRITE_FONT_WEIGHT>(run.weight), run.italic ? DWRITE_FONT_STYLE_ITALIC : DWRITE_FONT_STYLE_NORMAL,
-                               DWRITE_FONT_STRETCH_NORMAL, font_size, L"", slot.put());
-      if (slot) slot->SetWordWrapping(DWRITE_WORD_WRAPPING_NO_WRAP);
-    }
-    format = slot.get();
-  } else {
-    format = (run.font == TextFont::PROPORTIONAL ? proportional : formats)[(run.weight >= 600 ? 1 : 0) | (run.italic ? 2 : 0)].get();
+// The face for a weight and slant: the four made at start for normal and
+// bold, any other made on first use.
+IDWriteTextFormat * Window::Impl::textFormat(bool prop, int weight, bool italic) {
+  if (weight == kWeightNormal || weight == kWeightBold) return (prop ? proportional : formats)[(weight == kWeightBold ? 1 : 0) | (italic ? 2 : 0)].get();
+  Com<IDWriteTextFormat> & slot = weighted[(weight * 2 + (italic ? 1 : 0)) * 2 + (prop ? 1 : 0)];
+  if (!slot) {
+    std::wstring family = prop ? std::wstring(L"Segoe UI") : widen(options.font);
+    dwrite->CreateTextFormat(family.c_str(), nullptr, static_cast<DWRITE_FONT_WEIGHT>(weight), italic ? DWRITE_FONT_STYLE_ITALIC : DWRITE_FONT_STYLE_NORMAL,
+                             DWRITE_FONT_STRETCH_NORMAL, font_size, L"", slot.put());
+    if (slot) slot->SetWordWrapping(DWRITE_WORD_WRAPPING_NO_WRAP);
   }
+  return slot.get();
+}
+
+void Window::Impl::drawTextRun(const TextRun & run, float x, float y, int box_cols, const Color & fg) {
+  IDWriteTextFormat * format = textFormat(run.font == TextFont::PROPORTIONAL, run.weight, run.italic);
   if (!format) return;
   const float w = static_cast<float>(box_cols * cell_w), h = static_cast<float>(cell_h);
   std::wstring text = widen(run.text);
@@ -458,7 +462,7 @@ void Window::Impl::drawCells(const CellBuffer & cells, bool transparent, int ori
         // A double-width character spans its continuation cell too.
         bool wide = c + 1 < cells.cols() && cells.at(r, c + 1).continuation;
         std::wstring text = widen(cell.text);
-        IDWriteTextFormat * format = formats[(cell.bold ? 1 : 0) | (cell.italic ? 2 : 0)].get();
+        IDWriteTextFormat * format = textFormat(false, cell.weight, cell.italic);
         if (format) {
           brush->SetColor(colorOf(tinted(fg, x, y, w, h)));
           D2D1_RECT_F box = D2D1::RectF(x, y, x + (wide ? 2 * w : w), y + h);

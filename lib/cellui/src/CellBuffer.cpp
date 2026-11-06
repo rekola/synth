@@ -52,9 +52,9 @@ void CellBuffer::write(int row, int col, const std::string & text, const Style &
     }
     if (col >= col_lo && col + width <= col_hi) {
       Cell & cell = cells_[index(row, col)];
-      cell = Cell{glyph, style.fg, style.bg, style.bold, style.italic, style.underline, false, style.bg_blend, style.fg_contrast, 0, style.backdrop, style.lift, style.lift_joined, style.lift_shadow};
+      cell = Cell{glyph, style.fg, style.bg, style.weight, style.italic, style.underline, false, style.bg_blend, style.fg_contrast, 0, style.backdrop, style.lift, style.lift_joined, style.lift_shadow};
       if (width == 2) {
-        cells_[index(row, col + 1)] = Cell{"", style.fg, style.bg, style.bold, style.italic, style.underline, true, style.bg_blend, style.fg_contrast, 0, style.backdrop, style.lift, style.lift_joined, style.lift_shadow};
+        cells_[index(row, col + 1)] = Cell{"", style.fg, style.bg, style.weight, style.italic, style.underline, true, style.bg_blend, style.fg_contrast, 0, style.backdrop, style.lift, style.lift_joined, style.lift_shadow};
       }
       last_col = col;
     } else {
@@ -95,17 +95,17 @@ std::string CellBuffer::toAnsi(int max_rows) const {
     for (int c = 0; c < cols_; c++) {
       const Cell & cell = at(r, c);
       if (cell.continuation) continue;
-      Style want{cell.fg, cell.bg, cell.bold, cell.italic, cell.underline};
-      bool same = styled ? (want.bold == current.bold && want.italic == current.italic &&
+      Style want{cell.fg, cell.bg, cell.weight, cell.italic, cell.underline};
+      bool same = styled ? (want.bold() == current.bold() && want.italic == current.italic &&
                             want.underline == current.underline &&
                             want.fg.has_value() == current.fg.has_value() &&
                             want.bg.has_value() == current.bg.has_value() &&
                             (!want.fg || want.fg->toSrgb8() == current.fg->toSrgb8()) &&
                             (!want.bg || want.bg->toSrgb8() == current.bg->toSrgb8()))
-                         : !want.fg && !want.bg && !want.bold && !want.italic && !want.underline;
+                         : !want.fg && !want.bg && !want.bold() && !want.italic && !want.underline;
       if (!same) {
         out += "\x1b[0";
-        if (want.bold) out += ";1";
+        if (want.bold()) out += ";1";
         if (want.italic) out += ";3";
         if (want.underline) out += ";4";
         if (want.fg) {

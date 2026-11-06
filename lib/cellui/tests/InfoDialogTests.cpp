@@ -23,7 +23,7 @@ TEST(infodialog_draws_a_titled_panel_without_a_border_around_wrapped_markdown) {
         "    Hi\n"
         "\n"
         "    Some words here\n");
-  CHECK(b.at(2, 4).bold);
+  CHECK(b.at(2, 4).bold());
 }
 
 TEST(infodialog_cuts_text_that_does_not_fit_the_rows) {
@@ -48,8 +48,8 @@ TEST(infodialog_bold_and_italic_runs_keep_their_style) {
   d.move(0, 0);
   root.refresh();
   // Row 3: "plain bold and italic" - the text starts in column 2.
-  CHECK(!b.at(3, 2).bold);
-  CHECK(b.at(3, 8).bold);
+  CHECK(!b.at(3, 2).bold());
+  CHECK(b.at(3, 8).bold());
   CHECK(b.at(3, 17).italic);
 }
 

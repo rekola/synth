@@ -88,8 +88,11 @@ void BufferPlane::moveToTop() {
   siblings.push_back(this);
 }
 
-void BufferPlane::putstr(int y, int x, const std::string & s) {
-  local_.write(y, x, s, style_);
+void BufferPlane::putstr(int y, int x, const std::string & s, const TextFace & face) {
+  CellBuffer::Style style = style_;
+  style.weight = static_cast<uint16_t>(std::clamp(face.weight, 100, 900));
+  style.italic = face.slant == TextSlant::ITALIC;
+  local_.write(y, x, s, style);
 }
 
 void BufferPlane::putText(int y, int x, int cols, const std::string & text, const TextStyle & style) {
@@ -102,12 +105,12 @@ void BufferPlane::putText(int y, int x, int cols, const std::string & text, cons
   // The box in the plane's own style, as blank cells, each marked with the
   // run: the display draws the text over them, and writing over a cell
   // takes it back.
-  putstr(y, x, std::string(static_cast<size_t>(cols), ' '));
+  putstr(y, x, std::string(static_cast<size_t>(cols), ' '), kPlainFace);
   TextRun run;
   run.text = text;
   run.fg = style_.fg;
-  run.weight = resolveWeight(style, style_.bold);
-  run.italic = resolveItalic(style, style_.italic);
+  run.weight = std::clamp(style.face.weight, 100, 900);
+  run.italic = style.face.slant == TextSlant::ITALIC;
   run.underline = style_.underline;
   run.font = style.font;
   run.overflow = style.overflow;

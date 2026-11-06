@@ -40,7 +40,7 @@ TEST(menubar_header_and_open_section) {
   CHECK(plane->getDim() == std::pair(5, 30));
   root.refresh();
   CHECK(b.toPlainText() == "  File  Help\n");
-  CHECK(b.at(0, 2).bold && b.at(0, 2).underline && !b.at(0, 3).bold);
+  CHECK(b.at(0, 2).bold() && b.at(0, 2).underline && !b.at(0, 3).bold());
   CHECK(offer(menu, key('f', true)));
   root.refresh();
   CHECK(b.toPlainText() == "  File  Help\n   Open\n   ────\n   Quit\n");

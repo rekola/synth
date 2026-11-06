@@ -292,7 +292,7 @@ class CanvasRasterizer : public CellRasterizer {
         Color fg = first.fg.value_or(default_fg);
         auto fg8 = fg.toSrgb8();
         ctx.fillStyle = canvas::Color(fg8[0] / 255.0f, fg8[1] / 255.0f, fg8[2] / 255.0f, 1.0f);
-        ctx.font.weight = first.bold ? "bold" : "normal";
+        ctx.font.weight = first.bold() ? "bold" : "normal";
         ctx.font.style = first.italic ? canvas::Font::ITALIC : canvas::Font::NORMAL_STYLE;
         auto draw = [&](const std::string & text, int at, const std::string & family) {
           if (text.empty()) return;
@@ -303,7 +303,7 @@ class CanvasRasterizer : public CellRasterizer {
           const CellBuffer::Cell & cell = cells.at(r, c);
           if (cell.continuation) continue;
           Color cell_fg = cell.fg.value_or(default_fg);
-          if (cell.image > 0 || cell.bold != first.bold || cell.italic != first.italic || cell_fg.toSrgb8() != fg8 || drawShape(none, cell, 0, 0, 1, 1, Color()))
+          if (cell.image > 0 || cell.bold() != first.bold() || cell.italic != first.italic || cell_fg.toSrgb8() != fg8 || drawShape(none, cell, 0, 0, 1, 1, Color()))
             break;
           const std::string & other = fonts_.familyFor(firstCodepoint(cell.text));
           if (!other.empty()) {

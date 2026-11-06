@@ -3096,10 +3096,8 @@ PatternEditor::renderHeadingOnPlane(const StyleProvider & styles, const std::vec
 	    auto upright_len = std::min(name.size(), prefix.size());
 	    putstr(heading_height - 2 - level, name_pos, name.substr(0, upright_len));
 	    if (upright_len < name.size()) {
-	      setItalic(true);
-	      putstr(heading_height - 2 - level, name_pos + static_cast<int>(upright_len), name.substr(upright_len));
-	      setItalic(false);
-	    }
+              putstr(heading_height - 2 - level, name_pos + static_cast<int>(upright_len), name.substr(upright_len), cellui::kItalicFace);
+            }
 	    // Cache this track's own name-field position for
 	    // startTrackNameEdit() - only when it's both the one the cursor
 	    // is actually on and one that has a name field to begin with

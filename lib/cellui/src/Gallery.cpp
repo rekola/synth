@@ -29,8 +29,7 @@ class Page {
   }
 
   void style(bool bold, bool italic, bool underline) {
-    plane_.setBold(bold);
-    plane_.setItalic(italic);
+    face_ = TextFace{ bold ? kWeightBold : kWeightNormal, italic ? TextSlant::ITALIC : TextSlant::UPRIGHT };
     plane_.setUnderline(underline);
   }
 
@@ -39,7 +38,7 @@ class Page {
     plane_.setBgColor(bg);
   }
 
-  void text(int col, const std::string & s) { plane_.putstr(row_, col, s); }
+  void text(int col, const std::string & s) { plane_.putstr(row_, col, s, face_); }
 
   void heading(const std::string & title) {
     plain();
@@ -57,6 +56,7 @@ class Page {
 
  private:
   Plane & plane_;
+  TextFace face_;
   const Theme & theme_;
   int row_ = 0;
 };

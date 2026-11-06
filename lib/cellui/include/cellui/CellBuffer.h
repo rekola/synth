@@ -3,6 +3,7 @@
 #include <cellui/Backdrop.h>
 #include <cellui/Color.h>
 
+#include <cstdint>
 #include <optional>
 #include <string>
 #include <vector>
@@ -24,9 +25,10 @@ class CellBuffer {
   struct Cell {
     std::string text = " ";
     std::optional<Color> fg, bg;  // unset = the terminal's own colour
-    bool bold = false;
+    uint16_t weight = 400;  // 100..900
     bool italic = false;
     bool underline = false;
+    bool bold() const { return weight >= 600; }
     // The right half of a double-width cell before it; draws nothing.
     bool continuation = false;
     // When composed over another plane: the background is averaged with
@@ -54,9 +56,10 @@ class CellBuffer {
 
   struct Style {
     std::optional<Color> fg, bg;
-    bool bold = false;
+    uint16_t weight = 400;
     bool italic = false;
     bool underline = false;
+    bool bold() const { return weight >= 600; }
     bool bg_blend = false;
     bool fg_contrast = false;
     Backdrop backdrop = {};
@@ -78,7 +81,7 @@ class CellBuffer {
   // A cell nothing was written to (or that was erased): transparent when a
   // plane is drawn over another.
   static bool isBlank(const Cell & c) {
-    return c.text == " " && !c.fg && !c.bg && !c.bold && !c.italic && !c.underline && !c.continuation &&
+    return c.text == " " && !c.fg && !c.bg && c.weight == 400 && !c.italic && !c.underline && !c.continuation &&
            !c.bg_blend && !c.fg_contrast && !c.image && !c.text_run && !c.backdrop.active();
   }
 

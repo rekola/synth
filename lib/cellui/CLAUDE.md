@@ -122,8 +122,11 @@ carries the app's object as an opaque `getAppContext()`.
 
 - `Plane::putText(y, x, cols, text, TextStyle)` gives text a box of `cols`
   cells and lets the display lay it out; the app never measures it. Overflow
-  is `CLIP` or `ELLIPSIS`; weight (100-900) and slant are the call's own, else
-  the plane's bold/italic. A display with `DisplayInfo::proportional_text`
+  is `CLIP` or `ELLIPSIS`. Weight and slant are not plane state: `putstr()` and
+  `putText()` take a `TextFace` (`TextStyle.h`: weight 100-900, default 400,
+  and `TextSlant`; `kBoldFace`, `kItalicFace`), and a `Cell` keeps both
+  (`Cell::weight`, `italic`), so the windows draw any weight in cell text as in
+  a `TextRun` and the terminal writes SGR bold from 600 (`Cell::bold()`). A display with `DisplayInfo::proportional_text`
   (the GTK window; Win32 with DirectWrite, unrun) marks the box's cells
   (`Cell::text_run`) and reports `FrameInfo::text_runs`, set in the system UI
   font sized to the cell height; any other display, or a `MONOSPACE` request,

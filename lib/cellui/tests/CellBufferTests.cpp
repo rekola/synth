@@ -51,11 +51,11 @@ TEST(cellbuffer_clear_resets_style_too) {
   CellBuffer b(1, 4);
   CellBuffer::Style s;
   s.fg = Color("#ff0000");
-  s.bold = true;
+  s.weight = 700;
   b.write(0, 0, "abcd", s);
   b.clear(0, 1, 1, 2);
-  CHECK(b.at(0, 0).bold);
-  CHECK(!b.at(0, 1).bold && !b.at(0, 1).fg);
+  CHECK(b.at(0, 0).bold());
+  CHECK(!b.at(0, 1).bold() && !b.at(0, 1).fg);
   CHECK(b.toPlainText() == "a  d\n");
 }
 
@@ -71,7 +71,8 @@ TEST(cellbuffer_ansi_changes_style_only_where_it_changes) {
 TEST(cellbuffer_ansi_encodes_each_attribute) {
   CellBuffer b(1, 1);
   CellBuffer::Style s;
-  s.bold = s.italic = s.underline = true;
+  s.weight = 700;
+  s.italic = s.underline = true;
   s.bg = Color("#000102");
   b.write(0, 0, "x", s);
   CHECK(b.toAnsi() == "\x1b[0;1;3;4;48;2;0;1;2mx\x1b[0m\n");

@@ -64,7 +64,6 @@ void MenuBar::draw() {
 
   // The header row, filled across, each name with its mnemonic marked.
   ink(colors_.header_fg, colors_.header_bg);
-  plane_.setBold(false);
   plane_.putstr(0, 0, std::string(static_cast<size_t>(cols_), ' '));
   for (size_t i = 0; i < sections_.size(); i++) {
     const Section & s = sections_[i];
@@ -76,15 +75,11 @@ void MenuBar::draw() {
     for (const std::string & c : clusters) {
       bool mark = !marked && s.mnemonic && c.size() == 1 && lower(c[0]) == lower(s.mnemonic);
       if (mark) {
-        plane_.setBold(true);
         plane_.setUnderline(true);
         marked = true;
       }
-      plane_.putstr(0, x, c);
-      if (mark) {
-        plane_.setBold(false);
-        plane_.setUnderline(false);
-      }
+      plane_.putstr(0, x, c, mark ? kBoldFace : kPlainFace);
+      if (mark) plane_.setUnderline(false);
       x += utf8::displayWidth(c);
     }
   }

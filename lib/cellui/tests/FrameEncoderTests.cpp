@@ -109,7 +109,7 @@ TEST(encoder_sends_only_style_and_colour_changes) {
   CellBuffer f(2, 20);
   e.encode(f);
   CellBuffer::Style bold = fg(1, 2, 3);
-  bold.bold = true;
+  bold.weight = 700;
   CellBuffer::Style plain = fg(1, 2, 3);
   plain.bg = Color(4, 5, 6);
   f.write(0, 0, "ab", bold);

@@ -98,9 +98,7 @@ TEST(testbackend_frame_gives_text_styles_planes_and_focus) {
   CellBuffer screen(2, 8);
   BufferPlane root(screen, styles);
   root.setFgColor(255, 0, 0);
-  root.setBold(true);
-  root.putstr(0, 0, "ab");
-  root.setBold(false);
+  root.putstr(0, 0, "ab", kBoldFace);
   root.setFgColor(0, 255, 0);
   root.putstr(0, 2, "c");
   auto child = root.createChild();
@@ -111,8 +109,8 @@ TEST(testbackend_frame_gives_text_styles_planes_and_focus) {
   draw(t, root, screen, "editor");
 
   CHECK(t.text() == "abc\n  xyz\n");
-  CHECK(t.frame().at(0, 0).bold && t.frame().at(0, 0).fg && t.frame().at(0, 0).fg->getRed() == 255);
-  CHECK(!t.frame().at(0, 2).bold && t.frame().at(0, 2).fg && t.frame().at(0, 2).fg->getGreen() == 255);
+  CHECK(t.frame().at(0, 0).bold() && t.frame().at(0, 0).fg && t.frame().at(0, 0).fg->getRed() == 255);
+  CHECK(!t.frame().at(0, 2).bold() && t.frame().at(0, 2).fg && t.frame().at(0, 2).fg->getGreen() == 255);
   CHECK(t.info().focus == "editor");
   CHECK(t.info().planes.children.size() == 1);
   const auto & box = t.info().planes.children[0];

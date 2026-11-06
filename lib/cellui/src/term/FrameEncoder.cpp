@@ -47,7 +47,7 @@ bool sameColor(const std::optional<Color> & a, const std::optional<Color> & b) {
 }
 
 bool sameCell(const CellBuffer::Cell & a, const CellBuffer::Cell & b) {
-  return a.text == b.text && a.continuation == b.continuation && a.image == b.image && a.bold == b.bold && a.italic == b.italic &&
+  return a.text == b.text && a.continuation == b.continuation && a.image == b.image && a.bold() == b.bold() && a.italic == b.italic &&
          a.underline == b.underline && sameColor(a.fg, b.fg) && sameColor(a.bg, b.bg);
 }
 
@@ -144,13 +144,13 @@ void FrameEncoder::pen(std::string & out, const CellBuffer::Cell & cell) {
   };
   if (!pen_known_) {
     add("0");
-    if (cell.bold) add("1");
+    if (cell.bold()) add("1");
     if (cell.italic) add("3");
     if (cell.underline) add("4");
     if (fg.kind != Ink::DEFAULT) add(color(fg, false));
     if (bg.kind != Ink::DEFAULT) add(color(bg, true));
   } else {
-    if (cell.bold != bold_) add(cell.bold ? "1" : "22");
+    if (cell.bold() != bold_) add(cell.bold() ? "1" : "22");
     if (cell.italic != italic_) add(cell.italic ? "3" : "23");
     if (cell.underline != underline_) add(cell.underline ? "4" : "24");
     if (fg != fg_) add(color(fg, false));
@@ -160,7 +160,7 @@ void FrameEncoder::pen(std::string & out, const CellBuffer::Cell & cell) {
   pen_known_ = true;
   fg_ = fg;
   bg_ = bg;
-  bold_ = cell.bold;
+  bold_ = cell.bold();
   italic_ = cell.italic;
   underline_ = cell.underline;
 }

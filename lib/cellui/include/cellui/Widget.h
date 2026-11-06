@@ -153,8 +153,8 @@ class Widget {
     return commands_.matching(std::string(prefix));
   }
 
-  Widget & putstr(int y, int x, const std::string & s) {
-    if (plane_) plane_->putstr(y, x, s);
+  Widget & putstr(int y, int x, const std::string & s, const TextFace & face = {}) {
+    if (plane_) plane_->putstr(y, x, s, face);
     return *this;
   }
   // See Plane::putText().
@@ -162,11 +162,11 @@ class Widget {
     if (plane_) plane_->putText(y, x, cols, text, style);
     return *this;
   }
-  Widget & putstr(int y, int x, char c) {
+  Widget & putstr(int y, int x, char c, const TextFace & face = {}) {
     if (plane_) {
       std::string s;
       s += c;
-      plane_->putstr(y, x, s);
+      plane_->putstr(y, x, s, face);
     }
     return *this;
   }
@@ -217,14 +217,6 @@ class Widget {
   }
   Widget & setUnderline(bool b) {
     if (plane_) plane_->setUnderline(b);
-    return *this;
-  }
-  Widget & setBold(bool b) {
-    if (plane_) plane_->setBold(b);
-    return *this;
-  }
-  Widget & setItalic(bool b) {
-    if (plane_) plane_->setItalic(b);
     return *this;
   }
   Widget & setLift(float lift, bool joins_above = false, bool casts_shadow = true) {

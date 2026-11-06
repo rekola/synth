@@ -21,10 +21,8 @@ class RecordingPlane : public Plane {
   void setFgColor(const Color & color) override { fg_red = color.getRed(); }
   void setBgColor(const Color &) override { }
   void setUnderline(bool) override { }
-  void setBold(bool) override { }
-  void setItalic(bool) override { }
   void erase() override { drawn.clear(); }
-  void putstr(int, int, const std::string & s) override { drawn += s; }
+  void putstr(int, int, const std::string & s, const TextFace &) override { drawn += s; }
   std::unique_ptr<Plane> createChild() override { return std::make_unique<RecordingPlane>(getStyles()); }
   void drawBorder() override { }
   bool offerKey(const KeyDown &) override { return true; }
