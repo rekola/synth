@@ -40,11 +40,9 @@ class HeadlessPlane : public Plane {
   using Plane::setFgColor;
   void setFgColor(const Color &) override {}
   void setBgColor(const Color &) override {}
-  void setUnderline(bool) override { }
-  void setBold(bool) override { }
-  void setItalic(bool) override { }
+  void setUnderline(bool) override {}
   void erase() override { }
-  void putstr(int, int, const std::string &) override { }
+  void putstr(int, int, const std::string &, const cellui::TextFace &) override {}
   std::unique_ptr<Plane> createChild() override { return std::make_unique<HeadlessPlane>(getAppContext(), getStyles()); }
   void drawBorder() override { }
   bool offerInput(const cellui::Input &) override { return false; }

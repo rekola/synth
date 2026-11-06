@@ -943,9 +943,7 @@ ClipGrid::render(const StyleProvider & styles, bool refresh, bool focused) {
     auto upright_len = std::min(header.size(), prefix.size());
     header_plane.putstr(0, x + chip_width, header.substr(0, upright_len));
     if (upright_len < header.size()) {
-      header_plane.setItalic(true);
-      header_plane.putstr(0, x + chip_width + static_cast<int>(upright_len), header.substr(upright_len));
-      header_plane.setItalic(false);
+      header_plane.putstr(0, x + chip_width + static_cast<int>(upright_len), header.substr(upright_len), cellui::kItalicFace);
     }
     if (chip_width > 0) {
       header_plane.setFgColor(styles.trackChipColor(structure.getBaselineInfo(track_id).color_ordinal_));

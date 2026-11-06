@@ -72,13 +72,12 @@ TEST(bufferplane_carries_style_and_app_context) {
   CHECK(&child->getStyles() == &styles);
   child->setFgColor(1, 2, 3);
   child->setBgColor(4, 5, 6);
-  child->setBold(true);
   child->setUnderline(true);
-  child->putstr(0, 0, "a");
+  child->putstr(0, 0, "a", kBoldFace);
   root.refresh();
   CHECK(b.at(0, 0).fg && b.at(0, 0).fg->getGreen() == 2);
   CHECK(b.at(0, 0).bg && b.at(0, 0).bg->getBlue() == 6);
-  CHECK(b.at(0, 0).bold && b.at(0, 0).underline && !b.at(0, 0).italic);
+  CHECK(b.at(0, 0).bold() && b.at(0, 0).underline && !b.at(0, 0).italic);
 }
 
 TEST(bufferplane_hidden_plane_and_its_children_are_not_shown) {
@@ -253,10 +252,10 @@ TEST(element_drawn_through_a_buffer_plane) {
   Widget e(root);
   e.resize(2, 5);
   e.move(1, 4);
-  e.setBold(true).putstr(0, 0, "title").putstr(1, 0, "second line");
+  e.putstr(0, 0, "title", kBoldFace).putstr(1, 0, "second line", kBoldFace);
   root.refresh();
   CHECK(b.toPlainText() == "\n    title\n    secon\n");
-  CHECK(b.at(1, 4).bold);
+  CHECK(b.at(1, 4).bold());
 }
 
 TEST(bufferplane_display_scale_is_the_roots) {
@@ -1141,9 +1140,8 @@ TEST(bufferplane_put_text_weight_and_slant_are_per_call) {
   BufferPlane root(b, styles);
   root.setProportionalText(true);
   root.putText(0, 0, 4, "a", TextStyle{});
-  root.putText(1, 0, 4, "b", TextStyle{ TextFont::PROPORTIONAL, TextOverflow::CLIP, 300, TextSlant::ITALIC });
-  root.setBold(true);
-  root.putText(2, 0, 4, "c", TextStyle{ TextFont::PROPORTIONAL, TextOverflow::CLIP, 0, TextSlant::UPRIGHT });
+  root.putText(1, 0, 4, "b", TextStyle{ TextFont::PROPORTIONAL, TextOverflow::CLIP, TextFace{ 300, TextSlant::ITALIC } });
+  root.putText(2, 0, 4, "c", TextStyle{ TextFont::PROPORTIONAL, TextOverflow::CLIP, kBoldFace });
   root.refresh();
   auto runs = root.takeTextRuns();
   CHECK(runs.size() == 3);
@@ -1156,12 +1154,14 @@ TEST(bufferplane_put_text_cells_fallback_uses_bold_from_600) {
   StyleProvider styles;
   CellBuffer b(3, 8);
   BufferPlane root(b, styles);
-  root.putText(0, 0, 4, "a", TextStyle{ TextFont::PROPORTIONAL, TextOverflow::CLIP, 700, TextSlant::INHERIT });
-  root.putText(1, 0, 4, "b", TextStyle{ TextFont::PROPORTIONAL, TextOverflow::CLIP, 300, TextSlant::ITALIC });
+  root.putText(0, 0, 4, "a", TextStyle{ TextFont::PROPORTIONAL, TextOverflow::CLIP, kBoldFace });
+  root.putText(1, 0, 4, "b", TextStyle{ TextFont::PROPORTIONAL, TextOverflow::CLIP, TextFace{ 300, TextSlant::ITALIC } });
   root.putText(2, 0, 4, "c", TextStyle{});
+  root.putText(0, 4, 4, "d", TextStyle{ TextFont::PROPORTIONAL, TextOverflow::CLIP, TextFace{ 500, TextSlant::UPRIGHT } });
   root.refresh();
-  CHECK(b.at(0, 0).bold && !b.at(0, 0).italic);
-  CHECK(!b.at(1, 0).bold && b.at(1, 0).italic);
-  CHECK(!b.at(2, 0).bold && !b.at(2, 0).italic);
-  CHECK(!root.isBold() && !root.isItalic());
+  CHECK(b.at(0, 0).bold() && !b.at(0, 0).italic);
+  CHECK(!b.at(1, 0).bold() && b.at(1, 0).italic && b.at(1, 0).weight == 300);
+  CHECK(!b.at(2, 0).bold() && !b.at(2, 0).italic && b.at(2, 0).weight == 400);
+  // A weight between the two keeps its value in the cell.
+  CHECK(!b.at(0, 4).bold() && b.at(0, 4).weight == 500);
 }

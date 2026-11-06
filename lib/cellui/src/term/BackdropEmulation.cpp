@@ -172,7 +172,8 @@ class BackdropSource {
       fg = bg;
       if (!cell.image) {
         cell.text = " ";
-        cell.continuation = cell.bold = cell.italic = cell.underline = false;
+        cell.continuation = cell.italic = cell.underline = false;
+        cell.weight = 400;
       }
     }
     if (b.dim > 0.0f) {
@@ -279,7 +280,7 @@ int BackdropEmulation::tile(const CellBuffer & below, std::vector<ImagePlacement
       print.add(cell.text);
       print.add(cell.fg);
       print.add(cell.bg);
-      print.add(static_cast<uint64_t>(cell.bold) | static_cast<uint64_t>(cell.continuation) << 1);
+      print.add(static_cast<uint64_t>(cell.bold()) | static_cast<uint64_t>(cell.continuation) << 1);
     }
   }
   Tile * tile = nullptr;

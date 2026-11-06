@@ -47,8 +47,8 @@ TEST(choicedialog_draws_title_entries_marker_and_hint_without_a_border) {
 
 TEST(choicedialog_title_is_bold) {
   Fixture f;
-  CHECK(f.buffer.at(2, 6).bold);
-  CHECK(!f.buffer.at(3, 6).bold);
+  CHECK(f.buffer.at(2, 6).bold());
+  CHECK(!f.buffer.at(3, 6).bold());
 }
 
 TEST(choicedialog_keys_move_choose_and_cancel) {

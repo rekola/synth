@@ -65,10 +65,6 @@ class BufferPlane : public Plane {
   // colours alike, even with a themed base.
   void makeTransparent() override { base_bg_.reset(); }
   void setUnderline(bool b) override { style_.underline = b; }
-  void setBold(bool b) override { style_.bold = b; }
-  void setItalic(bool b) override { style_.italic = b; }
-  bool isBold() const override { return style_.bold; }
-  bool isItalic() const override { return style_.italic; }
   void setBgBlend(bool b) override { style_.bg_blend = b; }
   void setFgContrast(bool b) override { style_.fg_contrast = b; }
   void setBackdrop(const Backdrop & b) override { style_.backdrop = b; }
@@ -97,7 +93,7 @@ class BufferPlane : public Plane {
     images_.clear();
     texts_.clear();
   }
-  void putstr(int y, int x, const std::string & s) override;
+  void putstr(int y, int x, const std::string & s, const TextFace & face = {}) override;
   void putText(int y, int x, int cols, const std::string & text, const TextStyle & style = {}) override;
   // Whether the display lays proportional text out itself (root only).
   void setProportionalText(bool can) { proportional_text_ = can; }

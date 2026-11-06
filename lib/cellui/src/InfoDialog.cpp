@@ -30,26 +30,18 @@ InfoDialog::show(Plane & parent, const string & title, const string & source, in
   auto bg = styles.picker_bg_color, fg = styles.window_fg_color, strong = styles.window_accent_fg_color;
   plane_->setBgColor(bg);
   plane_->setFgColor(fg);
-  plane_->setBold(false);
-  plane_->setItalic(false);
   for (int row = 0; row < rows; row++) plane_->putstr(row, 0, string(static_cast<size_t>(width), ' '));
   plane_->setFgColor(strong);
-  plane_->setBold(true);
-  plane_->putstr(1, 2, utf8::truncateToWidth(title, width - 4));
+  plane_->putstr(1, 2, utf8::truncateToWidth(title, width - 4), kBoldFace);
 
   plane_->setFgColor(fg);
   for (int i = 0; i < rows - kChrome; i++) {
     int x = 2;
     for (auto & run : lines[static_cast<size_t>(i)]) {
-      // The plane keeps one style at a time (bold wins over italic).
-      plane_->setBold(run.bold);
-      plane_->setItalic(!run.bold && run.italic);
-      plane_->putstr(kTopRows + i, x, run.text);
+      plane_->putstr(kTopRows + i, x, run.text, TextFace{ run.bold ? kWeightBold : kWeightNormal, run.italic ? TextSlant::ITALIC : TextSlant::UPRIGHT });
       x += utf8::displayWidth(run.text);
     }
   }
-  plane_->setBold(false);
-  plane_->setItalic(false);
 }
 
 void

@@ -140,11 +140,14 @@ struct Window::Impl {
   GtkWidget * window = nullptr;
   GtkWidget * view = nullptr;
   std::unique_ptr<CellRasterizer> rasterizer;
-  // The cell font in its four weights and slants (by bold | italic << 1),
+  // The cell font in the weights and slants shown (made on first use, by
+  // weight * 2 + italic),
   // and one render node per glyph, colour and face, shared by every cell
   // that shows it, so a glyph is shaped once.
   PangoContext * text_context = nullptr;
-  PangoFontDescription * cell_fonts[4] = {};
+  PangoFontDescription * cell_base = nullptr;
+  std::map<int, PangoFontDescription *> cell_fonts;
+  PangoFontDescription * cellFont(int style);
   struct Glyph {
     std::string text;
     uint32_t color;
@@ -405,11 +408,7 @@ void Window::Impl::measure(const WindowOptions & options) {
   const char * family = pango_font_description_get_family(desc);
   rasterizer = canvasRasterizer(family ? family : "monospace");
   text_context = gtk_widget_create_pango_context(view);
-  for (int i = 0; i < 4; i++) {
-    cell_fonts[i] = pango_font_description_copy(desc);
-    if (i & 1) pango_font_description_set_weight(cell_fonts[i], PANGO_WEIGHT_BOLD);
-    if (i & 2) pango_font_description_set_style(cell_fonts[i], PANGO_STYLE_ITALIC);
-  }
+  cell_base = pango_font_description_copy(desc);
   g_object_unref(layout);
   g_object_unref(context);
   pango_font_description_free(desc);
@@ -567,7 +566,7 @@ const Window::Impl::Painted & Window::Impl::paint(size_t slot, const CellBuffer 
         }
         text_print.add(cell.text);
         text_print.add(cell.fg);
-        text_print.add(static_cast<uint64_t>(cell.bold) | static_cast<uint64_t>(cell.italic) << 1 | static_cast<uint64_t>(cell.underline) << 2);
+        text_print.add(static_cast<uint64_t>(cell.weight) << 2 | static_cast<uint64_t>(cell.italic) << 1 | static_cast<uint64_t>(cell.underline));
       }
     }
 
@@ -592,13 +591,23 @@ const Window::Impl::Painted & Window::Impl::paint(size_t slot, const CellBuffer 
   return p;
 }
 
+PangoFontDescription * Window::Impl::cellFont(int style) {
+  auto found = cell_fonts.find(style);
+  if (found != cell_fonts.end()) return found->second;
+  PangoFontDescription * font = pango_font_description_copy(cell_base);
+  pango_font_description_set_weight(font, static_cast<PangoWeight>(style / 2));
+  if (style & 1) pango_font_description_set_style(font, PANGO_STYLE_ITALIC);
+  cell_fonts[style] = font;
+  return font;
+}
+
 // One glyph in a cell's size, at the cell's corner: shaped by Pango, which
 // finds a font for a character the cell font lacks; one that comes out wider
 // than its cells is shrunk to them.
 GskRenderNode * Window::Impl::glyphNode(const CellBuffer::Cell & cell, const Color & fg) {
   auto rgb = fg.toSrgb8();
   Glyph key{ cell.text, static_cast<uint32_t>(rgb[0]) << 16 | static_cast<uint32_t>(rgb[1]) << 8 | rgb[2],
-             (cell.bold ? 1 : 0) | (cell.italic ? 2 : 0) };
+             cell.weight * 2 + (cell.italic ? 1 : 0) };
   auto found = glyph_nodes.find(key);
   if (found != glyph_nodes.end()) return found->second;
   if (glyph_nodes.size() > 4096) {
@@ -608,7 +617,7 @@ GskRenderNode * Window::Impl::glyphNode(const CellBuffer::Cell & cell, const Col
     glyph_nodes.clear();
   }
   PangoLayout * layout = pango_layout_new(text_context);
-  pango_layout_set_font_description(layout, cell_fonts[key.style]);
+  pango_layout_set_font_description(layout, cellFont(key.style));
   pango_layout_set_text(layout, cell.text.c_str(), -1);
   int w = 0, h = 0;
   pango_layout_get_pixel_size(layout, &w, &h);
@@ -1373,9 +1382,8 @@ Window::~Window() {
   for (auto & entry : impl_->glyph_nodes) {
     if (entry.second) gsk_render_node_unref(entry.second);
   }
-  for (PangoFontDescription * font : impl_->cell_fonts) {
-    if (font) pango_font_description_free(font);
-  }
+  for (auto & entry : impl_->cell_fonts) pango_font_description_free(entry.second);
+  if (impl_->cell_base) pango_font_description_free(impl_->cell_base);
   if (impl_->text_context) g_object_unref(impl_->text_context);
   if (impl_->input_fd >= 0) ::close(impl_->input_fd);
   if (impl_->wake_fd >= 0) ::close(impl_->wake_fd);

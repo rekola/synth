@@ -128,8 +128,6 @@ void CommandPalette::show(Plane & parent, int screen_rows, int screen_cols) {
   };
 
   set(fg, bg);
-  plane_->setBold(false);
-  plane_->setItalic(false);
   plane_->setUnderline(false);
   // The list is a raised panel; the description and the query are not.
   for (int row = 0; row < list_rows; row++) plane_->putstr(row, 0, string(static_cast<size_t>(width_), ' '));
@@ -158,11 +156,9 @@ void CommandPalette::show(Plane & parent, int screen_rows, int screen_cols) {
     plane_->putstr(i, 1, name);
     // The characters the query matched.
     set(selected ? cursor_fg : strong, row_bg);
-    plane_->setBold(true);
     for (int p : row.positions) {
-      if (p < utf8::displayWidth(name)) plane_->putstr(i, 1 + p, string(1, entry.name[static_cast<size_t>(p)]));
+      if (p < utf8::displayWidth(name)) plane_->putstr(i, 1 + p, string(1, entry.name[static_cast<size_t>(p)]), kBoldFace);
     }
-    plane_->setBold(false);
     if (binding_width > 0) {
       set(binding_fg, row_bg);
       plane_->putstr(i, width_ - 1 - binding_width - 1, entry.binding);
@@ -181,19 +177,15 @@ void CommandPalette::show(Plane & parent, int screen_rows, int screen_cols) {
   // Quiet and italic on the display's background, so it is not taken for a
   // command.
   plain(quiet);
-  plane_->setItalic(true);
-  if (!note_.empty()) plane_->putstr(rows_ - 2, 1, note_);
-  else if (auto * entry = chosen()) plane_->putstr(rows_ - 2, 1, utf8::truncateToWidth(entry->description, inner));
-  plane_->setItalic(false);
+  if (!note_.empty()) plane_->putstr(rows_ - 2, 1, note_, kItalicFace);
+  else if (auto * entry = chosen()) plane_->putstr(rows_ - 2, 1, utf8::truncateToWidth(entry->description, inner), kItalicFace);
 
   // The query on the last row, with a block where the next character goes
   // and the keys that matter at the right when there is room.
   string prompt = plane_->keymapProfile() == KeymapProfile::TERMINAL ? "M-x " : "> ";
   int prompt_width = utf8::displayWidth(prompt);
   plain(strong);
-  plane_->setBold(true);
-  plane_->putstr(rows_ - 1, 1, prompt);
-  plane_->setBold(false);
+  plane_->putstr(rows_ - 1, 1, prompt, kBoldFace);
   plain(fg);
   string shown_query = utf8::truncateToWidth(query_, inner - prompt_width - 1);
   int query_width = utf8::displayWidth(shown_query);

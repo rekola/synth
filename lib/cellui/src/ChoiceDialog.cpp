@@ -75,14 +75,10 @@ void ChoiceDialog::show(Plane & parent, int screen_rows, int screen_cols) {
   auto set = [&](const Color & foreground, const Color & background) { set_on(*plane_, foreground, background); };
 
   set(fg, bg);
-  plane_->setBold(false);
-  plane_->setItalic(false);
   for (int row = 0; row < rows_; row++) plane_->putstr(row, 0, string(static_cast<size_t>(width_), ' '));
   int inner = width_ - 2;
   set(strong, bg);
-  plane_->setBold(true);
-  plane_->putstr(1, 1, utf8::truncateToWidth(title_, inner));
-  plane_->setBold(false);
+  plane_->putstr(1, 1, utf8::truncateToWidth(title_, inner), kBoldFace);
   set(fg, bg);
   plane_->putstr(rows_ - 2, 1, utf8::truncateToWidth(kHint, inner));
 
