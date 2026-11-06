@@ -2,7 +2,7 @@
 
 Goal: drag a clip out of the clip grid; it detaches from its cell and follows
 the pointer; releasing over a cell drops it there. Window (GTK) only - the
-terminal never offers it. Delete this file and the README's "Drag & Drop"
+terminal never offers it. Steps 0-2 come in that order. Delete this file and the README's "Drag & Drop"
 roadmap line when done.
 
 ## Scope
@@ -14,17 +14,45 @@ roadmap line when done.
   the target slot is overwritten like a yank. Extract that check into one
   helper used by both `yank` and the drop so they cannot drift.
 
+## 0. Prerequisite: a drag is a `MouseMove`, on every backend
+
+Today a drag is not its own event. The terminal reports it as the held
+button's press again, and the GTK window copies that (`Window::Impl::
+motionEvent()` sends `Input::Kind::PRESS` for the held button). The
+dispatcher turns the terminal's `REPEAT` back into a `MouseMove`, but GTK's
+version arrives as a fresh `MouseDown`, so `PatternEditor`, `ClipGrid` and
+`InteractiveUI` tell a drag from a press only by the release
+(`mouse_down_`, `releaseMouse()`). That encoding is a terminal quirk and
+must stay inside `cellui/term/`.
+
+- Terminal: `toInput()` turns `TermEvent::Kind::DRAG` into `Key::Motion`
+  (position kept), like `MOVE`; both mouse modes then give the same event.
+- GTK: `motionEvent()` always sends `Key::Motion`, held button or not.
+- `InputDispatcher::offer()`: drop the button-`REPEAT` branch.
+  `Key::Motion` already becomes a `MouseMove` carrying `pressed_`, and the
+  grab already sends it to the press's widget.
+- Widgets: `PatternEditor`, `ClipGrid` (and `Dial`, `ArrangementGrid`,
+  `OutlineView` if they use it) handle `on<MouseMove>()`; a `MouseDown` is
+  always a fresh press. Remove `mouse_down_`/`releaseMouse()` and the
+  `Button1` release hack in `InteractiveUI`.
+- Tests: a drag arrives as one `MouseDown`, `MouseMove`s with the button in
+  `buttons`, one `MouseUp`, through the terminal parser and the test
+  backend alike; the existing drag-select tests keep passing unchanged.
+- Docs: rewrite the "press repeated while held" sentences in
+  `lib/cellui/CLAUDE.md` (dispatch and GTK sections) and the drag/press
+  sentence in `src/ui/CLAUDE.md`.
+
 ## 1. cellui: a drag session
 
-cellui already reports a held button's repeated press as a drag
-(`InputDispatcher::offer()`), and a widget that gets the press keeps the
-rest until release. What is missing is a drag that carries something.
+With step 0 a drag is a `MouseMove` with the button held, and the widget
+that got the press keeps the rest until release. What is missing is a drag
+that carries something.
 
 - `DragSession` (new `cellui/DragDrop.h`): a payload (`std::any` plus a
   `kind` string so a target can refuse what it doesn't know), the source
   widget, and a ghost: a function drawing into a small floating `Plane`
   that tracks the pointer. Started by the source widget on a drag past a
-  threshold (about 4 px, via `Input::getFx()/getFy()`), owned by the root
+  threshold (about 4 px, from `MouseMove::x/y`), owned by the root
   (`InputDispatcher`).
 - Dispatch while a session runs: motion goes to the root, which moves the
   ghost and hit-tests the widget under the pointer; it calls
@@ -50,8 +78,8 @@ rest until release. What is missing is a drag that carries something.
 
 ## 2. ClipGrid: dragging a clip
 
-- A press on a populated clip slot already becomes `pressed_`; once the
-  pointer has moved past the threshold, start a session (payload: source
+- A press on a populated clip slot becomes `pressed_`; once a `MouseMove`
+  with the button held passes the threshold, start a session (payload: source
   track id, clip index, the `Clip` copy, track type) instead of leaving it
   to the release. A plain click still launches on release, unchanged; a
   drag never launches.
