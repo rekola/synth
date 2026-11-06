@@ -179,8 +179,16 @@ private:
 
 }
 
+double
+sampleShiftCents(const SampleContent & content, double pitch_cents) {
+  double shift = pitch_cents - standardPitchCents(content.getOriginalStandardPitch());
+  if (!finiteValue(shift)) return 0.0;
+  shift = std::clamp(shift, -7200.0, 7200.0);
+  return std::round(shift * 10.0) / 10.0;
+}
+
 ResolvedSampleAudio
-resolveSampleAudio(const SampleContent & content, int output_rate, int song_tempo) {
+resolveSampleAudio(const SampleContent & content, int output_rate, int song_tempo, double pitch_cents) {
   ResolvedSampleAudio result;
   if (!content.getBuffer()) return result;
 
@@ -243,8 +251,12 @@ resolveSampleAudio(const SampleContent & content, int output_rate, int song_temp
   // reset to its own whole extent (the trim was already baked in when it
   // was built, so nothing left to re-trim). Cached on SampleContent
   // itself, not here - see getStretchedBuffer()'s own comment for why.
-  if (content.getOriginalTempo() > 0 && content.getOriginalTempo() != song_tempo) {
-    auto cached = content.getStretchedBuffer(song_tempo);
+  // A recording made at another standard pitch is pitch-shifted the same
+  // way, its duration kept.
+  const double shift_cents = sampleShiftCents(content, pitch_cents);
+  const bool stretch = content.getOriginalTempo() > 0 && content.getOriginalTempo() != song_tempo;
+  if (stretch || shift_cents != 0.0) {
+    auto cached = content.getStretchedBuffer(song_tempo, shift_cents);
     if (cached) {
       samples = cached;
     } else {
@@ -253,14 +265,14 @@ resolveSampleAudio(const SampleContent & content, int output_rate, int song_temp
       auto src = samples->getChannelData(0);
       for (int i = 0; i < trimmed_frames; i++) trimmed[static_cast<size_t>(i)] = src[in_frame + i];
 
-      auto ratio = static_cast<double>(song_tempo) / static_cast<double>(content.getOriginalTempo());
-      auto stretched = stretchMono(trimmed, output_rate, ratio);
+      auto ratio = stretch ? static_cast<double>(song_tempo) / static_cast<double>(content.getOriginalTempo()) : 1.0;
+      auto stretched = stretchMono(trimmed, output_rate, ratio, std::exp2(shift_cents / 1200.0));
 
       auto buf = make_shared<AudioBuffer>(1, static_cast<int>(stretched.size()));
       auto dst = buf->getChannelData(0);
       for (size_t i = 0; i < stretched.size(); i++) dst[i] = stretched[i];
 
-      content.setStretchedBuffer(buf, song_tempo);
+      content.setStretchedBuffer(buf, song_tempo, shift_cents);
       samples = move(buf);
     }
     in_frame = 0;
@@ -274,7 +286,7 @@ resolveSampleAudio(const SampleContent & content, int output_rate, int song_temp
 }
 
 RealtimeSampleAudio
-resolveRealtimeSampleAudio(const SampleContent & content, int output_rate, int song_tempo) {
+resolveRealtimeSampleAudio(const SampleContent & content, int output_rate, int song_tempo, double pitch_cents) {
   RealtimeSampleAudio result;
   if (!content.getBuffer()) return result;
 
@@ -283,8 +295,8 @@ resolveRealtimeSampleAudio(const SampleContent & content, int output_rate, int s
   // already-documented problem. Everything else about the result
   // (in/out-trimmed range, native-vs-output-rate math) was already
   // solved there, so just reuse it rather than duplicating it here.
-  if (content.getOriginalTempo() > 0 && content.getOriginalTempo() != song_tempo) {
-    auto resolved = resolveSampleAudio(content, output_rate, song_tempo);
+  if ((content.getOriginalTempo() > 0 && content.getOriginalTempo() != song_tempo) || sampleShiftCents(content, pitch_cents) != 0.0) {
+    auto resolved = resolveSampleAudio(content, output_rate, song_tempo, pitch_cents);
     if (!resolved.samples) return result;
     result.samples = resolved.samples;
     result.start_frame = resolved.in_frame;
@@ -344,10 +356,9 @@ mixIntoSampleContent(SampleContent & dest, int output_rate, int64_t needed_frame
   }
 }
 
-void
-SampleTrackState::triggerVoice(const SampleContent & content, int song_tempo, int start_offset_frames, int voice_id) {
+void SampleTrackState::triggerVoice(const SampleContent & content, int song_tempo, int start_offset_frames, int voice_id, double pitch_cents) {
   auto output_rate = getChannelConfiguration().getAudioOutSampleRate();
-  auto resolved = resolveRealtimeSampleAudio(content, output_rate, song_tempo);
+  auto resolved = resolveRealtimeSampleAudio(content, output_rate, song_tempo, pitch_cents);
   if (!resolved.samples) return;
 
   // start_offset_frames arrives in output-frame units (SongState.h's own
@@ -401,13 +412,12 @@ SampleTrackState::setMonitorInput(const float * samples, int frames) {
   addVoice(kMonitorVoiceId, make_unique<InputMonitorVoice>(getChannelConfiguration(), position, getSends(), monitor_input_));
 }
 
-void
-SampleTrackState::triggerClip(const Clip & clip, int song_tempo, int start_offset_frames) {
+void SampleTrackState::triggerClip(const Clip & clip, int song_tempo, int start_offset_frames, double pitch_cents) {
   // getMixedContent() - layer 0 directly for the overwhelming majority
   // of (never-overdubbed) clips, or the pre-mixed sum of every layer once
   // there's more than one - never anything computed here, on the audio
   // thread; see its own comment for why.
-  triggerVoice(clip.getMixedContent(), song_tempo, start_offset_frames, kClipVoiceId);
+  triggerVoice(clip.getMixedContent(), song_tempo, start_offset_frames, kClipVoiceId, pitch_cents);
 }
 
 unique_ptr<TrackState>

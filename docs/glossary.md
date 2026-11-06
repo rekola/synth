@@ -167,6 +167,9 @@ The frequency of A4 that every note is tuned from: 440 Hz unless the song
 sets another (`Song::getStandardPitch()`, `<song standardPitch="">`, any
 positive value). The song's pitch offset (`YUxx`/`YDxx`, commands.md) moves
 it at playback, never the setting itself. Not the tuning (the EDO).
+Each sample-track take remembers the standard pitch it was recorded at
+(`<sample originalStandardPitch="">`, 440 for older takes) and is
+pitch-shifted from it to the song's when it plays.
 
 **Strike point**
 Where a hammer or pluck meets the string, as a fraction of its length. Modes

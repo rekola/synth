@@ -37,6 +37,7 @@ SampleStore::signatureOf(const doc::Document & document, doc::NodeId layer) {
   s.in = doc::get(document, layer, kSampleIn);
   s.out = doc::get(document, layer, kSampleOut);
   s.original_tempo = doc::get(document, layer, kSampleOriginalTempo);
+  s.original_standard_pitch = doc::get(document, layer, kSampleOriginalStandardPitch);
   s.native_rate = doc::get(document, layer, kSampleNativeRate);
   return s;
 }
@@ -52,6 +53,7 @@ SampleStore::content(const doc::Document & document, doc::NodeId layer) {
   cached.content.setInPoint(signature.in);
   cached.content.setOutPoint(signature.out);
   cached.content.setOriginalTempo(static_cast<short>(signature.original_tempo));
+  cached.content.setOriginalStandardPitch(signature.original_standard_pitch);
   cached.content.setNativeSampleRate(signature.native_rate);
   return (contents_[layer] = std::move(cached)).content;
 }

@@ -1,7 +1,9 @@
 #ifndef _TUNING_H_
 #define _TUNING_H_
 
+#include <bit>
 #include <cmath>
+#include <cstdint>
 #include <string>
 
 enum class Tuning {
@@ -85,9 +87,17 @@ inline float getFrequencyFor(Tuning tuning, int note_value) {
   return 0.0f;
 }
 
+// Neither infinite nor NaN, read from the bits: the build's -ffast-math lets
+// the compiler assume std::isfinite() is always true.
+inline bool finiteValue(double x) {
+  return (std::bit_cast<uint64_t>(x) & 0x7ff0000000000000ULL) != 0x7ff0000000000000ULL;
+}
+// A usable standard pitch (Hz): positive and finite.
+inline bool validStandardPitch(float hz) { return finiteValue(hz) && hz > 0.0f; }
+
 // A standard pitch as cents from the nominal one (0 at 440 Hz).
 inline double standardPitchCents(float standard_pitch_hz) {
-  if (!(standard_pitch_hz > 0.0f) || !std::isfinite(standard_pitch_hz)) return 0.0;
+  if (!validStandardPitch(standard_pitch_hz)) return 0.0;
   return 1200.0 * std::log2(static_cast<double>(standard_pitch_hz) / static_cast<double>(kNominalStandardPitchHz));
 }
 

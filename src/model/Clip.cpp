@@ -21,6 +21,9 @@ Clip::rebuildMixedContent(int output_rate, int song_tempo) {
   // ever removed in the future), never a running total.
   mixed_content_cache_ = SampleContent();
   mixed_content_cache_.setOriginalTempo(static_cast<short>(song_tempo));
+  // The mix is at the first take's standard pitch; a take recorded at
+  // another is shifted to it.
+  const float reference = sample_layers_.front().getOriginalStandardPitch();
 
   for (auto & layer : sample_layers_) {
     if (!layer.getBuffer()) continue;
@@ -30,7 +33,7 @@ Clip::rebuildMixedContent(int output_rate, int song_tempo) {
     // only ever runs off the audio thread (getMixedContent()'s own
     // comment). Each layer resolved independently, since two takes can
     // easily have been recorded at different native rates.
-    auto resolved = resolveSampleAudio(layer, output_rate, song_tempo);
+    auto resolved = resolveSampleAudio(layer, output_rate, song_tempo, standardPitchCents(reference));
     if (!resolved.samples || resolved.in_frame >= resolved.out_frame) continue; // nothing playable in this layer
     auto src = resolved.samples->getChannelData(0) + resolved.in_frame;
     auto frame_count = static_cast<int64_t>(resolved.out_frame - resolved.in_frame);
@@ -40,5 +43,6 @@ Clip::rebuildMixedContent(int output_rate, int song_tempo) {
     mixIntoSampleContent(mixed_content_cache_, output_rate, frame_count, src, frame_count, 0, 1.0f);
   }
 
+  mixed_content_cache_.setOriginalStandardPitch(reference);
   mixed_content_valid_ = true;
 }

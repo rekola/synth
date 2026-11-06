@@ -23,6 +23,9 @@
 // empty input all return `input` unchanged rather than running the
 // algorithm for nothing (or dividing by zero) - the same defensive shape
 // resampleMonoLinear() uses.
-std::vector<float> stretchMono(const std::vector<float> & input, int sample_rate, double tempo_ratio);
+//
+// `pitch_ratio` shifts the pitch by that frequency ratio without changing the
+// duration (1.0 = none), for a recording made at another standard pitch.
+std::vector<float> stretchMono(const std::vector<float> & input, int sample_rate, double tempo_ratio, double pitch_ratio = 1.0);
 
 #endif

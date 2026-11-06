@@ -23,6 +23,7 @@ uint64_t digestSample(const SampleContent & content) {
   h = combine(h, std::hash<float>()(content.getInPoint()));
   h = combine(h, std::hash<float>()(content.getOutPoint()));
   h = combine(h, static_cast<uint64_t>(content.getOriginalTempo()));
+  h = combine(h, std::hash<float>()(content.getOriginalStandardPitch()));
   return combine(h, static_cast<uint64_t>(content.getNativeSampleRate()));
 }
 

@@ -133,7 +133,7 @@ class Song : public SongObject {
   // change retunes the sounding notes at once.
   float getStandardPitch() const { return read(songschema::kStandardPitch); }
   void setStandardPitch(float hz) {
-    if (hz > 0.0f && std::isfinite(hz)) write("set standard pitch", songschema::kStandardPitch, hz);
+    if (validStandardPitch(hz)) write("set standard pitch", songschema::kStandardPitch, hz);
   }
   void setSwing(int percent) { write("set swing", songschema::kSwing, swing::clamp(percent)); }
 

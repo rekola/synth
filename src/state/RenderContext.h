@@ -231,7 +231,7 @@ class RenderContext {
   // own frequencies are limited, where they are computed.
   double globalPitchCents(int frame) const {
     double cents = global_base_cents_ + global_cents_per_unit_ * globalPitchUnits(frame);
-    return std::isfinite(cents) ? cents : 0.0;
+    return finiteValue(cents) ? cents : 0.0;
   }
   // The first frame after `frame` and before `limit` where a global slide
   // starts or ends (`limit` if none): a voice's pitch ramp is linear within
