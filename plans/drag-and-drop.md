@@ -14,33 +14,18 @@ roadmap line when done.
   the target slot is overwritten like a yank. Extract that check into one
   helper used by both `yank` and the drop so they cannot drift.
 
-## 0. Prerequisite: a drag is a `MouseMove`, on every backend
+## 0. Prerequisite: a drag is a `MouseMove`, on every backend (done)
 
-Today a drag is not its own event. The terminal reports it as the held
-button's press again, and the GTK window copies that (`Window::Impl::
-motionEvent()` sends `Input::Kind::PRESS` for the held button). The
-dispatcher turns the terminal's `REPEAT` back into a `MouseMove`, but GTK's
-version arrives as a fresh `MouseDown`, so `PatternEditor`, `ClipGrid` and
-`InteractiveUI` tell a drag from a press only by the release
-(`mouse_down_`, `releaseMouse()`). That encoding is a terminal quirk and
-must stay inside `cellui/term/`.
-
-- Terminal: `toInput()` turns `TermEvent::Kind::DRAG` into `Key::Motion`
-  (position kept), like `MOVE`; both mouse modes then give the same event.
-- GTK: `motionEvent()` always sends `Key::Motion`, held button or not.
-- `InputDispatcher::offer()`: drop the button-`REPEAT` branch.
-  `Key::Motion` already becomes a `MouseMove` carrying `pressed_`, and the
-  grab already sends it to the press's widget.
-- Widgets: `PatternEditor`, `ClipGrid` (and `Dial`, `ArrangementGrid`,
-  `OutlineView` if they use it) handle `on<MouseMove>()`; a `MouseDown` is
-  always a fresh press. Remove `mouse_down_`/`releaseMouse()` and the
-  `Button1` release hack in `InteractiveUI`.
-- Tests: a drag arrives as one `MouseDown`, `MouseMove`s with the button in
-  `buttons`, one `MouseUp`, through the terminal parser and the test
-  backend alike; the existing drag-select tests keep passing unchanged.
-- Docs: rewrite the "press repeated while held" sentences in
-  `lib/cellui/CLAUDE.md` (dispatch and GTK sections) and the drag/press
-  sentence in `src/ui/CLAUDE.md`.
+A drag used to arrive as a second `MouseDown` for the held button: the
+terminal reports it as the press again and the GTK window copied that, so
+`PatternEditor`, `ClipGrid` and `InteractiveUI` told a drag from a press by
+the release (`mouse_down_`, `button1_was_held_`). Now the terminal's `toInput()`
+and GTK's `motionEvent()` both send `Key::Motion`; the dispatcher gives
+the widget that got the press a `MouseMove` with `buttons` set, and a
+`MouseDown` is always a fresh press. `PatternEditor`, `ClipGrid`,
+`ArrangementGrid`, `OutlineView` and `SpinBox` handle `MouseMove`;
+`TestBackend::pushMotion()` simulates it. The GTK change is not compiled
+in the cloud (no GTK 4); check it on a desktop build.
 
 ## 1. cellui: a drag session
 

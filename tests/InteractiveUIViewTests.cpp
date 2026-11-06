@@ -714,8 +714,7 @@ TEST(terminal_ui_a_drag_stays_with_the_widget_the_press_started_on) {
   f.terminal.pushMouse(3, 20, cellui::Key::Button1);
   f.ui->step();
   CHECK(f.terminal.info().focus == "arrangement-grid");
-  // The terminal reports the drag as the press again.
-  f.terminal.pushMouse(20, 50, cellui::Key::Button1);
+  f.terminal.pushMotion(20, 50);
   f.ui->step();
   CHECK(f.terminal.info().focus == "arrangement-grid");
   f.terminal.pushMouse(20, 50, cellui::Key::Button1, 0, cellui::Input::Kind::RELEASE);
@@ -903,7 +902,7 @@ TEST(terminal_ui_clip_grid_dragging_a_dial_turns_it) {
   auto drag = [&](int to_y) {
     f.terminal.pushMouse(y, x, cellui::Key::Button1);
     f.ui->step();
-    f.terminal.pushMouse(to_y, x, cellui::Key::Button1);
+    f.terminal.pushMotion(to_y, x);
     f.ui->step();
     f.terminal.pushMouse(to_y, x, cellui::Key::Button1, 0, cellui::Input::Kind::RELEASE);
     f.ui->step();
@@ -991,7 +990,7 @@ TEST(terminal_ui_clip_grid_drag_continues_outside_the_grid) {
   f.terminal.pushMouse(y, x, cellui::Key::Button1);
   f.ui->step();
   // Down into the pattern editor below, and out to the right.
-  f.terminal.pushMouse(y + 12, x + 30, cellui::Key::Button1);
+  f.terminal.pushMotion(y + 12, x + 30);
   f.ui->step();
   float lowered = sendDbOfFirstTrack(f, 1);
   CHECK(lowered < start);

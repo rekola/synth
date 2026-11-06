@@ -249,10 +249,9 @@ Controller-level and per-widget commands. Not migrated: `StatusLine`,
   `ArrangementGrid` moves the cursor to bar and track (Enter still commits);
   `PatternEditor` moves the cursor to the cell (a heading click picks the
   track, one past the last picks the locator slot) and clears the mark, and a
-  drag sets the mark at the press cell and extends to the pointer. A drag
-  and a fresh press look alike (the held button repeats its press), so each
-  widget tells them apart by the release; `InteractiveUI` keeps focus on the
-  press's widget until then.
+  drag sets the mark at the press cell and extends to the pointer. A drag is
+  a `MouseMove` with the button held (`MouseMove::buttons`), sent to the
+  widget that got the press; a `MouseDown` is always a fresh press.
 - **Scopes**: the spectrum is a `cellui::LineChart` fed by
   `spectrum_curve::values()` (`ui/SpectrumCurve.h`: dBFS bins on a log axis,
   80 dB range); it and the DirAC heatmap show in Arrangement view's top band

@@ -209,7 +209,6 @@ struct Window::Impl {
 
 
   std::set<guint> held_keys;
-  int held_button = 0;
   int last_row = -1, last_col = -1;
   // The pointer's position in cells, with the fraction.
   float last_fy = -1, last_fx = -1;
@@ -1226,7 +1225,6 @@ void Window::Impl::buttonEvent(int button, double x, double y, bool pressed, Gdk
   float fy, fx;
   cellPosition(x, y, fy, fx);
   unsigned mods = modsFrom(state);
-  held_button = pressed ? button : 0;
   last_row = row;
   last_col = col;
   last_fy = fy;
@@ -1257,12 +1255,8 @@ void Window::Impl::motionEvent(double x, double y, GdkModifierType state) {
   last_fx = fx;
   updateMouseCursor();
   unsigned mods = modsFrom(state);
-  // A drag repeats the press of the held button at the new position; with
-  // no button the pointer is hovering.
-  Input input = held_button ? Input(Key::Button1 + held_button - 1, row, col, mods & kModAlt, mods & kModShift, mods & kModCtrl,
-                                    mods & (kModMeta | kModSuper), Input::Kind::PRESS)
-                            : Input(Key::Motion, row, col, mods & kModAlt, mods & kModShift, mods & kModCtrl, mods & (kModMeta | kModSuper),
-                                    Input::Kind::RELEASE);
+  // The pointer moving, with a button held or not: the dispatcher knows the held buttons.
+  Input input(Key::Motion, row, col, mods & kModAlt, mods & kModShift, mods & kModCtrl, mods & (kModMeta | kModSuper), Input::Kind::RELEASE);
   push(BackendEvent::makeInput(input.withPosition(fy, fx)));
 }
 

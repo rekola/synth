@@ -305,6 +305,7 @@ private:
  bool keyDown(const cellui::KeyDown & e);
  bool keyUp(const cellui::KeyUp & e);
  bool mouseDown(const cellui::MouseDown & e);
+ bool mouseMove(const cellui::MouseMove & e);
  bool mouseUp(const cellui::MouseUp & e);
  bool wheel(const cellui::Wheel & e);
  std::vector<cellui::Connection> connections_;
@@ -488,16 +489,14 @@ private:
   };
   std::vector<RowSpans> row_spans_;
   // A left-button press picks a cell, dragging from it selects a region;
-  // handleMouse() tells a drag from a fresh press by the button not having
-  // been released in between.
-  bool handleMouse(int screen_y, int screen_x, bool release);
+  // `drag`: the pointer moving with the button held, not a fresh press.
+  bool handleMouse(int screen_y, int screen_x, bool release, bool drag);
 
- public:
-  bool isMouseDown() const { return mouse_down_; }
-  void releaseMouse() { mouse_down_ = false; }
  protected:
-  struct MouseAnchor { int block = 0, row = 0, track = 0, col = 0; SelectionScope scope = SelectionScope::NOTE_COLUMN; };
-  bool mouse_down_ = false;
+  struct MouseAnchor {
+    int block = 0, row = 0, track = 0, col = 0;
+    SelectionScope scope = SelectionScope::NOTE_COLUMN;
+  };
   MouseAnchor mouse_anchor_;
   int mouse_last_row_ = 0;
   // The pointer chose the cursor row, so the view holds still until a key

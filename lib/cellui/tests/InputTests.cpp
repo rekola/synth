@@ -334,11 +334,30 @@ TEST(offer_translates_the_pointer_inputs) {
   s.watch<Wheel>(a, log, "wheel");
   using K = Input::Kind;
   s.dispatcher.offer(Input(Key::Button1, 1, 2, false, false, false, false, K::PRESS));
-  s.dispatcher.offer(Input(Key::Button1, 1, 3, false, false, false, false, K::REPEAT));
+  s.dispatcher.offer(Input(Key::Motion, 1, 3, false, false, false, false));  // dragging
   s.dispatcher.offer(Input(Key::Button1, 1, 3, false, false, false, false, K::RELEASE));
   s.dispatcher.offer(Input(Key::Motion, 1, 4, false, false, false, false));
   s.dispatcher.offer(Input(Key::Button4, 1, 4, false, false, false, false, K::PRESS));
   CHECK(log == (Log{ "down", "move", "up", "move", "wheel" }));
+}
+
+TEST(a_drag_is_motion_with_the_button_held) {
+  Screen s;
+  Panel a(s.top.plane(), 0, 0, 4, 10);
+  a.attach(s.top);
+  s.refresh();
+  std::vector<unsigned> held;
+  auto keep = a.on<MouseMove>([&held](const MouseMove & e, EventContext &) {
+    held.push_back(e.buttons);
+    return Handled::no;
+  });
+  using K = Input::Kind;
+  s.dispatcher.offer(Input(Key::Motion, 1, 1, false, false, false, false));
+  s.dispatcher.offer(Input(Key::Button1, 1, 2, false, false, false, false, K::PRESS));
+  s.dispatcher.offer(Input(Key::Motion, 1, 3, false, false, false, false));
+  s.dispatcher.offer(Input(Key::Button1, 1, 3, false, false, false, false, K::RELEASE));
+  s.dispatcher.offer(Input(Key::Motion, 1, 4, false, false, false, false));
+  CHECK(held == (std::vector<unsigned>{ 0u, 1u, 0u }));
 }
 
 TEST(offer_translates_keys_with_their_text) {

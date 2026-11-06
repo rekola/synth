@@ -54,9 +54,9 @@ carries the app's object as an opaque `getAppContext()`.
   topmost widget in `BufferPlane::takeHitAreas()`, with a grab from press to
   release, `Enter`/`Leave` from successive hit tests, and focus traversal.
   The root (the app's `InteractiveUI`) feeds it each frame's hit areas, sees
-  every pointer event first, and treats a press repeated while the button is
-  held (how a terminal reports a drag) as a drag staying with the press's
-  widget. Modal layers, the menu and the status line are capture handlers on
+  every pointer event first. A drag is a `MouseMove` with the held buttons
+  in `buttons`, to the widget that got the press (the grab), on every
+  display: the terminal's "press again" is turned into motion in `toInput()`. Modal layers, the menu and the status line are capture handlers on
   the root ahead of the focused widget, so a key is offered to the dispatcher
   once. A fresh left press activates the widget under it in a root capture
   handler unless a modal or the menu swallows it. `KeyDown::release_reported`
@@ -235,8 +235,8 @@ cell), and pictures as `GdkTexture`s uploaded only when new or re-versioned
 and laid over the backgrounds — so a chart changing every frame redoes no
 text. The app's descriptors are GSources on GTK's main context; events wait
 behind an eventfd that is `inputFd()`. Keys are taken in the capture phase
-with real press/repeat/release; a drag is the held button's press again at
-each new cell; wheel is buttons 4-7; paste is Ctrl+Shift+V / Shift+Insert.
+with real press/repeat/release; the pointer's motion is reported with or
+without a button held (a drag), at each new cell; wheel is buttons 4-7; paste is Ctrl+Shift+V / Shift+Insert.
 Backdrops: each layer is drawn, then the stack so far again under a GSK blur
 node and a dim inside the backdrop's cells — the window never makes the blur
 itself. Shadows: two GSK outset shadows (a key light from the upper left,

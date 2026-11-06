@@ -135,9 +135,6 @@ class ClipGrid : public UIElement {
   // track.
   void setSceneCallback(std::function<void(int clip_index)> cb) { scene_callback_ = std::move(cb); }
   void setStopAllCallback(std::function<void()> cb) { stop_all_callback_ = std::move(cb); }
-  // See handleMouse(): whether a left-button press is still held.
-  bool isMouseDown() const { return mouse_down_; }
-  void releaseMouse() { mouse_down_ = false; }
   // Rows needed to show everything without scrolling (the header plus
   // every row below it).
   int preferredHeight() const { return 1 + physicalRowCount(); }
@@ -319,11 +316,10 @@ class ClipGrid : public UIElement {
   bool keyDown(const cellui::KeyDown & e);
   bool keyUp(const cellui::KeyUp & e);
   bool mouseDown(const cellui::MouseDown & e);
+  bool mouseMove(const cellui::MouseMove & e);
   bool mouseUp(const cellui::MouseUp & e);
   bool wheel(const cellui::Wheel & e);
   std::vector<cellui::Connection> connections_;
-  // Between a press and its release - see handleMouse().
-  bool mouse_down_ = false;
   // The cell a held button is on, shown pressed: the release picks it. `column`
   // is -1 when nothing is pressed, `physical` -1 for the header row and -2 for a
   // row that only picks the track (a label, a divider).

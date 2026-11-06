@@ -66,6 +66,8 @@ class TestBackend : public Backend {
   // Each character of `text` as a key (UTF-8 aware).
   void pushText(const std::string & text);
   void pushMouse(int y, int x, int key, unsigned mods = 0, Input::Kind kind = Input::Kind::PRESS);
+  // The pointer moving to a cell: a drag when a button is held (the dispatcher knows).
+  void pushMotion(int y, int x, unsigned mods = 0);
   void pushPaste(const std::string & text);
   // The terminal's size changes; the next poll() reports it.
   void resize(int rows, int cols);

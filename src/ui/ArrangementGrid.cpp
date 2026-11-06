@@ -62,6 +62,10 @@ ArrangementGrid::ArrangementGrid(Plane & parent) : UIElement(parent) {
   connections_.push_back(on<cellui::MouseDown>([this](const cellui::MouseDown & e, cellui::EventContext &) {
     return e.button == 1 && pick(e.row, e.col) ? cellui::Handled::yes : cellui::Handled::no;
   }));
+  // A drag with the button held picks the cell under the pointer too.
+  connections_.push_back(on<cellui::MouseMove>([this](const cellui::MouseMove & e, cellui::EventContext &) {
+    return (e.buttons & 1) && pick(e.row, e.col) ? cellui::Handled::yes : cellui::Handled::no;
+  }));
   // The release ends the click; nothing else to do with it.
   connections_.push_back(on<cellui::MouseUp>([](const cellui::MouseUp & e, cellui::EventContext &) {
     return e.button == 1 ? cellui::Handled::yes : cellui::Handled::no;

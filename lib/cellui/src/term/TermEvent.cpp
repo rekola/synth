@@ -65,15 +65,18 @@ Input toInput(const TermEvent & e) {
   bool meta = e.mods & (kModMeta | kModSuper);
   Input::Kind kind;
   switch (e.kind) {
-    case TermEvent::Kind::PRESS:
-    case TermEvent::Kind::DRAG: kind = Input::Kind::PRESS; break;
+    case TermEvent::Kind::PRESS: kind = Input::Kind::PRESS; break;
     case TermEvent::Kind::REPEAT: kind = Input::Kind::REPEAT; break;
     case TermEvent::Kind::RELEASE:
+    case TermEvent::Kind::DRAG:
     case TermEvent::Kind::MOVE: kind = Input::Kind::RELEASE; break;
     default: kind = Input::Kind::UNKNOWN; break;
   }
   if (e.type == TermEvent::Type::MOUSE) {
-    return Input(e.key, e.y, e.x, alt, shift, ctrl, meta, kind).withPosition(e.fy, e.fx);
+    // The terminal reports a drag as the held button again; here it is the
+    // pointer moving, as on every display (the dispatcher knows which buttons are held).
+    int key = e.kind == TermEvent::Kind::DRAG ? Key::Motion : e.key;
+    return Input(key, e.y, e.x, alt, shift, ctrl, meta, kind).withPosition(e.fy, e.fx);
   }
   if (e.type == TermEvent::Type::RESIZE) return Input(Key::Resize, -1, -1, false, false, false, false);
   if (e.type == TermEvent::Type::END) return Input(Key::Eof, -1, -1, false, false, false, false);
