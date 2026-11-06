@@ -1218,7 +1218,7 @@ InteractiveUI::commandCompletions(std::string_view prefix) const {
 }
 
 void InteractiveUI::drawScopeTitle(int row, int col, int width, const std::string & text, bool ends_in_divider) {
-  const auto & bg = styles_.window_accent_bg_color;
+  const auto & bg = styles_.heading_bg_color;
   setFgColor(styles_.window_accent_fg_color);
   setBgColor(bg);
   putstr(row, col, std::string(static_cast<size_t>(width), ' '));
