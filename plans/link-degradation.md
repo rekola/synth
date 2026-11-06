@@ -574,8 +574,8 @@ deflate ratio on real charts is known.
    stays usable (key latency, fps). Done (`src/ui/PerformanceProfile.h`, applied by
    `InteractiveUI::applyProfile()` when the link handler fires): the **autonomous frame cap** (60/30/15/5/1 a
    second; a frame the user's input caused is exempt), **reduced motion** from `HZ_15` down (on top of the
-   user's own setting), **scope rates** (spectrum and heatmap 30/15 Hz, off from `HZ_5`), the **channel meter**
-   rate (15, 5, off), **hover** (any-motion mouse `?1003` becomes drag-only `?1002` from `HZ_15`),
+   user's own setting), **scopes** (spectrum and heatmap run to `HZ_15`; from `HZ_5` they are off and cleared after 2 s),
+   the **channel meter** (on to `HZ_5`, off and cleared after 2 s at `HZ_1`; their speed is the frame cap's), **hover** (any-motion mouse `?1003` becomes drag-only `?1002` from `HZ_15`),
    **pointer-shape updates** (OSC 22) off from `HZ_5`, and **page scrolling** of the pattern editor's cursor
    from `HZ_5` (`Backend::setPointerDetail()`). Still to do: page scrolling of Live View's per-column lines
    and the arrangement grid, the level meters' own rates, the harness run at 50 kB/s. **Backdrops** by class

@@ -14,10 +14,10 @@ struct PerformanceProfile {
   int autonomous_fps = 60;
   // Easing, smooth scrolling and pulses off.
   bool reduced_motion = false;
-  // How often the spectrum and the heatmap are updated, a second; 0 is off (they keep their last picture).
-  int scope_fps = 60;
+  // The spectrum and the heatmap are updated; off, they are cleared after kScopeHold.
+  bool scopes = true;
   // The same for the channel meter in Arrangement view.
-  int meter_fps = 60;
+  bool meter = true;
   // The pointer's motion with no button held (hover looks) and the pointer's shape following what it is over.
   bool hover = true;
   bool pointer_shapes = true;
@@ -27,28 +27,27 @@ struct PerformanceProfile {
 
 inline PerformanceProfile profileFor(cellui::LinkClass cls) {
   using cellui::LinkClass;
-  // autonomous fps, reduced motion, scope fps, meter fps, hover, pointer shapes, page scroll
+  // autonomous fps, reduced motion, scopes, meter, hover, pointer shapes, page scroll
   switch (cls) {
     case LinkClass::FULL:
-      return {60, false, 60, 60, true, true, false};
+      return {60, false, true, true, true, true, false};
     case LinkClass::HZ_30:
-      return {30, false, 30, 60, true, true, false};
+      return {30, false, true, true, true, true, false};
     case LinkClass::HZ_15:
-      return {15, true, 15, 15, false, true, false};
+      return {15, true, true, true, false, true, false};
     case LinkClass::HZ_5:
-      return {5, true, 0, 5, false, false, true};
+      return {5, true, false, true, false, false, true};
     case LinkClass::HZ_1:
-      return {1, true, 0, 0, false, false, true};
+      return {1, true, false, false, false, false, true};
   }
   return {};
 }
 
-// Whether something updated `fps` times a second is due again `since_last` after its last update; 0 is never.
-inline bool rateDue(std::chrono::steady_clock::duration since_last, int fps) {
-  if (fps <= 0) return false;
-  if (fps >= 60) return true; // as often as the frames come
-  return since_last >= std::chrono::steady_clock::duration(std::chrono::seconds(1)) / fps;
-}
+// How long a scope that has been switched off keeps its last picture before it is cleared: a dip to a
+// slow class and back leaves it alone, a lasting one does not show a picture that is no longer true.
+constexpr std::chrono::seconds kScopeHold(2);
+
+inline bool holdExpired(std::chrono::steady_clock::duration since_off) { return since_off >= kScopeHold; }
 
 // Whether the frame loop may draw now. A frame something asked for (a key, a click, an edit) is due
 // at once; one only the stream of audio blocks wants waits for the profile's gap, and when nothing
