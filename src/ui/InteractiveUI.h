@@ -248,9 +248,6 @@ class InteractiveUI : public UI {
   // `ends_in_divider` (lines between the columns on) it ends in a half block
   // over the divider column to its right.
   void drawScopeTitle(int row, int col, int width, const std::string & text, bool ends_in_divider);
-  // Arrangement view's top band height (see arrangementScopeRows()), as laid out.
-  int arrangementScopeRows() const;
-  int laid_out_scope_rows_ = 0;
   // The global octave stepper - see SpinBox.h and Controller::
   // getGlobalOctave(). Lives inline in the info bar's own row (see
   // layout()), always-on and click-activatable like pattern_editor_.
