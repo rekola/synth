@@ -150,7 +150,9 @@ class SongState : public TrackState {
     for (auto & command : pattern.getCommandsAt(pattern_row)) {
 	if (!command.isDefined()) continue;
 	if (breaks_only && !command.isPatternBreak()) continue;
-        if (command.isPatternBreak()) {
+        if (command.isTempoSet()) {
+          continue; // applied before the row's other commands (rowTempo())
+        } else if (command.isPatternBreak()) {
           pending_break_ = true;
           pending_break_row_ = command.getBreakRow();
         } else if (command.isRetrigger()) {
@@ -307,9 +309,10 @@ class SongState : public TrackState {
     // track whose state doesn't exist yet at that lookup point would
     // otherwise silently skip the stop entirely.
     render_context_.setGlobalPitchTuning(content.scalars.standard_pitch, edoStepsFor(content.scalars.tuning));
-    if (global_pitch_rescan_) {
-      global_pitch_rescan_ = false;
+    if (arrangement_rescan_) {
+      arrangement_rescan_ = false;
       rescanGlobalPitch(content);
+      rescanTempo(content);
     }
 
     std::vector<const Track *> track_snapshot;
@@ -428,7 +431,11 @@ class SongState : public TrackState {
 	    if (live_track.isTakenOver()) scheduled_track_ids.insert(track_id);
 	  }
 
-	  for (auto track_id : scheduled_track_ids) {
+          // A ZTxx first, so every command of the row times itself by the
+          // new row length.
+          if (int bpm = rowTempo(content, row_idx, true); bpm > 0) applyTempo(bpm);
+
+          for (auto track_id : scheduled_track_ids) {
             // What's actually active here: a real clip's own leaf Pattern,
             // read at the row relative to when that instance started
             // (wrapped by the clip's own length, not this track's
@@ -879,7 +886,7 @@ class SongState : public TrackState {
   void resetPosition() {
     sample_pos_ = 0;
     absolute_pos_ = 0;
-    global_pitch_rescan_ = true;
+    arrangement_rescan_ = true;
   }
 
   int getAbsolutePosition() const { return absolute_pos_; }
@@ -934,7 +941,7 @@ class SongState : public TrackState {
     render_context_.noteTransportJump();
     last_glide_codes_.clear();
     last_slide_codes_.clear();
-    global_pitch_rescan_ = true;
+    arrangement_rescan_ = true;
     sample_pos_ = 0;
     absolute_pos_ = absolute_row < 0 ? 0 : absolute_row;
     position_edit_seq_++;
@@ -953,7 +960,7 @@ class SongState : public TrackState {
     render_context_.noteTransportJump();
     last_glide_codes_.clear();
     last_slide_codes_.clear();
-    global_pitch_rescan_ = true;
+    arrangement_rescan_ = true;
     sample_pos_ = 0;
     absolute_pos_ = absolute_row < 0 ? 0 : absolute_row;
     position_edit_seq_ = edit_seq;
@@ -966,10 +973,10 @@ class SongState : public TrackState {
   // The song's pitch offset carries on through the jump, as through a loop.
   void jumpToNextBar(int row_in_bar) {
     auto next_bar = barsAt(absolute_pos_).nextBarStart(absolute_pos_);
-    bool rescan = global_pitch_rescan_;
+    bool rescan = arrangement_rescan_;
     render_context_.keepGlobalPitchThroughJump();
     setPosition(next_bar + std::min(row_in_bar, barsAt(next_bar).barRows() - 1));
-    global_pitch_rescan_ = rescan;
+    arrangement_rescan_ = rescan;
   }
 
   // The song's pitch offset at absolute_pos_ as playing the arrangement from
@@ -1001,6 +1008,67 @@ class SongState : public TrackState {
       }
     }
     render_context_.setGlobalPitchUnits(units);
+  }
+
+  // The tempo playing the arrangement from row 0 to absolute_pos_ would
+  // leave: the last ZTxx before it, else the song's (pattern breaks and
+  // Live View are not followed).
+  void rescanTempo(const PlaybackContent & content) {
+    int bpm = 0;
+    for (int row = 0; row < absolute_pos_; row++)
+      if (int at = rowTempo(content, row, false); at > 0) bpm = at;
+    applyTempo(bpm > 0 ? bpm : content.scalars.tempo);
+  }
+
+  // The BPM a ZTxx at `row` of `pattern` sets (0: none); the last column wins.
+  static int tempoAt(const Pattern & pattern, int row) {
+    int bpm = 0;
+    for (auto & command : pattern.getCommandsAt(row))
+      if (command.isDefined() && command.isTempoSet() && command.getTempoBpm() > 0) bpm = command.getTempoBpm();
+    return bpm;
+  }
+
+  // The BPM a ZTxx at `row` sets (0: none), read where the row's other
+  // commands are: a track's background, then the clip it plays there - a
+  // launched one on a track Live View has taken over when `live` (the
+  // current row only), else the arrangement's. Of several tracks, the last
+  // in song order wins.
+  int rowTempo(const PlaybackContent & content, int row, bool live) const {
+    auto & arrangement = content.arrangement;
+    std::vector<int> track_ids;
+    for (auto & [track_id, pattern] : arrangement.getPatternsByTrack()) track_ids.push_back(track_id);
+    for (auto & [track_id, instances] : arrangement.getInstancesByTrack())
+      if (!instances.empty()) track_ids.push_back(track_id);
+    if (live)
+      for (auto & [track_id, live_track] : live_tracks_)
+        if (live_track.isTakenOver()) track_ids.push_back(track_id);
+    std::sort(track_ids.begin(), track_ids.end(), [&](int a, int b) { return song_structure_.getOrdinalFor(a) < song_structure_.getOrdinalFor(b); });
+    track_ids.erase(std::unique(track_ids.begin(), track_ids.end()), track_ids.end());
+
+    int bpm = 0;
+    for (int track_id : track_ids) {
+      auto background = arrangement.getPatternsByTrack().find(track_id);
+      if (background != arrangement.getPatternsByTrack().end())
+        if (int at = tempoAt(background->second, background->second.getEffectiveRow(row, 0)); at > 0) bpm = at;
+      ActiveInstance active{Arrangement::kStopInstance};
+      int rows_since_start = 0;
+      auto live_it = live ? live_tracks_.find(track_id) : live_tracks_.end();
+      if (live_it != live_tracks_.end() && live_it->second.isTakenOver()) {
+        if (live_it->second.clip_index < 0) continue;
+        active.clip_index = live_it->second.clip_index;
+        rows_since_start = live_clock_ - live_it->second.launch_clock;
+      } else {
+        active = resolveInstanceAt(content, track_id, row);
+        rows_since_start = row - active.start_row;
+      }
+      if (active.clip_index < 0) continue;
+      auto & clips = content.getClips(track_id);
+      if (static_cast<size_t>(active.clip_index) >= clips.size()) continue;
+      auto & clip = clips[static_cast<size_t>(active.clip_index)];
+      auto & pattern = clip.getLeafPattern();
+      if (int at = tempoAt(pattern, pattern.getEffectiveRow(rows_since_start, clip.getLength() > 0 ? clip.getLength() : 1)); at > 0) bpm = at;
+    }
+    return bpm;
   }
 
   struct LastNote { int column; Tuning tuning; float velocity; int note_value; int row; NoteOverride note_override; };
@@ -1162,6 +1230,9 @@ class SongState : public TrackState {
     if (!pending_scene_.active) scene_seq_ = std::max(scene_seq_, seq);
   }
   int getSceneSeq() const { return scene_seq_; }
+  // The tempo the last scene change applied set (0: none) - what the UI
+  // mirrors into the song, unlike a ZTxx's.
+  int getSceneTempo() const { return scene_tempo_; }
   const RunningBars & getRunningBars() const { return running_bars_; }
   void setRunningBars(RunningBars running) { running_bars_ = running; }
   // The bars in force at `row` on this thread.
@@ -1263,9 +1334,10 @@ private:
   // nonzero amount, shared by up and down.
   std::unordered_map<int, int> last_slide_codes_;
   int last_global_slide_code_ = 0;
-  // A seek or restart: the song's pitch offset is recomputed from the
-  // arrangement before the next block plays (rescanGlobalPitch()).
-  bool global_pitch_rescan_ = true;
+  // A seek or restart: the song's pitch offset and the tempo are recomputed
+  // from the arrangement before the next block plays (rescanGlobalPitch(),
+  // rescanTempo()).
+  bool arrangement_rescan_ = true;
   // The signed amount (sixteenths of a step) a slide command moves by,
   // remembering a nonzero one in `memory`.
   static int slideCode(const Command & command, int & memory) {
@@ -1341,12 +1413,14 @@ private:
   };
   PendingScene pending_scene_;
   int scene_seq_ = 0;
+  int scene_tempo_ = 0;
   TimeSignature song_signature_{4, 4};
   RunningBars running_bars_;
   int synced_song_tempo_ = 0; // the song tempo last applied from the song itself
 
   void applyPendingScene() {
     if (pending_scene_.tempo > 0) applyTempo(pending_scene_.tempo);
+    scene_tempo_ = pending_scene_.tempo;
     if (pending_scene_.signature.isSet())
       running_bars_ = {pending_scene_.signature, absolute_pos_};
     else if (pending_scene_.clear_running)

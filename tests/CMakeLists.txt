@@ -32,6 +32,7 @@ add_executable(synth_tests
 	ArrangementTests.cpp
 	PatternScrollTests.cpp
 	PatternBreakTests.cpp
+	TempoCommandTests.cpp
 	CommandTests.cpp
 	AzimuthSlideTests.cpp
 	PitchSlideTests.cpp

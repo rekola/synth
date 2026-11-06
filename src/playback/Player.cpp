@@ -1058,6 +1058,7 @@ Player::createPlaybackEvent(const string & buffer_name, const Song & song, const
   info.setTempo(state.getTempo());
   info.setRunningBars(state.getRunningBars());
   info.setSceneSeq(state.getSceneSeq());
+  info.setSceneTempo(state.getSceneTempo());
   info.setVoiceCount(state.getVoiceCount());
   info.setRoundTripLatency(latency_frames_, latency_nominal_);
   info.setAllocatedVoiceCount(state.getAllocatedVoiceCount());

@@ -837,9 +837,9 @@ void Controller::mirrorSceneChange(const string & buffer_name, const PlaybackInf
   auto song = getSongByName(buffer_name);
   if (!song) return;
   song->setRunningBars(info.getRunningBars());
-  if (info.getTempo() > 0 && info.getTempo() != song->getTempo()) {
+  if (info.getSceneTempo() > 0 && info.getSceneTempo() != song->getTempo()) {
     Song::Edit edit(*song, "scene tempo", Song::Edit::Kind::STRUCTURE, Song::Edit::Origin::SYNC);
-    song->setTempo(static_cast<short>(info.getTempo()));
+    song->setTempo(static_cast<short>(info.getSceneTempo()));
     if (buffer_name == active_buffer_name_) log("Tempo " + to_string(song->getTempo()));
   }
 }

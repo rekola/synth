@@ -81,7 +81,8 @@ class InfoLine : public UIElement {
 
       auto tuning_text = to_string(song.getTuning());
       auto key = song.getKey() >= 0 ? Note::keyToString(song.getTuning(), song.getKey()) : "?";
-      auto tempo = song.getTempo();
+      // While playing, the tempo the transport plays at (a ZTxx can have set it).
+      auto tempo = info.isPlaying() && info.getTempo() > 0 ? info.getTempo() : song.getTempo();
 
       auto swing_text = song.getSwing() > swing::kStraight ? fmt::format(" swing {}%", song.getSwing()) : std::string();
       // The song's pitch, unless it is A4 = 440 Hz: the YUxx/YDxx offset in

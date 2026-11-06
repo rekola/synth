@@ -194,6 +194,8 @@ paths:
 ## Pattern effect commands
 
 `docs/commands.md` lists them, split into Implemented (`ZBxx` pattern break;
+`ZTxx` tempo, the playing tempo only - a seek recomputes it, `SongState::rescanTempo()`,
+and `Controller::mirrorSceneChange()` mirrors only a scene's tempo;
 `0Pxx` azimuth; `0Lxx` volume; the real-time `Y` commands `YLxx`/`YRxx`
 azimuth slide and `YMxy`/`YAxy`/`YBxy`/`YZxy` volume/send A/send B/azimuth
 with a glide duration; `SongState.h`'s command loop) and Planned (stored,

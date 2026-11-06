@@ -118,6 +118,17 @@ class Command {
     return (hi < 0 ? 0 : hi) * 16 + (lo < 0 ? 0 : lo);
   }
 
+  // ZTxx - set the tempo to `xx` BPM (hex) from this row on. Below 20 (32
+  // BPM) it does nothing. See docs/commands.md.
+  bool isTempoSet() const { return values_[0] == 'Z' && values_[1] == 'T'; }
+  static constexpr int kMinTempoBpm = 0x20;
+  // The BPM ZTxx sets, 0 for one below kMinTempoBpm.
+  int getTempoBpm() const {
+    auto hi = digit(values_[2], 16), lo = digit(values_[3], 16);
+    int bpm = (hi < 0 ? 0 : hi) * 16 + (lo < 0 ? 0 : lo);
+    return bpm >= kMinTempoBpm ? bpm : 0;
+  }
+
   // YLxx/YRxx - slide azimuth left/right: nudge the track's azimuth
   // (and, unlike a plain track-azimuth change, every currently-sounding
   // voice's own position too - see InstrumentTrackState::
