@@ -270,7 +270,7 @@ protected:
 
   static constexpr int kButtonBarRows = 3;
   static constexpr int kInfoPopupWidth = 40;
-  static constexpr int kColumnScrollStep = 4;
+  static constexpr int kColumnScrollStep = 2;
   static constexpr int kIndentPerLevel = 3;
   // How many rows the scrollable tree gets, between the heading above and
   // the button bar below. Never negative.
