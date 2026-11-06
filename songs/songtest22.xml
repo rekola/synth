@@ -5,7 +5,7 @@
         <haze preset="slap"/>
     </bus>
     <instruments from="kit">
-        <group id="i1">
+        <group id="i1" name="Bass">
             <instrument id="i1" from="bass.electric.finger"/>
             <envelope attack="0.005" hold="0" decay="1.5" sustain="0.3" release="0.5" keynumToHold="0" keynumToDecay="0">
                 <oscillator type="sine" level="1" width="0.5"/>
@@ -255,6 +255,7 @@
         <clip track="perc" id="clip5" name="Intro" length="96">
             <pattern>
                 <note row="0" velocity="60">CH</note>
+                <note row="0" column="1">BD</note>
                 <note row="2" velocity="40">CH</note>
                 <note row="4" velocity="40">CH</note>
                 <note row="6" velocity="60">CH</note>
@@ -268,6 +269,7 @@
                 <note row="20" velocity="40">CH</note>
                 <note row="22" velocity="40">CH</note>
                 <note row="24" velocity="40">CH</note>
+                <note row="24" column="1">BD</note>
                 <note row="26" velocity="40">CH</note>
                 <note row="28" velocity="40">CH</note>
                 <note row="30" velocity="60">CH</note>
@@ -281,6 +283,7 @@
                 <note row="44" velocity="40">CH</note>
                 <note row="46" velocity="40">CH</note>
                 <note row="48" velocity="60">CH</note>
+                <note row="48" column="1">BD</note>
                 <note row="50" velocity="40">CH</note>
                 <note row="52" velocity="40">CH</note>
                 <note row="54" velocity="60">CH</note>
@@ -294,6 +297,7 @@
                 <note row="68" velocity="40">CH</note>
                 <note row="70" velocity="40">CH</note>
                 <note row="72" velocity="60">CH</note>
+                <note row="72" column="1">BD</note>
                 <note row="74" velocity="40">CH</note>
                 <note row="76" velocity="40">CH</note>
                 <note row="78" velocity="60">CH</note>
@@ -301,11 +305,12 @@
                 <note row="82" velocity="40">CH</note>
                 <note row="84" velocity="60">CH</note>
                 <note row="84" column="1" velocity="40">CR</note>
+                <note row="84" column="2" velocity="80">BD</note>
                 <note row="86" velocity="40">CH</note>
                 <note row="88" velocity="40">CH</note>
-                <note row="90" velocity="40">CH</note>
-                <note row="92" velocity="40">CH</note>
-                <note row="94" velocity="40">CH</note>
+                <note row="90" velocity="40">OH</note>
+                <note row="90" column="1">SD</note>
+                <note row="94" column="1" velocity="80">BD</note>
             </pattern>
         </clip>
         <clip track="perc" id="clip19" length="12">
@@ -324,9 +329,11 @@
         <clip track="perc" id="clip4" stop="false">
             <pattern/>
         </clip>
-        <clip track="perc" id="clip7" name="End" loop="false" length="12">
+        <clip track="perc" id="clip7" name="End" loop="false" length="96">
             <pattern>
-                <note row="0" velocity="40">CR</note>
+                <note row="0" velocity="40">OH</note>
+                <note row="24" velocity="80">RD</note>
+                <note row="72">CR</note>
             </pattern>
         </clip>
         <clip track="perc" id="clip9">
@@ -477,7 +484,8 @@
                 <note row="10" velocity="0">OFF</note>
                 <note row="12" velocity="40" fx="+05">G-4</note>
                 <note row="20" velocity="0">OFF</note>
-                <note row="24" velocity="40" fx="-05">F-5</note>
+                <note row="24" velocity="40" fx="+06">E♭5</note>
+                <note row="26" velocity="40" fx="-05">F-5</note>
                 <note row="36" velocity="0">OFF</note>
                 <note row="44" velocity="40" fx="+06">E♭5</note>
                 <note row="46" velocity="40" fx="-05">F-5</note>
@@ -491,6 +499,11 @@
                 <command row="58" data="0G80"/>
                 <command row="57" data="0G00"/>
                 <command row="56" data="0G80"/>
+                <command row="30" data="0G00"/>
+                <command row="29" data="0G00"/>
+                <command row="28" data="0G00"/>
+                <command row="27" data="0G00"/>
+                <command row="26" data="0G20"/>
             </pattern>
         </clip>
         <clip track="track2" id="clip6">
