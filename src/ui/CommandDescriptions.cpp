@@ -85,6 +85,8 @@ commandDescription(std::string_view name) {
       {"toggle-record-arm", "Arm or disarm recording notes into the arrangement"},
       {"toggle-record-quantize", "Snap recorded notes to rows, or keep their raw timing"},
       {"toggle-scopes", "Show or hide the spectrum and direction scopes"},
+      {"next-instrument", "Give the current instrument track the next instrument of the pool"},
+      {"previous-instrument", "Give the current instrument track the previous instrument of the pool"},
       {"toggle-solo", "Solo or unsolo the current track"},
       {"toggle-stop-button", "Add or remove the clip slot's stop button"},
       {"toggle-track-collapse", "Collapse or expand the current track's columns"},

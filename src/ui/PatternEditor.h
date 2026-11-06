@@ -260,6 +260,7 @@ protected:
   // track_name_screen_width_, cached by renderHeading() itself, same
   // reasoning as startLocatorEdit()'s own comment.
   void startTrackNameEdit();
+  void stepInstrument(int delta);
 
   // `copy-to-clip` - saves the current selection as a new, unnamed clip.
   // Always whole-track scope (SelectionScope::TRACK), on the cursor's own
