@@ -90,6 +90,11 @@ ScenePatternSource::clamp(RowAddress address) const {
   return address;
 }
 
+std::unordered_map<int, bool> &
+ScenePatternSource::selected() const {
+  return selected_[controller_.getActiveBufferName()];
+}
+
 std::unordered_map<int, RowAddress> &
 ScenePatternSource::positions() const {
   return positions_[controller_.getActiveBufferName()];
@@ -165,6 +170,7 @@ ScenePatternSource::setPlayheads(std::unordered_map<int, Playhead> playheads) {
     auto it = playheads.find(track_id);
     if (playhead.row < 0 || (it != playheads.end() && it->second.row >= 0)) continue;
     positions()[track_id] = clamp({ playhead.scene, sceneRow(track_id, playhead) });
+    selected()[track_id] = true;
   }
   // How far each playhead that keeps playing has moved - through a loop
   // too, where its position wraps back.
@@ -284,6 +290,7 @@ ScenePatternSource::moveCursor(int delta_rows) {
   if (address.row < 0) address = { 0, 0 };
   if (address.block >= blockCount()) address = { blockCount() - 1, blockLength(blockCount() - 1) - 1 };
   positions()[cursor_track_id_] = address;
+  selected()[cursor_track_id_] = true;
   // Moved by hand, the stopped tracks move along, each on its own line;
   // the playing tracks' lines stay put as the cursor row moves away.
   auto moved = rowsBetween(old_cursor, address);
@@ -314,6 +321,17 @@ ScenePatternSource::setTrackPosition(int track_id, RowAddress address) {
     return;
   }
   positions()[track_id] = clamp(address);
+  selected()[track_id] = true;
+}
+
+void ScenePatternSource::selectClip(int track_id) {
+  selected()[track_id] = true;
+}
+
+bool ScenePatternSource::hasClipSelected(int track_id) const {
+  if (isPlaying(track_id)) return true;
+  auto it = selected().find(track_id);
+  return it != selected().end() && it->second;
 }
 
 RowAddress
@@ -395,6 +413,8 @@ ScenePatternSource::loopPassDim(int track_id, RowAddress address) const {
 ReadTarget
 ScenePatternSource::read(int track_id, RowAddress address) const {
   const Song & s = song();
+  // No clip chosen on this track yet: nothing to show.
+  if (!hasClipSelected(track_id)) return {PatternView::empty(), 0, address.row, false, -1};
   address = trackAddress(track_id, address);
   // Rows before the first scene show nothing.
   if (address.row < 0) return { PatternView::empty(), 0, address.row, false, -1 };
@@ -412,6 +432,7 @@ ScenePatternSource::read(int track_id, RowAddress address) const {
 
 EditTarget
 ScenePatternSource::edit(int track_id, RowAddress address) {
+  if (!hasClipSelected(track_id)) return {PatternView::discarded(), 0};
   address = trackAddress(track_id, address);
   int pattern_row;
   if (address.block >= 0 && address.block < blockCount() && address.row >= 0) {
