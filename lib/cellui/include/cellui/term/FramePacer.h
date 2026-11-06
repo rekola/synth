@@ -61,6 +61,11 @@ struct PacerConfig {
   // RTT_min also takes the running minimum of the time from a frame's last
   // byte to its reply after this many acknowledgements.
   int rtt_refine_after = 10;
+  // The link is taken to hold frames back only when the gap its estimate asks for is this many times
+  // the floor between frames. Frames are never closer than the floor, so an estimate near the rate
+  // they are sent at on the floor says only what was sent: small frames settle there, with the gap at
+  // the floor and a little over, whatever the link could take.
+  double link_bound_margin = 1.25;
   // No acknowledgement for this long halves the estimate; with none ever, or
   // this many times in a row, the terminal is taken not to answer.
   std::chrono::milliseconds stall{1500};
