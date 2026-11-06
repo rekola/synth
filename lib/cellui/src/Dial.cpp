@@ -124,7 +124,7 @@ void Dial::startEdit() {
   if (editing_) return;
   editing_ = replaceable_ = true;
   if (value_ < spec_.off + 1.0f) {
-    edit_text_ = "-inf";
+    edit_text_ = "off";
   } else {
     char buf[32];
     std::snprintf(buf, sizeof buf, "%g", std::round(static_cast<double>(value_) * 10.0) / 10.0);
@@ -145,6 +145,11 @@ void Dial::commitEdit() {
   // Locale-independent, and a typed decimal comma counts as a point.
   std::string text = edit_text_;
   std::replace(text.begin(), text.end(), ',', '.');
+  if (text == "off" || text == "-inf") {
+    value_ = spec_.off;
+    if (on_change) on_change(value_);
+    return;
+  }
   const char * begin = text.c_str();
   if (*begin == '+') begin++;  // "+3" is a fine thing to type
   float value = 0.0f;
@@ -173,7 +178,16 @@ bool Dial::key(int id, const Modifiers & mods) {
 
 bool Dial::wheel(int row, int col, bool up, bool shift) {
   if (editing_ || !contains(row, col)) return false;
-  turn(std::max(value_, spec_.min), (up ? 1.0f : -1.0f) * spec_.wheel_step * (shift ? spec_.fine : 1.0f));
+  float base = std::max(value_, spec_.min);
+  if (shift) {
+    turn(base, (up ? 1.0f : -1.0f) * spec_.wheel_step * spec_.fine);
+  } else {
+    // A plain step lands on a multiple of itself, so a level between steps (or with float noise)
+    // does not carry its fraction through every step.
+    float steps = base / spec_.wheel_step;
+    float target = up ? std::floor(steps + 0.01f) + 1.0f : std::ceil(steps - 0.01f) - 1.0f;
+    turn(target * spec_.wheel_step, 0.0f);
+  }
   return true;
 }
 
