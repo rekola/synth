@@ -20,6 +20,8 @@ class InfoLine : public UIElement {
 
   // What the link to the display is, when it is not at full speed ("" for nothing to show).
   void setLinkText(std::string text) { link_text_ = std::move(text); }
+  // Columns at the right end taken by another widget (the octave selector).
+  void setRightReserved(int cols) { right_reserved_ = cols; }
 
   bool render(const StyleProvider & styles, bool refresh = false) {
     auto & info = getController().getPlaybackInfo();
@@ -40,12 +42,11 @@ class InfoLine : public UIElement {
     auto num_allocated_voices = info.getAllocatedVoiceCount();
     auto latency_ms = info.getRoundTripLatencyMs();
     auto is_playing = info.isPlaying();
-    auto pitch_units = info.getGlobalPitchUnits();
 
     if (refresh || new_version != current_version_ || new_position != current_position_ ||
         num_voices != current_num_voices_ || num_allocated_voices != current_num_allocated_voices_ ||
         buffer_name != current_buffer_name_ || buffer_names != current_buffer_names_ ||
-        latency_ms != current_latency_ms_ || is_playing != current_is_playing_ || pitch_units != current_pitch_units_ || link_text_ != current_link_text_) {
+        latency_ms != current_latency_ms_ || right_reserved_ != current_right_reserved_ || is_playing != current_is_playing_ || link_text_ != current_link_text_) {
       auto [ rows, cols ] = getDim();
 
       // Controller::getBufferDisplayName()'s own text - basename-only,
@@ -55,23 +56,15 @@ class InfoLine : public UIElement {
       // display convention the Buffers menu uses (TerminalMenu::rebuild()),
       // so the same buffer reads the same way in both places.
       auto buffer_display_name = getController().getBufferDisplayName(buffer_name);
-      // PLAYING right after the time, not at the end - the right half below
-      // is drawn from the middle column on and would cover it whenever the
-      // buffer name is long.
       // Live input's round-trip latency, only while capture runs (nothing
       // to show otherwise, and no space taken for it) - "~" for a nominal
       // figure, one that couldn't be measured.
       auto latency = latency_ms < 0 ? std::string() :
         fmt::format(" lat {}{}ms", info.isRoundTripLatencyNominal() ? "~" : "", latency_ms);
+      // The transport button (TransportButton) is laid over the first columns.
       // The transport's musical position (Song::formatPosition()).
-      auto s = fmt::format(" {} {}{}{} voices:{}/{}", buffer_display_name, song.formatPosition(info.getAbsolutePosition()),
-                           info.isPlaying() ? " PLAYING" : "", latency, num_voices, num_allocated_voices);
-      // The link, when it is not at full speed: on the left, which has the room, the right half
-      // moving over for it as it does for a long buffer name.
-      if (!link_text_.empty()) s += "  " + link_text_;
-      // The right half starts mid-line, or just past the left half's text
-      // when a long buffer name reaches that far.
-      auto right_col = std::max(cols / 2, Utf8::displayWidth(s) + 2);
+      auto s = fmt::format("     {} {}{} voices:{}/{}", buffer_display_name, song.formatPosition(info.getAbsolutePosition()),
+                           latency, num_voices, num_allocated_voices);
       while (s.size() < static_cast<size_t>(cols)) s += ' ';
 
       putstr(0, 0, s);
@@ -79,22 +72,11 @@ class InfoLine : public UIElement {
       // setFgColor(styles.window_border_color);
       // setBgColor(styles.window_bg_color);
 
-      auto tuning_text = to_string(song.getTuning());
-      auto key = song.getKey() >= 0 ? Note::keyToString(song.getTuning(), song.getKey()) : "?";
-      // While playing, the tempo the transport plays at (a ZTxx can have set it).
-      auto tempo = info.isPlaying() && info.getTempo() > 0 ? info.getTempo() : song.getTempo();
-
-      auto swing_text = song.getSwing() > swing::kStraight ? fmt::format(" swing {}%", song.getSwing()) : std::string();
-      // The song's pitch, unless it is A4 = 440 Hz: the YUxx/YDxx offset in
-      // steps and the standard pitch it makes.
-      std::string pitch_text;
-      if (pitch_units != 0.0 || song.getStandardPitch() != kNominalStandardPitchHz) {
-        int edo = edoStepsFor(song.getTuning());
-        double hz = static_cast<double>(song.getStandardPitch()) * std::exp2(pitch_units / (16.0 * (edo > 0 ? edo : 12)));
-        pitch_text = pitch_units != 0.0 ? fmt::format(" pitch {:+.2f} A4={:.1f}Hz", pitch_units / 16.0, hz) : fmt::format(" A4={:.1f}Hz", hz);
+      // The link, when it is not at full speed: right-aligned beside the octave selector.
+      if (!link_text_.empty()) {
+        auto w = Utf8::displayWidth(link_text_);
+        putstr(0, std::max(0, cols - right_reserved_ - w - 1), link_text_);
       }
-      auto right_text = fmt::format("{} {} {} {}{}{}", tuning_text, key, tempo, song.getBarsAt(info.getAbsolutePosition()).signature.toString(), swing_text, pitch_text);
-      putstr(0, right_col, right_text);
 
       current_version_ = new_version;
       current_position_ = new_position;
@@ -102,8 +84,8 @@ class InfoLine : public UIElement {
       current_num_allocated_voices_ = num_allocated_voices;
       current_latency_ms_ = latency_ms;
       current_is_playing_ = is_playing;
-      current_pitch_units_ = pitch_units;
       current_link_text_ = link_text_;
+      current_right_reserved_ = right_reserved_;
       current_buffer_name_ = buffer_name;
       current_buffer_names_ = std::move(buffer_names);
 
@@ -125,8 +107,8 @@ private:
   int current_latency_ms_ = -1;
   // Stopping at the same row changes nothing else shown.
   bool current_is_playing_ = false;
-  double current_pitch_units_ = 0.0;
   std::string link_text_, current_link_text_;
+  int right_reserved_ = 0, current_right_reserved_ = 0;
   // Its own dirty-check input too, for the same reason: switching to a
   // different open buffer (Controller::switchToBuffer()) doesn't
   // necessarily change the new song's own version number to something

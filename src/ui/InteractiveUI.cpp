@@ -7,6 +7,7 @@
 #include "CommandDescriptions.h"
 #include "HeatmapChart.h"
 #include "InfoLine.h"
+#include "TransportButton.h"
 #include "StatusLine.h"
 #include "PatternEditor.h"
 #include "ArrangementGrid.h"
@@ -729,6 +730,7 @@ InteractiveUI::initializeWidgets() {
   // commitOverviewCell()'s callers is wired there instead.
   arrangement_grid_->setCommitCallback([this](int track_id, int row) { commitOverviewCell(track_id, row); });
   info_line_ = make_shared<InfoLine>(getPlane());
+  transport_button_ = make_shared<TransportButton>(getPlane());
   status_line_ = make_shared<StatusLine>(getPlane());
   // See StatusLine::showPrompt()'s own comment: opening any StatusLine
   // reader (M-x included) must take focus away from any widget's own
@@ -1367,6 +1369,7 @@ InteractiveUI::layout() {
     pattern_editor_->moveToTop();
   }
   info_line_->resize(1, cols).move(rows - 2, 0);
+  transport_button_->resize(1, TransportButton::kWidth).move(rows - 2, 1);
   // Inline in the info bar, right-aligned - a separate plane, created
   // after info_line_ (initializeWidgets()) so it z-orders above whatever
   // info_line_'s own text/padding puts under it (see this file's own
@@ -1375,6 +1378,7 @@ InteractiveUI::layout() {
   // later, this is the one line to change to move it into a dedicated
   // control bar row instead.
   auto octave_width = octave_control_->preferredWidth();
+  info_line_->setRightReserved(octave_width);
   octave_control_->resize(1, octave_width).move(rows - 2, std::max(0, cols - octave_width));
   status_line_->resize(1, cols - 1).move(rows - 1, 0);
   clearLastRow();
@@ -1471,6 +1475,10 @@ InteractiveUI::renderComponents(bool refresh) {
     info_line_->setLinkText(std::move(text));
   }
   if (info_line_->render(styles_, refresh)) { render = true; statCount("render:info_line_"); }
+  if (transport_button_->render(styles_, refresh)) {
+    render = true;
+    statCount("render:transport_button_");
+  }
   if (octave_control_->render(styles_, refresh)) { render = true; statCount("render:octave_control_"); }
 
   auto & clip_player = getController().getClipPlayer();
