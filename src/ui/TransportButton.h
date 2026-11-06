@@ -5,7 +5,7 @@
 #include "../Controller.h"
 
 // The transport state as one glyph on a raised, rounded plane of its own
-// (a button to come): ▶ while playing, ■ otherwise.
+// (a button to come): ▸ while playing, ⏹ otherwise, as in the clip grid.
 class TransportButton : public UIElement {
  public:
   static constexpr int kWidth = 3;
@@ -21,7 +21,7 @@ class TransportButton : public UIElement {
     if (!refresh && drawn_ && playing == playing_) return false;
     setBgColor(styles.picker_bg_color);
     setFgColor(styles.picker_fg_color);
-    putstr(0, 0, playing ? " ▶ " : " ■ ");
+    putstr(0, 0, playing ? " ▸ " : " ⏹ ");
     playing_ = playing;
     drawn_ = true;
     return true;
