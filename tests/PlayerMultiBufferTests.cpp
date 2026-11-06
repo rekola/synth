@@ -533,7 +533,7 @@ TEST(preview_pool_note_sounds_the_indexed_pool_instrument_and_stop_reclaims_it) 
 
   Player player(config, &controller);
 
-  PlaybackControlEvent preview_note(PlaybackControlEvent::PREVIEW_POOL_NOTE, "", 0, 60, 100);
+  PlaybackControlEvent preview_note(PlaybackControlEvent::PREVIEW_POOL_NOTE, "", 1, 60, 100); // slot 0 is the starter piano
   player.handlePlaybackControlEvent(preview_note);
 
   auto sounding = player.renderPreview(256);
@@ -561,7 +561,7 @@ TEST(preview_pool_note_with_an_out_of_range_index_previews_silence) {
 
   Player player(config, &controller);
 
-  PlaybackControlEvent preview_note(PlaybackControlEvent::PREVIEW_POOL_NOTE, "", 0, 60, 100);
+  PlaybackControlEvent preview_note(PlaybackControlEvent::PREVIEW_POOL_NOTE, "", 99, 60, 100);
   player.handlePlaybackControlEvent(preview_note);
 
   auto data = player.renderPreview(256);
@@ -777,7 +777,7 @@ double liveNoteFrequency(Scale scale) {
   song.setKey(60);
   song.setScale(scale);
   song.addInstrument(make_unique<Oscillator>(WaveformType::SINE));
-  auto & track = song.addTrack(make_unique<InstrumentTrack>(0));
+  auto & track = song.addTrack(make_unique<InstrumentTrack>(1)); // slot 0 is the starter piano
 
   Player player(config, &controller);
   PlaybackControlEvent play_note(PlaybackControlEvent::PLAY_NOTE, buffer_name, track.getInternalId(), 0, 63, 100); // D-sharp
