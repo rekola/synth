@@ -79,6 +79,7 @@ ClipGrid::ClipGrid(Plane & parent) : UIElement(parent) {
   connections_.push_back(on<cellui::KeyDown>([this, handled](const cellui::KeyDown & e, cellui::EventContext &) { return handled(keyDown(e)); }));
   connections_.push_back(on<cellui::KeyUp>([this, handled](const cellui::KeyUp & e, cellui::EventContext &) { return handled(keyUp(e)); }));
   connections_.push_back(on<cellui::MouseDown>([this, handled](const cellui::MouseDown & e, cellui::EventContext &) { return handled(mouseDown(e)); }));
+  connections_.push_back(on<cellui::MouseMove>([this, handled](const cellui::MouseMove & e, cellui::EventContext &) { return handled(mouseMove(e)); }));
   connections_.push_back(on<cellui::MouseUp>([this, handled](const cellui::MouseUp & e, cellui::EventContext &) { return handled(mouseUp(e)); }));
   connections_.push_back(on<cellui::Wheel>([this, handled](const cellui::Wheel & e, cellui::EventContext &) { return handled(wheel(e)); }));
   // Mute/Solo apply to the cursor's own column (a per-track state, not
@@ -534,13 +535,11 @@ bool ClipGrid::dialPress(float y, int row, int col, bool shift) {
   for (auto & [key, dial] : dials_) {
     if (dial->isDragging()) {
       dial->press(y, row, col, shift);
-      mouse_down_ = dial->isDragging();
       return true;
     }
   }
   for (auto & [key, dial] : dials_) {
     if (dial->press(y, row, col, shift)) {
-      mouse_down_ = dial->isDragging();
       return true;
     }
   }
@@ -551,7 +550,6 @@ bool ClipGrid::dialRelease() {
   for (auto & [key, dial] : dials_) {
     if (dial->isDragging()) {
       dial->release();
-      mouse_down_ = dial->isDragging();
       return true;
     }
   }
@@ -584,12 +582,10 @@ bool ClipGrid::handleMouse(int row, int col, float fy, bool shift, bool release)
     auto [ rows, cols ] = getDim();
     auto y = row - pos_y, x = col - pos_x;
     if (y < 0 || y >= rows || x < 0 || x >= cols) return false;
-    mouse_down_ = true;
     pressed_ = target;
     return true;
   }
   auto pressed = pressed_;
-  mouse_down_ = false;
   pressed_ = Pressed();
   // Only what was shown pressed - a terminal that doesn't report drags
   // never moved it here.
@@ -643,6 +639,13 @@ bool ClipGrid::mouseDown(const cellui::MouseDown & e) {
     if (dial->contains(e.row, e.col)) return true;
     dial->cancelEdit();
   }
+  return handleMouse(e.row, e.col, e.y, e.mods.shift, false);
+}
+
+// The pointer moving with the button held: the pressed cell follows it.
+bool ClipGrid::mouseMove(const cellui::MouseMove & e) {
+  if (!(e.buttons & 1)) return false;
+  if (inline_editor_.isOpen() || isDialEditing()) return true;
   return handleMouse(e.row, e.col, e.y, e.mods.shift, false);
 }
 

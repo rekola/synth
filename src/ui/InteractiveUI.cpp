@@ -760,8 +760,10 @@ InteractiveUI::initializeWidgets() {
     return yes(menu_->isOpen());
   },
                                                    cellui::Phase::capture));
-  key_connections_.push_back(on<cellui::MouseMove>([this, yes](const cellui::MouseMove &, cellui::EventContext &) {
+  key_connections_.push_back(on<cellui::MouseMove>([this, yes](const cellui::MouseMove & e, cellui::EventContext &) {
     if (activeModal()) return Handled::no;
+    if (command_palette_.isOpen()) return Handled::yes;
+    if (anyModalOpen() && (e.buttons & 1)) outline_view_->mouseDown(e.row, e.col);
     return yes(anyModalOpen() || menu_->isOpen());
   },
                                                    cellui::Phase::capture));
@@ -796,7 +798,7 @@ InteractiveUI::initializeWidgets() {
   // A fresh left press makes the widget under it the active one, and ends
   // an octave edit it leaves; the press itself still reaches that widget.
   key_connections_.push_back(on<cellui::MouseDown>([this](const cellui::MouseDown & e, cellui::EventContext &) {
-    if (e.button == 1 && !button1_was_held_) activateAt(e.row, e.col);
+    if (e.button == 1) activateAt(e.row, e.col);
     return Handled::no;
   },
                                                    cellui::Phase::capture));
@@ -1653,10 +1655,7 @@ InteractiveUI::offerInput(const cellui::Input & input) {
 
   // Every pointer event goes through the dispatcher first, whatever takes it
   // below: it keeps the held buttons and which widget the press went down on.
-  // A terminal reports a drag as the press again, so "was the button already
-  // down" is asked before this event is counted.
   bool pointer = input.getId() >= Key::Motion && input.getId() <= Key::Button11;
-  button1_was_held_ = dispatcher_.pressedButtons() & 1;
   bool pointer_taken = pointer && dispatcher_.offer(input) == cellui::Handled::yes;
 
   // A key goes to the dispatcher alone: the modal layers and the layers in
@@ -1694,10 +1693,6 @@ InteractiveUI::offerInput(const cellui::Input & input) {
     force_next_render_ = true;
   } else if (mods.ctrl && input.getId() == 'l') {
     refresh();
-  } else if (input.getId() == Key::Button1 && input.getKind() == InputEvent::Kind::RELEASE) {
-    // The release ends the press everywhere, wherever it lands.
-    clip_grid_->releaseMouse();
-    pattern_editor_->releaseMouse();
   }
 
   handled |= pointer_taken;

@@ -102,6 +102,7 @@ class OutlineView : public UIElement {
     connections_.push_back(on<cellui::KeyDown>([this](const cellui::KeyDown & e, cellui::EventContext &) { return keyDown(e) ? cellui::Handled::yes : cellui::Handled::no; }));
     connections_.push_back(on<cellui::KeyUp>([this](const cellui::KeyUp & e, cellui::EventContext &) { return keyUp(e) ? cellui::Handled::yes : cellui::Handled::no; }));
     connections_.push_back(on<cellui::MouseDown>([this](const cellui::MouseDown & e, cellui::EventContext &) { return e.button == 1 && mouseDown(e.row, e.col) ? cellui::Handled::yes : cellui::Handled::no; }));
+    connections_.push_back(on<cellui::MouseMove>([this](const cellui::MouseMove & e, cellui::EventContext &) { return (e.buttons & 1) && mouseDown(e.row, e.col) ? cellui::Handled::yes : cellui::Handled::no; }));
     connections_.push_back(on<cellui::MouseUp>([this](const cellui::MouseUp & e, cellui::EventContext &) { return e.button == 1 && mouseUp(e.row, e.col) ? cellui::Handled::yes : cellui::Handled::no; }));
     connections_.push_back(on<cellui::Wheel>([this](const cellui::Wheel & e, cellui::EventContext &) { return wheel(e) ? cellui::Handled::yes : cellui::Handled::no; }));
   }

@@ -53,6 +53,7 @@ PatternEditor::PatternEditor(Plane & parent)
   connections_.push_back(on<cellui::KeyDown>([this, handled](const cellui::KeyDown & e, cellui::EventContext &) { return handled(keyDown(e)); }));
   connections_.push_back(on<cellui::KeyUp>([this, handled](const cellui::KeyUp & e, cellui::EventContext &) { return handled(keyUp(e)); }));
   connections_.push_back(on<cellui::MouseDown>([this, handled](const cellui::MouseDown & e, cellui::EventContext &) { return handled(mouseDown(e)); }));
+  connections_.push_back(on<cellui::MouseMove>([this, handled](const cellui::MouseMove & e, cellui::EventContext &) { return handled(mouseMove(e)); }));
   connections_.push_back(on<cellui::MouseUp>([this, handled](const cellui::MouseUp & e, cellui::EventContext &) { return handled(mouseUp(e)); }));
   connections_.push_back(on<cellui::Wheel>([this, handled](const cellui::Wheel & e, cellui::EventContext &) { return handled(wheel(e)); }));
   // Whichever buffer is already active by construction time (main.cpp
@@ -1734,11 +1735,8 @@ PatternEditor::handleBufferChanged() {
   last_active_buffer_name_ = new_name;
 }
 
-bool PatternEditor::handleMouse(int screen_y, int screen_x, bool release) {
-  if (release) {
-    mouse_down_ = false;
-    return true;
-  }
+bool PatternEditor::handleMouse(int screen_y, int screen_x, bool release, bool drag) {
+  if (release) return true;
   auto & song = getController().getSong();
   auto track_ids = trackIds(song);
   auto [ pos_y, pos_x ] = getPosition();
@@ -1749,8 +1747,8 @@ bool PatternEditor::handleMouse(int screen_y, int screen_x, bool release) {
   // along, one row per kDragScrollInterval.
   // With a clip playing, each track's playhead moves on its own, so a region
   // can't be dragged: a click only picks a track and a column.
-  if (mouse_down_ && isLiveMode() && scene_source_->anyPlaying()) return true;
-  bool past_edge = mouse_down_ && x >= 0 && x < cols && (y < heading_height || y >= rows);
+  if (drag && isLiveMode() && scene_source_->anyPlaying()) return true;
+  bool past_edge = drag && x >= 0 && x < cols && (y < heading_height || y >= rows);
   if (past_edge) {
     auto now = std::chrono::steady_clock::now();
     if (now - drag_scroll_time_ < kDragScrollInterval) return true;
@@ -1763,10 +1761,8 @@ bool PatternEditor::handleMouse(int screen_y, int screen_x, bool release) {
   if (y < 0 || y >= rows || x < 0 || x >= cols) return false;
   if (track_ids.empty()) return true;
 
-  // A held button repeating its press as the mouse moves is a drag.
-  bool fresh_press = !mouse_down_;
+  bool fresh_press = !drag;
   pointer_scroll_ = true;
-  mouse_down_ = true;
 
   // The heading has no spans of its own: it picks a track by the columns
   // the first row shows.
@@ -1888,18 +1884,24 @@ PatternEditor::commitPendingValue() {
   row_edited = true;
 }
 
-// A left press (and each drag repeat) or its release.
+// A left press, the pointer moving with it held, or its release.
 bool PatternEditor::mouseDown(const cellui::MouseDown & e) {
   if (e.button != 1) return false;
   getController().getSong().breakTypingRun();
   if (inline_editor_.isOpen()) return true;
-  return handleMouse(e.row, e.col, false);
+  return handleMouse(e.row, e.col, false, false);
+}
+
+bool PatternEditor::mouseMove(const cellui::MouseMove & e) {
+  if (!(e.buttons & 1)) return false;
+  if (inline_editor_.isOpen()) return true;
+  return handleMouse(e.row, e.col, false, true);
 }
 
 bool PatternEditor::mouseUp(const cellui::MouseUp & e) {
   if (e.button != 1) return false;
   if (inline_editor_.isOpen()) return true;
-  return handleMouse(e.row, e.col, true);
+  return handleMouse(e.row, e.col, true, false);
 }
 
 // The mouse wheel scrolls the view, never the cursor (which in arrangement

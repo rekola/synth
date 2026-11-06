@@ -48,6 +48,8 @@ class SpinBox : public Widget {
       bg_color_(bg_color), fg_color_(fg_color) {
     // The mouse arrives as events; keys while editing come from the app's key layers.
     connections_.push_back(on<MouseDown>([this](const MouseDown & e, EventContext &) { return e.button == 1 && press(e.row, e.col) ? Handled::yes : Handled::no; }));
+    // A drag with the button held follows the pointer on or off an arrow.
+    connections_.push_back(on<MouseMove>([this](const MouseMove & e, EventContext &) { return (e.buttons & 1) && press(e.row, e.col) ? Handled::yes : Handled::no; }));
     connections_.push_back(on<MouseUp>([this](const MouseUp & e, EventContext &) { return e.button == 1 && release(e.row, e.col) ? Handled::yes : Handled::no; }));
     connections_.push_back(on<Wheel>([this](const Wheel & e, EventContext &) { return e.dy != 0 && wheel(e.dy > 0) ? Handled::yes : Handled::no; }));
   }

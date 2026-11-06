@@ -300,7 +300,8 @@ TEST(term_event_to_input) {
   drag.y = 3;
   drag.x = 4;
   Input d = toInput(drag);
-  CHECK(d.getId() == cellui::Key::Button1 && d.getKind() == Input::Kind::PRESS && d.getY() == 3 && d.getX() == 4);
+  // A drag is the pointer moving, as on every display; the dispatcher knows which button is held.
+  CHECK(d.getId() == cellui::Key::Motion && d.getKind() == Input::Kind::RELEASE && d.getY() == 3 && d.getX() == 4);
 }
 
 TEST(parser_dec_cursor_report_is_a_reply_only_while_one_is_expected) {

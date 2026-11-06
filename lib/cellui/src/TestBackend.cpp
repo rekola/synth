@@ -78,6 +78,10 @@ void TestBackend::pushMouse(int y, int x, int key, unsigned mods, Input::Kind ki
   push(BackendEvent::makeInput(Input(key, y, x, mods & kModAlt, mods & kModShift, mods & kModCtrl, mods & (kModMeta | kModSuper), kind)));
 }
 
+void TestBackend::pushMotion(int y, int x, unsigned mods) {
+  pushMouse(y, x, Key::Motion, mods, Input::Kind::RELEASE);
+}
+
 void TestBackend::pushPaste(const std::string & text) {
   push(BackendEvent::makePaste(text));
 }

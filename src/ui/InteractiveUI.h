@@ -198,7 +198,6 @@ class InteractiveUI : public UI {
   bool offerKeyLayersUp(const cellui::KeyUp & e);
   bool offerMenuCommand(bool taken);
   void activateAt(int row, int col);
-  bool button1_was_held_ = false;
   void handleCommandPaletteResult(cellui::CommandPalette::Result result);
   std::string bindingFor(const std::string & command) const;
   void raiseOverlays();

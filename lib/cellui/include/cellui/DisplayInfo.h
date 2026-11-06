@@ -68,7 +68,8 @@ struct DisplayInfo {
   bool key_release = false;
   // Pointer positions finer than a cell (MouseDown::x and y have fractions).
   bool precise_mouse = false;
-  // The pointer moving with no button held (MouseMove, Enter and Leave).
+  // The pointer moving with no button held (MouseMove, Enter and Leave); a
+  // display that reports no hover still reports a drag, as a MouseMove with the button held.
   bool hover = false;
 };
 

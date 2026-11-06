@@ -119,8 +119,6 @@ class InputDispatcher {
       int button = id - Key::Button1 + 1;
       if (button <= 3) {
         if (kind == Input::Kind::RELEASE) return mouseUp(MouseUp{ x, y, row, col, button, mods });
-        // A held button's press again is the pointer dragging.
-        if (kind == Input::Kind::REPEAT) return mouseMove(MouseMove{ x, y, row, col, pressed_, mods });
         return mouseDown(MouseDown{ x, y, row, col, button, mods });
       }
       if (button <= 7 && kind != Input::Kind::RELEASE) {
