@@ -105,6 +105,7 @@ void CommandPalette::show(Plane & parent, int screen_rows, int screen_cols) {
 
   if (!plane_) {
     plane_ = parent.createChild();
+    plane_->setElevation(plane_->getStyles().theme.elevation.overlay);
     plane_->setMouseCursor(MouseCursor::DEFAULT);
     // Left alone, the two rows below the list show the display's own
     // background, like the status line they replace.
