@@ -27,43 +27,30 @@ the widget that got the press a `MouseMove` with `buttons` set, and a
 `TestBackend::pushMotion()` simulates it. The GTK change is not compiled
 in the cloud (no GTK 4); check it on a desktop build.
 
-## 1. cellui: a drag session
+## 1. cellui: a drag session (done)
 
-With step 0 a drag is a `MouseMove` with the button held, and the widget
-that got the press keeps the rest until release. What is missing is a drag
-that carries something.
+Events, not widget hooks, as everywhere in cellui (`cellui/DragDrop.h`):
 
-- `DragSession` (new `cellui/DragDrop.h`): a payload (`std::any` plus a
-  `kind` string so a target can refuse what it doesn't know), the source
-  widget, and a ghost: a function drawing into a small floating `Plane`
-  that tracks the pointer. Started by the source widget on a drag past a
-  threshold (about 4 px, from `MouseMove::x/y`), owned by the root
-  (`InputDispatcher`).
-- Dispatch while a session runs: motion goes to the root, which moves the
-  ghost and hit-tests the widget under the pointer; it calls
-  `dragOver(session, row, col)` on that widget (returns accept/refuse, so
-  the cell under the pointer can show a drop mark or a "not allowed"
-  mark) with `dragLeave` on the one before. Release calls
-  `drop(session, row, col)` on the accepting widget, else
-  `cancel` on the source. Escape cancels. Ordinary press/hover handling is
-  suspended while it runs.
-- Widget hooks (default no-ops, so nothing existing changes):
-  `onDragOver`, `onDragLeave`, `onDrop`, `onDragCancel`.
-- Gate it with a `DisplayInfo::drag_drop` flag, true only for the GTK
-  backend (it has precise pointer and floating planes). Where it is false
-  `ClipGrid` never starts a session and presses behave as today.
-- Ghost placement: the ghost plane is a child of the root at the overlay
-  elevation (above popups), lifted higher than the grid's `card` lift so a
-  window shows a shadow under it. A plane moves by whole cells, so the
-  sub-cell part uses `setScrollOffset()` (the plane holds one extra row and
-  column), which is why `drag_drop` is true only where `smooth_scroll` and
-  the precise pointer are. The ghost keeps the grab point under the pointer.
-- Pointer shapes: add `MouseCursor::GRABBING` and `NOT_ALLOWED` (GTK cursor
-  names `grabbing`, `not-allowed`), set from the drag state.
-- Tests in cellui (`TestBackend`): session starts after the threshold,
-  accept/refuse reach the right widget, Escape and release-outside both
-  cancel, no session when `drag_drop` is false. Document it in
-  `lib/cellui/CLAUDE.md` and the cellui README.
+- The source posts `StartDrag{source, DragPayload{kind, data}}` to the root
+  once a `MouseMove` with the button held has passed `kDragThreshold`; the
+  `InputDispatcher` begins a session only where `DisplayInfo::drag_drop` (the
+  GTK window) and a button is held, else answers `Handled::no` and the
+  widget behaves as before.
+- While it runs: the widget under the pointer gets `DragOver` per move
+  (`Handled::yes` accepts) and `DragLeave`; the source gets `DragMove` and
+  `DragEnd{dropped}` and no ordinary mouse events; release over an accepting
+  widget posts `Drop`; Escape cancels and the rest of the gesture goes
+  nowhere.
+- `DragGhost`: the plane that follows the pointer (modal elevation, the grab
+  point kept under the pointer, sub-cell through `setScrollOffset()` where
+  the display scrolls smoothly), with `GRABBING` / `NOT_ALLOWED` cursors
+  (new `MouseCursor` shapes) and a redraw when acceptance changes.
+  `InteractiveUI` enables sessions from the backend's `drag_drop`. The
+  sub-cell placement and the look are unchecked in the cloud (no GTK 4): see
+  them on a desktop build.
+- Tests: dispatcher sessions (drop, refused drop, leave, Escape, no
+  `drag_drop`, no button held) and the ghost's cursor in
+  `lib/cellui/tests/InputTests.cpp`.
 
 ## 2. ClipGrid: dragging a clip
 
