@@ -183,7 +183,7 @@ timing (and missed-vsync counts) at exit.
   deadline; display scale guessed from the cell size, light/dark from the
   default colours, which picks the default `--theme`), `FrameEncoder` (frame
   diff as escape sequences), `ImageEncoder` (kitty graphics, iTerm2 inline
-  images, Sixel; kitty uploads and PNGs deflated by the in-tree
+  images, Sixel; a Sixel image gets its own palette, the picture's exact colours when they fit the registers or their median cut, one Sixel per visible rectangle, and only the changed rows of cells when that is smaller; kitty uploads and PNGs deflated by the in-tree
   `term/Deflate.h`, raw fallback when it saves under 10 % or the terminal
   refuses), `TerminalSession` (tty, modes, signals, restoration). `TermEvent`s
   stay inside `term/`; `Capabilities` (image protocol, kitty keyboard, query

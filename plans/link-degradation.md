@@ -516,7 +516,26 @@ deflate ratio on real charts is known.
    363 kB/s, in Arrangement 403 kB/s, against 5.5-6.4 MB/s before (about 15 times less), and
    `LinkThresholds` are now 570 / 290 / 145 / 60 kB/s. Still to do in this phase: the palette PNG for
    REDUCED/LOW picture quality (3.2).
-3. **Sixel** (3.3): palette and damage.
+3. **Sixel** (3.3): palette and damage. **Done**, with these differences from 3.3: the palette is
+   made once per rectangle of a picture (exact colours when they fit the registers, else a
+   population-weighted median cut; `ImageEncoder::Profile::sixel_registers`, the terminal's count
+   capped at 128, which is as good as 256 on the real pictures at 30% fewer bytes) and the ordered dither
+   adds its offset only to a pixel more than 5 levels off its nearest register, so a flat area does not
+   turn into a pattern of near-equal registers. One Sixel to a visible rectangle. The tile diff sends,
+   per row of cells, from the first changed cell to the last, and only when that is smaller than the
+   whole rectangle (it is encoded both ways when the changed rows cover under 80%): a piece repeats the
+   definitions of the registers it uses, so on the playing UI's charts, where a moving line touches
+   every row, it rarely wins; on a picture whose changes stay in one place it halves the bytes.
+   Measured on 24 real pictures of each size, bytes a frame and mean absolute error against the
+   original (0-255, per channel), old 240-entry cube against the new palette at 128 registers:
+   spectrum 232x80 8.5 kB, error 5.8 (20.5 on a frame with many colours) against 7.4 kB, error 0.7;
+   arrangement 248x80 9.0 kB, 5.8 against 7.5 kB, 0.7; heatmap 328x80 17.0 kB, 20 against 10.4 kB,
+   0.6; 72x64 4.2 kB, 17.6 against 5.5 kB, 0.65 (2.7 kB when only part of it changes). Through the
+   real app (`measure_link.py --pixels sixel`): playing in Live View 737 kB/s before, 515 after;
+   in Arrangement 1003 before, 699 after. That is about 1.4 times what kitty sends (363, 403), so
+   `LinkThresholds` (kitty's demands) are low for Sixel: they want a Sixel set, which waits for the
+   class profiles of phase 5. Registers shared between images (`?1070`) are not used: whether a
+   terminal keeps them has not been tried on one.
 4. **Shared pictures and dials** (3.4, 3.5): the registry, `drawSharedImageAt()`, the byte cap, the
    16-position, four-look dial set.
 5. **App profile** (3.6, 3.7): scope/meter rates and off, animations, page scrolling, hover, mouse
