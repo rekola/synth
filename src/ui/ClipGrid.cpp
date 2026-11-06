@@ -943,8 +943,8 @@ ClipGrid::render(const StyleProvider & styles, bool refresh, bool focused) {
     // axis below) - the exact same "T<N> name" label PatternEditor's own
     // renderHeading() draws (N = color_ordinal_, not track_index - the
     // same stable-across-scroll count that also picks the track's own
-    // identity color), upright T<N> prefix followed by the track's own
-    // name in italic, then a trailing "MS" pair showing this track's own
+    // identity color), T<N> prefix followed by the track's own
+    // name, in the display's own face where it has one, then a trailing "MS" pair showing this track's own
     // Mute/Solo state (bright when on, dim otherwise - there's no
     // dedicated Mute/Solo row any more, see this class's own header
     // comment). Plain accent color for the name, like every other
@@ -968,12 +968,7 @@ ClipGrid::render(const StyleProvider & styles, bool refresh, bool focused) {
     header_plane.putstr(0, x, string(static_cast<size_t>(kColWidth), ' ')); // opaque header background first, across the whole column
     auto prefix = "T" + std::to_string(structure.getBaselineInfo(track_id).color_ordinal_);
     auto friendly_name = (leaf && !leaf->getName().empty()) ? " " + leaf->getName() : string();
-    auto header = Utf8::padToWidth(Utf8::truncateToWidth(prefix + friendly_name, name_width), name_width);
-    auto upright_len = std::min(header.size(), prefix.size());
-    header_plane.putstr(0, x + chip_width, header.substr(0, upright_len));
-    if (upright_len < header.size()) {
-      header_plane.putstr(0, x + chip_width + static_cast<int>(upright_len), header.substr(upright_len), cellui::kItalicFace);
-    }
+    header_plane.putText(0, x + chip_width, name_width, prefix + friendly_name, cellui::TextStyle{cellui::TextFont::PROPORTIONAL, cellui::TextOverflow::ELLIPSIS});
     if (chip_width > 0) {
       header_plane.setFgColor(styles.trackChipColor(structure.getBaselineInfo(track_id).color_ordinal_));
       header_plane.putstr(0, x, "▌");
@@ -1138,7 +1133,7 @@ ClipGrid::render(const StyleProvider & styles, bool refresh, bool focused) {
         body_plane.setBgColor(row_bg);
         body_plane.putstr(y, x, string(static_cast<size_t>(kColWidth), ' ')); // opaque row background first
         body_plane.putstr(y, x, text);
-        if (!clip_label.empty() && x + 3 >= 0) body_plane.putText(y, x + 3, label_cols, clip_label, cellui::TextStyle{cellui::TextFont::PROPORTIONAL, cellui::TextOverflow::ELLIPSIS});
+        if (!clip_label.empty() && x + 3 >= 0) body_plane.putText(y, x + 3, label_cols, clip_label, cellui::TextStyle{cellui::TextFont::PROPORTIONAL, cellui::TextOverflow::ELLIPSIS, cellui::TextFace{500}});
         if (has_real_clip && clips[clip_row].isLooping()) body_plane.putstr(y, x + kColWidth - 2, "↻");
         if (is_edited_clip) body_plane.putstr(y, x + kColWidth - (has_real_clip && clips[clip_row].isLooping() ? 4 : 2), "✎");
         if (glyph) {

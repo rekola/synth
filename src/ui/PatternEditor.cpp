@@ -3077,28 +3077,17 @@ PatternEditor::renderHeadingOnPlane(const StyleProvider & styles, const std::vec
 	    // design this fallback around.
 	    auto prefix = !is_color_eligible ? string() : "T" + std::to_string(vis_info->color_ordinal_);
 	    auto friendly_name = !is_color_eligible || track->getName().empty() ? string() : " " + track->getName();
-	    auto name = prefix + friendly_name;
-	    name = Utf8::truncateToWidth(name, text_width);
-	    name = Utf8::padToWidth(name, text_width);
-	    if (has_collapse_toggle) {
+            auto name = prefix + friendly_name;
+            if (has_collapse_toggle) {
 	      // White, matching the heading text - a heading control, not a
 	      // status indicator (contrast the faint Mute/Solo OFF glyphs
 	      // just below, or the ancestor row's own activity dot).
 	      setFgColor(heading_fg);
 	      putstr(heading_height - 2 - level, current_pos + chip_width, is_collapsed ? "▸" : "◂ ");
 	    }
-	    // The "T<N>" prefix is drawn upright; the artist's own friendly
-	    // name after it is italic, so it reads as the track's own label
-	    // rather than part of the fixed T<N> numbering. Truncation can
-	    // still cut into or through the prefix on a narrow column, so
-	    // only the part of `name` actually beyond the (possibly
-	    // truncated) prefix gets the italic treatment.
-	    auto upright_len = std::min(name.size(), prefix.size());
-	    putstr(heading_height - 2 - level, name_pos, name.substr(0, upright_len));
-	    if (upright_len < name.size()) {
-              putstr(heading_height - 2 - level, name_pos + static_cast<int>(upright_len), name.substr(upright_len), cellui::kItalicFace);
-            }
-	    // Cache this track's own name-field position for
+            // In the display's own face where it has one, cut with an ellipsis.
+            putText(heading_height - 2 - level, name_pos, text_width, name, cellui::TextStyle{cellui::TextFont::PROPORTIONAL, cellui::TextOverflow::ELLIPSIS});
+            // Cache this track's own name-field position for
 	    // startTrackNameEdit() - only when it's both the one the cursor
 	    // is actually on and one that has a name field to begin with
 	    // (is_color_eligible; see the reset just above renderHeading()'s
