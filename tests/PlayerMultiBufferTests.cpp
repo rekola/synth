@@ -814,7 +814,7 @@ double liveNoteFrequency(Scale scale) {
 } // namespace
 
 TEST(a_live_note_of_a_just_scale_sounds_at_its_exact_ratio) {
-  auto equal = liveNoteFrequency(Scale::MAJOR);
+  auto equal = liveNoteFrequency(Scale::NONE);
   auto just = liveNoteFrequency(Scale::OTONAL);
   CHECK(equal > 0.0 && just > 0.0);
   // 12-EDO D-sharp in an otonal song is 7/6, 33 cents below the equal-tempered step.

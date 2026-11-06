@@ -1,94 +1,18 @@
 #include "TestFramework.h"
 
+#include "../src/model/Gamut.h"
 #include "../src/model/JustIntonation.h"
 #include "../src/model/Note.h"
 #include "../src/model/Scale.h"
 
+#include <cmath>
 #include <optional>
-
+#include <set>
 #include <vector>
 
 using namespace just_intonation;
 
-TEST(just_intonation_12edo_major_scale_degrees) {
-  CHECK(correctionCentsFor(12, 0) == 0);
-  CHECK(correctionCentsFor(12, 2) == 4);    // 9/8
-  CHECK(correctionCentsFor(12, 4) == -14);  // 5/4
-  CHECK(correctionCentsFor(12, 5) == -2);   // 4/3
-  CHECK(correctionCentsFor(12, 7) == 2);    // 3/2
-  CHECK(correctionCentsFor(12, 9) == -16);  // 5/3
-  CHECK(correctionCentsFor(12, 11) == -12); // 15/8
-}
-
-TEST(just_intonation_31edo_reaches_seven_and_eleven_without_a_limit_setting) {
-  // C D# F is 6:7:8 above C.
-  auto minor_third = intervalFor(31, 7);
-  CHECK(minor_third.num == 7 && minor_third.den == 6);
-  CHECK(correctionCentsFor(31, 7) == -4);
-  CHECK(correctionCentsFor(31, 13) == -5); // 4/3
-
-  // C C-double-sharp Eb G is 10:11:12:15.
-  auto second = intervalFor(31, 4);
-  CHECK(second.num == 11 && second.den == 10);
-  CHECK(correctionCentsFor(31, 4) == 10);
-  CHECK(correctionCentsFor(31, 8) == 6);  // 6/5
-  CHECK(correctionCentsFor(31, 18) == 5); // 3/2
-}
-
-TEST(just_intonation_ignores_octaves_and_follows_the_key) {
-  CHECK(correctionCentsFor(31, 18 + 31 * 3) == correctionCentsFor(31, 18));
-  CHECK(correctionCentsFor(31, 18 - 31) == correctionCentsFor(31, 18));
-  // A note is measured from the key's pitch class, whatever octave either is in.
-  int key = 31 * 4 + 5;
-  CHECK(correctionCentsForNote(Tuning::EDO31, key + 18, key) == 5);
-  CHECK(correctionCentsForNote(Tuning::EDO31, key + 18 + 31 * 2, key) == 5);
-  CHECK(correctionCentsForNote(Tuning::EDO31, key - 13, key) == correctionCentsFor(31, -13));
-  CHECK(correctionCentsForNote(Tuning::EDO31, key, key) == 0);
-}
-
-TEST(just_intonation_53edo_is_nearly_just_already) {
-  CHECK(std::abs(correctionCentsFor(53, 31)) <= 1); // 3/2
-  CHECK(std::abs(correctionCentsFor(53, 17)) <= 2); // 5/4
-}
-
-TEST(just_intonation_never_picks_a_ratio_with_a_large_prime) {
-  auto largest_prime = [](int n) {
-    int largest = 1;
-    for (int p = 2; p * p <= n; p++) {
-      while (n % p == 0) {
-        largest = p;
-        n /= p;
-      }
-    }
-    return n > 1 ? n : largest;
-  };
-  for (int edo : {12, 19, 31, 53}) {
-    for (int step = 0; step < edo; step++) {
-      auto interval = intervalFor(edo, step);
-      CHECK(largest_prime(interval.num) <= kMaxPrime);
-      CHECK(largest_prime(interval.den) <= kMaxPrime);
-    }
-  }
-  CHECK(intervalFor(31, 1).num == 33); // not 31/30
-}
-
-TEST(just_intonation_has_a_ratio_for_every_step_and_none_for_percussion) {
-  for (int edo : { 12, 19, 31, 53 }) {
-    int found = 0;
-    for (int step = 0; step < edo; step++) {
-      auto interval = intervalFor(edo, step);
-      if (interval.found) {
-        found++;
-        // Always within the cap, so the note stays the note it was.
-        CHECK(std::abs(correctionCentsFor(edo, step)) <= static_cast<int>(kMaxErrorCents) + 1);
-      } else {
-        CHECK(correctionCentsFor(edo, step) == 0);
-      }
-    }
-    CHECK(found >= edo - 2);
-  }
-  CHECK(correctionCentsForNote(Tuning::PERCUSSION, 36, 0) == 0);
-}
+using namespace ratio_literals;
 
 TEST(a_note_carries_a_tuning_correction_as_a_signed_hex_fx) {
   Note note(60, 100);
@@ -123,50 +47,6 @@ TEST(a_note_carries_a_tuning_correction_as_a_signed_hex_fx) {
   CHECK(note.getFx() == "...");
 }
 
-TEST(a_chord_is_tuned_above_its_bass) {
-  // Above a C bass the correction of each note is the same as measured from the key.
-  CHECK(correctionCentsInChord(31, 7, 0, 0) == -4);  // D#: 7/6 above C
-  CHECK(correctionCentsInChord(31, 13, 0, 0) == -5); // F: 4/3
-  CHECK(correctionCentsInChord(31, 4, 0, 0) == 10);  // C double sharp: 11/10
-  CHECK(correctionCentsInChord(31, 8, 0, 0) == 6);   // Eb: 6/5
-  CHECK(correctionCentsInChord(31, 18, 0, 0) == 5);  // G: 3/2
-  // The bass itself, and its octaves, are tuned from the key.
-  CHECK(correctionCentsInChord(31, 5, 5, 0) == correctionCentsFor(31, 5));
-  CHECK(correctionCentsInChord(31, 5 + 31, 5, 0) == correctionCentsFor(31, 5));
-
-  // A ii chord, D F A, is pure against its D: F a 6/5 and A a 3/2 above it,
-  // not F and A each measured from the key.
-  auto pitch = [](int value, int correction) { return value * 1200.0 / 31 + correction; };
-  double d = pitch(5, correctionCentsInChord(31, 5, 5, 0));
-  double f = pitch(13, correctionCentsInChord(31, 13, 5, 0));
-  double a = pitch(23, correctionCentsInChord(31, 23, 5, 0));
-  CHECK_NEAR(f - d, 1200.0 * std::log2(6.0 / 5.0), 1.0);
-  CHECK_NEAR(a - d, 1200.0 * std::log2(3.0 / 2.0), 1.0);
-  CHECK(correctionCentsInChord(31, 13, 5, 0) != correctionCentsFor(31, 13));
-
-  // Octaves of the key do not matter.
-  CHECK(correctionCentsInChord(31, 13 + 31 * 4, 5 + 31 * 3, 31 * 2) == correctionCentsInChord(31, 13, 5, 0));
-  CHECK(correctionCentsInChord(0, 13, 5, 0) == 0);
-
-  // A song with no key (-1) is read as C, here as in the single-note case.
-  CHECK(correctionCentsInChord(31, 13, 5, -1) == correctionCentsInChord(31, 13, 5, 0));
-  CHECK(correctionCentsInChord(31, 5, 5, -1) == correctionCentsForNote(Tuning::EDO31, 5, -1));
-}
-
-TEST(chords_that_hold_the_tonic_tune_the_same_against_any_of_their_notes) {
-  // Otonal/utonal chords in 31-EDO: tuned above any note of the chord, a note
-  // gets the correction it has against the key, so nothing drifts.
-  const std::vector<std::vector<int> > chords = {{0, 7, 13}, {13, 23, 31}, {0, 10, 18}, {18, 25, 31}};
-  for (const auto & chord : chords) {
-    for (int bass : chord) {
-      for (int value : chord) {
-        if (value < bass) continue;
-        CHECK(correctionCentsInChord(31, value, bass, 0) == correctionCentsFor(31, value));
-      }
-    }
-  }
-}
-
 namespace {
 
 // Steps above C of a scale's degrees, as the tuner places them: each gamut
@@ -188,9 +68,9 @@ TEST(scale_corrections_give_each_degree_its_exact_ratio_in_every_tuning) {
     std::vector<int> otonal, utonal;
   };
   const std::vector<Row> rows = {
-      // Where two degrees of a scale share a step (12-EDO), the first named wins.
-      {Tuning::EDO12, {0, 39, 4, -33, -14, -2, 2, -16, -31, -31, -12}, {0, 12, -49, -49, 16, -2, 2, 14, 33, -4, -39}},
-      {Tuning::EDO19, {0, 12, 14, 14, 7, -7, 7, 0, 21, -24, -24}, {0, -15, -15, -21, 0, -7, 7, -7, -14, -14, -12}},
+      // Where two degrees of a scale share a step (12 and 19-EDO), the closer wins.
+      {Tuning::EDO12, {0, 39, 4, -33, -14, -2, 2, -16, -31, -31, -12}, {0, 12, 31, 31, 16, -2, 2, 14, 33, -4, -39}},
+      {Tuning::EDO19, {0, 12, 14, 14, 7, -7, 7, 0, 21, 15, 15}, {0, -15, -15, -21, 0, -7, 7, -7, -14, -14, -12}},
       {Tuning::EDO31, {0, -16, 10, -4, -1, -5, 5, -6, 1, 4, 4}, {0, -4, -4, -1, 6, -5, 5, 1, 4, -10, 16}},
       {Tuning::EDO53, {0, 3, 0, -5, 1, 0, 0, 1, -5, 8, 1}, {0, -1, -8, 5, -1, 0, 0, -1, 5, 0, -3}},
   };
@@ -205,16 +85,6 @@ TEST(scale_corrections_give_each_degree_its_exact_ratio_in_every_tuning) {
       }
     }
   }
-}
-
-TEST(scale_corrections_follow_the_key_and_ignore_octaves) {
-  int key = 31 * 4 + 13; // F
-  auto corrections = scaleCorrectionsFor(Tuning::EDO31, Scale::OTONAL, key);
-  CHECK(corrections.forNote(key + 25) == std::optional<int>(1)); // 7/4 above F
-  CHECK(corrections.forNote(key + 25 - 31 * 2) == std::optional<int>(1));
-  CHECK(!corrections.forNote(key + 1)); // not a note of either scale
-  // No key reads as C.
-  CHECK(scaleCorrectionsFor(Tuning::EDO31, Scale::OTONAL, -1) == scaleCorrectionsFor(Tuning::EDO31, Scale::OTONAL, 0));
 }
 
 TEST(otonal_and_utonal_are_tuned_together) {
@@ -236,54 +106,141 @@ TEST(otonal_and_utonal_are_tuned_together) {
   CHECK(otonal.forNote(24) == std::optional<int>(4)); // 12/7
 }
 
-TEST(where_the_two_scales_share_a_step_the_songs_own_scale_has_it) {
-  // 12-EDO step 3 is the otonal 7/6 and the utonal 6/5.
-  CHECK(scaleCorrectionsFor(Tuning::EDO12, Scale::OTONAL, 0).forNote(3) == std::optional<int>(-33));
-  CHECK(scaleCorrectionsFor(Tuning::EDO12, Scale::UTONAL, 0).forNote(3) == std::optional<int>(16));
-  // 19-EDO step 4 is the otonal 7/6 and the utonal 8/7.
-  CHECK(scaleCorrectionsFor(Tuning::EDO19, Scale::OTONAL, 0).forNote(4) == std::optional<int>(14));
-  CHECK(scaleCorrectionsFor(Tuning::EDO19, Scale::UTONAL, 0).forNote(4) == std::optional<int>(-21));
+namespace {
+
+int stepOf(Tuning tuning, std::string_view spelling) {
+  int edo = edoStepsFor(tuning);
+  return (((Note::stringToKey(tuning, spelling) - Note::stringToKey(tuning, "C")) % edo) + edo) % edo;
 }
 
-TEST(scales_without_ratios_have_no_scale_corrections) {
-  for (auto scale : {Scale::NONE, Scale::MAJOR, Scale::MINOR}) CHECK(scaleCorrectionsFor(Tuning::EDO31, scale, 0).empty());
-  CHECK(scaleCorrectionsFor(Tuning::PERCUSSION, Scale::OTONAL, 0).empty());
-  // Without scale corrections a chord is tuned as before.
-  ScaleCorrections none;
-  CHECK(correctionCentsInChord(31, 23, 18, 0, none) == correctionCentsInChord(31, 23, 18, 0));
+int keyOf(Ratio ratio, int edo) { return ((ratio.steps(edo) % edo) + edo) % edo; }
+
+std::optional<GamutNote> noteOf(std::span<const GamutNote> table, Ratio ratio) {
+  for (auto & note : table)
+    if (note.ratio == ratio) return note;
+  return std::nullopt;
 }
 
-TEST(every_triad_of_the_two_scales_is_exact_in_every_voicing) {
-  for (auto tuning : {Tuning::EDO31, Tuning::EDO53}) {
+} // namespace
+
+TEST(the_duodene_has_one_note_per_12_edo_key_and_none_share_a_key_elsewhere) {
+  CHECK(gamut::kDuodene.size() == 12);
+  for (auto tuning : {Tuning::EDO12, Tuning::EDO19, Tuning::EDO31, Tuning::EDO53}) {
     int edo = edoStepsFor(tuning);
-    auto scale = scaleCorrectionsFor(tuning, Scale::OTONAL, 0);
-    std::vector<int> notes;
-    for (int step = 0; step < edo; step++)
-      if (scale.forNote(step)) notes.push_back(step);
-    CHECK(notes.size() == (tuning == Tuning::EDO31 ? 17u : 19u));
-    for (size_t a = 0; a < notes.size(); a++) {
-      for (size_t b = a + 1; b < notes.size(); b++) {
-        for (size_t c = b + 1; c < notes.size(); c++) {
-          int triad[3] = {notes[a], notes[b], notes[c]};
-          for (int bass : triad) {
-            for (int note : triad) {
-              int value = note < bass ? note + edo : note; // above the bass
-              CHECK(std::optional<int>(correctionCentsInChord(edo, value, bass, 0, scale)) == scale.forNote(value));
-            }
-          }
-        }
+    std::set<int> keys, spelled;
+    for (auto & note : gamut::kDuodene) {
+      keys.insert(keyOf(note.ratio, edo));
+      spelled.insert(stepOf(tuning, note.spelling));
+    }
+    CHECK(keys.size() == 12);
+    CHECK(spelled.size() == 12);
+  }
+  // The spellings mean the ratios in 31 and 53-EDO.
+  for (auto tuning : {Tuning::EDO31, Tuning::EDO53}) {
+    for (auto & note : gamut::kDuodene) CHECK(stepOf(tuning, note.spelling) == keyOf(note.ratio, edoStepsFor(tuning)));
+  }
+}
+
+TEST(major_and_minor_are_selections_from_the_duodene) {
+  CHECK(scaleGamut(Scale::MAJOR).data() == gamut::kDuodene.data());
+  CHECK(scaleGamut(Scale::MINOR).data() == gamut::kDuodene.data());
+  CHECK(scaleGamutIndices(Scale::MAJOR).size() == 7);
+  CHECK(scaleGamutIndices(Scale::MINOR).size() == 7);
+  for (auto scale : {Scale::MAJOR, Scale::MINOR}) {
+    for (auto i : scaleGamutIndices(scale)) CHECK(i < gamut::kDuodene.size());
+  }
+  // Their degree names are the duodene's spellings.
+  for (auto scale : {Scale::MAJOR, Scale::MINOR}) {
+    for (auto name : scaleDegreeNames(scale)) {
+      bool found = false;
+      for (auto & note : gamut::kDuodene) found = found || note.spelling == name;
+      CHECK(found);
+    }
+  }
+}
+
+TEST(the_gamut_of_each_scale) {
+  CHECK(scaleGamut(Scale::OTONAL).data() == gamut::kSuperparticular.data());
+  CHECK(scaleGamut(Scale::UTONAL).data() == gamut::kSuperparticular.data());
+  CHECK(scaleGamut(Scale::DIAMOND7).data() == gamut::kDiamond7.data());
+  CHECK(scaleGamut(Scale::PYTHAGOREAN_MIXOLYDIAN).data() == gamut::kPythagorean.data());
+  for (auto scale : {Scale::NONE, Scale::RAST, Scale::BAYATI, Scale::HIJAZ, Scale::NAHAWAND, Scale::KURD, Scale::AJAM, Scale::SABA, Scale::SIKAH}) {
+    CHECK(scaleGamut(scale).empty());
+  }
+}
+
+TEST(b_d_flat_d_and_b_flat_are_15_8_16_15_9_8_and_9_5_in_all_four_tunings) {
+  for (auto tuning : {Tuning::EDO12, Tuning::EDO19, Tuning::EDO31, Tuning::EDO53}) {
+    int edo = edoStepsFor(tuning);
+    for (auto scale : {Scale::MAJOR, Scale::MINOR}) {
+      auto corrections = scaleCorrectionsFor(tuning, scale, 0);
+      for (auto ratio : {15 / 8_r, 16 / 15_r, 9 / 8_r, 9 / 5_r}) {
+        auto cents = corrections.forNote(keyOf(ratio, edo));
+        CHECK(cents && *cents == std::lround(ratio.cents() - keyOf(ratio, edo) * 1200.0 / edo));
       }
     }
   }
-  // The chord tuner alone gets an inverted C6 wrong: G C E A has A at 27/16.
-  CHECK(correctionCentsInChord(31, 23 + 31, 18, 0) == 16);
-  CHECK(correctionCentsInChord(31, 23 + 31, 18, 0, scaleCorrectionsFor(Tuning::EDO31, Scale::OTONAL, 0)) == -6);
 }
 
-TEST(a_note_outside_the_scale_is_tuned_against_the_exact_ratio_of_a_scale_bass) {
-  // 12-EDO otonal: D-sharp is 7/6 (-33), F-sharp above it a 6/5.
-  auto scale = scaleCorrectionsFor(Tuning::EDO12, Scale::OTONAL, 0);
-  CHECK(!scale.forNote(6));
-  CHECK(correctionCentsInChord(12, 6, 3, 0, scale) == -17);
-  CHECK(correctionCentsInChord(12, 6, 3, 0) == 31); // the table's 6/5 for the bass instead
+TEST(scale_corrections_follow_the_key_and_ignore_octaves) {
+  int key = 31 * 4 + 13; // F
+  auto corrections = scaleCorrectionsFor(Tuning::EDO31, Scale::OTONAL, key);
+  CHECK(corrections.forNote(key + 25) == std::optional<int>(1)); // 7/4 above F
+  CHECK(corrections.forNote(key + 25 - 31 * 2) == std::optional<int>(1));
+  CHECK(!corrections.forNote(key + 1)); // no gamut note has this key
+  // No key reads as C.
+  CHECK(scaleCorrectionsFor(Tuning::EDO31, Scale::OTONAL, -1) == scaleCorrectionsFor(Tuning::EDO31, Scale::OTONAL, 0));
+}
+
+TEST(a_scale_without_a_gamut_applies_no_correction) {
+  for (auto scale : {Scale::NONE, Scale::RAST, Scale::HIJAZ, Scale::SIKAH}) {
+    for (auto tuning : {Tuning::EDO12, Tuning::EDO24, Tuning::EDO31, Tuning::EDO53}) {
+      auto corrections = scaleCorrectionsFor(tuning, scale, 0);
+      CHECK(corrections.empty());
+      for (int note = 0; note < 60; note++) CHECK(!corrections.forNote(note));
+    }
+  }
+  CHECK(scaleCorrectionsFor(Tuning::PERCUSSION, Scale::MAJOR, 0).empty());
+}
+
+TEST(a_shared_key_goes_to_the_scales_note_else_the_closer) {
+  // 31-EDO key 4: 13/12 (D♭) and 12/11 (C𝄪). Both are in the superparticular
+  // gamut; each scale has its own.
+  CHECK(scaleCorrectionsFor(Tuning::EDO31, Scale::OTONAL, 0).forNote(4) == std::optional<int>(-16));
+  CHECK(scaleCorrectionsFor(Tuning::EDO31, Scale::UTONAL, 0).forNote(4) == std::optional<int>(-4));
+  // 12-EDO key 3: 7/6 (otonal) and 6/5 (utonal).
+  CHECK(scaleCorrectionsFor(Tuning::EDO12, Scale::OTONAL, 0).forNote(3) == std::optional<int>(-33));
+  CHECK(scaleCorrectionsFor(Tuning::EDO12, Scale::UTONAL, 0).forNote(3) == std::optional<int>(16));
+  // The same key in a scale of neither note: the closer one. 12-EDO key 2 holds
+  // 9/8 (+4), 12/11 (-49) and 8/7 (+31); a song in the diamond has 8/7 and
+  // takes it, while major has 9/8.
+  CHECK(scaleCorrectionsFor(Tuning::EDO12, Scale::DIAMOND7, 0).forNote(2) == std::optional<int>(31));
+  CHECK(scaleCorrectionsFor(Tuning::EDO12, Scale::MAJOR, 0).forNote(2) == std::optional<int>(4));
+}
+
+TEST(every_correction_is_a_gamut_ratios_cents_minus_its_steps) {
+  for (auto scale : {Scale::MAJOR, Scale::MINOR, Scale::OTONAL, Scale::UTONAL, Scale::DIAMOND7}) {
+    for (auto tuning : {Tuning::EDO12, Tuning::EDO19, Tuning::EDO31, Tuning::EDO53}) {
+      int edo = edoStepsFor(tuning);
+      auto corrections = scaleCorrectionsFor(tuning, scale, 0);
+      for (int step = 0; step < edo; step++) {
+        auto cents = corrections.forNote(step);
+        if (!cents) continue;
+        const int value = *cents;
+        bool matches = false;
+        for (auto & note : scaleGamut(scale)) {
+          matches = matches || (keyOf(note.ratio, edo) == step && value == std::lround(note.ratio.cents() - step * 1200.0 / edo));
+        }
+        CHECK(matches);
+      }
+    }
+  }
+}
+
+TEST(the_duodenes_fixed_comma_is_where_the_docs_say) {
+  // C major's D-A is 40/27 and F-B♭ in minor 27/20, both a comma from pure.
+  CHECK(std::fabs((5 / 3_r).cents() - (9 / 8_r).cents() - (40 / 27_r).cents()) < 1e-9);
+  CHECK(std::fabs((9 / 5_r).cents() - (4 / 3_r).cents() - (27 / 20_r).cents()) < 1e-9);
+  CHECK(noteOf(gamut::kDuodene, 9 / 5_r).has_value());
+  CHECK(!noteOf(gamut::kDuodene, 16 / 9_r).has_value());
 }

@@ -44,30 +44,23 @@ void clearPatternBlock(PatternGrid & grid, int row_lo, int row_hi,
 void pastePatternBlock(PatternGrid & grid, const PatternBlock & block, int num_rows,
 		       int target_row, const std::vector<int> & track_ids, int target_track);
 
-// What a just-intonation correction is measured from: the song's EDO and
-// key (Song::getKey(), a full note value of which only the pitch class
-// counts), and the bars that decide which notes form one chord - the notes
-// that start in the same bar (or the same `kChordWindowBars` bars), together
-// with the ones still held into it. In a song whose scale is a just scale,
-// `scale` holds each of its notes' exact correction, which they get whatever
-// their chord.
+// What a just-intonation correction is measured from: the song's EDO and key
+// (Song::getKey(), a full note value of which only the pitch class counts) and
+// `scale`, the corrections of its scale's gamut (empty for a scale with no
+// gamut: nothing is tuned).
 struct IntonationContext {
   Tuning tuning = Tuning::EDO12;
   int key = 0;
-  BarGrid bars;
   just_intonation::ScaleCorrections scale;
 };
 
-// The song's own context: its EDO, key, arrangement bars and scale.
+// The song's own context: its EDO, key and scale's gamut.
 IntonationContext intonationContextOf(const Song & song);
 
-// A note just played into `track_id` (recorded or typed): in a song whose
-// scale is a just scale, a scale note gets its scale correction, so it plays
-// back as it sounded live. Any other note is left untuned.
+// A note just played into `track_id` (recorded or typed): a note whose key has
+// a gamut note gets its correction, so it plays back as it sounded live. Any
+// other note is left untuned.
 void tuneNewNote(const Song & song, int track_id, Note & note);
-
-// How many bars one chord context spans.
-constexpr int kChordWindowBars = 1;
 
 // How many pitched notes an apply touched, and how many of those had another
 // fx that the correction replaced.
@@ -84,7 +77,7 @@ struct TuningSummary {
 // entirely within the range rather than shifting their notes.
 // With `retune`, a note that carried a tuning correction gets a fresh one for
 // its new pitch (a corrected note stays corrected, and now fits its new place
-// in its chord and against the key); notes without one are left untuned.
+// against the key); notes without one are left untuned.
 void transposePatternBlock(PatternGrid & grid, int row_lo, int row_hi,
 			   const std::vector<int> & track_ids, int track_lo, int track_hi, bool up,
 			   const std::function<bool(int track_id)> & is_percussion,
@@ -127,11 +120,9 @@ void humanizePatternBlockNotes(PatternGrid & grid, int row_lo, int row_hi,
 			       const HumanizeAmount & amount, NoiseGenerator & rng);
 // Sets the just-intonation correction (JustIntonation.h) of every pitched
 // note in the range, replacing whatever fx it held; a note that needs no
-// correction gets +00, which marks it as tuned. A note is tuned with the
-// other notes of its bar (context.bars), read from its whole pattern, so a
-// range that covers part of a chord still tunes it as the whole chord. Offs, aftertouch and any
+// correction gets +00, which marks it as tuned. Offs, aftertouch and any
 // track `is_percussion` reports true for (there is no pitch to correct) are
-// skipped.
+// skipped. Nothing is written when the context's scale has no gamut.
 TuningSummary applyJustIntonationBlock(PatternGrid & grid, int row_lo, int row_hi,
 				       const std::vector<int> & track_ids, int track_lo, int track_hi,
 				       const IntonationContext & context,

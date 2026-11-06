@@ -14,8 +14,8 @@
 #include "../instruments/Tuning.h"
 
 // A song-wide scale, for the sequencer (Song::getScaleDegreesWindow()) and,
-// for a just scale, which gamut notes it shows and prefers when the tuner has
-// a choice; the Launchpad's keyboard ignores it. NONE is the explicit "no scale chosen"
+// through its gamut (scaleGamut()), the tuning of the song's notes; the
+// Launchpad's keyboard ignores it. NONE is the explicit "no scale chosen"
 // state, not a fifth real scale - getScaleDegreesWindow() falls back to the
 // plain chromatic scale for it.
 enum class Scale {
@@ -26,7 +26,8 @@ enum class Scale {
   UTONAL,
   DIAMOND7,
   // C D E F G A B♭ of the Pythagorean gamut. To be renamed after the Babylonian
-  // tuning with this pattern once that mapping is verified.
+  // tuning with this pattern once that mapping is verified. Named for the
+  // gamut so a 5-limit Mixolydian can join the duodene later.
   PYTHAGOREAN_MIXOLYDIAN,
 
   // Arabic
@@ -126,20 +127,28 @@ static inline Scale scaleFromString(const std::string & text) {
   return Scale::NONE;
 }
 
-// A just scale is a selection from a gamut. Otonal is the superparticular
-// gamut's notes of its side (or of both) through round kJustScaleRound:
+// Every scale names its gamut, and selecting the scale selects the gamut: major
+// and minor the duodene, otonal and utonal the superparticular gamut, diamond7
+// the diamond, the Pythagorean modes the Pythagorean gamut. The maqamat and NONE
+// have none: they are tempered and get no tuning corrections. The scale itself
+// is a selection from its gamut. Otonal is the superparticular gamut's notes of
+// its side (or of both) through round kJustScaleRound:
 // 1/1 13/12 9/8 7/6 5/4 4/3 3/2 5/3 7/4 11/6 15/8 (C D♭ D D♯ E F G A A♯↑ C𝄫'
 // B), harmonics of the note a fifth below the tonic and the like; utonal is its
 // mirror image, 1/1 16/15 12/11 8/7 6/5 4/3 3/2 8/5 12/7 16/9 24/13 (C D♭↓ C𝄪
 // E𝄫 E♭ F G A♭ B𝄫 B♭↓ B↓). The terms are Partch's, though his otonalities are
 // chords, not these scales. Diamond7 is all thirteen notes of the tonality
 // diamond. Pythagorean Mixolydian is seven notes of the Pythagorean gamut,
-// 3-limit and meant for 53-EDO only (scaleSupportsTuning()). Other scales are
-// not just.
+// 3-limit and meant for 53-EDO only (scaleSupportsTuning()). Major and minor
+// are seven of the duodene's twelve.
 constexpr int kJustScaleRound = 3;
 
 // C D E F G A B♭
 inline constexpr std::array<Ratio, 7> kPythagoreanMixolydianRatios = {Ratio{1, 1}, Ratio{9, 8}, Ratio{81, 64}, Ratio{4, 3}, Ratio{3, 2}, Ratio{27, 16}, Ratio{16, 9}};
+// C D E F G A B
+inline constexpr std::array<Ratio, 7> kMajorRatios = {Ratio{1, 1}, Ratio{9, 8}, Ratio{5, 4}, Ratio{4, 3}, Ratio{3, 2}, Ratio{5, 3}, Ratio{15, 8}};
+// C D E♭ F G A♭ B♭
+inline constexpr std::array<Ratio, 7> kMinorRatios = {Ratio{1, 1}, Ratio{9, 8}, Ratio{6, 5}, Ratio{4, 3}, Ratio{3, 2}, Ratio{8, 5}, Ratio{9, 5}};
 
 // Every ratio of `only` must be a note of the gamut it selects from: a typo
 // would otherwise just drop that note from the scale.
@@ -152,6 +161,8 @@ constexpr bool allInGamut(std::span<const Ratio> only, std::span<const GamutNote
   return true;
 }
 static_assert(allInGamut(kPythagoreanMixolydianRatios, gamut::kPythagorean));
+static_assert(allInGamut(kMajorRatios, gamut::kDuodene));
+static_assert(allInGamut(kMinorRatios, gamut::kDuodene));
 
 struct JustScale {
   std::span<const GamutNote> gamut;
@@ -165,8 +176,6 @@ struct JustScale {
     if (!only.empty()) return std::find(only.begin(), only.end(), note.ratio) != only.end();
     return note.round <= round && (!side || note.side == GamutSide::BOTH || note.side == *side);
   }
-  // Whether the scale's side is the note's or the note is on both.
-  bool prefers(const GamutNote & note) const { return !side || note.side == GamutSide::BOTH || note.side == *side; }
 };
 
 // Whether a scale's notes mean what it says under a tuning. The Pythagorean
@@ -178,6 +187,10 @@ static inline bool scaleSupportsTuning(Scale scale, Tuning tuning) {
 
 static inline std::optional<JustScale> justScale(Scale scale) {
   switch (scale) {
+    case Scale::MAJOR:
+      return JustScale{gamut::kDuodene, std::nullopt, 0, kMajorRatios};
+    case Scale::MINOR:
+      return JustScale{gamut::kDuodene, std::nullopt, 0, kMinorRatios};
     case Scale::OTONAL:
       return JustScale{gamut::kSuperparticular, GamutSide::OTONAL, kJustScaleRound};
     case Scale::UTONAL:
@@ -192,8 +205,14 @@ static inline std::optional<JustScale> justScale(Scale scale) {
   return std::nullopt;
 }
 
-// Indices into justScale(scale)->gamut of a just scale's notes, by ascending
-// ratio. Empty for the others.
+// The scale's gamut; empty when it has none (the song is tempered).
+static inline std::span<const GamutNote> scaleGamut(Scale scale) {
+  auto just = justScale(scale);
+  return just ? just->gamut : std::span<const GamutNote>{};
+}
+
+// Indices into scaleGamut(scale) of the scale's notes, by ascending ratio.
+// Empty for a scale with no gamut.
 static inline std::vector<std::size_t> scaleGamutIndices(Scale scale) {
   std::vector<std::size_t> out;
   auto just = justScale(scale);
@@ -213,7 +232,8 @@ static inline std::vector<std::size_t> scaleGamutIndices(Scale scale) {
 // tuning. Empty for Scale::NONE: Song::getScaleDegreesWindow() reads that as
 // "use the plain chromatic scale" and does not call this at all.
 //
-// A just scale's names are its gamut's spellings, chosen to mean those ratios
+// A gamut scale's names are its gamut's spellings (major and minor have their
+// own, the same as the duodene's), chosen to mean those ratios
 // in both 31 and 53-EDO, except Pythagorean Mixolydian, whose E and B♭ carry
 // 53-EDO arrows that 31-EDO ignores and so land on the wrong step there; 12 and 19-EDO take the nearest step (in 12-EDO E𝄫
 // sounds identical to D, so two degrees can share a key). 31-EDO has one step

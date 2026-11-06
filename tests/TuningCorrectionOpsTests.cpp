@@ -18,7 +18,8 @@ namespace {
 
 const int kKey = 31 * 5; // C5 in 31-EDO
 
-IntonationContext context() { return { Tuning::EDO31, kKey }; }
+// 31-EDO in C major: the duodene's corrections.
+IntonationContext context() { return {Tuning::EDO31, kKey, just_intonation::scaleCorrectionsFor(Tuning::EDO31, Scale::MAJOR, kKey)}; }
 
 bool never(int) { return false; }
 
@@ -31,11 +32,11 @@ TEST(apply_just_intonation_tunes_every_pitched_note_and_skips_what_has_no_pitch)
   vector<int> track_ids = { 10, 20 };
 
   arrangement.setNote(0, 10, 0, Note(kKey, 100));      // C
-  arrangement.setNote(0, 10, 1, Note(kKey + 7, 100));  // D#
+  arrangement.setNote(0, 10, 1, Note(kKey + 8, 100));  // E♭
   arrangement.setNote(0, 10, 2, Note(kKey + 13, 100)); // F
   Note off(kKey, 0);
   arrangement.setNote(1, 10, 0, off);
-  Note panned(kKey + 4, 100);
+  Note panned(kKey + 10, 100);
   panned.setFx("P80");
   arrangement.setNote(2, 10, 0, panned);
   arrangement.setNote(0, 20, 0, Note(36, 100)); // a drum
@@ -44,10 +45,10 @@ TEST(apply_just_intonation_tunes_every_pitched_note_and_skips_what_has_no_pitch)
 
   auto row0 = arrangement.getNotes(0, 10);
   CHECK(row0[0].getFx() == "+00"); // tuned, nothing to correct
-  CHECK(row0[1].getFx() == "-04"); // 7/6
+  CHECK(row0[1].getFx() == "+06"); // 6/5
   CHECK(row0[2].getFx() == "-05"); // 4/3
   CHECK(!arrangement.getNotes(1, 10)[0].hasFx()); // an off has no pitch
-  CHECK(arrangement.getNotes(2, 10)[0].getFx() == "+0A"); // 11/10, replacing the pan
+  CHECK(arrangement.getNotes(2, 10)[0].getFx() == "-01"); // 5/4, replacing the pan
   CHECK(!arrangement.getNotes(0, 20)[0].hasFx()); // percussion is never tuned
   CHECK(summary.notes == 4);
   CHECK(summary.replaced == 1);
@@ -57,7 +58,7 @@ TEST(apply_just_intonation_is_repeatable_and_note_column_scoped) {
   Song song(Tuning::EDO31, kKey);
   auto arrangement = song.getArrangement();
   ArrangementBackgroundGrid grid(arrangement);
-  arrangement.setNote(0, 10, 0, Note(kKey + 7, 100));
+  arrangement.setNote(0, 10, 0, Note(kKey + 8, 100));
   arrangement.setNote(0, 10, 1, Note(kKey + 13, 100));
 
   applyJustIntonationBlockNotes(grid, 0, 0, 10, 1, 1, context(), false);
@@ -67,7 +68,7 @@ TEST(apply_just_intonation_is_repeatable_and_note_column_scoped) {
   auto again = applyJustIntonationBlockNotes(grid, 0, 0, 10, 0, 1, context(), false);
   CHECK(again.notes == 2);
   CHECK(again.replaced == 0); // an earlier correction is not "another fx"
-  CHECK(arrangement.getNotes(0, 10)[0].getFx() == "-04");
+  CHECK(arrangement.getNotes(0, 10)[0].getFx() == "+06");
   CHECK(arrangement.getNotes(0, 10)[1].getFx() == "-05");
 
   CHECK(applyJustIntonationBlockNotes(grid, 0, 0, 10, 0, 1, context(), true).notes == 0); // percussion
@@ -78,7 +79,7 @@ TEST(clear_tuning_correction_removes_only_the_correction) {
   auto arrangement = song.getArrangement();
   ArrangementBackgroundGrid grid(arrangement);
   vector<int> track_ids = { 10 };
-  Note tuned(kKey + 7, 100), panned(kKey + 4, 100);
+  Note tuned(kKey + 8, 100), panned(kKey + 4, 100);
   tuned.setTuningCorrection(-4);
   panned.setFx("PFF");
   arrangement.setNote(0, 10, 0, tuned);
@@ -96,7 +97,7 @@ TEST(transposing_a_tuned_note_retunes_it_against_the_key) {
   ArrangementBackgroundGrid grid(arrangement);
   vector<int> track_ids = { 10 };
   arrangement.setNote(0, 10, 0, Note(kKey, 100));
-  arrangement.setNote(0, 10, 1, Note(kKey + 7, 100));
+  arrangement.setNote(0, 10, 1, Note(kKey + 8, 100));
   arrangement.setNote(0, 10, 2, Note(kKey + 13, 100));
   applyJustIntonationBlock(grid, 0, 0, track_ids, 0, 0, context(), never);
 
@@ -106,22 +107,38 @@ TEST(transposing_a_tuned_note_retunes_it_against_the_key) {
   auto notes = arrangement.getNotes(0, 10);
   CHECK(notes[0].getValue() == kKey + 18); // C became G ...
   CHECK(notes[0].getTuningCorrectionCents() == 5); // ... and is the key's perfect fifth
-  CHECK(notes[1].getTuningCorrectionCents() == just_intonation::correctionCentsFor(31, 25));
-  CHECK(notes[2].getTuningCorrectionCents() == just_intonation::correctionCentsFor(31, 31)); // back to the tonic
+  CHECK(notes[1].getTuningCorrectionCents() == 11); // E♭ became B♭: 9/5
+  CHECK(notes[2].getTuningCorrectionCents() == 0);  // F became the tonic
 
   // Without a context the corrections stay where they were.
   transposePatternBlock(grid, 0, 0, track_ids, 0, 0, true, never);
   CHECK(arrangement.getNotes(0, 10)[0].getTuningCorrectionCents() == 5);
 }
 
+TEST(transposing_a_tuned_note_in_a_scale_without_a_gamut_removes_its_correction) {
+  Song song(Tuning::EDO31, kKey);
+  auto arrangement = song.getArrangement();
+  ArrangementBackgroundGrid grid(arrangement);
+  vector<int> track_ids = {10};
+  arrangement.setNote(0, 10, 0, Note(kKey + 8, 100));
+  applyJustIntonationBlock(grid, 0, 0, track_ids, 0, 0, context(), never);
+  CHECK(arrangement.getNotes(0, 10)[0].hasTuningCorrection());
+
+  IntonationContext tempered{Tuning::EDO31, kKey};
+  transposePatternBlock(grid, 0, 0, track_ids, 0, 0, true, never, &tempered);
+  CHECK(!arrangement.getNotes(0, 10)[0].hasFx());
+  CHECK(applyJustIntonationBlock(grid, 0, 0, track_ids, 0, 0, tempered, never).notes == 0);
+  CHECK(!arrangement.getNotes(0, 10)[0].hasFx());
+}
+
 TEST(transposing_leaves_an_untuned_note_untuned) {
   Song song(Tuning::EDO31, kKey);
   auto arrangement = song.getArrangement();
   ArrangementBackgroundGrid grid(arrangement);
-  arrangement.setNote(0, 10, 0, Note(kKey + 7, 100));
+  arrangement.setNote(0, 10, 0, Note(kKey + 8, 100));
   auto ctx = context();
   transposePatternBlockNotes(grid, 0, 0, 10, 0, 0, true, false, &ctx);
-  CHECK(arrangement.getNotes(0, 10)[0].getValue() == kKey + 8);
+  CHECK(arrangement.getNotes(0, 10)[0].getValue() == kKey + 9);
   CHECK(!arrangement.getNotes(0, 10)[0].hasFx());
 }
 
@@ -135,6 +152,7 @@ struct ScopedSong {
   ClipView placed, unplaced;
 
   explicit ScopedSong(bool background = true) {
+    song.setScale(Scale::MAJOR);
     track_id = song.addTrack(make_unique<InstrumentTrack>(0)).getInternalId();
     if (background) song.getArrangement().setNote(0, track_id, 0, Note(kKey + 7, 100));
     Clip clip(track_id);
@@ -167,7 +185,7 @@ TEST(the_arrangement_tunes_the_background_and_the_clips_it_places) {
   ScopedSong s;
   auto summary = applyJustIntonationToSong(s.song, SongScope::ARRANGEMENT);
   CHECK(summary.notes == 3);
-  CHECK(s.background() == "-04");
+  CHECK(s.background() == "+00"); // no gamut note has this key
   CHECK(s.placed.getLeafPattern().getNote(2, 0).getFx() == "+05");
   CHECK(!s.unplaced.getLeafPattern().getNote(0, 0).hasFx());
 }
@@ -197,7 +215,7 @@ TEST(the_key_moves_with_a_transpose_only_when_nothing_pitched_is_left_behind) {
   transposeSong(partial.song, SongScope::SCENES, true);
   CHECK(partial.song.getKey() == kKey);
   CHECK(partial.placed.getLeafPattern().getNote(0, 0).getValue() == kKey + 14);
-  CHECK(partial.placed.getLeafPattern().getNote(0, 0).getTuningCorrectionCents() == just_intonation::correctionCentsFor(31, 14));
+  CHECK(partial.placed.getLeafPattern().getNote(0, 0).getFx() == "+00"); // F moved to a key no gamut note has
   CHECK(partial.song.getArrangement()->getNotes(0, partial.track_id)[0].getValue() == kKey + 7);
 
   // With only clips, Live View's select-all covers everything: the key goes along.
@@ -218,43 +236,29 @@ int above(int steps) { return kKey + steps; }
 
 } // namespace
 
-TEST(an_arpeggio_is_tuned_as_one_chord) {
+TEST(a_note_is_tuned_the_same_whatever_sounds_with_it) {
+  // D F A as a chord, and each alone in a bar of its own.
   Song song(Tuning::EDO31, kKey);
   auto arrangement = song.getArrangement();
   ArrangementBackgroundGrid grid(arrangement);
-  // D, F, A one after the other in a single column, all in the first bar.
   arrangement.setNote(0, 10, 0, Note(above(5), 100));
-  arrangement.setNote(2, 10, 0, Note(above(13), 100));
-  arrangement.setNote(4, 10, 0, Note(above(23), 100));
-  // The next bar holds a lone G.
-  arrangement.setNote(16, 10, 0, Note(above(18), 100));
+  arrangement.setNote(0, 10, 1, Note(above(13), 100));
+  arrangement.setNote(0, 10, 2, Note(above(23), 100));
+  arrangement.setNote(16, 10, 0, Note(above(5), 100));
+  arrangement.setNote(32, 10, 0, Note(above(13), 100));
+  arrangement.setNote(48, 10, 0, Note(above(23), 100));
 
-  applyJustIntonationBlockNotes(grid, 0, 31, 10, 0, 0, context(), false);
+  applyJustIntonationBlockNotes(grid, 0, 63, 10, 0, 2, context(), false);
 
-  CHECK(arrangement.getNotes(0, 10)[0].getTuningCorrectionCents() == just_intonation::correctionCentsFor(31, 5));
-  CHECK(arrangement.getNotes(2, 10)[0].getTuningCorrectionCents() == just_intonation::correctionCentsInChord(31, 13, 5, 0));
-  CHECK(arrangement.getNotes(4, 10)[0].getTuningCorrectionCents() == just_intonation::correctionCentsInChord(31, 23, 5, 0));
-  CHECK(arrangement.getNotes(2, 10)[0].getTuningCorrectionCents() != just_intonation::correctionCentsFor(31, 13));
-  // Another bar is another chord: G stands alone, tuned from the key.
-  CHECK(arrangement.getNotes(16, 10)[0].getTuningCorrectionCents() == just_intonation::correctionCentsFor(31, 18));
+  CHECK(arrangement.getNotes(0, 10)[0].getFx() == "+0A"); // 9/8
+  CHECK(arrangement.getNotes(0, 10)[1].getFx() == "-05"); // 4/3
+  CHECK(arrangement.getNotes(0, 10)[2].getFx() == "-06"); // 5/3: D-A is 40/27, a comma flat of a fifth
+  CHECK(arrangement.getNotes(16, 10)[0].getFx() == "+0A");
+  CHECK(arrangement.getNotes(32, 10)[0].getFx() == "-05");
+  CHECK(arrangement.getNotes(48, 10)[0].getFx() == "-06");
 }
 
-TEST(a_held_note_is_part_of_the_next_bars_chord_until_it_is_turned_off) {
-  auto tune = [](bool turn_off) {
-    Song song(Tuning::EDO31, kKey);
-    auto arrangement = song.getArrangement();
-    ArrangementBackgroundGrid grid(arrangement);
-    arrangement.setNote(0, 10, 0, Note(above(5), 100)); // D, held on in column 0 ...
-    if (turn_off) arrangement.setNote(8, 10, 0, Note(0, 0));
-    arrangement.setNote(16, 10, 1, Note(above(13), 100)); // ... when F starts in the next bar
-    applyJustIntonationBlockNotes(grid, 0, 31, 10, 0, 1, context(), false);
-    return arrangement.getNotes(16, 10)[1].getTuningCorrectionCents();
-  };
-  CHECK(tune(false) == just_intonation::correctionCentsInChord(31, 13, 5, 0)); // F above the held D
-  CHECK(tune(true) == just_intonation::correctionCentsFor(31, 13));            // F alone
-}
-
-TEST(a_region_tunes_only_its_own_notes_against_the_whole_chord) {
+TEST(a_region_tunes_only_its_own_notes) {
   Song song(Tuning::EDO31, kKey);
   auto arrangement = song.getArrangement();
   ArrangementBackgroundGrid grid(arrangement);
@@ -267,8 +271,25 @@ TEST(a_region_tunes_only_its_own_notes_against_the_whole_chord) {
   CHECK(summary.notes == 1);
   CHECK(!arrangement.getNotes(0, 10)[0].hasFx());
   CHECK(!arrangement.getNotes(4, 10)[0].hasFx());
-  // F was tuned above the D that is outside the region.
-  CHECK(arrangement.getNotes(2, 10)[0].getTuningCorrectionCents() == just_intonation::correctionCentsInChord(31, 13, 5, 0));
+  CHECK(arrangement.getNotes(2, 10)[0].getFx() == "-05");
+}
+
+TEST(a_scale_without_a_gamut_writes_nothing) {
+  Song song(Tuning::EDO31, kKey);
+  auto track_id = song.addTrack(make_unique<InstrumentTrack>(0)).getInternalId();
+  auto arrangement = song.getArrangement();
+  arrangement.setNote(0, track_id, 0, Note(kKey + 13, 100));
+  for (auto scale : {Scale::NONE, Scale::RAST, Scale::HIJAZ}) {
+    song.setScale(scale);
+    CHECK(intonationContextOf(song).scale.empty());
+    CHECK(applyJustIntonationToSong(song, SongScope::ARRANGEMENT).notes == 0);
+    CHECK(!arrangement.getNotes(0, track_id)[0].hasFx());
+  }
+  song.setScale(Scale::MAJOR);
+  CHECK(applyJustIntonationToSong(song, SongScope::ARRANGEMENT).notes == 1);
+  song.setScale(Scale::RAST);
+  CHECK(retuneSong(song) == 1); // the tuned note loses its correction
+  CHECK(!arrangement.getNotes(0, track_id)[0].hasFx());
 }
 
 TEST(a_percussion_track_is_left_alone) {
@@ -287,7 +308,7 @@ TEST(a_percussion_track_is_left_alone) {
 }
 
 TEST(in_a_just_scale_every_note_gets_its_scale_ratio_whatever_its_chord) {
-  // F A C E, all otonal notes: the chord tuner alone puts E at 13/7 above F.
+  // F A C E, all otonal notes.
   Song song(Tuning::EDO31, kKey);
   song.setScale(Scale::OTONAL);
   auto track_id = song.addTrack(make_unique<InstrumentTrack>(0)).getInternalId();
@@ -298,9 +319,6 @@ TEST(in_a_just_scale_every_note_gets_its_scale_ratio_whatever_its_chord) {
   arrangement.setNote(0, track_id, 2, Note(kKey + 31, 100));      // C
   arrangement.setNote(0, track_id, 3, Note(kKey + 31 + 10, 100)); // E
   vector<int> track_ids = {track_id};
-
-  applyJustIntonationBlock(grid, 0, 0, track_ids, 0, 0, context(), never);
-  CHECK(arrangement.getNotes(0, track_id)[3].getTuningCorrectionCents() == -17);
 
   applyJustIntonationToSong(song, SongScope::ARRANGEMENT);
   auto notes = arrangement.getNotes(0, track_id);
@@ -323,7 +341,7 @@ TEST(a_borrowed_gamut_note_is_tuned_in_a_song_of_the_other_scale) {
   arrangement.setNote(0, track_id, 1, Note(kKey + 8, 100));
   arrangement.setNote(0, track_id, 2, Note(kKey + 18, 100));
   applyJustIntonationToSong(song, SongScope::ARRANGEMENT);
-  CHECK(arrangement.getNotes(0, track_id)[1].getFx() == "+06"); // not the chord tuner's 5/4-based third
+  CHECK(arrangement.getNotes(0, track_id)[1].getFx() == "+06");
 }
 
 TEST(a_new_note_of_a_just_scale_is_written_with_its_correction) {
@@ -333,7 +351,15 @@ TEST(a_new_note_of_a_just_scale_is_written_with_its_correction) {
 
   Note note(kKey + 7, 100);
   tuneNewNote(song, pitched, note);
-  CHECK(!note.hasFx()); // no scale: untuned, as before
+  CHECK(!note.hasFx()); // no scale: no gamut, untuned
+  song.setScale(Scale::RAST);
+  tuneNewNote(song, pitched, note);
+  CHECK(!note.hasFx()); // a maqam is tempered
+
+  song.setScale(Scale::MAJOR);
+  Note major_note(kKey + 18, 100);
+  tuneNewNote(song, pitched, major_note);
+  CHECK(major_note.getFx() == "+05"); // 3/2: a major song's live notes are tuned too
 
   song.setScale(Scale::OTONAL);
   tuneNewNote(song, pitched, note);
@@ -373,13 +399,14 @@ TEST(changing_the_scale_retunes_the_tuned_notes_and_leaves_the_rest) {
 
   song.setScale(Scale::MAJOR);
   CHECK(retuneSong(song) == 5);
-  CHECK(arrangement.getNotes(0, track_id)[3].getTuningCorrectionCents() == -17); // the chord tuner's, above F
+  CHECK(arrangement.getNotes(0, track_id)[3].getFx() == "-01"); // 5/4 in the duodene too
   CHECK(unplaced.getLeafPattern().getNote(0, 0).hasTuningCorrection());
   CHECK(!unplaced.getLeafPattern().getNote(2, 0).hasFx()); // an untuned note stays untuned
 
-  song.setScale(Scale::OTONAL);
-  retuneSong(song);
-  CHECK(arrangement.getNotes(0, track_id)[3].getFx() == "-01");
+  song.setScale(Scale::RAST); // no gamut: the corrections go
+  CHECK(retuneSong(song) == 5);
+  CHECK(!arrangement.getNotes(0, track_id)[3].hasFx());
+  CHECK(!unplaced.getLeafPattern().getNote(0, 0).hasFx());
 }
 
 TEST(transposing_a_just_scale_song_keeps_its_scale_ratios) {
@@ -397,7 +424,7 @@ TEST(transposing_a_just_scale_song_keeps_its_scale_ratios) {
 
   transposeSong(song, SongScope::SCENES, true); // only clips: the key goes along
   CHECK(song.getKey() == kKey + 1);
-  CHECK(view.getLeafPattern().getNote(0, 3).getFx() == "-01"); // still 5/4, not the chord tuner's -17
+  CHECK(view.getLeafPattern().getNote(0, 3).getFx() == "-01"); // still 5/4
   CHECK(view.getLeafPattern().getNote(0, 0).getFx() == "-05");
 }
 
@@ -427,8 +454,9 @@ TEST(converting_a_septimal_song_to_53_edo_keeps_its_ratios_without_tuning) {
   CHECK(!arrangement.getNotes(0, track_id)[0].hasFx()); // an untuned note stays untuned
 }
 
-TEST(converting_a_tuned_chord_keeps_its_pure_intervals) {
+TEST(converting_a_tuned_chord_keeps_its_gamut_intervals) {
   Song song(Tuning::EDO31, kKey);
+  song.setScale(Scale::MAJOR);
   auto track_id = song.addTrack(make_unique<InstrumentTrack>(0)).getInternalId();
   auto arrangement = song.getArrangement();
   arrangement.setNote(0, track_id, 0, Note(kKey + 5, 100));  // D
@@ -439,8 +467,8 @@ TEST(converting_a_tuned_chord_keeps_its_pure_intervals) {
   auto steps = stepsAboveKey(song, arrangement.findPattern(track_id));
   CHECK(steps.size() == 3);
   if (steps.size() != 3) return;
-  CHECK(steps[1] - steps[0] == 14); // 6:5
-  CHECK(steps[2] - steps[0] == 31); // 3:2
+  CHECK(steps[1] - steps[0] == 13); // 32:27: the duodene's D-F
+  CHECK(steps[2] - steps[0] == 30); // 40:27: its D-A, a comma flat of 3:2
   for (auto & note : arrangement.getNotes(0, track_id)) {
     CHECK(note.hasTuningCorrection() && std::abs(note.getTuningCorrectionCents()) <= 11);
   }

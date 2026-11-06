@@ -471,7 +471,8 @@ UI::initializeCommands() {
       Song::Edit edit(song, "set scale");
       song.setScale(scale);
       int retuned = retuneSong(song);
-      setStatus("Scale " + scaleLabel(scale) + (retuned > 0 ? fmt::format(", {} tuned notes retuned", retuned) : "")); }, true);
+      auto what = scaleGamut(scale).empty() ? "corrections removed" : "tuned notes retuned";
+      setStatus("Scale " + scaleLabel(scale) + (retuned > 0 ? fmt::format(", {} {}", retuned, what) : "")); }, true);
   });
   // Converts the song by pitch: notes move to the nearest step of the new
   // tuning, and tuned notes keep what is left as their correction.
