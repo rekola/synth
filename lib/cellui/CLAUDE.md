@@ -74,7 +74,8 @@ carries the app's object as an opaque `getAppContext()`.
   `DragOver` on every move and accepts by returning `Handled::yes`, and
   `DragLeave`; the source gets `DragMove` (position, whether the target
   accepts) and `DragEnd{dropped}`, and no `MouseMove`/`MouseUp` meanwhile; a
-  release over an accepting widget posts `Drop` to it. Escape cancels, and
+  release over an accepting widget posts `Drop` to it. The move that started the
+  session is its first move (the target hears `DragOver` for it). Escape cancels, and
   the rest of that gesture goes to nobody. `DragGhost` is the plane that
   follows the pointer (modal elevation, the grabbed point kept under the
   pointer, to the pixel where the display scrolls smoothly; the pointer shows

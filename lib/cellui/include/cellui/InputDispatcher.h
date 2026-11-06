@@ -107,7 +107,10 @@ class InputDispatcher {
     Widget * hit = hitTest(event.row, event.col);
     Widget * to = grab_.get() ? grab_.get() : hit;
     updateHover(to, event.row, event.col);
-    return target(to).post(event);
+    Handled handled = target(to).post(event);
+    // The move that started a session is its first one.
+    if (drag_) return dragMove(event);
+    return handled;
   }
 
   Handled mouseUp(const MouseUp & event) {

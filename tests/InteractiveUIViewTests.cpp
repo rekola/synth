@@ -1648,3 +1648,94 @@ TEST(a_scope_result_with_a_spectrum_is_drawn) {
   f.ui->step();
   CHECK(f.text() != blank);
 }
+
+// --- Dragging a clip in the clip grid (the window only) ---
+
+namespace {
+
+// A window: the pointer drags and Escape is a bare key.
+cellui::DisplayInfo dragDisplay(bool drag_drop = true) {
+  cellui::DisplayInfo display;
+  display.drag_drop = drag_drop;
+  display.escape_as_meta = false;
+  display.precise_mouse = true;
+  return display;
+}
+
+// demo3's clip grid: pitched tracks in columns 0-3, a percussion track in 4;
+// slot `row` of column `column` is at screen row 2 + row, 17 cells per column.
+int slotY(int row) { return 2 + row; }
+int slotX(int column) { return kOutlineCols + 1 + 17 * column + 3; }
+
+void putNoteClip(UIFixture & f, int column, int index) {
+  auto & song = f.controller->getSong();
+  auto track_id = song.getPlayableTrackIds()[static_cast<size_t>(column)];
+  Clip clip(track_id);
+  clip.getLeafPattern().setNote(0, 0, Note(60, 100));
+  placeClipCopy(song, track_id, index, clip);
+  f.ui->step();
+}
+
+bool hasClip(UIFixture & f, int column, int index) {
+  auto & song = f.controller->getSong();
+  auto clips = song.getClips(song.getPlayableTrackIds()[static_cast<size_t>(column)]);
+  return index < static_cast<int>(clips.size()) && !clips[static_cast<size_t>(index)].isEmpty();
+}
+
+// Press on a slot, move to another, release there.
+void dragClip(UIFixture & f, int from_column, int from_row, int to_column, int to_row, unsigned release_mods = 0) {
+  f.terminal.pushMouse(slotY(from_row), slotX(from_column), cellui::Key::Button1);
+  f.ui->step();
+  f.terminal.pushMotion(slotY(to_row), slotX(to_column));
+  f.ui->step();
+  f.terminal.pushMouse(slotY(to_row), slotX(to_column), cellui::Key::Button1, release_mods, cellui::Input::Kind::RELEASE);
+  f.ui->step();
+}
+
+} // namespace
+
+TEST(terminal_ui_dragging_a_clip_moves_it_to_another_slot) {
+  UIFixture f(repoSong("demo3.xml"), UI::View::LIVE, dragDisplay());
+  putNoteClip(f, 0, 0);
+  CHECK(hasClip(f, 0, 0) && !hasClip(f, 1, 1));
+  dragClip(f, 0, 0, 1, 1);
+  CHECK(!hasClip(f, 0, 0) && hasClip(f, 1, 1));
+  // One undo puts it back.
+  f.controller->getSong().undo();
+  f.ui->step();
+  CHECK(hasClip(f, 0, 0) && !hasClip(f, 1, 1));
+}
+
+TEST(terminal_ui_dragging_a_clip_with_ctrl_copies_it) {
+  UIFixture f(repoSong("demo3.xml"), UI::View::LIVE, dragDisplay());
+  putNoteClip(f, 0, 0);
+  dragClip(f, 0, 0, 2, 3, kModCtrl);
+  CHECK(hasClip(f, 0, 0) && hasClip(f, 2, 3));
+}
+
+TEST(terminal_ui_a_clip_does_not_drop_on_another_kind_of_track) {
+  UIFixture f(repoSong("demo3.xml"), UI::View::LIVE, dragDisplay());
+  putNoteClip(f, 0, 0);
+  dragClip(f, 0, 0, 4, 1); // column 4 is the percussion track
+  CHECK(hasClip(f, 0, 0) && !hasClip(f, 4, 1));
+}
+
+TEST(terminal_ui_escape_puts_a_dragged_clip_back) {
+  UIFixture f(repoSong("demo3.xml"), UI::View::LIVE, dragDisplay());
+  putNoteClip(f, 0, 0);
+  f.terminal.pushMouse(slotY(0), slotX(0), cellui::Key::Button1);
+  f.ui->step();
+  f.terminal.pushMotion(slotY(1), slotX(1));
+  f.ui->step();
+  f.press(Key::Escape);
+  f.terminal.pushMouse(slotY(1), slotX(1), cellui::Key::Button1, 0, cellui::Input::Kind::RELEASE);
+  f.ui->step();
+  CHECK(hasClip(f, 0, 0) && !hasClip(f, 1, 1));
+}
+
+TEST(terminal_ui_a_display_without_drag_and_drop_does_not_drag_clips) {
+  UIFixture f(repoSong("demo3.xml"), UI::View::LIVE, dragDisplay(false));
+  putNoteClip(f, 0, 0);
+  dragClip(f, 0, 0, 1, 1);
+  CHECK(hasClip(f, 0, 0) && !hasClip(f, 1, 1));
+}

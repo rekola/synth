@@ -264,6 +264,16 @@ Controller-level and per-widget commands. Not migrated: `StatusLine`,
   drag sets the mark at the press cell and extends to the pointer. A drag is
   a `MouseMove` with the button held (`MouseMove::buttons`), sent to the
   widget that got the press; a `MouseDown` is always a fresh press.
+  **Dragging a clip** (window only, `cellui/DragDrop.h`): a press on a
+  populated clip slot is a candidate; once the pointer has moved
+  (`dragStarted()`) `ClipGrid` posts `StartDrag` (refused where the display has
+  no drag and drop, and the press stays a click) and holds a `DragGhost`
+  drawn by the same `putClipSlot()` as the grid's slots, its own slot showing
+  empty meanwhile. As the target it accepts a clip slot of a track `canHold()`s
+  the clip's kind (the rule of `yank`), marks it (`drop_target_bg_color`), and
+  a `Drop` is `placeClipCopy()` plus `ClipPlayer::deleteClip()` of the source
+  (so a playing clip stops first, as for a cut) in one edit; Ctrl keeps the
+  source.
 - **Scopes**: the spectrum is a `cellui::LineChart` fed by
   `spectrum_curve::values()` (`ui/SpectrumCurve.h`: dBFS bins on a log axis,
   80 dB range); it and the DirAC heatmap show in Arrangement view's top band
