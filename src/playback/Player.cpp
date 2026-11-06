@@ -1061,6 +1061,7 @@ Player::createPlaybackEvent(const string & buffer_name, const Song & song, const
   info.setVoiceCount(state.getVoiceCount());
   info.setRoundTripLatency(latency_frames_, latency_nominal_);
   info.setAllocatedVoiceCount(state.getAllocatedVoiceCount());
+  info.setGlobalPitchUnits(state.getGlobalPitchUnits());
 
   std::unordered_map<int, TrackInfo> effect_info;
   state.getAllTrackInfo(effect_info);

@@ -70,7 +70,9 @@ public:
 
       for (int i = 0; i < frames; ) {
 	int render_size = frames - i;
-	// Note events and azimuth-slide ticks are two independent timelines
+        // The song's pitch here: a note started in this chunk starts at it.
+        global_cents_ = context.globalPitchCents(i);
+        // Note events and azimuth-slide ticks are two independent timelines
 	// (see RenderContext.h) that can land on different frames within
 	// the same block, so each only asserts that `i` never overshoots
 	// its own next entry - not that every stop lands exactly on this
@@ -154,8 +156,9 @@ public:
         // A running slide ends exactly where its row does, so cut the chunk
         // there: the voices interpolate over a whole chunk.
         for (auto & slide : pitch_slides_) render_size = std::min(render_size, slide.length - slide.elapsed);
+        render_size = context.nextGlobalPitchBreak(i, i + render_size) - i;
 
-        advancePitchSlides(render_size);
+        advancePitchSlides(render_size, global_cents_, context.globalPitchCents(i + render_size));
         advancePitchGlides(render_size);
         chunks.emplace_back(i, renderVoices(render_size));
         i += render_size;
@@ -182,6 +185,8 @@ public:
     // the live values forward correctly.
     setTrackInfo(TrackInfo( isActive(), data.isClipping(), data.calculateMainRMS(), getSends().main, getSends().a, getSends().b, getPosition().azimuth, true ));
 
+    // Where a note auditioned before the next block starts.
+    global_cents_ = context.globalPitchCents(frames);
     return data;
   }
 
@@ -208,8 +213,15 @@ public:
     if (resolved_position.extent < 0.0f) resolved_position.extent = instrument.getDefaultExtent();
 
     float detune = note_override_.has_detune ? std::exp2(note_override_.detune_cents / 1200.0f) : 1.0f;
+    // The song's pitch (standard pitch and YUxx/YDxx) comes after every
+    // pitch of the note's own; a voice's later slide ramps are measured from
+    // here (the setPitchRamp() below), so they carry its changes.
+    if (global_cents_ != 0.0) detune *= static_cast<float>(std::exp2(std::clamp(global_cents_, -24000.0, 24000.0) / 1200.0));
     auto voice = instrument.playNote(getChannelConfiguration(), resolved_position, spatial_mode_, tuning, detune, velocity, note_value, getSends(), note_coord);
     chokeExclusiveClasses(*voice);
+    // Later slide ramps (the track's and the song's) are measured from here.
+    double origin = slidePosition(0) + global_cents_;
+    voice->setPitchRamp(origin, origin);
     addVoice(column, move(voice));
     // A later glide in this column is measured from this note.
     glide_anchors_[column] = {static_cast<double>(getFrequencyFor(tuning, note_value)), note_override_.has_detune ? note_override_.detune_cents : 0.0f};
@@ -463,11 +475,12 @@ private:
  }
 
  // Hands each sounding voice the slide position at the chunk's first and
- // last sample (the end being the next chunk's start), then moves on.
- void advancePitchSlides(int frames) {
-   const bool active = !pitch_slides_.empty();
-   if (active || slide_ramp_pending_) {
-     double start = slidePosition(0), end = slidePosition(frames);
+ // last sample (the end being the next chunk's start), the song's pitch
+ // (`global_start`/`global_end`, cents) added, then moves on.
+ void advancePitchSlides(int frames, double global_start, double global_end) {
+   const bool active = !pitch_slides_.empty() || global_end != 0.0;
+   if (active || slide_ramp_pending_ || global_start != 0.0) {
+     double start = slidePosition(0) + global_start, end = slidePosition(frames) + global_end;
      for (auto & [column, voices] : voices_) {
        for (auto & voice : voices)
          if (voice->isActive()) voice->setPitchRamp(start, end);
@@ -487,6 +500,7 @@ private:
  };
  std::vector<PitchSlideRamp> pitch_slides_;
  double completed_slide_cents_ = 0.0;
+ double global_cents_ = 0.0;       // the song's pitch (RenderContext::globalPitchCents()) where rendering is
  int slide_epoch_ = 0;             // the transport epoch the slides were last checked against
  bool slide_ramp_pending_ = false; // the last chunk had a slide running: voices still hold its end
 

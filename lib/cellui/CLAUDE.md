@@ -45,8 +45,11 @@ carries the app's object as an opaque `getAppContext()`.
   `attach()`/`detach()`; `Widget::on<E>()`, `post()` (targeted capture then
   bubble) and `postToRoot()` (tree-order dispatch through a per-root
   registry). `InputEvents.h` has `KeyDown`, `KeyUp`, `MouseDown`, `MouseUp`,
-  `Wheel`, `Enter`, `Leave`, `FocusIn`, `Resize`, ... as plain structs; the
-  key and mouse events carry the `Input` they came from.
+  `Wheel`, `Enter`, `Leave`, `FocusIn`, `Resize`, ... as plain structs; a
+  widget takes input as these (`on<KeyDown>()` etc.) or as plain values from
+  its owner (`LineEditor::key()`, `ChoiceDialog::click()`, `Dial::press()`),
+  never an `Input`. `Input` is what a display reports; only the root
+  (`InputDispatcher::offer()`) and the key reader see it.
 - `InputDispatcher.h`: keys go to the focused widget; pointer events to the
   topmost widget in `BufferPlane::takeHitAreas()`, with a grab from press to
   release, `Enter`/`Leave` from successive hit tests, and focus traversal.

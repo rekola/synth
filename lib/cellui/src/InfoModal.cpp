@@ -14,11 +14,9 @@ void InfoModal::layout(Plane & screen, int rows, int cols) {
   dialog_.center(rows, cols);
 }
 
-void InfoModal::offerInput(const Input & input) {
-  // Not a release: the Enter that opened it is released after it is up.
-  if (input.getKind() == Input::Kind::RELEASE) return;
-  auto id = input.getId();
-  if (id == Key::Escape || id == Key::Enter || id == 'q' || (input.hasCtrl() && id == 'g')) done(0);
+void InfoModal::keyDown(const KeyDown & e) {
+  // Only a press: the Enter that opened it is released after it is up.
+  if (e.key == Key::Escape || e.key == Key::Enter || e.key == 'q' || (e.mods.ctrl && e.key == 'g')) done(0);
 }
 
 }  // namespace cellui

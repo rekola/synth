@@ -224,3 +224,22 @@ paths:
   `POCKETFFT_NO_MULTITHREADING` (deterministic) defined before the include.
   `dsp/SpectrumAnalyzer.h` wraps it with ring-buffer accumulation and dB
   conversion for the live spectrum.
+
+## Pitch: standard pitch and the song's offset
+
+- Every note is computed at the nominal A4 = 440 (`getFrequencyFor()`,
+  `kNominalStandardPitchHz`, `referenceNoteFor()` in `Tuning.h`, also what
+  maps a frequency to a MIDI key). The song's standard pitch
+  (`Song::getStandardPitch()`, `<song standardPitch="">`) and the YUxx/YDxx
+  offset (sixteenths of a step, `RenderContext::globalPitchCents()`, never
+  clamped; a seek recomputes it, `SongState::rescanGlobalPitch()`) are one
+  ratio applied to every voice after all per-track pitch effects: baked in at
+  note-on and ramped through the slide path (`InstrumentTrackState::
+  advancePitchSlides()`). Only a voice's final ratio is limited (20 octaves).
+- A sample layer stores the standard pitch it was recorded at
+  (`SampleContent::getOriginalStandardPitch()`, 440 for older takes); a
+  trigger pitch-shifts it to the song's with SoundTouch, length kept
+  (`sampleShiftCents()`, `resolveSampleAudio()`), so a lap already sounding
+  keeps its pitch.
+- `-ffast-math` lets the compiler assume `std::isfinite()` is true: test with
+  `finiteValue()` (`Tuning.h`).

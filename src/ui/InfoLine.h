@@ -40,11 +40,12 @@ class InfoLine : public UIElement {
     auto num_allocated_voices = info.getAllocatedVoiceCount();
     auto latency_ms = info.getRoundTripLatencyMs();
     auto is_playing = info.isPlaying();
+    auto pitch_units = info.getGlobalPitchUnits();
 
     if (refresh || new_version != current_version_ || new_position != current_position_ ||
         num_voices != current_num_voices_ || num_allocated_voices != current_num_allocated_voices_ ||
         buffer_name != current_buffer_name_ || buffer_names != current_buffer_names_ ||
-        latency_ms != current_latency_ms_ || is_playing != current_is_playing_ || link_text_ != current_link_text_) {
+        latency_ms != current_latency_ms_ || is_playing != current_is_playing_ || pitch_units != current_pitch_units_ || link_text_ != current_link_text_) {
       auto [ rows, cols ] = getDim();
 
       // Controller::getBufferDisplayName()'s own text - basename-only,
@@ -83,7 +84,15 @@ class InfoLine : public UIElement {
       auto tempo = song.getTempo();
 
       auto swing_text = song.getSwing() > swing::kStraight ? fmt::format(" swing {}%", song.getSwing()) : std::string();
-      auto right_text = fmt::format("{} {} {} {}{}", tuning_text, key, tempo, song.getBarsAt(info.getAbsolutePosition()).signature.toString(), swing_text);
+      // The song's pitch, unless it is A4 = 440 Hz: the YUxx/YDxx offset in
+      // steps and the standard pitch it makes.
+      std::string pitch_text;
+      if (pitch_units != 0.0 || song.getStandardPitch() != kNominalStandardPitchHz) {
+        int edo = edoStepsFor(song.getTuning());
+        double hz = static_cast<double>(song.getStandardPitch()) * std::exp2(pitch_units / (16.0 * (edo > 0 ? edo : 12)));
+        pitch_text = pitch_units != 0.0 ? fmt::format(" pitch {:+.2f} A4={:.1f}Hz", pitch_units / 16.0, hz) : fmt::format(" A4={:.1f}Hz", hz);
+      }
+      auto right_text = fmt::format("{} {} {} {}{}{}", tuning_text, key, tempo, song.getBarsAt(info.getAbsolutePosition()).signature.toString(), swing_text, pitch_text);
       putstr(0, right_col, right_text);
 
       current_version_ = new_version;
@@ -92,6 +101,7 @@ class InfoLine : public UIElement {
       current_num_allocated_voices_ = num_allocated_voices;
       current_latency_ms_ = latency_ms;
       current_is_playing_ = is_playing;
+      current_pitch_units_ = pitch_units;
       current_link_text_ = link_text_;
       current_buffer_name_ = buffer_name;
       current_buffer_names_ = std::move(buffer_names);
@@ -114,6 +124,7 @@ private:
   int current_latency_ms_ = -1;
   // Stopping at the same row changes nothing else shown.
   bool current_is_playing_ = false;
+  double current_pitch_units_ = 0.0;
   std::string link_text_, current_link_text_;
   // Its own dirty-check input too, for the same reason: switching to a
   // different open buffer (Controller::switchToBuffer()) doesn't

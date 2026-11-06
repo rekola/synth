@@ -68,7 +68,7 @@ hue (yellow) so it always pops out.
 
 The classification is purely a function of the EDO and key (see
 `LaunchpadLayout::computeConsonanceLevels`), so it applies unchanged to
-12/19/31/53-EDO.
+12/19/31/24/53-EDO.
 
 ## Step grid
 

@@ -2,6 +2,7 @@
 
 #include <cellui/EventLoop.h>
 #include <cellui/Input.h>
+#include <cellui/InputEvents.h>
 #include <cellui/Plane.h>
 #include <cellui/Scrim.h>
 #include <cellui/Signal.h>
@@ -47,8 +48,11 @@ class ModalDialog {
  protected:
   // (Re)draws the dialog on a screen of `rows` x `cols`, above the scrim.
   virtual void layout(Plane & screen, int rows, int cols) = 0;
-  // Takes one key or pointer event.
-  virtual void offerInput(const Input & input) = 0;
+  // Take the events; every event is the dialog's, whether it uses it or not.
+  virtual void keyDown(const KeyDown &) {}
+  virtual void keyUp(const KeyUp &) {}
+  virtual void mouseUp(const MouseUp &) {}
+  virtual void wheel(const Wheel &) {}
   // Removes the dialog's planes.
   virtual void close() = 0;
 

@@ -126,9 +126,18 @@ protected:
 private:
   float freq_ = 0.0f;
   float detune_;
+  // The offsets are unbounded (the song's pitch may run as far as a song
+  // takes it); only the ratio is held to what a voice can still compute,
+  // 20 octaves either way.
+  static float slideRatio(double cents) {
+    constexpr double kLimit = 24000.0;
+    if (!(cents > -kLimit)) cents = -kLimit;
+    if (cents > kLimit) cents = kLimit;
+    return std::exp2(static_cast<float>(cents) / 1200.0f);
+  }
   void updateRatios() {
-    slide_ratio_start_ = std::exp2(static_cast<float>(slide_start_cents_ + glide_start_) / 1200.0f);
-    slide_ratio_end_ = std::exp2(static_cast<float>(slide_end_cents_ + glide_end_) / 1200.0f);
+    slide_ratio_start_ = slideRatio(slide_start_cents_ + glide_start_);
+    slide_ratio_end_ = slideRatio(slide_end_cents_ + glide_end_);
   }
 
   double slide_origin_ = 0.0;

@@ -192,37 +192,41 @@ std::optional<std::pair<int, int>> MenuBar::takeActivated() {
   return a;
 }
 
-bool MenuBar::offerInput(const Input & input) {
-  int id = input.getId();
-  bool release = input.getKind() == Input::Kind::RELEASE;
-  if (id == Key::Button1) {
-    if (!release) return false;
-    auto [py, px] = plane_.getPosition();
-    int y = input.getY() - py, x = input.getX() - px;
-    if (y == 0) {
-      for (size_t i = 0; i < sections_.size(); i++) {
-        int start = sectionColumn(static_cast<int>(i));
-        if (x >= start && x < start + utf8::displayWidth(sections_[i].name)) {
-          if (open_ == static_cast<int>(i)) close();
-          else open(static_cast<int>(i));
-          return true;
-        }
-      }
-      if (open_ >= 0) close();
-      return false;
-    }
-    if (open_ >= 0) {
-      int item = y - 1, x0 = boxColumn();
-      if (x >= x0 && x < x0 + bodyWidth(open_) + 2 * kPad && selectable(open_, item)) {
-        activated_ = std::pair(open_, item);
-        close();
+bool MenuBar::mouseUp(int screen_y, int screen_x) {
+  auto [py, px] = plane_.getPosition();
+  int y = screen_y - py, x = screen_x - px;
+  if (y == 0) {
+    for (size_t i = 0; i < sections_.size(); i++) {
+      int start = sectionColumn(static_cast<int>(i));
+      if (x >= start && x < start + utf8::displayWidth(sections_[i].name)) {
+        if (open_ == static_cast<int>(i)) close();
+        else open(static_cast<int>(i));
         return true;
       }
     }
+    if (open_ >= 0) close();
     return false;
   }
-  if (release) return false;
-  if (input.hasAlt() && !input.hasCtrl()) {
+  if (open_ >= 0) {
+    int item = y - 1, x0 = boxColumn();
+    if (x >= x0 && x < x0 + bodyWidth(open_) + 2 * kPad && selectable(open_, item)) {
+      activated_ = std::pair(open_, item);
+      close();
+      return true;
+    }
+  }
+  return false;
+}
+
+bool MenuBar::wheel(bool up) {
+  if (open_ < 0) return false;
+  step(up ? -1 : 1);
+  return true;
+}
+
+bool MenuBar::keyDown(const KeyDown & e) {
+  int id = e.key;
+  if (e.mods.alt && !e.mods.ctrl) {
     for (size_t i = 0; i < sections_.size(); i++) {
       if (sections_[i].mnemonic && lower(sections_[i].mnemonic) == lower(id)) {
         open(static_cast<int>(i));
@@ -233,8 +237,8 @@ bool MenuBar::offerInput(const Input & input) {
   if (open_ < 0) return false;
   if (id == Key::Left) stepSection(-1);
   else if (id == Key::Right) stepSection(1);
-  else if (id == Key::Up || id == Key::Button4) step(-1);
-  else if (id == Key::Down || id == Key::Button5) step(1);
+  else if (id == Key::Up) step(-1);
+  else if (id == Key::Down) step(1);
   else if (id == Key::Escape) close();
   else if (id == Key::Enter) {
     if (selected_ >= 0) activated_ = std::pair(open_, selected_);

@@ -58,8 +58,8 @@ struct PacerConfig {
   int delay_frames = 2;
   double lag_ratio = 1.5;
   int lag_frames = 4;
-  // RTT_min also takes the running minimum of the delay beyond transfer time
-  // after this many acknowledgements.
+  // RTT_min also takes the running minimum of the time from a frame's last
+  // byte to its reply after this many acknowledgements.
   int rtt_refine_after = 10;
   // No acknowledgement for this long halves the estimate; with none ever, or
   // this many times in a row, the terminal is taken not to answer.

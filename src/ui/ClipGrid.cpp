@@ -636,10 +636,10 @@ ClipGrid::offerInput(const cellui::Input & input) {
   using cellui::Input;
   if (input.getId() == Key::Button1)
     return input.getKind() == Input::Kind::RELEASE
-               ? mouseUp(cellui::MouseUp{input.getFx(), input.getFy(), input.getY(), input.getX(), 1, {}, &input})
-               : mouseDown(cellui::MouseDown{input.getFx(), input.getFy(), input.getY(), input.getX(), 1, {}, &input});
+               ? mouseUp(cellui::MouseUp{input.getFx(), input.getFy(), input.getY(), input.getX(), 1, {}})
+               : mouseDown(cellui::MouseDown{input.getFx(), input.getFy(), input.getY(), input.getX(), 1, {}});
   if (input.getKind() == Input::Kind::RELEASE)
-    return keyUp(cellui::KeyUp{input.getId(), {}, &input});
+    return keyUp(cellui::KeyUp{input.getId(), {}});
   return keyDown(cellui::InputDispatcher::keyDownFor(input));
 }
 
@@ -648,10 +648,7 @@ bool ClipGrid::keyUp(const cellui::KeyUp &) { return isReaderActive(); }
 
 bool ClipGrid::mouseDown(const cellui::MouseDown & e) {
   if (e.button != 1) return false;
-  if (inline_editor_.isOpen()) {
-    if (e.input) inline_editor_.offerInput(*e.input);
-    return true;
-  }
+  if (inline_editor_.isOpen()) return true;
   for (auto & [key, dial] : dials_) {
     if (!dial->isEditing()) continue;
     // A click anywhere else closes the editor (and then does what it would).
@@ -663,10 +660,7 @@ bool ClipGrid::mouseDown(const cellui::MouseDown & e) {
 
 bool ClipGrid::mouseUp(const cellui::MouseUp & e) {
   if (e.button != 1) return false;
-  if (inline_editor_.isOpen()) {
-    if (e.input) inline_editor_.offerInput(*e.input);
-    return true;
-  }
+  if (inline_editor_.isOpen()) return true;
   if (isDialEditing()) return true;
   return handleMouse(e.row, e.col, e.y, e.mods.shift, true);
 }
@@ -699,9 +693,8 @@ bool ClipGrid::keyDown(const cellui::KeyDown & e) {
   auto track_ids = song.getPlayableTrackIds();
   auto num_tracks = static_cast<int>(track_ids.size());
 
-  // While a rename editor is open it owns every key. (Its text field is
-  // edited from the Input the key came as.)
-  if (e.input && inline_editor_.offerInput(*e.input)) return true;
+  // While a rename editor is open it owns every key.
+  if (inline_editor_.key(e)) return true;
   for (auto & [key, dial] : dials_) {
     if (dial->isEditing()) return dial->key(e.key, e.mods);
   }

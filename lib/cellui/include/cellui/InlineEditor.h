@@ -39,8 +39,10 @@ class InlineEditor {
   // A no-op returning false if a reader is already open on the owner's plane.
   bool open(const Field & field, std::function<void(std::string)> commit);
   bool isOpen() const;
-  // Always consumes the input while open; returns false only when closed.
-  bool offerInput(const cellui::Input & input);
+  // Always consumes the key while open; returns false only when closed.
+  bool key(const KeyDown & e);
+  // The release of the key that opened the field (Enter) must not close it.
+  bool keyUp() const { return open_; }
   // Closes without committing. A no-op if nothing is open.
   void cancel();
   void paintBackdrop();

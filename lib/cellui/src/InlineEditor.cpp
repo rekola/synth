@@ -28,25 +28,22 @@ InlineEditor::isOpen() const {
 }
 
 bool
-InlineEditor::offerInput(const cellui::Input & input) {
+InlineEditor::key(const KeyDown & e) {
   if (!open_) return false;
-  // The release of the key that opened the field (Enter, in the pattern
-  // editor) must not close it again.
-  if (input.getKind() == cellui::Input::Kind::RELEASE) return true;
-  if (input.getId() == Key::Enter) {
+  if (e.key == Key::Enter) {
     auto text = plane_.closeReader();
     auto commit = std::move(commit_);
     close();
     if (commit) commit(std::move(text));
-  } else if (input.getId() == Key::Escape || (input.hasCtrl() && input.getId() == 'g')) {
+  } else if (e.key == Key::Escape || (e.mods.ctrl && e.key == 'g')) {
     cancel();
   } else {
     if (replaceable_) {
       replaceable_ = false;
-      bool printable = input.getId() >= 32 && input.getId() < 127 && !input.hasCtrl() && !input.hasAlt();
-      if (printable || input.getId() == Key::Backspace || input.getId() == Key::Delete) plane_.setReaderContents("");
+      bool printable = e.key >= 32 && e.key < 127 && !e.mods.ctrl && !e.mods.alt;
+      if (printable || e.key == Key::Backspace || e.key == Key::Delete) plane_.setReaderContents("");
     }
-    plane_.offerInput(input);
+    plane_.offerKey(e);
   }
   return true;
 }

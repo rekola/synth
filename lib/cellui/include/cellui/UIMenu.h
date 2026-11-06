@@ -22,6 +22,12 @@ class UIMenu : public Widget {
   virtual void refreshBuffers(const std::vector<std::string> & names, const std::vector<std::string> & display_names,
 			       const std::string & active_name) = 0;
 
+  // The events a menu takes: a click on its bar or an item, a key, the wheel.
+  // True when it was the menu's.
+  virtual bool mouseUp(int /*screen_y*/, int /*screen_x*/) { return false; }
+  virtual bool keyDown(const KeyDown &) { return false; }
+  virtual bool wheel(bool /*up*/) { return false; }
+
   // Takes the menu bar's and its sections' colours from the theme.
   virtual void applyStyles(const StyleProvider & /*styles*/) { }
 

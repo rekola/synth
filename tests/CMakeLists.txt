@@ -34,6 +34,8 @@ add_executable(synth_tests
 	CommandTests.cpp
 	AzimuthSlideTests.cpp
 	PitchSlideTests.cpp
+	GlobalPitchTests.cpp
+	SamplePitchTests.cpp
 	SendSetCommandTests.cpp
 	SendLiveUpdateTests.cpp
 	PerformanceTests.cpp

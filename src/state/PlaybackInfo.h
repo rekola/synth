@@ -57,6 +57,10 @@ class PlaybackInfo {
     return static_cast<int>((static_cast<long long>(round_trip_latency_frames_) * 1000 + outSampleRate_ / 2) / outSampleRate_);
   }
 
+  // The song's pitch offset (YUxx/YDxx), in sixteenths of a step.
+  void setGlobalPitchUnits(double units) { global_pitch_units_ = units; }
+  double getGlobalPitchUnits() const { return global_pitch_units_; }
+
   int getVoiceCount() const { return voice_count_; }
   int getAllocatedVoiceCount() const { return allocated_voice_count_; }
 
@@ -93,6 +97,7 @@ class PlaybackInfo {
       part(name, h);
     };
     scalars("transport", { static_cast<uint64_t>(is_playing_), static_cast<uint64_t>(absolute_pos_), static_cast<uint64_t>(sample_pos_), static_cast<uint64_t>(position_edit_seq_) });
+    scalars("pitch", {static_cast<uint64_t>(std::llround(global_pitch_units_ * 16.0))});
     scalars("voices", { static_cast<uint64_t>(voice_count_), static_cast<uint64_t>(allocated_voice_count_) });
     scalars("live", { static_cast<uint64_t>(live_clock_), static_cast<uint64_t>(live_start_clock_), static_cast<uint64_t>(live_seq_), static_cast<uint64_t>(scene_seq_), static_cast<uint64_t>(tempo_) });
     scalars("latency", { static_cast<uint64_t>(getRoundTripLatencyMs()), static_cast<uint64_t>(latency_is_nominal_) }); // as the info line shows it
@@ -169,6 +174,7 @@ private:
   bool is_playing_ = false;
   int outSampleRate_ = 0;
   int sample_interval_ = 0;
+  double global_pitch_units_ = 0.0;
   int sample_pos_ = 0, absolute_pos_ = 0;
   int position_edit_seq_ = 0;
   int voice_count_ = 0, allocated_voice_count_ = 0;

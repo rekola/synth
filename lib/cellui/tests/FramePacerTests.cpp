@@ -158,6 +158,23 @@ TEST(pacer_backs_off_when_frames_wait_long_twice_in_a_row) {
   CHECK(p.estimatedBytesPerSec() < 0.85 * before);
 }
 
+TEST(pacer_a_frame_whose_last_byte_is_taken_late_does_not_shrink_the_round_trip) {
+  // A link with a small buffer takes the last byte only once the rest has crossed: the reply comes
+  // one round trip after it, less than round trip plus transfer after it.
+  FramePacer p(true);
+  startUp(p, 10000, 100, 10);
+  for (int i = 0; i < 20; i++) {
+    int start = 200 + 300 * i;
+    p.requestFrame();
+    p.onFrameStart(at(start));
+    p.onFrameSent(frame(10000), at(start + 10));
+    p.onAck(at(start + 10 + 100));
+  }
+  PacerStats s = p.stats(at(7000));
+  CHECK_NEAR(s.rtt_min_us, 100000.0, 1.0);
+  CHECK(s.backoffs == 0);
+}
+
 TEST(pacer_a_delay_inside_the_floor_is_not_a_reason_to_back_off) {
   FramePacer p(true);
   startUp(p, 10000, 1, 10);  // RTT of 1 ms
