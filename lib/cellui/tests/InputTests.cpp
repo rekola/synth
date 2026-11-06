@@ -480,16 +480,20 @@ TEST(a_drag_ghost_follows_the_pointer_and_shows_the_drag_cursor) {
   Screen s;
   s.root.setFlatChildren(true);
   bool last_accepted = true;
+  int drawn_y = -1, drawn_x = -1;
   {
-    DragGhost ghost(s.root, 1, 4, 0.0f, 1.0f, [&](Plane & plane, bool accepted) {
+    DragGhost ghost(s.root, 1, 4, 0.0f, 1.0f, [&](Plane & plane, int y, int x, bool accepted) {
       last_accepted = accepted;
-      plane.putstr(0, 0, "clip");
+      drawn_y = y;
+      drawn_x = x;
+      plane.putstr(y, x, "clip");
     });
     ghost.moveTo(3.0f, 8.0f);  // the pointer a column into the ghost
     s.root.refresh();
     auto cursors = s.root.takeMouseCursors();
     CHECK(mouseCursorAt(cursors, 3, 7) == MouseCursor::GRABBING);
-    CHECK(mouseCursorAt(cursors, 3, 6) == MouseCursor::DEFAULT);
+    CHECK(mouseCursorAt(cursors, 3, 10) == MouseCursor::GRABBING);
+    CHECK(mouseCursorAt(cursors, 3, 12) == MouseCursor::DEFAULT);
     ghost.setAccepted(false);
     CHECK(!last_accepted);
     s.root.refresh();
@@ -497,6 +501,31 @@ TEST(a_drag_ghost_follows_the_pointer_and_shows_the_drag_cursor) {
   }
   s.root.refresh();
   CHECK(mouseCursorAt(s.root.takeMouseCursors(), 3, 7) == MouseCursor::DEFAULT);
+}
+
+// Between two cells the picture is a whole cell further and shifted back, so
+// the plane must reach the cell before it (the slivers) and the cells after.
+TEST(a_drag_ghost_between_cells_has_room_for_the_slivers_it_shifts_in) {
+  Screen s;
+  s.root.setFlatChildren(true);
+  s.root.setSmoothScroll(true);
+  DragGhost ghost(s.root, 1, 4, 0.0f, 0.0f, [](Plane & plane, int y, int x, bool) { plane.putstr(y, x, "clip"); });
+  ghost.moveTo(3.25f, 8.75f);  // the picture is to show from row 3.25 and column 8.75
+  s.root.refresh();
+  auto layers = s.root.takeBackdropLayers();
+  const BackdropLayer * scrolled = nullptr;
+  for (auto & layer : layers) {
+    if (layer.scroll) scrolled = &layer;
+  }
+  CHECK(scrolled != nullptr);
+  if (!scrolled) return;
+  auto & scroll = *scrolled->scroll;
+  // The cell the picture starts in (row 4, column 9) minus the shift is where it shows.
+  CHECK_NEAR(scroll.shift_rows, 0.75, 0.001);
+  CHECK_NEAR(scroll.shift_cols, 0.25, 0.001);
+  // Row 3 and column 8 (where the slivers show) are inside the plane.
+  CHECK(scroll.row <= 3 && scroll.col <= 8);
+  CHECK(scroll.row + scroll.rows >= 4 + 1 && scroll.col + scroll.cols >= 9 + 4);
 }
 
 TEST(offer_translates_keys_with_their_text) {

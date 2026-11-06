@@ -725,7 +725,7 @@ void ClipGrid::startClipDrag(const cellui::MouseMove & e) {
   pressed_ = Pressed();
   drag_source_ = std::make_pair(candidate.track_index, candidate.clip_index);
   drag_version_++;
-  ghost_ = std::make_unique<cellui::DragGhost>(getPlane(), 1, kColWidth, grab_y, grab_x, [name, looping, track_color](cellui::Plane & plane, bool accepted) {
+  ghost_ = std::make_unique<cellui::DragGhost>(getPlane(), 1, kColWidth, grab_y, grab_x, [name, looping, track_color](cellui::Plane & plane, int y, int x, bool accepted) {
     auto & st = plane.getStyles();
     Color fg = st.clip_text_color, bg = track_color;
     // Dimmed where it cannot land.
@@ -734,7 +734,7 @@ void ClipGrid::startClipDrag(const cellui::MouseMove & e) {
       bg = bg.blend(0.6f, st.grid_bg_color);
     }
     plane.setLift(st.theme.elevation.card);
-    putClipSlot(plane, 0, 0, " ▸ ", name, kColWidth - 3 - std::max(2, looping ? 2 : 0), looping, false, fg, bg);
+    putClipSlot(plane, y, x, " ▸ ", name, kColWidth - 3 - std::max(2, looping ? 2 : 0), looping, false, fg, bg);
   });
   ghost_->moveTo(e.y, e.x);
 }
