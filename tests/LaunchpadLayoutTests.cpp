@@ -405,10 +405,10 @@ TEST(step_rows_cover_the_top_half_left_to_right_then_bottom_to_top) {
 }
 
 TEST(send_dial_points_apart_for_every_fader_row) {
-  // Row 0 is off (-100 dB), row r >= 1 is -36 dB plus 6 dB per row above the first.
+  // Row 0 is its first press (-42 dB), row r >= 1 is -36 dB plus 6 dB per row above the first.
   float previous = -1.0f;
   for (int row = 0; row < 8; row++) {
-    float db = row == 0 ? -100.0f : kSendFloorDb + 6.0f * static_cast<float>(row - 1);
+    float db = row == 0 ? -42.0f : -36.0f + 6.0f * static_cast<float>(row - 1);
     float fraction = sendDbToFraction(db);
     CHECK(fraction > previous);
     previous = fraction;

@@ -1,6 +1,7 @@
 #include <set>
 #include <chrono>
 #include <thread>
+#include "../src/model/SendFader.h"
 #include "TestFramework.h"
 
 #include "InteractiveUIFixture.h"
@@ -888,7 +889,7 @@ TEST(terminal_ui_clip_grid_dial_editor_shows_the_value_and_typing_replaces_it) {
   CHECK(f.line(static_cast<size_t>(rows.a_bottom())).find("▏") != std::string::npos);
   f.type("-7");
   f.press(cellui::Key::Enter);
-  CHECK_NEAR(sendDbOfFirstTrack(f, 1), -7.0f, 0.01f);
+  CHECK_NEAR(sendDbOfFirstTrack(f, 1), -6.0f, 0.01f); // rounded to a send position
 }
 
 // Dragging a dial up raises it and down lowers it (to off below the lowest
@@ -917,6 +918,35 @@ TEST(terminal_ui_clip_grid_dragging_a_dial_turns_it) {
   CHECK(f.line(static_cast<size_t>(y)).find("▏") == std::string::npos);
 }
 
+// The dial under the pointer shows it, and leaving it takes the look away.
+TEST(terminal_ui_clip_grid_dial_under_the_pointer_is_hovered) {
+  cellui::DisplayInfo display;
+  display.hover = true;
+  display.pictures = true;
+  display.cell_px_height = 16;
+  display.cell_px_width = 8;
+  UIFixture f(repoSong("demo3.xml"), UI::View::LIVE, display);
+  for (int i = 0; i < 20; i++) f.ui->step();
+  auto rows = dialRows(f);
+  CHECK(rows.caption > 0);
+  int x = kOutlineCols + 1 + 2, y = rows.a_bottom();
+  // The key of the picture the first track's A dial shows.
+  auto picture = [&]() -> uint64_t {
+    for (auto & placement : f.terminal.images()) {
+      if (placement.row == y - 1 && placement.col == kOutlineCols + 1) return placement.shared.id;
+    }
+    return 0;
+  };
+  auto idle = picture();
+  CHECK(idle > 0);
+  f.terminal.pushMouse(y, x, cellui::Key::Motion);
+  f.ui->step();
+  CHECK(picture() > 0 && picture() != idle);
+  f.terminal.pushMouse(0, 0, cellui::Key::Motion);
+  f.ui->step();
+  CHECK(picture() == idle);
+}
+
 // The wheel over a dial turns it instead of scrolling the grid.
 TEST(terminal_ui_clip_grid_wheel_over_a_dial_turns_it) {
   UIFixture f(repoSong("demo3.xml"), UI::View::LIVE);
@@ -927,11 +957,13 @@ TEST(terminal_ui_clip_grid_wheel_over_a_dial_turns_it) {
   for (int i = 0; i < 3; i++) f.ui->step(); // frames with nothing to redraw
   auto before = f.line(static_cast<size_t>(rows.caption));
   f.wheel(y, x, false);
-  float whole = std::floor(start); // a plain step lands on a whole dB
-  CHECK_NEAR(sendDbOfFirstTrack(f, 1), whole + 1.0f, 0.05f);
+  // A notch is one send position (3 dB), landing on the table.
+  float one = sendDbOfFirstTrack(f, 1);
+  CHECK(one > start);
+  CHECK(sendPositionToDb(sendDbToPosition(one)) == one || std::fabs(sendPositionToDb(sendDbToPosition(one)) - one) < 0.01f);
   f.wheel(y, x, true);
   f.wheel(y, x, true);
-  CHECK_NEAR(sendDbOfFirstTrack(f, 1), whole - 1.0f, 0.05f);
+  CHECK_NEAR(sendDbOfFirstTrack(f, 1), one - 6.0f, 0.05f);
   CHECK(f.line(static_cast<size_t>(rows.caption)) == before); // the grid did not scroll
 }
 

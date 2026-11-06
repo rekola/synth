@@ -3,6 +3,7 @@
 
 #include <cellui/LinkStatus.h>
 #include <optional>
+#include "PerformanceProfile.h"
 #include <cellui/ChoiceModal.h>
 #include <cellui/InfoModal.h>
 #include <cellui/InputDispatcher.h>
@@ -52,6 +53,8 @@ class InteractiveUI : public UI {
   void clearLastRow();
   void applyTheme(const Theme & theme) override;
   void setReducedMotion(bool reduced) override;
+  // The app's choices for a link class (see PerformanceProfile.h).
+  void applyProfile(cellui::LinkClass cls);
   // Uses this keymap instead of the one the display declares (the --keymap
   // option). Takes effect in initialize().
   void setKeymapProfile(cellui::KeymapProfile profile) { keymap_profile_override_ = profile; }
@@ -203,6 +206,8 @@ class InteractiveUI : public UI {
   void raiseOverlays();
   // Arrangement view's scope row (toggle-scopes); Live View never
   // shows it - see layout().
+  PerformanceProfile profile_;
+  bool user_reduced_motion_ = false;
   bool scopes_visible_ = true;
   // Whether the spectrum/heatmap are on screen, as of the last layout().
   bool scopes_on_screen_ = true;
