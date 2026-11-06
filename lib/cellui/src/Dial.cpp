@@ -105,9 +105,13 @@ std::string Dial::valueText() const {
 
 void Dial::draw() {
   const StyleProvider & styles = plane_.getStyles();
-  // Only the lines change colour: the cursor colour while selected, a brighter one while pressed.
-  Color fg = foreground_.blend(std::clamp(selected_, 0.0f, 1.0f), styles.highlight_bg_color);
+  // Only the lines change colour, and only four ways (so each position has four pictures, however
+  // slowly the selection eases in): the cursor colour while selected, a brighter one while pressed,
+  // halfway to the cursor colour under the pointer.
+  Color fg = foreground_;
   if (pressed_) fg = styles.highlight_bg_color.blend(0.45f, Color(255, 255, 255));
+  else if (selected_ >= 0.5f) fg = styles.highlight_bg_color;
+  else if (hover_) fg = foreground_.blend(0.5f, styles.highlight_bg_color);
   DialReading reading{spec_.letter, fraction(), valueText()};
   reading.editing = editing_;
   reading.edit_text = edit_text_;

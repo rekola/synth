@@ -565,8 +565,10 @@ deflate ratio on real charts is known.
    (`dial:6/8k`) or size for the rest. `drawDial()` uses it, keyed by everything its picture shows, so
    dials alike are one picture: on the demo song 16 uploads of the 40x48 dial at start-up are 6, and
    the bytes of the start-up 22.8 kB to 8.8 kB. The 16-position table is done (`SendFader.h`: the Launchpad rows,
-   the `YMxy`/`YAxy`/`YBxy` nibble and the dial's `step` share it). Still to do: the four looks with
-   hover, and the three letter sets, which make most dials one of 3 pictures.
+   the `YMxy`/`YAxy`/`YBxy` nibble and the dial's `step` share it). The four looks are done too (normal, pressed,
+   hover, selected; the selection no longer eases through colours, so a position has four pictures at
+   most, and the letter is already in the picture, so a set per letter). Still to do: a gallery grid of
+   all of them.
 5. **App profile** (3.6, 3.7): scope/meter rates and off, animations, page scrolling, hover, mouse
    reporting. UI tests per class with `TestBackend`; a harness run at 50 kB/s asserts the editor
    stays usable (key latency, fps).

@@ -92,8 +92,15 @@ class Dial {
   void setLook(const Color & foreground, const Color & background) { foreground_ = foreground, background_ = background; }
   void setValue(float value) { value_ = value; }
   float value() const { return value_; }
-  // The cursor's mark on the dial, 0..1 (how far it has eased in).
+  // The cursor's mark on the dial, 0..1 (how far it has eased in); the dial shows it from one half.
   void setSelected(float amount) { selected_ = amount; }
+  // The pointer is over the dial.
+  void setHover(bool hover) {
+    if (hover == hover_) return;
+    hover_ = hover;
+    version_++;
+  }
+  bool isHover() const { return hover_; }
   // The pressed look, as while the button is held on the dial.
   void setPressed(bool pressed) { pressed_ = pressed; }
   bool isPressed() const { return pressed_; }
@@ -144,7 +151,7 @@ class Dial {
   uint64_t id_ = 0;
   Color foreground_ = Color(255, 255, 255), background_ = Color(0, 0, 0);
   float value_ = 0.0f, selected_ = 0.0f;
-  bool pressed_ = false, down_ = false, moved_ = false;
+  bool pressed_ = false, down_ = false, moved_ = false, hover_ = false;
   float start_y_ = 0.0f, start_value_ = 0.0f;
 };
 

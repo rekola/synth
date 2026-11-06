@@ -919,6 +919,35 @@ TEST(terminal_ui_clip_grid_dragging_a_dial_turns_it) {
   CHECK(f.line(static_cast<size_t>(y)).find("▏") == std::string::npos);
 }
 
+// The dial under the pointer shows it, and leaving it takes the look away.
+TEST(terminal_ui_clip_grid_dial_under_the_pointer_is_hovered) {
+  cellui::DisplayInfo display;
+  display.hover = true;
+  display.pictures = true;
+  display.cell_px_height = 16;
+  display.cell_px_width = 8;
+  UIFixture f(repoSong("demo3.xml"), UI::View::LIVE, display);
+  for (int i = 0; i < 20; i++) f.ui->step();
+  auto rows = dialRows(f);
+  CHECK(rows.caption > 0);
+  int x = kOutlineCols + 1 + 2, y = rows.a_bottom();
+  // The key of the picture the first track's A dial shows.
+  auto picture = [&]() -> uint64_t {
+    for (auto & placement : f.terminal.images()) {
+      if (placement.row == y - 1 && placement.col == kOutlineCols + 1) return placement.shared.id;
+    }
+    return 0;
+  };
+  auto idle = picture();
+  CHECK(idle > 0);
+  f.terminal.pushMouse(y, x, cellui::Key::Motion);
+  f.ui->step();
+  CHECK(picture() > 0 && picture() != idle);
+  f.terminal.pushMouse(0, 0, cellui::Key::Motion);
+  f.ui->step();
+  CHECK(picture() == idle);
+}
+
 // The wheel over a dial turns it instead of scrolling the grid.
 TEST(terminal_ui_clip_grid_wheel_over_a_dial_turns_it) {
   UIFixture f(repoSong("demo3.xml"), UI::View::LIVE);

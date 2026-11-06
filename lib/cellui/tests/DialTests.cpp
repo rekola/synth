@@ -178,6 +178,18 @@ TEST(dial_widget_pressed_and_selected_look_different_from_idle) {
   f.dial.draw();
   f.plane.refresh();
   auto pressed = f.buffer.at(2, 3);
+  f.dial.setPressed(false);
+  f.dial.setHover(true);
+  f.dial.draw();
+  f.plane.refresh();
+  auto hover = f.buffer.at(2, 3);
+  CHECK(!(hover.fg == idle.fg) && !(hover.fg == selected.fg) && !(hover.fg == pressed.fg) && hover.bg == idle.bg);
+  // Easing the selection in does not make a look of its own.
+  f.dial.setHover(false);
+  f.dial.setSelected(0.4f);
+  f.dial.draw();
+  f.plane.refresh();
+  CHECK(f.buffer.at(2, 3).fg == idle.fg);
   // Each changes the lines, not the slot, and differently.
   CHECK(!(idle.fg == selected.fg) && idle.bg == selected.bg);
   CHECK(!(pressed.fg == idle.fg) && !(pressed.fg == selected.fg) && pressed.bg == idle.bg);

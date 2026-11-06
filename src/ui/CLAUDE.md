@@ -232,7 +232,7 @@ Controller-level and per-widget commands. Not migrated: `StatusLine`,
   commits, Escape, focus loss or a click elsewhere closes), drag turns it
   (a position a row, one undo step per drag), wheel turns it (a position). `ClipGrid` only
   places the dials, gives them values and `DialSpec`, passes on input, and
-  calls `Dial::startEdit()` on Enter. Every column has a vertical level meter
+  calls `Dial::startEdit()` on Enter. A dial has four looks (normal, pressed, selected from half the cursor's ease-in, and hover, set from the grid's pointer motion), so a position has four pictures. Every column has a vertical level meter
   beside its Main and Direction rows (`LevelMeter.h`: one dB mapping,
   `Ballistics` smoothing block RMS in the power domain, bars shaded green →
   orange → clip red via `StyleProvider::levelColor()`, a `PeakHold` marker);

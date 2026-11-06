@@ -80,6 +80,15 @@ ClipGrid::ClipGrid(Plane & parent) : UIElement(parent) {
   connections_.push_back(on<cellui::KeyUp>([this, handled](const cellui::KeyUp & e, cellui::EventContext &) { return handled(keyUp(e)); }));
   connections_.push_back(on<cellui::MouseDown>([this, handled](const cellui::MouseDown & e, cellui::EventContext &) { return handled(mouseDown(e)); }));
   connections_.push_back(on<cellui::MouseUp>([this, handled](const cellui::MouseUp & e, cellui::EventContext &) { return handled(mouseUp(e)); }));
+  // The dial under the pointer shows it.
+  connections_.push_back(on<cellui::MouseMove>([this](const cellui::MouseMove & e, cellui::EventContext &) {
+    for (auto & [key, dial] : dials_) dial->setHover(dial->contains(e.row, e.col));
+    return cellui::Handled::no;
+  }));
+  connections_.push_back(on<cellui::Leave>([this](const cellui::Leave &, cellui::EventContext &) {
+    for (auto & [key, dial] : dials_) dial->setHover(false);
+    return cellui::Handled::no;
+  }));
   connections_.push_back(on<cellui::Wheel>([this, handled](const cellui::Wheel & e, cellui::EventContext &) { return handled(wheel(e)); }));
   // Mute/Solo apply to the cursor's own column (a per-track state, not
   // tied to any particular row), same as the 'l' loop toggle stays a
