@@ -44,6 +44,10 @@ class Song : public SongObject {
  public:
   Song(Tuning tuning = Tuning::EDO31, short key = -1);
 
+  // Free text about the song (its source, choices made); saved as <notes>.
+  std::string getNotes() const { return read(songschema::kNotes); }
+  void setNotes(std::string text) { write("set notes", songschema::kNotes, std::move(text)); }
+
   Tuning getTuning() const { return static_cast<Tuning>(read(songschema::kTuning)); }
   void setTuning(Tuning tuning) { write("set tuning", songschema::kTuning, static_cast<int>(tuning)); }
 

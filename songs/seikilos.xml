@@ -1,25 +1,4 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<!--
-  Seikilos
-  The Seikilos epitaph: the oldest surviving complete musical composition.
-  Source: M. L. West, Ancient Greek Music (Oxford 1992), no. 15, p. 301, in
-  the transcription a semitone above the stone's pitch (tonic f#). The stele
-  is Copenhagen, National Museum inv. 14897, 1st c. AD.
-
-  Hoson zes, phainou, / meden holos sy lypou; /
-  pros oligon esti to zen, / to telos ho chronos apaitei.
-  "While you live, shine; have no grief at all; life exists only for a short
-  while, and time demands its due."
-
-  The stone gives pitch and rhythm only. Our realisation choices: the tempo
-  (a dotted quarter at 66; the song tempo counts quarters, so 99), the
-  octave doubling and the drone.
-
-  The scale is the Pythagorean Mixolydian mode on C, C D E F G A
-  B-flat = 1/1 9/8 81/64 4/3 3/2 27/16 16/9. In 53-EDO's notation the plain
-  names are the just major scale, so the Pythagorean E, A and B-flat are
-  written E-up, A-up and B-flat-down.
--->
 <song temperament="53edo" key="C-4" scale="pythagorean-mixolydian" tempo="99" timeSignature="6/8" volume="1.0">
   <instruments>
     <instrument id="i1" from="string.plucked.harp" />
@@ -119,4 +98,25 @@
       <note row="72" column="1" velocity="90" value="G-3" />
     </pattern>
   </arrangement>
+  <notes>
+Seikilos
+The Seikilos epitaph: the oldest surviving complete musical composition.
+Source: M. L. West, Ancient Greek Music (Oxford 1992), no. 15, p. 301, in the
+transcription a semitone above the stone's pitch (tonic f#). The stele is
+Copenhagen, National Museum inv. 14897, 1st c. AD.
+
+Hoson zes, phainou, / meden holos sy lypou; /
+pros oligon esti to zen, / to telos ho chronos apaitei.
+"While you live, shine; have no grief at all; life exists only for a short
+while, and time demands its due."
+
+The stone gives pitch and rhythm only. Our realisation choices: the tempo (a
+dotted quarter at 66; the song tempo counts quarters, so 99), the octave
+doubling and the drone.
+
+The scale is the Pythagorean Mixolydian mode on C: C D E F G A B-flat = 1/1
+9/8 81/64 4/3 3/2 27/16 16/9. In 53-EDO's notation the plain names are the
+just major scale, so the Pythagorean E, A and B-flat are written E-up, A-up
+and B-flat-down.
+  </notes>
 </song>

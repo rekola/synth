@@ -11,6 +11,9 @@
 #include <map>
 #include <string>
 
+#ifndef TESTS_SCRATCH_DIR
+#define TESTS_SCRATCH_DIR "."
+#endif
 #ifndef TESTS_SONGS_DIR
 #define TESTS_SONGS_DIR "."
 #endif
@@ -65,4 +68,23 @@ TEST(seikilos_plays_only_scale_notes_each_tuned_to_its_3_limit_ratio_in_96_rows)
   }
   // 8 bars: 3 + 4 + 5 + 4 + 6 + 4 + 6 + 5 melody notes, twice, plus 4 x 2 drone notes.
   CHECK(notes == 37 * 2 + 8);
+}
+
+TEST(song_notes_load_save_and_reload) {
+  InstrumentProvider provider;
+  Song song;
+  CHECK(song.open(std::string(TESTS_SONGS_DIR) + "/seikilos.xml", provider));
+  CHECK(song.getNotes().find("West, Ancient Greek Music") != std::string::npos);
+
+  song.setNotes("line one\nline two & <more>");
+  auto path = std::string(TESTS_SCRATCH_DIR) + "/song_notes_round_trip.xml";
+  song.save(path);
+  Song reloaded;
+  CHECK(reloaded.open(path, provider));
+  CHECK(reloaded.getNotes() == "line one\nline two & <more>");
+
+  song.setNotes("");
+  song.save(path);
+  CHECK(reloaded.open(path, provider));
+  CHECK(reloaded.getNotes().empty());
 }

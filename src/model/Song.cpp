@@ -918,6 +918,12 @@ Song::open(const std::string & filename, const InstrumentProvider & provider) {
     // The editor needs a track to stand on: a file with none gets one.
     if (getPlayableTrackIds().empty()) addTrack(make_unique<InstrumentTrack>(0));
 
+    {
+      auto notes = song->FirstChildElement("notes");
+      auto text = notes ? notes->GetText() : nullptr;
+      setNotes(text ? text : "");
+    }
+
     if (auto locators = song->FirstChildElement("locators")) {
       for (auto it = locators->FirstChildElement("locator"); it; it = it->NextSiblingElement("locator")) {
         auto row_text = it->Attribute("row");
@@ -1205,6 +1211,12 @@ Song::save(const std::string & filename) const {
 	filesystem::remove(entry.path(), ec);
       }
     }
+  }
+
+  if (auto notes = getNotes(); !notes.empty()) {
+    auto element = doc.NewElement("notes");
+    element->SetText(notes.c_str());
+    root->InsertEndChild(element);
   }
 
   auto locator_map = getLocators();

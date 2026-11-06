@@ -9,6 +9,7 @@
 namespace songschema {
 
 // type "song" - the root node.
+inline const doc::Prop<std::string> kNotes{"notes", ""}; // free text: sources, realisation choices
 inline const doc::Prop<int> kTuning{"tuning", 3};  // Tuning::EDO31
 inline const doc::Prop<int> kKey{"key", 0};
 inline const doc::Prop<int> kScale{"scale", 0};  // Scale::NONE

@@ -143,6 +143,10 @@ E𝄫). Narrow major is otonal and narrow minor utonal, in Partch’s
 sense. The names are the author’s own; the chords have no settled
 name in the just-intonation literature. See otonal and utonal.
 
+**Song notes**
+Free text saved with a song as its `<notes>` element: where the music comes
+from, what was chosen in realising it. It has no effect on playback.
+
 **Pythagorean gamut and Pythagorean Mixolydian**
 The Pythagorean gamut is thirteen notes of the chain of fifths, six below
 the tonic and six above, octave-reduced (all 3-limit). Pythagorean Mixolydian
