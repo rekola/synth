@@ -823,6 +823,39 @@ Song::setBusSlotKind(int slot, BusEffectKind kind, const BusEffect * parameters)
   doc_->insertChild(doc_->root(), "bus", static_cast<size_t>(slot), node);
 }
 
+// The text of a <notes> element: every text child (a comment among them does
+// not end it), the file's own indentation taken off and blank lines at both
+// ends dropped, so what the XML layout added is not part of the notes.
+static std::string tidyNotesText(const XMLElement & element) {
+  std::string raw;
+  for (auto child = element.FirstChild(); child; child = child->NextSibling()) {
+    if (auto text = child->ToText()) raw += text->Value();
+  }
+  std::vector<std::string> lines;
+  for (size_t start = 0; start <= raw.size();) {
+    auto end = raw.find('\n', start);
+    if (end == std::string::npos) end = raw.size();
+    auto line = raw.substr(start, end - start);
+    if (!line.empty() && line.back() == '\r') line.pop_back();
+    while (!line.empty() && (line.back() == ' ' || line.back() == '\t')) line.pop_back();
+    lines.push_back(std::move(line));
+    start = end + 1;
+  }
+  size_t indent = std::string::npos;
+  for (auto & line : lines) {
+    if (line.empty()) continue;
+    indent = std::min(indent, line.find_first_not_of(" \t"));
+  }
+  if (indent == std::string::npos) return "";
+  for (auto & line : lines) line = line.size() >= indent ? line.substr(indent) : "";
+  size_t first = 0, last = lines.size();
+  while (first < last && lines[first].empty()) first++;
+  while (last > first && lines[last - 1].empty()) last--;
+  std::string out;
+  for (size_t i = first; i < last; i++) out += (i > first ? "\n" : "") + lines[i];
+  return out;
+}
+
 bool
 Song::open(const std::string & filename, const InstrumentProvider & provider) {
   // setlocale(..., nullptr) returns a pointer into glibc's own internal
@@ -920,8 +953,7 @@ Song::open(const std::string & filename, const InstrumentProvider & provider) {
 
     {
       auto notes = song->FirstChildElement("notes");
-      auto text = notes ? notes->GetText() : nullptr;
-      setNotes(text ? text : "");
+      setSongNotes(notes ? tidyNotesText(*notes) : "");
     }
 
     if (auto locators = song->FirstChildElement("locators")) {
@@ -1213,7 +1245,7 @@ Song::save(const std::string & filename) const {
     }
   }
 
-  if (auto notes = getNotes(); !notes.empty()) {
+  if (auto notes = getSongNotes(); !notes.empty()) {
     auto element = doc.NewElement("notes");
     element->SetText(notes.c_str());
     root->InsertEndChild(element);

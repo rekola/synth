@@ -8,6 +8,7 @@
 #include "../src/model/Song.h"
 
 #include <cmath>
+#include <fstream>
 #include <map>
 #include <string>
 
@@ -74,17 +75,36 @@ TEST(song_notes_load_save_and_reload) {
   InstrumentProvider provider;
   Song song;
   CHECK(song.open(std::string(TESTS_SONGS_DIR) + "/seikilos.xml", provider));
-  CHECK(song.getNotes().find("West, Ancient Greek Music") != std::string::npos);
+  CHECK(song.getSongNotes().find("West, Ancient Greek Music") != std::string::npos);
 
-  song.setNotes("line one\nline two & <more>");
+  song.setSongNotes("line one\nline two & <more>");
   auto path = std::string(TESTS_SCRATCH_DIR) + "/song_notes_round_trip.xml";
   song.save(path);
   Song reloaded;
   CHECK(reloaded.open(path, provider));
-  CHECK(reloaded.getNotes() == "line one\nline two & <more>");
+  CHECK(reloaded.getSongNotes() == "line one\nline two & <more>");
 
-  song.setNotes("");
+  song.setSongNotes("");
   song.save(path);
   CHECK(reloaded.open(path, provider));
-  CHECK(reloaded.getNotes().empty());
+  CHECK(reloaded.getSongNotes().empty());
+}
+
+TEST(notes_lose_the_files_indentation_and_survive_a_leading_comment) {
+  auto path = std::string(TESTS_SCRATCH_DIR) + "/song_notes_indented.xml";
+  {
+    std::ofstream out(path);
+    out << "<?xml version=\"1.0\"?>\n<song temperament=\"53edo\" tempo=\"90\">\n  <notes>\n    <!-- a comment -->\n"
+           "    first line\n      indented\n\n    last line   \n  </notes>\n</song>\n";
+  }
+  InstrumentProvider provider;
+  Song song;
+  CHECK(song.open(path, provider));
+  CHECK(song.getSongNotes() == "first line\n  indented\n\nlast line");
+}
+
+TEST(only_53_edo_offers_pythagorean_mixolydian) {
+  CHECK(scaleSupportsTuning(Scale::PYTHAGOREAN_MIXOLYDIAN, Tuning::EDO53));
+  CHECK(!scaleSupportsTuning(Scale::PYTHAGOREAN_MIXOLYDIAN, Tuning::EDO31));
+  CHECK(scaleSupportsTuning(Scale::MAJOR, Tuning::EDO31));
 }

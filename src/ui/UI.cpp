@@ -460,7 +460,9 @@ UI::initializeCommands() {
     static const Scale kScales[] = {Scale::NONE, Scale::MAJOR, Scale::MINOR, Scale::OTONAL, Scale::UTONAL, Scale::DIAMOND7, Scale::PYTHAGOREAN_MIXOLYDIAN, Scale::RAST, Scale::BAYATI, Scale::HIJAZ, Scale::NAHAWAND, Scale::KURD, Scale::AJAM, Scale::SABA, Scale::SIKAH};
     std::vector<std::pair<std::string, Scale>> choices;
     int current = -1;
+    auto tuning = getController().getSong().getTuning();
     for (auto scale : kScales) {
+      if (!scaleSupportsTuning(scale, tuning)) continue; // it would play out of tune
       if (scale == getController().getSong().getScale()) current = static_cast<int>(choices.size());
       choices.push_back({scaleLabel(scale), scale});
     }
@@ -485,7 +487,9 @@ UI::initializeCommands() {
       auto & song = getController().getSong();
       Song::Edit edit(song, "set tuning");
       int converted = convertSongTuning(song, tuning);
-      setStatus(fmt::format("Tuning {}-EDO, {} notes converted", edoStepsFor(tuning), converted)); }, true);
+      auto status = fmt::format("Tuning {}-EDO, {} notes converted", edoStepsFor(tuning), converted);
+      if (!scaleSupportsTuning(song.getScale(), tuning)) status += fmt::format("; the {} scale is out of tune in it", scaleLabel(song.getScale()));
+      setStatus(status); }, true);
   });
   // The colours: the modern look in dark or light, or the original one.
   commands_.define("select-theme", [this]() {
