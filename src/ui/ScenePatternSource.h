@@ -71,6 +71,10 @@ class ScenePatternSource : public PatternSource {
   // Every track's position is shown on its own line (trackCursor()).
   std::optional<int> positionRow(int track_id, int block) const override;
 
+  // False until a clip is picked (or launched) on the track; the track
+  // then shows and edits nothing.
+  bool hasClipSelected(int track_id) const;
+
   bool showsClipIndirection() const override { return false; }
   bool hasLocators() const override { return false; }
   bool cursorFollowsTransport() const override { return false; }
@@ -133,6 +137,7 @@ class ScenePatternSource : public PatternSource {
   int rowsFromPosition(int track_id, RowAddress address) const;
   RowAddress position(int track_id) const;
   std::unordered_map<int, RowAddress> & positions() const;
+  std::unordered_map<int, bool> & selected() const;
   // Moves every stopped track but the cursor's by `rows`, keeping each
   // one within the scenes.
   void moveStoppedTracks(int rows);
@@ -151,6 +156,7 @@ class ScenePatternSource : public PatternSource {
   int cursor_jump_ = 0;
   // Stopped tracks' positions, per buffer name.
   mutable std::unordered_map<std::string, std::unordered_map<int, RowAddress>> positions_;
+  mutable std::unordered_map<std::string, std::unordered_map<int, bool>> selected_;
   std::unordered_map<int, Playhead> playheads_;
   // Each track's line (offset()), per buffer name.
   mutable std::unordered_map<std::string, std::unordered_map<int, int>> offsets_;
