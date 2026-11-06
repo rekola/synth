@@ -21,6 +21,7 @@ enum class Scale {
   MINOR,
   OTONAL,
   UTONAL,
+  DIAMOND7,
 
   // Arabic
   RAST,
@@ -40,6 +41,8 @@ static inline std::string to_string(Scale scale) {
   case Scale::MINOR: return "minor";
   case Scale::OTONAL: return "otonal";
   case Scale::UTONAL: return "utonal";
+  case Scale::DIAMOND7:
+    return "diamond7";
   case Scale::RAST:
     return "rast";
   case Scale::BAYATI:
@@ -73,6 +76,8 @@ static inline std::string scaleLabel(Scale scale) {
       return "Otonal";
     case Scale::UTONAL:
       return "Utonal";
+    case Scale::DIAMOND7:
+      return "Diamond (7-limit)";
     case Scale::RAST:
       return "Rāst";
     case Scale::BAYATI:
@@ -98,6 +103,7 @@ static inline Scale scaleFromString(const std::string & text) {
   if (text == "minor") return Scale::MINOR;
   if (text == "otonal") return Scale::OTONAL;
   if (text == "utonal") return Scale::UTONAL;
+  if (text == "diamond7") return Scale::DIAMOND7;
   if (text == "rast") return Scale::RAST;
   if (text == "bayati") return Scale::BAYATI;
   if (text == "hijaz") return Scale::HIJAZ;
@@ -109,40 +115,52 @@ static inline Scale scaleFromString(const std::string & text) {
   return Scale::NONE;
 }
 
-// The gamut notes a just scale selects: those of its side (or of both) up to
-// round kJustScaleRound. Otonal is 1/1 13/12 9/8 7/6 5/4 4/3 3/2 5/3 7/4 11/6
-// 15/8 (C D♭ D D♯ E F G A A♯↑ C𝄫' B), harmonics of the note a fifth below the
-// tonic and the like; utonal is its mirror image, 1/1 16/15 12/11 8/7 6/5 4/3
-// 3/2 8/5 12/7 16/9 24/13 (C D♭↓ C𝄪 E𝄫 E♭ F G A♭ B𝄫 B♭↓ B↓). The terms are
-// Partch's, though his otonalities are chords, not these scales. nullopt for a
-// scale that is not just.
+// A just scale is a selection from a gamut. Otonal is the superparticular
+// gamut's notes of its side (or of both) through round kJustScaleRound:
+// 1/1 13/12 9/8 7/6 5/4 4/3 3/2 5/3 7/4 11/6 15/8 (C D♭ D D♯ E F G A A♯↑ C𝄫'
+// B), harmonics of the note a fifth below the tonic and the like; utonal is its
+// mirror image, 1/1 16/15 12/11 8/7 6/5 4/3 3/2 8/5 12/7 16/9 24/13 (C D♭↓ C𝄪
+// E𝄫 E♭ F G A♭ B𝄫 B♭↓ B↓). The terms are Partch's, though his otonalities are
+// chords, not these scales. Diamond7 is all thirteen notes of the tonality
+// diamond. Other scales are not just.
 constexpr int kJustScaleRound = 3;
 
-static inline std::optional<GamutSide> scaleSide(Scale scale) {
+struct JustScale {
+  std::span<const GamutNote> gamut;
+  std::optional<GamutSide> side; // nullopt: every note of the gamut
+  int round = 0;                 // the last round included
+
+  bool contains(const GamutNote & note) const {
+    return note.round <= round && (!side || note.side == GamutSide::BOTH || note.side == *side);
+  }
+  // Whether the scale's side is the note's or the note is on both.
+  bool prefers(const GamutNote & note) const { return !side || note.side == GamutSide::BOTH || note.side == *side; }
+};
+
+static inline std::optional<JustScale> justScale(Scale scale) {
   switch (scale) {
     case Scale::OTONAL:
-      return GamutSide::OTONAL;
+      return JustScale{gamut::kSuperparticular, GamutSide::OTONAL, kJustScaleRound};
     case Scale::UTONAL:
-      return GamutSide::UTONAL;
+      return JustScale{gamut::kSuperparticular, GamutSide::UTONAL, kJustScaleRound};
+    case Scale::DIAMOND7:
+      return JustScale{gamut::kDiamond7, std::nullopt, 0};
     default:
       break;
   }
   return std::nullopt;
 }
 
-static inline bool scaleContains(Scale scale, const GamutNote & note) {
-  auto side = scaleSide(scale);
-  return side && note.round <= kJustScaleRound && (note.side == GamutSide::BOTH || note.side == *side);
-}
-
-// Indices into gamut::kGamut of a just scale's notes, by ascending ratio.
-// Empty for the others.
+// Indices into justScale(scale)->gamut of a just scale's notes, by ascending
+// ratio. Empty for the others.
 static inline std::vector<std::size_t> scaleGamutIndices(Scale scale) {
   std::vector<std::size_t> out;
-  for (std::size_t i = 0; i < gamut::kGamut.size(); i++) {
-    if (scaleContains(scale, gamut::kGamut[i])) out.push_back(i);
+  auto just = justScale(scale);
+  if (!just) return out;
+  for (std::size_t i = 0; i < just->gamut.size(); i++) {
+    if (just->contains(just->gamut[i])) out.push_back(i);
   }
-  std::sort(out.begin(), out.end(), [](std::size_t a, std::size_t b) { return gamut::kGamut[a].ratio < gamut::kGamut[b].ratio; });
+  std::sort(out.begin(), out.end(), [&](std::size_t a, std::size_t b) { return just->gamut[a].ratio < just->gamut[b].ratio; });
   return out;
 }
 
@@ -154,7 +172,7 @@ static inline std::vector<std::size_t> scaleGamutIndices(Scale scale) {
 // tuning. Empty for Scale::NONE: Song::getScaleDegreesWindow() reads that as
 // "use the plain chromatic scale" and does not call this at all.
 //
-// A just scale's names are the gamut's spellings, chosen to mean those ratios
+// A just scale's names are its gamut's spellings, chosen to mean those ratios
 // in both 31 and 53-EDO; 12 and 19-EDO take the nearest step (in 12-EDO E𝄫
 // sounds identical to D, so two degrees can share a key). 31-EDO has one step
 // for each pair of notes a syntonic comma apart and ignores the arrow; 53-EDO
@@ -164,9 +182,12 @@ static inline std::vector<std::string_view> scaleDegreeNames(Scale scale) {
   case Scale::MAJOR: return { "C", "D", "E", "F", "G", "A", "B" };
   case Scale::MINOR: return { "C", "D", "E♭", "F", "G", "A♭", "B♭" };
   case Scale::OTONAL:
-  case Scale::UTONAL: {
+  case Scale::UTONAL:
+  case Scale::DIAMOND7: {
     std::vector<std::string_view> names;
-    for (auto i : scaleGamutIndices(scale)) names.push_back(gamut::kGamut[i].spelling);
+    auto just = justScale(scale);
+    if (!just) return names;
+    for (auto i : scaleGamutIndices(scale)) names.push_back(just->gamut[i].spelling);
     return names;
   }
   case Scale::RAST:

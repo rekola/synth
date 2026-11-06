@@ -5,13 +5,18 @@
 
 #include <array>
 #include <cstddef>
+#include <span>
 #include <string_view>
 
-// The gamut: the one set of just ratios above the tonic that the otonal and
-// utonal scales (Scale.h) are selections from, and that the tuner
-// (JustIntonation.h) tunes from whatever scale a song is in. It is generated in
-// rounds and is infinite in principle; kGamut holds rounds 0-3, in the order
-// they are generated, so a later round only appends.
+// A gamut is a set of just ratios above the tonic that scales (Scale.h) are
+// selections from, and that the tuner (JustIntonation.h) tunes from whatever
+// scale a song is in. There are two: the superparticular gamut below
+// (kSuperparticular), which the otonal and utonal scales select from, and
+// Partch's 7-limit tonality diamond (kDiamond7).
+//
+// The superparticular gamut is generated in rounds and is infinite in
+// principle; kSuperparticular holds rounds 0-3, in the order they are
+// generated, so a later round only appends.
 //
 // Round 0: 1/1 (C) and its octave 2/1.
 // Round 1: divide C-C': the arithmetic mean 3/2 (G), then the harmonic mean
@@ -43,13 +48,13 @@ struct GamutNote {
   // is one 53-EDO step and ignored elsewhere. The apostrophe of C𝄫' puts it
   // below the octave's C rather than the tonic's, so it stays above 15/8.
   std::string_view spelling;
-  // Index of the mirror note in kGamut (itself for 1/1).
+  // Index of the mirror note in the same table (itself for 1/1).
   std::size_t mirror;
 };
 
 namespace gamut {
 // The origin of each note is the mean it was made by, in the comment.
-inline constexpr std::array<GamutNote, 19> kGamut = {{
+inline constexpr std::array<GamutNote, 19> kSuperparticular = {{
     {Ratio{1, 1}, GamutSide::BOTH, 0, "C", 0},
     {Ratio{3, 2}, GamutSide::BOTH, 1, "G", 2},        // arith. C-C'
     {Ratio{4, 3}, GamutSide::BOTH, 1, "F", 1},        // harm. C-C'
@@ -71,15 +76,35 @@ inline constexpr std::array<GamutNote, 19> kGamut = {{
     {Ratio{16, 9}, GamutSide::UTONAL, 3, "B♭↓", 11},  // harm. A♭-C'
 }};
 
-constexpr bool mirrorsAreConsistent() {
-  for (std::size_t i = 0; i < kGamut.size(); i++) {
-    const auto & note = kGamut[i];
-    if (note.mirror >= kGamut.size() || kGamut[note.mirror].mirror != i) return false;
-    if (kGamut[note.mirror].ratio != note.ratio.mirror()) return false;
+// Partch's 7-limit tonality diamond: n/d for n, d in {1, 3, 5, 7}, octave-reduced,
+// by ascending ratio. No sides or rounds (all BOTH, round 0). Eleven notes are
+// the superparticular gamut's, with the same spellings; 7/5 and 10/7 are new.
+inline constexpr std::array<GamutNote, 13> kDiamond7 = {{
+    {Ratio{1, 1}, GamutSide::BOTH, 0, "C", 0},
+    {Ratio{8, 7}, GamutSide::BOTH, 0, "E𝄫", 12},
+    {Ratio{7, 6}, GamutSide::BOTH, 0, "D♯", 11},
+    {Ratio{6, 5}, GamutSide::BOTH, 0, "E♭", 10},
+    {Ratio{5, 4}, GamutSide::BOTH, 0, "E", 9},
+    {Ratio{4, 3}, GamutSide::BOTH, 0, "F", 8},
+    {Ratio{7, 5}, GamutSide::BOTH, 0, "F♯↑", 7},
+    {Ratio{10, 7}, GamutSide::BOTH, 0, "G♭↓", 6},
+    {Ratio{3, 2}, GamutSide::BOTH, 0, "G", 5},
+    {Ratio{8, 5}, GamutSide::BOTH, 0, "A♭", 4},
+    {Ratio{5, 3}, GamutSide::BOTH, 0, "A", 3},
+    {Ratio{12, 7}, GamutSide::BOTH, 0, "B𝄫", 2},
+    {Ratio{7, 4}, GamutSide::BOTH, 0, "A♯↑", 1},
+}};
+
+constexpr bool mirrorsAreConsistent(std::span<const GamutNote> table) {
+  for (std::size_t i = 0; i < table.size(); i++) {
+    const auto & note = table[i];
+    if (note.mirror >= table.size() || table[note.mirror].mirror != i) return false;
+    if (table[note.mirror].ratio != note.ratio.mirror()) return false;
   }
   return true;
 }
-static_assert(mirrorsAreConsistent());
+static_assert(mirrorsAreConsistent(kSuperparticular));
+static_assert(mirrorsAreConsistent(kDiamond7));
 
 } // namespace gamut
 

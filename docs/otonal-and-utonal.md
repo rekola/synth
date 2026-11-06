@@ -195,6 +195,13 @@ Round 2 adds 5/4 6/5 7/4 12/7 7/6 8/7 5/3 8/5 and round 3 adds 9/8 12/11 15/8
 24/13 13/12 16/15 11/6 16/9; round 4 would add 25/24, 17/16, 23/12, 31/16 and
 their mirrors. A scale is the notes of its side, or of both, through round 3.
 
+There is a second gamut, Partch's 7-limit tonality diamond: n/d for n, d in
+{1, 3, 5, 7}, octave-reduced, thirteen notes (1/1 8/7 7/6 6/5 5/4 4/3 7/5 10/7
+3/2 8/5 5/3 12/7 7/4; 7/5 is F♯↑ and 10/7 G♭↓). Its one scale, diamond7, holds
+all of them. Eleven are the superparticular gamut's, with the same spellings and
+steps; 7/5 and 10/7 land on 31-EDO steps 15 and 16 and 53-EDO steps 26 and 27,
+where nothing else is. The tuner tunes the notes of the song's own gamut.
+
 The tuner puts every gamut note on the key nearest it, so a note borrowed from
 the other scale is tuned as well. Where two share a key, the song's scale
 chooses: 31-EDO's D♭ (13/12) and C𝄪 (12/11) both lie nearest key 4, and C𝄫

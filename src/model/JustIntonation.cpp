@@ -120,26 +120,27 @@ std::optional<int> ScaleCorrections::forNote(int note_value) const {
 ScaleCorrections scaleCorrectionsFor(Tuning tuning, Scale scale, int key) {
   ScaleCorrections out;
   int edo = edoStepsFor(tuning);
-  auto side = scaleSide(scale);
-  if (edo <= 0 || edo > ScaleCorrections::kMaxSteps || !side) return out;
+  auto just = justScale(scale);
+  if (edo <= 0 || edo > ScaleCorrections::kMaxSteps || !just) return out;
+  const auto table = just->gamut;
   out.edo = edo;
   out.key = ((std::max(key, 0) % edo) + edo) % edo;
   const double step_cents = 1200.0 / edo;
 
-  // Every gamut note goes to its nearest step, in the scale or not. Where
+  // Every note of the scale's gamut goes to its nearest step, in the scale or not. Where
   // several share a step, a note in the scale beats one of the scale's side,
   // which beats the rest; the lowest ratio breaks a tie.
   std::array<int, ScaleCorrections::kMaxSteps> rank{};
-  std::vector<std::size_t> order(gamut::kGamut.size());
+  std::vector<std::size_t> order(table.size());
   std::iota(order.begin(), order.end(), std::size_t{0});
   std::sort(order.begin(), order.end(),
-            [](std::size_t a, std::size_t b) { return gamut::kGamut[a].ratio < gamut::kGamut[b].ratio; });
+            [&](std::size_t a, std::size_t b) { return table[a].ratio < table[b].ratio; });
   for (auto i : order) {
-    const auto & note = gamut::kGamut[i];
+    const auto & note = table[i];
     int step = ((note.ratio.steps(edo) % edo) + edo) % edo;
     auto index = static_cast<std::size_t>(step);
-    int note_rank = scaleContains(scale, note) ? 0 : (note.side == GamutSide::BOTH || note.side == *side) ? 1
-                                                                                                          : 2;
+    int note_rank = just->contains(note) ? 0 : just->prefers(note) ? 1
+                                                                   : 2;
     if (out.present[index] && rank[index] <= note_rank) continue;
     out.cents[index] = static_cast<int16_t>(std::lround(note.ratio.cents() - step * step_cents));
     out.present[index] = true;

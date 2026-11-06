@@ -79,11 +79,11 @@ int stepOf(Tuning tuning, std::string_view spelling) {
 
 TEST(regenerating_the_gamut_from_its_rule_reproduces_the_table_in_order) {
   auto generated = regenerate(3);
-  CHECK(generated.size() == gamut::kGamut.size());
-  for (size_t i = 0; i < std::min(generated.size(), gamut::kGamut.size()); i++) {
-    CHECK(generated[i].ratio == gamut::kGamut[i].ratio);
-    CHECK(generated[i].side == gamut::kGamut[i].side);
-    CHECK(generated[i].round == gamut::kGamut[i].round);
+  CHECK(generated.size() == gamut::kSuperparticular.size());
+  for (size_t i = 0; i < std::min(generated.size(), gamut::kSuperparticular.size()); i++) {
+    CHECK(generated[i].ratio == gamut::kSuperparticular[i].ratio);
+    CHECK(generated[i].side == gamut::kSuperparticular[i].side);
+    CHECK(generated[i].round == gamut::kSuperparticular[i].round);
   }
   // Round 4 adds the four notes and mirrors the table's comment names.
   std::set<std::pair<int, int>> round4;
@@ -93,14 +93,14 @@ TEST(regenerating_the_gamut_from_its_rule_reproduces_the_table_in_order) {
 }
 
 TEST(every_gamut_note_has_a_mirror_that_mirrors_back) {
-  for (size_t i = 0; i < gamut::kGamut.size(); i++) {
-    auto & note = gamut::kGamut[i];
-    CHECK(note.mirror < gamut::kGamut.size());
-    if (note.mirror >= gamut::kGamut.size()) continue;
-    CHECK(gamut::kGamut[note.mirror].mirror == i);
-    CHECK(gamut::kGamut[note.mirror].ratio == note.ratio.mirror());
-    CHECK(gamut::kGamut[note.mirror].round == note.round);
-    if (note.side != GamutSide::BOTH) CHECK(gamut::kGamut[note.mirror].side != note.side);
+  for (size_t i = 0; i < gamut::kSuperparticular.size(); i++) {
+    auto & note = gamut::kSuperparticular[i];
+    CHECK(note.mirror < gamut::kSuperparticular.size());
+    if (note.mirror >= gamut::kSuperparticular.size()) continue;
+    CHECK(gamut::kSuperparticular[note.mirror].mirror == i);
+    CHECK(gamut::kSuperparticular[note.mirror].ratio == note.ratio.mirror());
+    CHECK(gamut::kSuperparticular[note.mirror].round == note.round);
+    if (note.side != GamutSide::BOTH) CHECK(gamut::kSuperparticular[note.mirror].side != note.side);
   }
 }
 
@@ -111,7 +111,7 @@ TEST(the_just_scales_are_selections_from_the_gamut) {
 
   auto ratios = [](Scale scale) {
     std::vector<Ratio> out;
-    for (auto i : scaleGamutIndices(scale)) out.push_back(gamut::kGamut[i].ratio);
+    for (auto i : scaleGamutIndices(scale)) out.push_back(gamut::kSuperparticular[i].ratio);
     return out;
   };
   // The 11-note lists the scales had before the gamut, by ascending ratio.
@@ -122,7 +122,7 @@ TEST(the_just_scales_are_selections_from_the_gamut) {
 TEST(gamut_notes_map_to_their_nearest_step) {
   auto steps = [](Tuning tuning, Scale scale) {
     std::vector<int> out;
-    for (auto i : scaleGamutIndices(scale)) out.push_back(gamut::kGamut[i].ratio.steps(edoStepsFor(tuning)));
+    for (auto i : scaleGamutIndices(scale)) out.push_back(gamut::kSuperparticular[i].ratio.steps(edoStepsFor(tuning)));
     return out;
   };
   CHECK((steps(Tuning::EDO53, Scale::OTONAL) == std::vector<int>{0, 6, 9, 12, 17, 22, 31, 39, 43, 46, 48}));
@@ -134,7 +134,7 @@ TEST(gamut_notes_map_to_their_nearest_step) {
 TEST(spellings_name_the_nearest_step_except_for_two_notes_in_31_edo) {
   for (auto tuning : {Tuning::EDO12, Tuning::EDO19, Tuning::EDO31, Tuning::EDO53}) {
     int edo = edoStepsFor(tuning);
-    for (auto & note : gamut::kGamut) {
+    for (auto & note : gamut::kSuperparticular) {
       int nearest = ((note.ratio.steps(edo) % edo) + edo) % edo;
       bool exception = tuning == Tuning::EDO31 && (note.ratio == 13 / 12_r || note.ratio == 24 / 13_r);
       CHECK((stepOf(tuning, note.spelling) == nearest) != exception);
@@ -161,7 +161,7 @@ TEST(31_edo_collisions_resolve_to_the_songs_scale) {
 TEST(53_edo_has_no_collisions_so_every_gamut_note_is_tuned_in_either_scale) {
   for (auto scale : {Scale::OTONAL, Scale::UTONAL}) {
     auto corrections = scaleCorrectionsFor(Tuning::EDO53, scale, 0);
-    for (auto & note : gamut::kGamut) {
+    for (auto & note : gamut::kSuperparticular) {
       auto cents = corrections.forNote(note.ratio.steps(53));
       CHECK(cents && *cents == std::lround(note.ratio.cents() - note.ratio.steps(53) * 1200.0 / 53));
     }
@@ -173,4 +173,97 @@ TEST(a_step_shared_by_notes_outside_the_scale_goes_to_the_scales_side_then_the_l
   // own; in a utonal one 12/11 and 8/7 are both in the scale and the lower wins.
   CHECK(scaleCorrectionsFor(Tuning::EDO12, Scale::OTONAL, 0).forNote(2) == std::optional<int>(4));
   CHECK(scaleCorrectionsFor(Tuning::EDO12, Scale::UTONAL, 0).forNote(2) == std::optional<int>(-49));
+}
+
+namespace {
+
+// n/d for n, d in {1, 3, 5, 7}, octave-reduced, by ascending ratio.
+std::vector<Ratio> regenerateDiamond7() {
+  std::vector<Ratio> out;
+  for (int n : {1, 3, 5, 7}) {
+    for (int d : {1, 3, 5, 7}) {
+      Ratio r = Ratio{n, d}.reduced();
+      if (std::find(out.begin(), out.end(), r) == out.end()) out.push_back(r);
+    }
+  }
+  std::sort(out.begin(), out.end());
+  return out;
+}
+
+} // namespace
+
+TEST(the_diamond_regenerates_from_its_rule) {
+  auto expected = regenerateDiamond7();
+  CHECK(expected.size() == 13);
+  CHECK(gamut::kDiamond7.size() == expected.size());
+  for (size_t i = 0; i < std::min(expected.size(), gamut::kDiamond7.size()); i++) CHECK(gamut::kDiamond7[i].ratio == expected[i]);
+}
+
+TEST(every_diamond_note_mirrors_to_a_note_in_the_set) {
+  for (size_t i = 0; i < gamut::kDiamond7.size(); i++) {
+    auto & note = gamut::kDiamond7[i];
+    CHECK(note.mirror < gamut::kDiamond7.size());
+    if (note.mirror >= gamut::kDiamond7.size()) continue;
+    CHECK(gamut::kDiamond7[note.mirror].mirror == i);
+    CHECK(gamut::kDiamond7[note.mirror].ratio == note.ratio.mirror());
+  }
+  // 8/7<->7/4, 7/6<->12/7, 6/5<->5/3, 5/4<->8/5, 4/3<->3/2, 7/5<->10/7.
+  auto mirror_of = [](Ratio r) {
+    for (auto & note : gamut::kDiamond7)
+      if (note.ratio == r) return gamut::kDiamond7[note.mirror].ratio;
+    return Ratio{1, 1};
+  };
+  CHECK(mirror_of(8 / 7_r) == 7 / 4_r);
+  CHECK(mirror_of(7 / 5_r) == 10 / 7_r);
+  CHECK(mirror_of(4 / 3_r) == 3 / 2_r);
+}
+
+TEST(the_diamond_scale_holds_all_thirteen_notes) {
+  CHECK(scaleGamutIndices(Scale::DIAMOND7).size() == 13);
+  CHECK(scaleDegreeNames(Scale::DIAMOND7).size() == 13);
+  CHECK(scaleFromString(to_string(Scale::DIAMOND7)) == Scale::DIAMOND7);
+  CHECK(to_string(Scale::DIAMOND7) == "diamond7");
+}
+
+TEST(the_diamond_shares_eleven_notes_with_the_superparticular_gamut_spelling_and_step) {
+  int shared = 0;
+  for (auto & note : gamut::kDiamond7) {
+    auto other = std::find_if(gamut::kSuperparticular.begin(), gamut::kSuperparticular.end(),
+                              [&](const GamutNote & n) { return n.ratio == note.ratio; });
+    if (other == gamut::kSuperparticular.end()) continue;
+    shared++;
+    CHECK(other->spelling == note.spelling);
+    for (auto tuning : {Tuning::EDO12, Tuning::EDO19, Tuning::EDO31, Tuning::EDO53}) {
+      CHECK(stepOf(tuning, note.spelling) == stepOf(tuning, other->spelling));
+      CHECK(note.ratio.steps(edoStepsFor(tuning)) == other->ratio.steps(edoStepsFor(tuning)));
+    }
+    // Tuned the same by the diamond as by whichever superparticular scale has it.
+    for (auto tuning : {Tuning::EDO31, Tuning::EDO53}) {
+      int step = note.ratio.steps(edoStepsFor(tuning));
+      auto diamond = scaleCorrectionsFor(tuning, Scale::DIAMOND7, 0).forNote(step);
+      auto super = scaleCorrectionsFor(tuning, other->side == GamutSide::UTONAL ? Scale::UTONAL : Scale::OTONAL, 0).forNote(step);
+      CHECK(diamond && diamond == super);
+    }
+  }
+  CHECK(shared == 11);
+  // The two new notes: 7/5 and 10/7.
+  CHECK(stepOf(Tuning::EDO31, "F♯↑") == 15);
+  CHECK(stepOf(Tuning::EDO31, "G♭↓") == 16);
+  CHECK(stepOf(Tuning::EDO53, "F♯↑") == 26);
+  CHECK(stepOf(Tuning::EDO53, "G♭↓") == 27);
+  CHECK(7 / 5_r == gamut::kDiamond7[6].ratio && gamut::kDiamond7[6].ratio.steps(31) == 15);
+  CHECK(gamut::kDiamond7[7].ratio.steps(31) == 16 && gamut::kDiamond7[6].ratio.steps(53) == 26 && gamut::kDiamond7[7].ratio.steps(53) == 27);
+}
+
+TEST(the_diamond_has_no_step_collisions_in_31_or_53_edo) {
+  for (auto tuning : {Tuning::EDO31, Tuning::EDO53}) {
+    int edo = edoStepsFor(tuning);
+    std::set<int> steps;
+    for (auto & note : gamut::kDiamond7) steps.insert(((note.ratio.steps(edo) % edo) + edo) % edo);
+    CHECK(steps.size() == gamut::kDiamond7.size());
+    auto corrections = scaleCorrectionsFor(tuning, Scale::DIAMOND7, 0);
+    int present = 0;
+    for (int step = 0; step < edo; step++) present += corrections.forNote(step) ? 1 : 0;
+    CHECK(present == 13);
+  }
 }

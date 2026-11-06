@@ -174,7 +174,9 @@ namespace {
 std::vector<int> degreeSteps(Tuning tuning, Scale scale) {
   int edo = edoStepsFor(tuning);
   std::vector<int> steps;
-  for (auto i : scaleGamutIndices(scale)) steps.push_back(((gamut::kGamut[i].ratio.steps(edo) % edo) + edo) % edo);
+  auto just = justScale(scale);
+  if (!just) return steps;
+  for (auto i : scaleGamutIndices(scale)) steps.push_back(((just->gamut[i].ratio.steps(edo) % edo) + edo) % edo);
   return steps;
 }
 
