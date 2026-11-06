@@ -207,7 +207,9 @@ class InteractiveUI : public UI {
   // Arrangement view's scope row (toggle-scopes); Live View never
   // shows it - see layout().
   PerformanceProfile profile_;
-  std::chrono::steady_clock::time_point last_scope_update_, last_meter_update_;
+  // When the scopes (and the meter) were switched off by the link, and whether they have been cleared since.
+  std::chrono::steady_clock::time_point scopes_off_since_, meter_off_since_;
+  bool scopes_cleared_ = false, meter_cleared_ = false;
   bool user_reduced_motion_ = false;
   bool scopes_visible_ = true;
   // Whether the spectrum/heatmap are on screen, as of the last layout().

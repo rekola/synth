@@ -627,7 +627,11 @@ void InteractiveUI::setReducedMotion(bool reduced) {
 
 // What the link allows: the user's choice of reduced motion stays on whatever the link.
 void InteractiveUI::applyProfile(cellui::LinkClass cls) {
+  auto previous = profile_;
   profile_ = profileFor(cls);
+  auto now = std::chrono::steady_clock::now();
+  if (previous.scopes && !profile_.scopes) scopes_off_since_ = now, scopes_cleared_ = false;
+  if (previous.meter && !profile_.meter) meter_off_since_ = now, meter_cleared_ = false;
   backend_.setPointerDetail(profile_.hover, profile_.pointer_shapes);
   if (pattern_editor_) pattern_editor_->setPageScroll(profile_.page_scroll);
   bool reduced = user_reduced_motion_ || profile_.reduced_motion;
@@ -1916,21 +1920,34 @@ void InteractiveUI::handleVisualizationResultEvent(const VisualizationResultEven
     // decoded L/R output.
     // A reading equal to the last still has to go in while the bars fall.
     auto now = std::chrono::steady_clock::now();
-    bool meter_due = rateDue(now - last_meter_update_, profile_.meter_fps);
-    bool scopes_due = rateDue(now - last_scope_update_, profile_.scope_fps);
-    if (meter_due && getView() == View::ARRANGEMENT && (ev.getChannelLoudness() != last_loudness_ || !volume_meter_->atRest())) {
-      last_meter_update_ = now;
+    // Switched off by the link, they keep their picture a moment and then go blank.
+    if (!profile_.scopes && !scopes_cleared_ && holdExpired(now - scopes_off_since_)) {
+      scopes_cleared_ = true;
+      chart_->clear();
+      heatmap_->setGrid(std::vector<float>(DiracAnalyzer::kGridSize, 0.0f), std::vector<float>(DiracAnalyzer::kGridSize, 0.0f));
+      heatmap_->commit();
+      last_fft_.clear();
+      last_brightness_.clear();
+      last_saturation_.clear();
+      fft_pending_ = grid_pending_ = false;
+      dirac_running_max_ = 0.0f;
+      changed = true;
+    }
+    if (!profile_.meter && !meter_cleared_ && holdExpired(now - meter_off_since_)) {
+      meter_cleared_ = true;
+      volume_meter_->clear(last_meter_label_);
+      last_loudness_.clear();
+      meter_pending_ = false;
+      changed = true;
+    }
+    if (profile_.meter && getView() == View::ARRANGEMENT && (ev.getChannelLoudness() != last_loudness_ || !volume_meter_->atRest())) {
       last_loudness_ = ev.getChannelLoudness();
       volume_meter_->feed(ev.getChannelLoudness());
       meter_pending_ = true;
       changed = true;
     }
 
-    // The spectrum and the heatmap come in only some results and take turns; one update of either
-    // starts the gap for both.
-    bool scope_taken = false;
-    if (scopes_due && !ev.getFFT().empty() && ev.getFFT() != last_fft_) {
-      scope_taken = true;
+    if (profile_.scopes && !ev.getFFT().empty() && ev.getFFT() != last_fft_) {
       last_fft_ = ev.getFFT();
       pending_fft_ = ev.getFFT();
       pending_fft_hz_ = ev.getFFTBinHz();
@@ -1938,8 +1955,7 @@ void InteractiveUI::handleVisualizationResultEvent(const VisualizationResultEven
       changed = true;
     }
 
-    if (scopes_due && ev.hasDiracGrid()) {
-      scope_taken = true;
+    if (profile_.scopes && ev.hasDiracGrid()) {
       // displayed[cell] = the grid's own
       // directional energy plus the per-band diffuse haze, spread
       // uniformly across every cell (one shared scalar summed from all 8
@@ -2003,7 +2019,6 @@ void InteractiveUI::handleVisualizationResultEvent(const VisualizationResultEven
         changed = true;
       }
     }
-    if (scope_taken) last_scope_update_ = now;
   }
 
   if (changed) {
