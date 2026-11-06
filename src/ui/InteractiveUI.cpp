@@ -426,6 +426,7 @@ private:
 
 InteractiveUI::InteractiveUI(cellui::Backend & backend)
     : backend_(backend), screen_(backend.rows(), backend.cols()) {
+  dispatcher_.setDragDropEnabled(backend.display().drag_drop);
   // Something that closes on a bare Escape gets it at once, rather than when
   // the next key shows it was no Alt prefix.
   key_reader_.takeEscape = [this](const cellui::Input & escape) {

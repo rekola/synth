@@ -63,8 +63,23 @@ carries the app's object as an opaque `getAppContext()`.
   says the display reports this key's release (a preview note held by a key
   needs it). `Input::getFx()`/`getFy()` carry the sub-cell pointer position
   (windows always; the terminal in pixel mouse mode 1016).
-  `DisplayInfo::key_release`/`precise_mouse`/`hover` say what the display
-  reports.
+  `DisplayInfo::key_release`/`precise_mouse`/`hover`/`drag_drop` say what the
+  display reports.
+- `DragDrop.h`: drag and drop inside the app, only where `DisplayInfo::drag_drop`
+  (the GTK window). The source, with the button held, posts
+  `StartDrag{this, DragPayload{kind, data}}` to the root (`Handled::no` where
+  the display has none, or no button is held: the widget carries on as before;
+  `dragStarted()`/`kDragThreshold` say when a press has moved enough). The
+  dispatcher then runs the session: the widget under the pointer gets
+  `DragOver` on every move and accepts by returning `Handled::yes`, and
+  `DragLeave`; the source gets `DragMove` (position, whether the target
+  accepts) and `DragEnd{dropped}`, and no `MouseMove`/`MouseUp` meanwhile; a
+  release over an accepting widget posts `Drop` to it. Escape cancels, and
+  the rest of that gesture goes to nobody. `DragGhost` is the plane that
+  follows the pointer (modal elevation, the grabbed point kept under the
+  pointer, to the pixel where the display scrolls smoothly; the pointer shows
+  `MouseCursor::GRABBING` or `NOT_ALLOWED` over it); the source makes it on
+  `StartDrag` and drops it on `DragEnd`.
 - `ThreadPosts.h`: `ThreadInbox` lets other threads post events to the root,
   dispatched on the UI thread at the start of every loop turn and in the
   turn a post woke; `addRing()` adds a `RealtimeRing` for a producer that
@@ -140,7 +155,7 @@ carries the app's object as an opaque `getAppContext()`.
   gets the text written as cells (`Plane::cutToCells()`). Writing over a
   marked cell takes the text back.
 - The pointer shape is a plane attribute (`Plane::setMouseCursor()`:
-  `INHERIT`/`DEFAULT`/`POINTER`/`TEXT`); `refresh()` lists the requesting
+  `INHERIT`/`DEFAULT`/`POINTER`/`TEXT`/`GRABBING`/`NOT_ALLOWED`); `refresh()` lists the requesting
   planes' rectangles in drawing order (`FrameInfo::mouse_cursors`) and the
   backend shows the last one under the pointer (GTK by cursor name, the
   terminal with OSC 22, which is why it asks for any-motion mouse reporting).

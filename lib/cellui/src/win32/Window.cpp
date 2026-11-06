@@ -1008,6 +1008,8 @@ void Window::Impl::updateCursor() {
   switch (mouseCursorAt(mouse_cursors, last_row, last_col)) {
     case MouseCursor::POINTER: SetCursor(systemCursor(32649)); break;
     case MouseCursor::TEXT: SetCursor(systemCursor(32513)); break;
+    case MouseCursor::GRABBING: SetCursor(systemCursor(32646)); break;      // IDC_SIZEALL
+    case MouseCursor::NOT_ALLOWED: SetCursor(systemCursor(32648)); break;   // IDC_NO
     default: SetCursor(systemCursor(32512)); break;
   }
 }

@@ -71,6 +71,9 @@ struct DisplayInfo {
   // The pointer moving with no button held (MouseMove, Enter and Leave); a
   // display that reports no hover still reports a drag, as a MouseMove with the button held.
   bool hover = false;
+  // Whether a widget can start a drag that carries something (DragDrop.h):
+  // needs the precise pointer and planes that follow it, so the window only.
+  bool drag_drop = false;
 };
 
 }  // namespace cellui
