@@ -33,6 +33,7 @@ class Backend;
 #include "HeatmapChart.h"
 #include "ChannelMeter.h"
 class InfoLine;
+class TransportButton;
 class StatusLine;
 class PatternEditor;
 class ArrangementGrid;
@@ -175,6 +176,7 @@ class InteractiveUI : public UI {
   uint64_t last_playback_signature_ = 0;      // of the last playback snapshot that was drawn
 
   std::shared_ptr<InfoLine> info_line_;
+  std::shared_ptr<TransportButton> transport_button_;
   std::shared_ptr<PatternEditor> pattern_editor_;
   // Always visible in the scope row's leftmost columns (see layout()),
   // sharing that row's real estate with chart_/heatmap_/volume_meter_.

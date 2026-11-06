@@ -61,10 +61,9 @@ class InfoLine : public UIElement {
       // figure, one that couldn't be measured.
       auto latency = latency_ms < 0 ? std::string() :
         fmt::format(" lat {}{}ms", info.isRoundTripLatencyNominal() ? "~" : "", latency_ms);
-      // Transport state as one single-colour glyph in rounded brackets (a button later).
-      const char * glyph = is_playing ? "(▶)" : "(■)";
+      // The transport button (TransportButton) is laid over the first columns.
       // The transport's musical position (Song::formatPosition()).
-      auto s = fmt::format(" {} {} {}{} voices:{}/{}", glyph, buffer_display_name, song.formatPosition(info.getAbsolutePosition()),
+      auto s = fmt::format("     {} {}{} voices:{}/{}", buffer_display_name, song.formatPosition(info.getAbsolutePosition()),
                            latency, num_voices, num_allocated_voices);
       while (s.size() < static_cast<size_t>(cols)) s += ' ';
 
