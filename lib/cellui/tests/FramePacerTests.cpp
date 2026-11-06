@@ -334,3 +334,10 @@ TEST(pacer_small_frames_near_the_floor_rate_are_not_the_link_holding_them_back) 
   CHECK(!p.mayStart(at(210)));
   CHECK(p.linkBound(at(210)));
 }
+
+TEST(pacer_stats_give_the_rate_a_frame_makes_at_the_floor_between_frames) {
+  FramePacer p(true);
+  startUp(p, 630, 40, 10);
+  send(p, 1600, 100);
+  CHECK(std::fabs(p.stats(at(101)).floor_rate - 100000.0) < 1.0);  // 1600 bytes every 16 ms
+}

@@ -84,6 +84,9 @@ struct PacerStats {
   double fps = 0;             // frames sent over the last second
   size_t bytes_in_flight = 0, frames_in_flight = 0;
   FrameBytes last_frame, totals;
+  // What the last frame's size comes to at the floor between frames: the rate an estimate cannot
+  // tell from the application's own when it is near it.
+  double floor_rate = 0;
   size_t frames = 0, acks = 0, backoffs = 0, stalls = 0;
   size_t kitty_errors = 0;
   std::string last_kitty_error;
