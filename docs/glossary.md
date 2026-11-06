@@ -173,6 +173,17 @@ shuffle, erode, shatter, gate, crush, duck, a send throw, orbit): it
 lasts while the pad is held and never changes the song. See
 launchpad.md.
 
+**Pythagorean gamut and Pythagorean Mixolydian**
+The Pythagorean gamut is thirteen notes of the chain of fifths, six below
+the tonic and six above, octave-reduced (all 3-limit). Pythagorean Mixolydian
+selects C D E F G A B♭ from it: 1/1 9/8 81/64 4/3 3/2 27/16 16/9. A scale's
+name carries its gamut's, so a 5-limit Mixolydian can be added beside it. The
+gamut is for 53-EDO only: its fifth is almost exact and its spellings write
+the Pythagorean E, A and B♭ as E↑, A↑ and B♭↓. 31-EDO cannot tune it under
+any spelling (81/64 lies between its steps 10 and 11), and 12 and 19-EDO
+approximate it as they do every just ratio. The scale will take the
+Babylonian tuning's name once that mapping is verified.
+
 **Rhythm**
 A pre-written drum pattern in the Library, such as Waltz, Funk or Bossa
 Nova. It is content (which drum hits fall on which rows), where swing is
@@ -190,6 +201,10 @@ column shifts it by a fraction of a row.
 A row of the clip grid: the clips at one position across every track's clip
 list, launched together. It has no object of its own beyond an optional
 name, tempo and time signature stored by position. See scenes.md.
+
+**Song notes**
+Free text saved with a song as its `<notes>` element: where the music comes
+from, what was chosen in realising it. It has no effect on playback.
 
 **Spatial mode**
 How a track places its notes around its position: `auto` (the instrument

@@ -10,9 +10,10 @@
 
 // A gamut is a set of just ratios above the tonic that scales (Scale.h) are
 // selections from, and that the tuner (JustIntonation.h) tunes from whatever
-// scale a song is in. There are two: the superparticular gamut below
-// (kSuperparticular), which the otonal and utonal scales select from, and
-// Partch's 7-limit tonality diamond (kDiamond7).
+// scale a song is in. There are three: the superparticular gamut below
+// (kSuperparticular), which the otonal and utonal scales select from,
+// Partch's 7-limit tonality diamond (kDiamond7) and the Pythagorean gamut
+// (kPythagorean), a chain of fifths.
 //
 // The superparticular gamut is generated in rounds and is infinite in
 // principle; kSuperparticular holds rounds 0-3, in the order they are
@@ -95,6 +96,31 @@ inline constexpr std::array<GamutNote, 13> kDiamond7 = {{
     {Ratio{7, 4}, GamutSide::BOTH, 0, "A♯↑", 1},
 }};
 
+// The Pythagorean gamut: thirteen notes of the chain of fifths, six below the
+// tonic and six above, octave-reduced and in the order of the chain (the round
+// is the distance from the tonic along it). All are 3-limit. For 53-EDO only:
+// 31-EDO cannot tune it under any spelling (81/64 lies between its steps 10
+// and 11). The spellings are 53-EDO's names for each note's step, where the
+// natural notes are the just major scale, so they are not always the
+// chain-of-fifths names (given in the comments): the Pythagorean E, A and B♭
+// are an arrow away from the natural ones, and the notes six fifths out are
+// named for the nearer step.
+inline constexpr std::array<GamutNote, 13> kPythagorean = {{
+    {Ratio{1024, 729}, GamutSide::BOTH, 6, "F♯↑", 12}, // chain: G♭, 6 fifths down
+    {Ratio{256, 243}, GamutSide::BOTH, 5, "C♯↑", 11},  // chain: D♭
+    {Ratio{128, 81}, GamutSide::BOTH, 4, "A♭↓", 10},   // chain: A♭
+    {Ratio{32, 27}, GamutSide::BOTH, 3, "E♭↓", 9},     // chain: E♭
+    {Ratio{16, 9}, GamutSide::BOTH, 2, "B♭↓", 8},      // chain: B♭
+    {Ratio{4, 3}, GamutSide::BOTH, 1, "F", 7},         // chain: F
+    {Ratio{1, 1}, GamutSide::BOTH, 0, "C", 6},
+    {Ratio{3, 2}, GamutSide::BOTH, 1, "G", 5},       // chain: G
+    {Ratio{9, 8}, GamutSide::BOTH, 2, "D", 4},       // chain: D
+    {Ratio{27, 16}, GamutSide::BOTH, 3, "A↑", 3},    // chain: A
+    {Ratio{81, 64}, GamutSide::BOTH, 4, "E↑", 2},    // chain: E
+    {Ratio{243, 128}, GamutSide::BOTH, 5, "B↑", 1},  // chain: B
+    {Ratio{729, 512}, GamutSide::BOTH, 6, "G♭↓", 0}, // chain: F♯, 6 fifths up
+}};
+
 constexpr bool mirrorsAreConsistent(std::span<const GamutNote> table) {
   for (std::size_t i = 0; i < table.size(); i++) {
     const auto & note = table[i];
@@ -105,6 +131,7 @@ constexpr bool mirrorsAreConsistent(std::span<const GamutNote> table) {
 }
 static_assert(mirrorsAreConsistent(kSuperparticular));
 static_assert(mirrorsAreConsistent(kDiamond7));
+static_assert(mirrorsAreConsistent(kPythagorean));
 
 } // namespace gamut
 
