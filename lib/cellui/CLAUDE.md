@@ -106,8 +106,8 @@ carries the app's object as an opaque `getAppContext()`.
   its own draws one row more and calls `Plane::setScrollOffset()` with the
   fraction; the plane composes as a `BackdropLayer::scroll` layer, which the
   window draws translated from a texture of its own. A plane shifted by part
-  of a cell keeps its pictures, proportional text and raised-cell shadows in
-  the GTK window; the Win32 one does not draw them shifted yet.
+  of a cell keeps its pictures, proportional text and raised-cell shadows
+  (`ElevatedArea::shift_row`/`shift_col`) in the GTK and Win32 windows.
 - `Plane::setBand()` puts a translucent strip at a fractional row over a
   plane, unshifted (a playhead, a cursor row). A `Band` can have an inside
   border (`border_px`, rounded by `border_radius`; `bandBorder()` gives the
