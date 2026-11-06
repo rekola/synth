@@ -586,8 +586,9 @@ void Window::Impl::drawShadows() {
   bool dark = bg.luminance() < 0.2f;
   float key_alpha = dark ? 0.65f : 0.18f, ambient_alpha = dark ? 0.4f : 0.12f;
   auto rectOf = [&](const ElevatedArea & a) {
-    return D2D1::RectF(static_cast<float>(a.col * cell_w), static_cast<float>(a.row * cell_h), static_cast<float>((a.col + a.cols) * cell_w),
-                       static_cast<float>((a.row + a.rows) * cell_h));
+    // A plane shifted by part of a cell sits that far up and to the left.
+    float left = static_cast<float>((a.col - a.shift_col) * cell_w), top = static_cast<float>((a.row - a.shift_row) * cell_h);
+    return D2D1::RectF(left, top, left + static_cast<float>(a.cols * cell_w), top + static_cast<float>(a.rows * cell_h));
   };
   // An area's corner radius in pixels: its logical one by the display's scale,
   // at most half the shorter side.
