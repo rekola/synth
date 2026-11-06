@@ -499,6 +499,21 @@ TEST(scene_source_keeps_a_playing_tracks_line_in_view) {
   CHECK(!source.keepTrackLinesVisible(top, 8, 2));
 }
 
+TEST(scene_source_pages_a_playing_tracks_line_back_in_view_when_asked) {
+  Fixture f;
+  auto & song = f.song();
+  auto playing = song.addTrack(make_unique<InstrumentTrack>(0)).getInternalId();
+  ScenePatternSource source(f.controller);
+  source.setCursorTrack(f.track_id);
+  source.setPlayheads({{playing, {1, 3}}});
+  source.moveCursor(10); // its line is left 10 rows above the cursor row
+  RowAddress top = source.advance(source.cursor(), -3);
+  CHECK(source.keepTrackLinesVisible(top, 8, 2, true));
+  // It left at the top, so it comes back at the bottom margin: a page of rows to play down.
+  CHECK(source.rowsBetween(top, source.trackCursor(playing)) == 5);
+  CHECK(!source.keepTrackLinesVisible(top, 8, 2, true));
+}
+
 TEST(scene_source_region_acts_on_each_track_at_its_own_position) {
   Fixture f;
   auto & song = f.song();

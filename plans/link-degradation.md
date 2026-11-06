@@ -577,8 +577,8 @@ deflate ratio on real charts is known.
    user's own setting), **scopes** (spectrum and heatmap run to `HZ_15`; from `HZ_5` they are off and cleared after 2 s),
    the **channel meter** (on to `HZ_5`, off and cleared after 2 s at `HZ_1`; their speed is the frame cap's), **hover** (any-motion mouse `?1003` becomes drag-only `?1002` from `HZ_15`),
    **pointer-shape updates** (OSC 22) off from `HZ_5`, and **page scrolling** of the pattern editor's cursor
-   from `HZ_5` (`Backend::setPointerDetail()`). Still to do: page scrolling of Live View's per-column lines
-   and the arrangement grid, the level meters' own rates, the harness run at 50 kB/s. **Backdrops** by class
+   from `HZ_5` (`Backend::setPointerDetail()`). Page scrolling now covers Live View's per-column lines
+   (`keepTrackLinesVisible(..., by_page)`) and the arrangement grid's bars (`ScrollAxis::revealByPage()`). The real app on a 50 kB/s link (`lib/cellui/tools/pacing/app_slow_link.py`, not a ctest: it needs `synth`): a key's echo while stopped arrives in about 20 ms, playing uses about 35 kB/s of the 50. Still to do: the level meters' own rates. **Backdrops** by class
    (`term::backdropModeFor()`, set by `TerminalSession` on each frame): live, static (the blur kept as it was
    when the dialog opened), cell blur (no pictures) and flat dim, as in the 3.7 table.
 6. **Colours** (section 2): the `ansi16` theme and track-colour table, `MONO` with reverse video;

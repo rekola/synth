@@ -55,6 +55,16 @@ class ScrollAxis {
     margin = std::clamp(margin, 0, std::max(0, (view_ - 1) / 2));
     reveal(index, margin, margin);
   }
+  // The same by page: once `index` leaves the view (less `margin` cells at each end) the view jumps
+  // so that it comes to the far end, and stays still for a page of cells; a slow link repaints once a page.
+  void revealByPage(int index, int margin = 0) {
+    margin = std::clamp(margin, 0, std::max(0, (view_ - 1) / 2));
+    if (view_ <= 0) return;
+    if (index - margin < offset_) offset_ = index - (view_ - 1 - margin);
+    else if (index + margin >= offset_ + view_) offset_ = index - margin;
+    offset_ = std::clamp(offset_, 0, maxOffset());
+    if (!smooth_) shown_ = offset_;
+  }
   // The same with different margins at the two ends, for a widget that draws
   // over the last rows of its view (a button bar): `before` cells above
   // `index` and `after` below it stay in view, cut down together to what

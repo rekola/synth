@@ -122,7 +122,10 @@ ArrangementGrid::ensureCursorVisible(int bar_count, int visible_rows, int visibl
   if (!follow_cursor) return;
 
   viewport_.rows.reveal(cursor_track_index_);
-  viewport_.cols.reveal(cursor_bar_);
+  if (page_scroll_)
+    viewport_.cols.revealByPage(cursor_bar_);
+  else
+    viewport_.cols.reveal(cursor_bar_);
 }
 
 bool ArrangementGrid::keyDown(const cellui::KeyDown & key) {
@@ -351,7 +354,12 @@ ArrangementGrid::render(const StyleProvider & styles, bool refresh, bool focused
   fades_.sweep();
   ensureCursorVisible(bar_count, visible_tracks, visible_cols, num_tracks, follow_cursor);
 
-  if (!follow_cursor && !viewport_.detached()) viewport_.cols.reveal(playing_bar);
+  if (!follow_cursor && !viewport_.detached()) {
+    if (page_scroll_)
+      viewport_.cols.revealByPage(playing_bar);
+    else
+      viewport_.cols.reveal(playing_bar);
+  }
 
   // Where the transport is inside its bar, while it plays (0 to 255).
   auto phase = playback_info.isPlaying() ? playback_info.getCurrentDelay() : 0;

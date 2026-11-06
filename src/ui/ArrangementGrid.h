@@ -59,6 +59,8 @@ class Song;
 // PatternEditor, the playhead, or Launchpad even exist).
 class ArrangementGrid : public UIElement {
  public:
+  // The view jumps a page of bars when the cursor or the playhead leaves it, instead of a bar at a time.
+  void setPageScroll(bool page) { page_scroll_ = page; }
   // The focus level is still easing: the loop keeps drawing frames.
   bool isAnimating() const { return fades_.active() || focus_fade_drawn_; }
 
@@ -120,6 +122,7 @@ class ArrangementGrid : public UIElement {
   bool animating() const { return viewport_.animating(); }
 
  private:
+  bool page_scroll_ = false;
   bool pick(int screen_row, int screen_col);
   std::vector<cellui::Connection> connections_;
   // How many bar rows there are to show: the arrangement's own bars plus
