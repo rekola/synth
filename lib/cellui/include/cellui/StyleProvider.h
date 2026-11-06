@@ -81,6 +81,8 @@ class StyleProvider {
     data_fx_color = t.data_fx;
     data_velocity_color = t.data_velocity;
     data_delay_color = t.data_delay;
+    comma_up_color = t.comma_up;
+    comma_down_color = t.comma_down;
   }
 
   Theme theme;
@@ -243,6 +245,8 @@ class StyleProvider {
   Color data_fx_color;
   Color data_velocity_color;
   Color data_delay_color;
+  Color comma_up_color;
+  Color comma_down_color;
 };
 
 }  // namespace cellui

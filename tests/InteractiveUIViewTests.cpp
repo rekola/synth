@@ -1721,3 +1721,32 @@ TEST(terminal_ui_a_display_without_drag_and_drop_does_not_drag_clips) {
   dragClip(f, 0, 0, 1, 1);
   CHECK(hasClip(f, 0, 0) && !hasClip(f, 1, 1));
 }
+
+// A comma arrow in a note name has a hue of its own - one for up, one for down -
+// the same whether it stands alone or follows a sharp or flat; the rest of the
+// name keeps the row's text colour.
+TEST(terminal_ui_pattern_editor_colours_the_comma_arrows_of_a_note_name) {
+  UIFixture f(repoSong("demo3.xml"), UI::View::ARRANGEMENT);
+  auto & song = f.controller->getSong();
+  song.setTuning(Tuning::EDO53);
+  auto track_id = song.getPlayableTrackIds()[0];
+  // C↑4 (alone), D𝄰 (sharp with a comma up) and D↓ (alone) by value.
+  song.getArrangement().setNote(0, track_id, 0, Note(5 * 53 + 1, 100));
+  song.getArrangement().setNote(1, track_id, 0, Note(5 * 53 + 13, 100));
+  song.getArrangement().setNote(2, track_id, 0, Note(5 * 53 + 8, 100));
+  f.ui->step();
+
+  auto & frame = f.terminal.frame();
+  int seen_up = 0, seen_down = 0;
+  for (int r = 0; r < frame.rows(); r++)
+    for (int c = 0; c < frame.cols(); c++) {
+      auto cell = frame.at(r, c);
+      if (!cell.fg) continue;
+      bool is_up = cell.text == "↑" || cell.text == "\U0001D130";
+      bool is_down = cell.text == "↓" || cell.text == "\U0001D131";
+      if (is_up && cell.fg->getRed() > cell.fg->getBlue()) seen_up++;
+      if (is_down && cell.fg->getBlue() > cell.fg->getRed()) seen_down++;
+    }
+  CHECK(seen_up >= 1);
+  CHECK(seen_down >= 1);
+}

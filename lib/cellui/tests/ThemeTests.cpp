@@ -73,6 +73,8 @@ TEST(dark_theme_keeps_the_other_colours_too) {
   CHECK(same(s.data_fx_color, "#d65cd6"));
   CHECK(same(s.data_velocity_color, "#bfa426"));
   CHECK(same(s.data_delay_color, "#42c1ea"));
+  CHECK(same(s.comma_up_color, "#ff8a3d"));
+  CHECK(same(s.comma_down_color, "#5ea0ff"));
 }
 
 TEST(applying_a_theme_changes_what_its_tokens_cover) {
@@ -161,6 +163,8 @@ TEST(modern_themes_keep_text_readable) {
     CHECK(contrast(t.data_fx, t.surface_base) >= 4.5);
     CHECK(contrast(t.data_velocity, t.surface_base) >= 4.5);
     CHECK(contrast(t.data_delay, t.surface_base) >= 4.5);
+    CHECK(contrast(t.comma_up, t.surface_base) >= 4.5);
+    CHECK(contrast(t.comma_down, t.surface_base) >= 4.5);
     CHECK(contrast(t.info_line_fg, t.info_line_bg) >= 4.5);
     CHECK(contrast(t.menu_fg, t.menu_bg) >= 4.5);
     CHECK(contrast(t.menu_section_fg, t.menu_section_bg) >= 4.5);
