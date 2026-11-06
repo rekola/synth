@@ -106,7 +106,6 @@ class OutlineView : public UIElement {
     connections_.push_back(on<cellui::Wheel>([this](const cellui::Wheel & e, cellui::EventContext &) { return wheel(e) ? cellui::Handled::yes : cellui::Handled::no; }));
   }
 
-  bool offerInput(const cellui::Input & input) override;
   // The events, for the modal popup the app routes them to.
   bool keyDown(const cellui::KeyDown & e);
   bool keyUp(const cellui::KeyUp & e);
@@ -209,7 +208,7 @@ protected:
   ClickTarget hitTest(int screen_y, int screen_x) const;
   // The actual effect behind a DetailsAction - shared by handleClick()
   // above and every keyboard path that already triggers the same thing
-  // (Key::Enter/Key::Delete/'p'/'a'/'t' in offerInput()), so a click and its
+  // (Key::Enter/Key::Delete/'p'/'a'/'t' in keyDown()), so a click and its
   // keyboard equivalent can never drift apart.
   void runDetailsAction(DetailsAction action);
   // Key::Enter on a Library > Instruments row - see this class's own

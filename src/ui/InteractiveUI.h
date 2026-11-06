@@ -59,7 +59,7 @@ class InteractiveUI : public UI {
   void setLinkPin(std::optional<cellui::LinkClass> pin);
   void render() override;
 
-  bool offerInput(const cellui::Input & input) override;
+  bool offerInput(const cellui::Input & input);
 
   void setStatus(std::string s) override;
   void showInfoDialog(const std::string & title, const std::string & markdown) override;

@@ -10,7 +10,7 @@
 //
 // subcol is meaningful only for the cursor: which hex digit within a
 // VELOCITY/DELAY/LOCAL_FX/TRACK_FX column's own multi-character value a C-+/C--style
-// edit is about to touch (see PatternEditor::offerInput()'s EFFECT/
+// edit is about to touch (see PatternEditor::keyDown()'s EFFECT/
 // VELOCITY/DELAY branches). It's really internal state of that in-place
 // nibble editor, not part of "a grid location" the way row/track/col are -
 // left here anyway rather than split into a third class, since nothing

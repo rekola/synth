@@ -186,7 +186,7 @@ class SpinBox : public Widget {
   bool arrowPressPending() const { return arrow_press_; }
 
   // Discards any half-typed value without committing it - called both by
-  // this widget's own offerInput() (a click on +/-/elsewhere while
+  // this widget's own press()/release() (a click on +/-/elsewhere while
   // editing) and by whatever tracks focus (a click that moves focus away
   // from this widget entirely). The contract is "explicit commit or cancel,
   // never commit-on-blur".
@@ -208,7 +208,7 @@ class SpinBox : public Widget {
   // (see render()).
   struct Columns { int label_width, minus_start, field_start, field_end, plus_start; };
 
-  // Column ranges (half-open), shared by render() and offerInput() so
+  // Column ranges (half-open), shared by render() and release() so
   // layout and hit-testing can never drift apart.
   Columns layoutColumns() const {
     auto label_width = utf8::displayWidth(label_);

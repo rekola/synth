@@ -437,7 +437,7 @@ InteractiveUI::InteractiveUI(cellui::Backend & backend)
       dispatcher_.offer(escape);
       force_next_render_ = true;
     } else if (active && active->wantsBareEscape()) {
-      active->offerInput(escape);
+      offerInput(escape);
     } else {
       return false;
     }
@@ -1694,32 +1694,13 @@ InteractiveUI::offerInput(const cellui::Input & input) {
     force_next_render_ = true;
   } else if (mods.ctrl && input.getId() == 'l') {
     refresh();
-  } else if (input.getId() >= Key::Button4 && input.getId() <= Key::Button7) {
-    // The mouse wheel (sideways too) scrolls whichever shown widget is under the mouse,
-    // without moving focus (Emacs's own mouse-wheel-follow-mouse default) -
-    // each widget scrolls its view, never its cursor.
-    // The widget under the pointer, or the shown one it sits in.
-    if (pointer_taken) return true;
-    auto elements = focusableElements();
-    for (cellui::Widget * hit = dispatcher_.hitTest(input.getY(), input.getX()); hit; hit = hit->parent()) {
-      auto element = std::find_if(elements.begin(), elements.end(), [hit](const auto & e) { return e.get() == hit; });
-      if (element == elements.end()) continue;
-      (*element)->offerInput(input);
-      break;
-    }
-    return true;
   } else if (input.getId() == Key::Button1 && input.getKind() == InputEvent::Kind::RELEASE) {
     // The release ends the press everywhere, wherever it lands.
     clip_grid_->releaseMouse();
     pattern_editor_->releaseMouse();
   }
 
-  if (!handled && pointer) {
-    // The dispatcher has the pointer already; a widget without handlers of its own still takes it as an Input.
-    auto el = active_element_.lock();
-    if (el && !pointer_taken) handled |= el->offerInput(input);
-    handled |= pointer_taken;
-  }
+  handled |= pointer_taken;
 
   return handled;
 }

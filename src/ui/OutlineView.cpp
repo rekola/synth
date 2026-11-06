@@ -783,17 +783,6 @@ OutlineView::hitTest(int screen_y, int screen_x) const {
   return target;
 }
 
-bool
-OutlineView::offerInput(const cellui::Input & input) {
-  // The two callers that still hold an Input - the modal popup and the bare
-  // Escape - go through the same handlers the dispatcher's events do.
-  using cellui::Input;
-  if (input.getKind() == Input::Kind::RELEASE && input.getId() != Key::Button1) return keyUp(cellui::KeyUp{input.getId()});
-  if (input.getId() == Key::Button1)
-    return input.getKind() == Input::Kind::RELEASE ? mouseUp(input.getY(), input.getX()) : mouseDown(input.getY(), input.getX());
-  return keyDown(cellui::InputDispatcher::keyDownFor(input));
-}
-
 bool OutlineView::mouseDown(int row, int col) {
   if (info_open_) return true;
   return handleClick(row, col, false);

@@ -67,7 +67,7 @@ PatternEditor::PatternEditor(Plane & parent)
   // getPlane().setScrolling(true);
 
   // Emacs-style commands, dispatched centrally via UIElement::dispatchCommand
-  // (see offerInput() below). Each lambda re-fetches song/info/track_ids
+  // (see keyDown() below). Each lambda re-fetches song/info/track_ids
   // itself, exactly like the code that used to run inline here did on every
   // call - none of this is cached across calls, so there's no staleness risk
   // from moving it into a constructor-time closure.
@@ -607,7 +607,7 @@ PatternEditor::PatternEditor(Plane & parent)
   // reaches a nested effect track exactly as well as a top-level one, no
   // extra resolution needed (see Controller::toggleTrackCollapsed()'s own
   // comment on why it's generic over TrackType). Also reachable by pressing
-  // Enter while the cursor sits on a collapsed track - see offerInput().
+  // Enter while the cursor sits on a collapsed track - see keyDown().
   commands_.define("toggle-track-collapse", [this]() {
     auto & song = getController().getSong();
     auto track_ids = trackIds(song);
@@ -650,7 +650,7 @@ PatternEditor::PatternEditor(Plane & parent)
 
   keymap_.bind(KeyStroke::pack('+', true, false, false, false), "edit-step-increase");
   keymap_.bind(KeyStroke::pack('-', true, false, false, false), "edit-step-decrease");
-  // The desktop keymap selects with Shift+arrows (see offerInputKey()).
+  // The desktop keymap selects with Shift+arrows (see keyDown()).
   keymap_.bind(KeymapProfile::TERMINAL, KeyStroke::pack(' ', true, false, false, false), "set-mark"); // Ctrl-Space
   // Cut, copy and paste: the terminal keymap's shortcuts, the usual
   // desktop ones elsewhere.
@@ -948,7 +948,7 @@ PatternEditor::startLocatorEdit() {
   auto locator_row = source_->locatorRow(point);
   if (!locator_row) return;
 
-  // Already true in practice (the only caller is offerInput()'s Enter
+  // Already true in practice (the only caller is keyDown()'s Enter
   // check, gated on new_cursor.isOnLocator() already) - set directly
   // anyway so this stays correct regardless of what calls it, matching
   // GridPosition::scope's own "single source of truth" point.
@@ -1611,7 +1611,7 @@ void PatternEditor::handleMidiEvent(const MidiEvent & ev) {
   // nothing about where a note belongs.
   options.delay = source_->cursorFollowsTransport() || source_->cursorLocked() ? getController().getPlaybackInfo().getCurrentDelay() : 0;
   // Writes into whatever's actually active at the cursor's row - see
-  // offerInput()'s own raw-key note entry for the same resolution.
+  // keyDown()'s own raw-key note entry for the same resolution.
   if (midi_input_.handle(ev, getController(), track_id, options, [this](int id) { return source_->edit(id, source_->cursor()); })) {
     row_edited = true;
   }
@@ -1915,17 +1915,6 @@ bool PatternEditor::wheel(const cellui::Wheel & e) {
   else
     scrollView(direction * wheel_acceleration_.step(kWheelRows));
   return true;
-}
-
-bool
-PatternEditor::offerInput(const cellui::Input & input) {
-  using cellui::Input;
-  if (input.getId() == Key::Button1)
-    return input.getKind() == Input::Kind::RELEASE
-               ? mouseUp(cellui::MouseUp{input.getFx(), input.getFy(), input.getY(), input.getX(), 1, {}})
-               : mouseDown(cellui::MouseDown{input.getFx(), input.getFy(), input.getY(), input.getX(), 1, {}});
-  if (input.getKind() == Input::Kind::RELEASE) return keyUp(cellui::KeyUp{input.getId(), {}});
-  return keyDown(cellui::InputDispatcher::keyDownFor(input));
 }
 
 bool PatternEditor::keyUp(const cellui::KeyUp & e) {
@@ -2378,10 +2367,10 @@ bool PatternEditor::keyDown(const cellui::KeyDown & e) {
         auto current_delay = source_->cursorFollowsTransport() || source_->cursorLocked() ? info.getCurrentDelay() : 0;
 
         // A held note key's terminal-generated auto-repeat must not retrigger
-	// a fresh note-on (holding a key should sustain one note, not restart
-	// its envelope over and over) - RELEASE itself is handled once, up
-	// front in this function (see offerInput()'s own top-of-function
-	// comment), so only REPEAT needs handling here.
+        // a fresh note-on (holding a key should sustain one note, not restart
+        // its envelope over and over) - RELEASE itself is handled once, up
+        // front in this function (see keyDown()'s own top-of-function
+        // comment), so only REPEAT needs handling here.
         bool is_repeat = e.repeat;
 
         int midi_note = -1;
@@ -3547,7 +3536,7 @@ PatternEditor::renderRow(const StyleProvider & styles, int heading_height, const
       auto track = song.getMasterTrack().getChildByInternalId(track_id);
       // A Pattern shorter than the song's own pattern length repeats
       // (Pattern.h's own getEffectiveRow() comment) - reads (and, per
-      // offerInput()'s own writes) land on the tiled repeat's real row,
+      // keyDown()'s own writes) land on the tiled repeat's real row,
       // dimmed here below so it's clear at a glance which rows are the
       // resolved Pattern's own real content vs. a repeat of it. Per-track,
       // unlike is_neighboring_pattern's own whole-row dim above - two

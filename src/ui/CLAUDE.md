@@ -48,7 +48,7 @@ widgets' own registries (`PatternEditor`, `ClipGrid`) for good.
 
 Dispatch: `KeyStroke.h`/`Keymap.h`/`CommandRegistry.h` map key stroke →
 command name → callable; widgets fill `keymap_`/`commands_` in their
-constructor and call `dispatchCommand()` early in `offerInput()`, anything
+constructor and call `dispatchCommand()` early in their key handler, anything
 unbound falling through to manual handling. `Controller::sendCommand()` (what
 the palette calls) falls back to `UI::executeCommand()` — the active element's
 registry, then UI's — for names it doesn't know, so M-x reaches both
