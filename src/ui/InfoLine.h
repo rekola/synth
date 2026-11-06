@@ -45,6 +45,11 @@ class InfoLine : public UIElement {
     auto latency_ms = info.getRoundTripLatencyMs();
     auto is_playing = info.isPlaying();
     auto modified = getController().hasUnsavedChanges();
+    // A file system question: asked again only when the buffer or its saved state changes.
+    if (buffer_name != read_only_name_ || modified != current_modified_) {
+      read_only_ = getController().isActiveBufferFileReadOnly();
+      read_only_name_ = buffer_name;
+    }
 
     if (refresh || new_version != current_version_ || new_position != current_position_ ||
         num_voices != current_num_voices_ || num_allocated_voices != current_num_allocated_voices_ ||
@@ -64,9 +69,9 @@ class InfoLine : public UIElement {
       // figure, one that couldn't be measured.
       auto latency = latency_ms < 0 ? std::string() :
         fmt::format(" lat {}{}ms", info.isRoundTripLatencyNominal() ? "~" : "", latency_ms);
-      // As the Emacs mode line: the modified pair ("**" modified, "--" not) and the
-      // remote marker ("-" for a local file), then the name.
-      auto flags = modified ? "**-" : "---";
+      // As the Emacs mode line: the modified/read-only pair ("**" modified, "%%" read-only,
+      // "%*" both, "--" neither) and the remote marker ("-" for a local file), then the name.
+      auto flags = read_only_ ? (modified ? "%*-" : "%%-") : (modified ? "**-" : "---");
       auto prefix = fmt::format(" {} {} ", flags, buffer_display_name);
       // The transport button (TransportButton) is laid over the blank cells after the name.
       button_col_ = static_cast<int>(Utf8::displayWidth(prefix));
@@ -116,6 +121,8 @@ private:
   // Stopping at the same row changes nothing else shown.
   bool current_is_playing_ = false, current_modified_ = false;
   int button_col_ = 1;
+  bool read_only_ = false;
+  std::string read_only_name_;
   std::string link_text_, current_link_text_;
   int right_reserved_ = 0, current_right_reserved_ = 0;
   // Its own dirty-check input too, for the same reason: switching to a

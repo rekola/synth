@@ -130,6 +130,9 @@ class Controller {
   // prompt (UI.cpp). See hasAnyUnsavedChanges() below for the all-buffers
   // counterpart save-buffers-kill-terminal needs instead.
   bool hasUnsavedChanges() const;
+  // Whether the active buffer's file exists and cannot be written (an unsaved
+  // buffer, or a file not there yet, is not read-only). Asks the file system.
+  bool isActiveBufferFileReadOnly() const;
   // Every open buffer checked the same way hasUnsavedChanges() checks just
   // the active one - save-buffers-kill-terminal's own "N modified buffers -
   // quit anyway?" gate, so quitting can never silently drop a buffer the
