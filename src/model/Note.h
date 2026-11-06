@@ -326,6 +326,17 @@ class Note {
       auto letter = input_value[0];
       auto accidental = input_value.substr(1);
 
+      // An arrow after the letter or its accidental (B↑, A♯↑, D♭↓) is one
+      // 53-EDO step up or down; every other tuning ignores it.
+      int arrow = 0;
+      if (accidental.ends_with("↑")) {
+        arrow = 1;
+        accidental.remove_suffix(std::string_view("↑").size());
+      } else if (accidental.ends_with("↓")) {
+        arrow = -1;
+        accidental.remove_suffix(std::string_view("↓").size());
+      }
+
       assert(letter >= 'A' && letter <= 'G');
       
       if (tuning == Tuning::EDO12) {
@@ -345,7 +356,7 @@ class Note {
 	else if (accidental == "bb" || accidental == "𝄫") value -= 2;
 	else if (accidental == "b" || accidental == "♭" || accidental == "𝄭" || accidental == "𝄬") value--;
 	else {
-          assert(accidental.empty() || accidental == "-" || accidental == "♮" || accidental == "↑" || accidental == "↓");
+          assert(accidental.empty() || accidental == "-" || accidental == "♮");
         }
 
         return value;
@@ -376,7 +387,7 @@ class Note {
         else if (accidental == "b" || accidental == "♭" || accidental == "𝄭" || accidental == "𝄬")
           value -= 1;
 	else {
-          assert(accidental.empty() || accidental == "-" || accidental == "♮" || accidental == "↑" || accidental == "↓");
+          assert(accidental.empty() || accidental == "-" || accidental == "♮");
         }
 
         return value;
@@ -434,7 +445,7 @@ class Note {
 	else if (accidental == "x" || accidental == "𝄪") value += 4;
 	else if (accidental == "bb" || accidental == "𝄫") value -= 4;	
 	else {
-          assert(accidental.empty() || accidental == "-" || accidental == "♮" || accidental == "↑" || accidental == "↓");
+          assert(accidental.empty() || accidental == "-" || accidental == "♮");
         }
 
         return value;
@@ -449,24 +460,23 @@ class Note {
 	  assert(0);
 	}
 
-	if (accidental == "x" || accidental == "𝄪") value += 7;
+        // 𝄰 𝄱 𝄬 𝄭 are older one-glyph spellings of ♯↑ ♯↓ ♭↑ ♭↓, still read.
+        if (accidental == "x" || accidental == "𝄪") value += 7;
 	else if (accidental == "𝄰") value += 4;
 	else if (accidental == "#" || accidental == "♯") value += 3;
 	else if (accidental == "𝄱") value += 2;
-        else if (accidental == "↑")
-          value += 1;
-        else if (accidental == "↓")
-          value -= 1;
         else if (accidental == "𝄬")
           value -= 2;
-        else if (accidental == "b" || accidental == "♭") value -= 3;
-	else if (accidental == "𝄭") value -= 4;
+        else if (accidental == "b" || accidental == "♭")
+          value -= 3;
+        else if (accidental == "𝄭") value -= 4;
 	else if (accidental == "bb" || accidental == "𝄫") value -= 7;
 	else {
 	  assert(accidental.empty() || accidental == "-" || accidental == "♮");
 	}
+        value += arrow;
 
-	return value;
+        return value;
       }
     }
   }

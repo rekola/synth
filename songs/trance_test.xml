@@ -88,15 +88,15 @@
     </pattern>
     <pattern track="chords">
       <note row="0" velocity="40">C-4 E-4 G-4 C-5</note>
-      <note row="14" velocity="40">D#4 C-5 A𝄰5</note>
+      <note row="14" velocity="40">D#4 C-5 A♯↑5</note>
       <note row="32" velocity="40">Bb3 D-4 F-4 C-5</note>
       <note row="46" velocity="40">F-4 A-4 C-5 F-5</note>
       <note row="64" velocity="40">C-4 E-4 G-4</note>
-      <note row="78" velocity="40">D#4 A𝄰4 C-5</note>
+      <note row="78" velocity="40">D#4 A♯↑4 C-5</note>
       <note row="96" velocity="40">Bb3 D-4 F-4 C-5</note>
       <note row="110" velocity="40">F-4 A-4 C-5</note>
       <note row="128" velocity="40">C-4 E-4 G-4</note>
-      <note row="142" velocity="40">D#4 A𝄰4 C-5</note>
+      <note row="142" velocity="40">D#4 A♯↑4 C-5</note>
       <note row="160" velocity="40">Bb3 D-4 F-4 C-5</note>
       <note row="174" velocity="40">F-4 A-4 C-5</note>
     </pattern>

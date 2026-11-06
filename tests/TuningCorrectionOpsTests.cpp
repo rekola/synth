@@ -310,6 +310,22 @@ TEST(in_a_just_scale_every_note_gets_its_scale_ratio_whatever_its_chord) {
   CHECK(notes[3].getFx() == "-01"); // 5/4
 }
 
+TEST(a_borrowed_gamut_note_is_tuned_in_a_song_of_the_other_scale) {
+  Song song(Tuning::EDO31, kKey);
+  song.setScale(Scale::OTONAL);
+  auto track_id = song.addTrack(make_unique<InstrumentTrack>(0)).getInternalId();
+  Note e_flat(Note::stringToKey(Tuning::EDO31, "E♭5"), 100);
+  tuneNewNote(song, track_id, e_flat);
+  CHECK(e_flat.getFx() == "+06"); // 6/5, though E♭ is not an otonal note
+
+  auto arrangement = song.getArrangement();
+  arrangement.setNote(0, track_id, 0, Note(kKey, 100));
+  arrangement.setNote(0, track_id, 1, Note(kKey + 8, 100));
+  arrangement.setNote(0, track_id, 2, Note(kKey + 18, 100));
+  applyJustIntonationToSong(song, SongScope::ARRANGEMENT);
+  CHECK(arrangement.getNotes(0, track_id)[1].getFx() == "+06"); // not the chord tuner's 5/4-based third
+}
+
 TEST(a_new_note_of_a_just_scale_is_written_with_its_correction) {
   Song song(Tuning::EDO31, kKey);
   auto pitched = song.addTrack(make_unique<InstrumentTrack>(0)).getInternalId();
@@ -324,7 +340,7 @@ TEST(a_new_note_of_a_just_scale_is_written_with_its_correction) {
   CHECK(note.getFx() == "-04"); // 7/6
   Note utonal(kKey + 8, 100);
   tuneNewNote(song, pitched, utonal);
-  CHECK(utonal.getFx() == "+06"); // 6/5, from the paired scale
+  CHECK(utonal.getFx() == "+06"); // 6/5, borrowed from the utonal side of the gamut
   Note outside(kKey + 1, 100);
   tuneNewNote(song, pitched, outside);
   CHECK(!outside.hasFx());
@@ -401,7 +417,7 @@ TEST(converting_a_septimal_song_to_53_edo_keeps_its_ratios_without_tuning) {
   song.setScale(Scale::UTONAL);
   auto track_id = song.addTrack(make_unique<InstrumentTrack>(0)).getInternalId();
   auto arrangement = song.getArrangement();
-  arrangement.setNote(0, track_id, 0, Note(kKey + 25, 100)); // A𝄰, 7:4
+  arrangement.setNote(0, track_id, 0, Note(kKey + 25, 100)); // A♯↑, 7:4
   arrangement.setNote(0, track_id, 1, Note(kKey + 6, 100));  // E𝄫, 8:7
   arrangement.setNote(0, track_id, 2, Note(kKey + 24, 100)); // B𝄫, 12:7
   CHECK(convertSongTuning(song, Tuning::EDO53) == 3);

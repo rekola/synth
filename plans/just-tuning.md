@@ -53,7 +53,7 @@ played at all. For a just scale it should lay out the notes of both, the same
 
 | 31-EDO step | 0 | 6 | 7 | 8 | 10 | 13 | 18 | 21 | 23 | 24 | 25 |
 |---|---|---|---|---|---|---|---|---|---|---|---|
-| Note | C | E𝄫 | D♯ | E♭ | E | F | G | A♭ | A | B𝄫 | A𝄰 |
+| Note | C | E𝄫 | D♯ | E♭ | E | F | G | A♭ | A | B𝄫 | A♯↑ |
 
 Each row is 8 of them; the next row starts a fourth higher, which is 5 degrees
 here (F is the sixth note), so a row overlaps the next by three notes and the

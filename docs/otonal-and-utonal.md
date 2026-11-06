@@ -123,7 +123,7 @@ the reason is a harmonic that has become a note.
 |---|---|---|---|---|---|
 | I | C | C E𝄫 F A♭ C′ | 1 8/7 4/3 8/5 2 | 1/8:1/7:1/6:1/5:1/4 | C E G A♯↑ C′ |
 | I | C | C C𝄪 E♭ F G B𝄫 C′ | 1 12/11 6/5 4/3 3/2 12/7 2 | 1/12:1/11:1/10:1/9:1/8:1/7:1/6 | C D♯ F G A C𝄫 C′ |
-| 𝄭II | D♭↓ | D♭↓ C′ | 16/15 2 | 1/15:1/8 | B C′ |
+| ♭↓II | D♭↓ | D♭↓ C′ | 16/15 2 | 1/15:1/8 | B C′ |
 | 𝄪I | C𝄪 | C𝄪 G A♭ B𝄫 B↓ C′ | 12/11 3/2 8/5 12/7 24/13 2 | 1/22:1/16:1/15:1/14:1/13:1/12 | C𝄫 C′ D♭′ D♯′ E′ F′ |
 | 𝄫III | E𝄫 | E𝄫 A♭ B♭↓ C′ | 8/7 8/5 16/9 2 | 1/14:1/10:1/9:1/8 | A♯↑ C D E′ |
 | ♭III | E♭ | E♭ F G B𝄫 C′ E♭′ | 6/5 4/3 3/2 12/7 2 12/5 | 1/10:1/9:1/8:1/7:1/6:1/5 | A C D♯ F′ G′ A′ |
@@ -131,7 +131,7 @@ the reason is a harmonic that has become a note.
 | V | G | G B𝄫 C′ E♭′ G′ | 3/2 12/7 2 12/5 3 | 1/8:1/7:1/6:1/5:1/4 | F A C D♯′ F′ |
 | ♭VI | A♭ | A♭ B♭↓ C′ E𝄫′ F′ A♭′ | 8/5 16/9 2 16/7 8/3 16/5 | 1/10:1/9:1/8:1/7:1/6:1/5 | E G A♯↑ C′ D′ E′ |
 | 𝄫VII | B𝄫 | B𝄫 B↓ C′ C𝄪′ E♭′ F′ G′ B𝄫′ | 12/7 24/13 2 24/11 12/5 8/3 3 24/7 | 1/14:1/13:1/12:1/11:1/10:1/9:1/8:1/7 | D♯ F G A C𝄫 C′ D♭′ D♯′ |
-| 𝄭VII | B♭↓ | B♭↓ A♭′ | 16/9 16/5 | 1/9:1/5 | D E |
+| ♭↓VII | B♭↓ | B♭↓ A♭′ | 16/9 16/5 | 1/9:1/5 | D E |
 | ↓VII | B↓ | B↓ G′ A♭′ B𝄫′ | 24/13 3 16/5 24/7 | 1/26:1/16:1/15:1/14 | D♭ D♯ E F |
 
 ### The 9 and the 15
@@ -149,10 +149,10 @@ scales:
 | otonal | II | D G B | 9/8 3/2 15/8 | 3:4:5 |
 | otonal | VII | B E′ A′ | 15/8 5/2 10/3 | 9:12:16 (two fourths) |
 | otonal | VII | B D′ G′ | 15/8 9/4 3 | 5:6:8 |
-| utonal | 𝄭VII | C F B♭↓ | 1 4/3 16/9 | 9:12:16 |
-| utonal | 𝄭VII | D♭↓ F B♭↓ | 16/15 4/3 16/9 | 1/5:1/4:1/3 |
-| utonal | 𝄭II | E♭ A♭ D♭↓′ | 6/5 8/5 32/15 | 9:12:16 |
-| utonal | 𝄭II | F B♭↓ D♭↓′ | 4/3 16/9 32/15 | 1/8:1/6:1/5 |
+| utonal | ♭↓VII | C F B♭↓ | 1 4/3 16/9 | 9:12:16 |
+| utonal | ♭↓VII | D♭↓ F B♭↓ | 16/15 4/3 16/9 | 1/5:1/4:1/3 |
+| utonal | ♭↓II | E♭ A♭ D♭↓′ | 6/5 8/5 32/15 | 9:12:16 |
+| utonal | ♭↓II | F B♭↓ D♭↓′ | 4/3 16/9 32/15 | 1/8:1/6:1/5 |
 
 The 11 and the 13 have no fourth or fifth in the scale (13/12·3/2 and
 11/6·4/3 are not notes); their chords are their windows above, clusters of
@@ -181,6 +181,31 @@ interval ((n+1)/n) from either tonic. Otonal keeps the arithmetic means,
 utonal the harmonic means, and each is the mirror (r → 1/r) of the other. The
 scales grow 3 → 7 → 11 → 15 → …, four notes a step from the second step on;
 from the fourth step the new notes lie within 110 cents of a tonic.
+
+**The gamut.** Both scales are selections from one set of ratios, the gamut
+(`src/model/Gamut.h`), generated in rounds and unbounded in principle; the
+application holds rounds 0-3. Round 0 is 1/1 and its octave; round 1 divides
+C-C' at its arithmetic and harmonic means, G (3/2) and F (4/3). Each later
+round takes the previous round's notes in the order made and, for each note X,
+forms the arithmetic and harmonic means of C-X and then of X-C'. An arithmetic
+mean is kept if it is a harmonic of the F a fifth below C, (k+1)/k with
+k = 2^a·3^b (b ≤ 1), or 2k/(k+1) with k+1 of that form; a harmonic mean is kept
+if 2/r is; a result already in the gamut is skipped. Every kept note's mirror (2/r, octave-reduced) is also in the gamut.
+Round 2 adds 5/4 6/5 7/4 12/7 7/6 8/7 5/3 8/5 and round 3 adds 9/8 12/11 15/8
+24/13 13/12 16/15 11/6 16/9; round 4 would add 25/24, 17/16, 23/12, 31/16 and
+their mirrors. A scale is the notes of its side, or of both, through round 3.
+
+There is a second gamut, Partch's 7-limit tonality diamond: n/d for n, d in
+{1, 3, 5, 7}, octave-reduced, thirteen notes (1/1 8/7 7/6 6/5 5/4 4/3 7/5 10/7
+3/2 8/5 5/3 12/7 7/4; 7/5 is F♯↑ and 10/7 G♭↓). Its one scale, diamond7, holds
+all of them. Eleven are the superparticular gamut's, with the same spellings and
+steps; 7/5 and 10/7 land on 31-EDO steps 15 and 16 and 53-EDO steps 26 and 27,
+where nothing else is. The tuner tunes the notes of the song's own gamut.
+
+The tuner puts every gamut note on the key nearest it, so a note borrowed from
+the other scale is tuned as well. Where two share a key, the song's scale
+chooses: 31-EDO's D♭ (13/12) and C𝄪 (12/11) both lie nearest key 4, and C𝄫
+(11/6) and B↓ (24/13) key 27. 53-EDO has no such pair.
 
 **Series.** Every otonal note is a harmonic of the F a fifth below the tonic,
 and every utonal note an undertone of the G a twelfth above it, at every

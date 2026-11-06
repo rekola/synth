@@ -192,7 +192,8 @@ from its equal-tempered pitch to a just ratio (`model/JustIntonation.h`). The
 correction goes in the note's fx as `+hh` or `-hh` (commands.md), and `+00`
 marks a note as tuned that needs none.
 
-In a song whose scale is otonal or utonal, those scales' notes need no
+In a song whose scale is otonal, utonal or diamond7 (Partch's 7-limit tonality
+diamond, 13 notes), those scales' notes need no
 guessing: each has one exact ratio to the key (otonal 1/1 7/6 5/4 4/3 3/2 5/3
 7/4, utonal 1/1 8/7 6/5 4/3 3/2 8/5 12/7). A song in either scale has both, the
 11 notes they make together in 31 and 53-EDO (where they share a step in 12 and

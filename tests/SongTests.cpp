@@ -1460,17 +1460,40 @@ TEST(note_names_53edo_spell_just_intonation) {
   CHECK(steps("Ebb4") == steps("E𝄫4"));
   CHECK(steps("D♯4") == 12); // 7:6
   CHECK(steps("E𝄫4") == 10); // 8:7
-  CHECK(steps("A𝄰4") == 43); // 7:4
+  CHECK(steps("A♯↑4") == 43); // 7:4
   CHECK(steps("B𝄫4") == 41); // 12:7
   CHECK(steps("D↓4") == 8);  // 10:9
   CHECK(steps("B♭4") == 45); // 9:5
-  CHECK(steps("B𝄭4") == 44); // 16:9
+  CHECK(steps("B♭↓4") == 44); // 16:9
   // The meantone tunings have no comma step: the arrows are ignored there.
   for (auto tuning : {Tuning::EDO12, Tuning::EDO19, Tuning::EDO31}) {
     CHECK(Note::stringToKey(tuning, "A↑4") == Note::stringToKey(tuning, "A4"));
-    CHECK(Note::stringToKey(tuning, "A𝄰4") == Note::stringToKey(tuning, "A♯4"));
-    CHECK(Note::stringToKey(tuning, "E𝄭4") == Note::stringToKey(tuning, "E♭4"));
+    CHECK(Note::stringToKey(tuning, "A♯↑4") == Note::stringToKey(tuning, "A♯4"));
+    CHECK(Note::stringToKey(tuning, "E♭↓4") == Note::stringToKey(tuning, "E♭4"));
   }
+}
+
+TEST(an_arrow_may_follow_a_sharp_or_a_flat) {
+  // One 53-EDO step up or down from the accidental; every other tuning ignores it.
+  auto key = [](Tuning tuning, const char * name) { return Note::stringToKey(tuning, name) - Note::stringToKey(tuning, "C4"); };
+  CHECK(key(Tuning::EDO53, "A♯↑4") == 43);
+  CHECK(key(Tuning::EDO53, "B♭↓4") == 44);
+  CHECK(key(Tuning::EDO53, "D♭↓4") == 5);
+  CHECK(key(Tuning::EDO53, "A♯↓4") == 41);
+  CHECK(key(Tuning::EDO53, "A♭↑4") == 37);
+  CHECK(key(Tuning::EDO31, "A♯↑4") == 25);
+  CHECK(key(Tuning::EDO31, "B♭↓4") == 26);
+  CHECK(key(Tuning::EDO31, "D♭↓4") == 3);
+  for (auto tuning : {Tuning::EDO12, Tuning::EDO19, Tuning::EDO31}) {
+    for (auto name : {"A♯", "B♭", "D♭", "B", "F"}) {
+      for (auto arrow : {"↑", "↓"}) {
+        CHECK(key(tuning, (std::string(name) + arrow + "4").c_str()) == key(tuning, (std::string(name) + "4").c_str()));
+      }
+    }
+  }
+  // After a natural, as before.
+  CHECK(key(Tuning::EDO53, "B↑4") == 49);
+  CHECK(key(Tuning::EDO53, "B↓4") == 47);
 }
 
 TEST(note_names_round_trip_for_every_value_in_every_tuning) {

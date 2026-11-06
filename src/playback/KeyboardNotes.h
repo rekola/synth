@@ -69,7 +69,7 @@ inline const std::string_view keyToMidiNote(int key, Tuning tuning, Scale scale)
       case 'z':
         return "C";
       case 's':
-        return "D𝄭";
+        return "D♭↓";
       case 'e':
         return "C𝄪";
       case 'x':
@@ -85,7 +85,7 @@ inline const std::string_view keyToMidiNote(int key, Tuning tuning, Scale scale)
       case 'm':
         return "B𝄫";
       case 'o':
-        return "B𝄭";
+        return "B♭↓";
       case 'p':
         return "B↓";
       case ',':
@@ -104,6 +104,43 @@ inline const std::string_view keyToMidiNote(int key, Tuning tuning, Scale scale)
         return "A";
       case 'k':
         return "A♯";
+    }
+  } else if (scale == Scale::DIAMOND7) {
+    // The tonality diamond on C: the otonal layout's lower row with the
+    // utonal notes above it, and the two tritones, 7/5 and 10/7, between F and G.
+    switch (key) {
+      case 'z':
+        return "C";
+      case 's':
+        return "E𝄫";
+      case 'x':
+        return "D♯";
+      case 'd':
+        return "E♭";
+      case 'c':
+        return "E";
+      case 'v':
+        return "F";
+      case 'f':
+        return "F♯↑";
+      case 'g':
+        return "G♭↓";
+      case 'b':
+        return "G";
+      case 'h':
+        return "A♭";
+      case 'n':
+        return "A";
+      case 'j':
+        return "B𝄫";
+      case 'm':
+        return "A♯↑";
+      case ',':
+        return "C'";
+      case '.':
+        return "D♯'";
+      case '-':
+        return "E'";
     }
   } else {
     // A scale with no layout of its own plays the otonal one.

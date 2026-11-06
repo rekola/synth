@@ -4,6 +4,7 @@
 #include <cmath>
 #include <compare>
 #include <cstdint>
+#include <cstdlib>
 #include <numeric>
 
 // A just-intonation frequency ratio num/den, always in lowest terms with
@@ -60,10 +61,10 @@ struct Ratio {
   }
 
  private:
-  // Declared, never defined: reaching it in constant evaluation is a
-  // compile error naming this function; reaching it at run time is a
-  // link error, which these constructors should never produce.
-  static void badRatio();
+  // Not constexpr: reaching it in constant evaluation is a
+  // compile error naming this function; reaching it at run time (a runtime
+  // ratio from a non-positive or overflowing value) aborts.
+  static void badRatio() { std::abort(); }
 };
 
 namespace ratio_literals {
