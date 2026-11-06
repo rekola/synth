@@ -183,7 +183,12 @@ def t8(probe):
     res, log = run(probe, Link(bandwidth=20e6, up_ms=5, down_ms=5), ["--mode", "churn", "--seconds", "8", "--img", "328x80", "--pin", "15"])
     link = log.get("link", {})
     pinned_ok = link.get("class") == "2" and link.get("pinned") == "1"
-    check("8 link class", ok and pinned_ok, "; ".join(seen) + "; pinned at 15 on a 20 MB/s link: class %s pinned %s" % (link.get("class"), link.get("pinned")))
+    # Frames of a kilobyte on a fast, long link: not the link's limit, and no rate shown that is only theirs.
+    res, small = run(probe, Link(bandwidth=5e6, up_ms=20, down_ms=20), ["--mode", "churn", "--seconds", "13", "--img", "16x16"])
+    small = small.get("link", {})
+    small_ok = small.get("class") == "0" and small.get("description", "").startswith("not limiting")
+    seen.append("16x16 at 5 MB/s, RTT 40 ms: class %s \"%s\"" % (small.get("class"), small.get("description", "")))
+    check("8 link class", ok and pinned_ok and small_ok, "; ".join(seen) + "; pinned at 15 on a 20 MB/s link: class %s pinned %s" % (link.get("class"), link.get("pinned")))
 
 
 TESTS = [t1, t2, t3, t4, t5, t6, t7, t8]

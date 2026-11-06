@@ -318,3 +318,26 @@ TEST(pacer_reports_when_the_link_is_what_holds_the_next_frame_back) {
   CHECK(!q.linkBound(at(205)) && !q.mayStart(at(205)));
   CHECK(!FramePacer(false).linkBound(at(0)));  // a fixed rate measures nothing
 }
+
+TEST(pacer_small_frames_near_the_floor_rate_are_not_the_link_holding_them_back) {
+  FramePacer p(true);
+  startUp(p, 630, 40, 10);  // an estimate of 63 kB/s
+  send(p, 1150, 100);
+  p.requestFrame();
+  // 1150 bytes at 63 kB/s is a gap of 18 ms: a little over the floor, which is what small frames settle
+  // at whatever the link could take.
+  CHECK(!p.mayStart(at(105)));
+  CHECK(!p.linkBound(at(105)));
+  // Frames that would wait a long time at the estimate are the link holding them back.
+  send(p, 6000, 200);
+  p.requestFrame();
+  CHECK(!p.mayStart(at(210)));
+  CHECK(p.linkBound(at(210)));
+}
+
+TEST(pacer_stats_give_the_rate_a_frame_makes_at_the_floor_between_frames) {
+  FramePacer p(true);
+  startUp(p, 630, 40, 10);
+  send(p, 1600, 100);
+  CHECK(std::fabs(p.stats(at(101)).floor_rate - 100000.0) < 1.0);  // 1600 bytes every 16 ms
+}

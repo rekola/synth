@@ -67,7 +67,7 @@ bool FramePacer::linkBound(TimePoint now) const {
   if (!last_start_) return false;
   double floor = duration<double>(config_.min_frame_interval).count();
   double gap = static_cast<double>(last_sent_bytes_) / (bandwidth_ * (wouldProbe() ? config_.probe_gain : 1.0));
-  return gap > floor && now < plus(*last_start_, gap);
+  return gap > floor * config_.link_bound_margin && now < plus(*last_start_, gap);
 }
 
 std::optional<FramePacer::TimePoint> FramePacer::deadline(bool queue_empty) const {
@@ -248,6 +248,7 @@ PacerStats FramePacer::stats(TimePoint now) const {
   s.bytes_in_flight = inFlightBytes();
   for (const Fence & f : in_flight_) s.frames_in_flight += f.probe ? 0 : 1;
   s.last_frame = last_frame_;
+  s.floor_rate = static_cast<double>(last_frame_.total()) / duration<double>(config_.min_frame_interval).count();
   s.totals = totals_;
   s.frames = frames_;
   s.acks = acks_;

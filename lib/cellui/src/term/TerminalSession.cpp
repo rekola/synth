@@ -509,7 +509,10 @@ void TerminalSession::updateLink(std::chrono::steady_clock::time_point now) {
   if (s.bandwidth <= 0 || blocked < 0.4) {
     // The link did not hold frames back, so the estimate is rough (bursts the buffers took, and what
     // the application chose to send): shown with a tilde, and the class stays where it is.
-    std::string text = s.bandwidth > 0 ? "~" + formatRate(s.bandwidth) : "not limiting";
+    // An estimate near what the last frame's size comes to at the floor between frames is the
+    // application's own rate, not the link's: no figure then.
+    bool figure = s.bandwidth > pacer_config_.link_bound_margin * s.floor_rate;
+    std::string text = figure ? "~" + formatRate(s.bandwidth) : "not limiting";
     if (!rtt.empty()) text += ", " + rtt;
     link_.setDescription(std::move(text));
     link_.setAvailable(true);

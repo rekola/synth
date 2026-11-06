@@ -200,8 +200,12 @@ timing (and missed-vsync counts) at exit.
   one class after 15 s with a 1.5x margin; pinnable with `--link-class` or
   `set-link-class`) plus a description the backend writes. The terminal
   classifies only on seconds the link held frames back
-  (`FramePacer::linkBound()`), since otherwise the estimate only says what the
-  app sent; a window reports its monitor's vsync rate and achieved fps.
+  (`FramePacer::linkBound()`, which needs the gap the estimate asks for to be
+  `link_bound_margin` times the floor between frames: small frames settle at the
+  floor rate whatever the link could take), since otherwise the estimate only
+  says what the app sent; with the link not limiting the description is a
+  rough `~rate` and the round trip, or just `not limiting` when the estimate is
+  near the floor rate of the last frame (`PacerStats::floor_rate`); a window reports its monitor's vsync rate and achieved fps.
   `InfoLine` shows `Link: ...` (`n/a` until available). `plans/link-degradation.md`
   plans what an app does at each class. `tools/pacing/run_assertions.py`
   (ctest `cellui_pacing_harness`) runs `cellui_pacing_probe` on a shaped pty.

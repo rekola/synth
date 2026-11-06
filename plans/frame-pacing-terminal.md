@@ -286,7 +286,7 @@ Final defaults (`PacerConfig`): `min_frame_interval` 16 ms, `in_flight_bdp` 1.5,
 `min_in_flight_frames` 2 (x S_prev), `startup_frames_in_flight` 2,
 `sample_window` 8, `sample_cap` 2.0, `down_weight` 0.125, `probe_every` 8,
 `probe_gain` 1.25, `backoff_factor` 0.8, `delay_ratio` 2.0, `delay_floor` 10 ms,
-`delay_frames` 2, `lag_ratio` 1.5, `lag_frames` 4, `rtt_refine_after` 10,
+`delay_frames` 2, `lag_ratio` 1.5, `lag_frames` 4, `rtt_refine_after` 10, `link_bound_margin` 1.25,
 `stall` 1.5 s, `stalls_before_giving_up` 3, `fallback_fps` 4,
 `min_bandwidth` 1000 B/s.
 
