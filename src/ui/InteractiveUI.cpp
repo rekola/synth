@@ -1229,10 +1229,9 @@ void InteractiveUI::drawScopeTitle(int row, int col, int width, const std::strin
 }
 
 int InteractiveUI::arrangementScopeRows() const {
-  // The two scopes at their Live View size under their title bars; more for a
-  // song with more tracks (a header of two rows, then a row per track), but at
-  // most a third of the screen.
-  constexpr int kMinRows = 2 * kScopeHeight + 2;
+  // One scope under its title bar; more for a song with more tracks (a header
+  // of two rows, then a row per track), but at most a third of the screen.
+  constexpr int kMinRows = kScopeHeight + 1;
   auto num_tracks = static_cast<int>(getController().getSong().getPlayableTrackIds().size());
   int rows = getDim().first;
   return std::clamp(ArrangementGrid::kHeaderRows + num_tracks, kMinRows, std::max(kMinRows, rows / 3));
@@ -1267,28 +1266,29 @@ InteractiveUI::layout() {
   if (scopes_on_screen_ && !scopes_were_on_screen) scopes_stale_ = true;
 
   // Arrangement view's top band: the arrangement grid takes the width, with a
-  // column of scopes beside it: the spectrum across the whole column, and
-  // under it the DirAC heatmap with the channel meter to its right. The
+  // row of scopes beside it: the spectrum, the DirAC heatmap and the channel
+  // meter, side by side. The
   // grid's height follows the song's track count (see arrangementScopeRows()).
   int scope_rows = arrangementScopeRows();
   laid_out_scope_rows_ = scope_rows;
   constexpr int kMeterWidth = static_cast<int>(ChannelMeter::kMaxChannels / 2);
-  int column_x = cols - kHeatmapWidth - 1 - kMeterWidth;
-  int meter_x = column_x + kHeatmapWidth + 1;
+  constexpr int kSpectrumWidth = 36;
+  int column_x = cols - kSpectrumWidth - 1 - kHeatmapWidth - 1 - kMeterWidth;
+  int heatmap_x = column_x + kSpectrumWidth + 1;
+  int meter_x = heatmap_x + kHeatmapWidth + 1;
   int matrix_divider_x = column_x - 1;
   int matrix_width = std::max(1, matrix_divider_x);
   arrangement_grid_->resize(scope_rows, matrix_width).move(scope_row, 0);
 
   // Each scope has a title bar over it, as in Live View, and its height there.
   int band_chart_row = scope_row + 1;
-  int band_heatmap_row = band_chart_row + kScopeHeight + 1;
   if (getView() == View::ARRANGEMENT) {
     chart_->setVisible(show_scopes);
     heatmap_->setVisible(show_scopes);
-    chart_->resize(kScopeHeight, cols - column_x).move(band_chart_row, column_x);
-    heatmap_->resize(kScopeHeight, kHeatmapWidth).move(band_heatmap_row, column_x);
+    chart_->resize(kScopeHeight, kSpectrumWidth).move(band_chart_row, column_x);
+    heatmap_->resize(kScopeHeight, kHeatmapWidth).move(band_chart_row, heatmap_x);
   }
-  volume_meter_->resize(kScopeHeight, kMeterWidth).move(band_heatmap_row, meter_x);
+  volume_meter_->resize(kScopeHeight, kMeterWidth).move(band_chart_row, meter_x);
 
   // Single-column dividers between the grid and the scopes and between the
   // heatmap and the meter, and the scopes' title bars - drawn once here
@@ -1299,13 +1299,14 @@ InteractiveUI::layout() {
   setBgColor(styles_.window_bg_color);
   const char * divider_glyph = styles_.grid_lines ? "│" : " ";
   for (int row = 0; show_scopes && row < scope_rows; row++) putstr(scope_row + row, matrix_divider_x, divider_glyph);
-  for (int row = band_heatmap_row - 1; show_scopes && row <= band_heatmap_row + kScopeHeight - 1; row++) {
+  for (int row = scope_row; show_scopes && row <= band_chart_row + kScopeHeight - 1; row++) {
+    putstr(row, heatmap_x - 1, divider_glyph);
     putstr(row, meter_x - 1, divider_glyph);
   }
   if (show_scopes) {
-    drawScopeTitle(scope_row, column_x, cols - column_x, "Spectrum", false);
-    drawScopeTitle(band_heatmap_row - 1, column_x, kHeatmapWidth, "DirAC", true);
-    drawScopeTitle(band_heatmap_row - 1, meter_x, kMeterWidth, "Level", false);
+    drawScopeTitle(scope_row, column_x, kSpectrumWidth, "Spectrum", false);
+    drawScopeTitle(scope_row, heatmap_x, kHeatmapWidth, "DirAC", false);
+    drawScopeTitle(scope_row, meter_x, kMeterWidth, "Level", false);
   }
   // The workspace below the scope row. A widget the current view doesn't
   // show gets the same rect as a visible one instead of being shrunk to
