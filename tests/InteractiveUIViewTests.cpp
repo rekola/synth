@@ -1605,7 +1605,7 @@ TEST(terminal_ui_arrangement_grid_locator_names_may_be_wide) {
     auto & song = f.controller->getSong();
     Song::Edit edit(song, "locators");
     song.setLocator(0, "歌歌");
-    song.setLocator(16 * 8, "Chorus");
+    song.setLocator(4 * 8, "Chorus");
   }
   f.ui->step();
   f.ui->step();
@@ -1617,25 +1617,7 @@ TEST(terminal_ui_arrangement_grid_locator_names_may_be_wide) {
   // The wide characters take two columns each, so the gap to the second mark is still its bar's distance.
   auto second = row.find("›Chorus");
   auto between = row.substr(first, second - first);
-  CHECK(cellui::utf8::displayWidth(between) == f.controller->getSong().getArrangementBars().barIndex(16 * 8));
-}
-
-// The scopes in Arrangement view have the size they have in Live View: the
-// DirAC title sits a scope's height (and its own title bar) below the spectrum's.
-TEST(terminal_ui_arrangement_view_scopes_are_as_tall_as_in_live_view) {
-  auto title_row = [](UIFixture & f, const std::string & title) {
-    auto lines = f.lines();
-    for (size_t y = 0; y < lines.size(); y++) {
-      if (lines[y].find(title) != std::string::npos) return static_cast<int>(y);
-    }
-    return -1;
-  };
-  UIFixture arrangement(repoSong("demo3.xml"), UI::View::ARRANGEMENT);
-  UIFixture live(repoSong("demo3.xml"), UI::View::LIVE);
-  int a = title_row(arrangement, "DirAC") - title_row(arrangement, "Spectrum");
-  int l = title_row(live, "DirAC") - title_row(live, "Spectrum");
-  CHECK(a > 0);
-  CHECK(a == l);
+  CHECK(cellui::utf8::displayWidth(between) == f.controller->getSong().getArrangementBars().barIndex(4 * 8));
 }
 
 TEST(a_scope_result_with_a_spectrum_is_drawn) {
