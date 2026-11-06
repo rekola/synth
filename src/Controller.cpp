@@ -9,6 +9,7 @@
 #include "model/ArrangementOps.h"
 #include "model/Clip.h"
 #include "instruments/InstrumentLibrary.h"
+#include "instruments/GenericInstrument.h"
 #include "playback/PlaybackControlEvent.h"
 
 #include <algorithm>
@@ -635,7 +636,13 @@ Controller::switchToBuffer(const string & name) {
       // to set up back when it was its own command (see this method's own
       // doc comment on Controller.h).
       auto song = make_shared<Song>();
+      // Playable at once: a grand piano on track 0, percussion on track 1.
+      auto piano = make_unique<GenericInstrument>();
+      piano->setFrom("piano.acoustic.grand");
+      piano->prepare(getInstrumentProvider());
+      song->addInstrument(std::move(piano));
       song->addTrack(make_unique<InstrumentTrack>(0));
+      song->addTrack(make_unique<PercussionTrack>());
       song->setContentPublished(true);
       last_saved_versions_[song_id] = song->getVersion();
       songs_[song_id] = std::move(song);
