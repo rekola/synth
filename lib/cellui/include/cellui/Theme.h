@@ -275,7 +275,7 @@ struct Theme {
     t.row_pressed_bg = Color("#2f6b78");
     t.master_track = t.surface_overlay;
     t.menu_fg = t.text_primary;
-    t.menu_bg = t.surface_raised;
+    t.menu_bg = t.surface_panel;
     t.menu_section_fg = t.text_primary;
     t.menu_section_bg = t.surface_overlay;
     t.plane_base_bg = t.surface_base;
@@ -328,7 +328,7 @@ struct Theme {
     t.row_pressed_bg = Color("#b9d8ff");
     t.master_track = t.surface_overlay;
     t.menu_fg = t.text_primary;
-    t.menu_bg = t.surface_raised;
+    t.menu_bg = t.surface_panel;
     t.menu_section_fg = t.text_primary;
     t.menu_section_bg = t.surface_overlay;
     t.plane_base_bg = t.surface_base;
