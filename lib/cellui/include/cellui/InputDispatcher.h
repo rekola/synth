@@ -1,5 +1,6 @@
 #pragma once
 
+#include <cellui/DragDrop.h>
 #include <cellui/Input.h>
 #include <cellui/InputEvents.h>
 #include <cellui/PlaneInfo.h>
@@ -8,6 +9,7 @@
 #include <algorithm>
 #include <cmath>
 #include <memory>
+#include <optional>
 #include <vector>
 
 namespace cellui {
@@ -29,7 +31,17 @@ namespace cellui {
 // outlive the dispatcher.
 class InputDispatcher {
  public:
-  explicit InputDispatcher(Widget & root) : root_(&root) { }
+  explicit InputDispatcher(Widget & root) : root_(&root) {
+    start_drag_ = root.on<StartDrag>([this](const StartDrag & e, EventContext &) { return startDrag(e) ? Handled::yes : Handled::no; });
+  }
+
+  // Whether StartDrag begins a session (DisplayInfo::drag_drop); turning it
+  // off ends the one running.
+  void setDragDropEnabled(bool enabled) {
+    drag_enabled_ = enabled;
+    if (!enabled) endDrag(false, nullptr);
+  }
+  bool dragging() const { return drag_.has_value(); }
 
   void setHitAreas(std::vector<HitArea> areas) { areas_ = std::move(areas); }
 
@@ -66,10 +78,20 @@ class InputDispatcher {
 
   // --- Events
 
-  Handled keyDown(const KeyDown & event) { return target(focus_.get()).post(event); }
+  Handled keyDown(const KeyDown & event) {
+    if (drag_ && event.key == Key::Escape) {
+      endDrag(false, nullptr);
+      return Handled::yes;
+    }
+    return target(focus_.get()).post(event);
+  }
   Handled keyUp(const KeyUp & event) { return target(focus_.get()).post(event); }
 
   Handled mouseDown(const MouseDown & event) {
+    if (drag_ || after_drag_) {
+      pressed_ |= bit(event.button);
+      return Handled::yes;
+    }
     Widget * hit = hitTest(event.row, event.col);
     if (pressed_ == 0) grab_.set(hit);
     pressed_ |= bit(event.button);
@@ -80,13 +102,31 @@ class InputDispatcher {
   }
 
   Handled mouseMove(const MouseMove & event) {
+    if (drag_) return dragMove(event);
+    if (after_drag_) return Handled::yes;
     Widget * hit = hitTest(event.row, event.col);
     Widget * to = grab_.get() ? grab_.get() : hit;
     updateHover(to, event.row, event.col);
-    return target(to).post(event);
+    Handled handled = target(to).post(event);
+    // The move that started a session is its first one.
+    if (drag_) return dragMove(event);
+    return handled;
   }
 
   Handled mouseUp(const MouseUp & event) {
+    if (drag_ || after_drag_) {
+      // The release ends the session (a drop); the press and the buttons
+      // still held after it belong to no widget.
+      bool left = event.button == 1 && drag_;
+      pressed_ &= ~bit(event.button);
+      if (left) endDrag(true, &event);
+      if (pressed_ == 0) {
+        after_drag_ = false;
+        grab_.set(nullptr);
+        updateHover(hitTest(event.row, event.col), event.row, event.col);
+      }
+      return Handled::yes;
+    }
     Widget * hit = hitTest(event.row, event.col);
     Widget * to = grab_.get() ? grab_.get() : hit;
     pressed_ &= ~bit(event.button);
@@ -243,7 +283,61 @@ class InputDispatcher {
     }
   }
 
+  // --- Drag and drop
+
+  struct Drag {
+    Ref source, over;
+    DragPayload payload;
+    bool accepted = false;
+  };
+
+  bool startDrag(const StartDrag & e) {
+    if (!drag_enabled_ || drag_ || !(pressed_ & 1) || !e.source || !inTree(e.source)) return false;
+    drag_ = Drag{};
+    drag_->source.set(e.source);
+    drag_->payload = e.payload;
+    // The widgets under the pointer are no longer hovered; the source has the pointer.
+    updateHover(nullptr, 0, 0);
+    return true;
+  }
+
+  Handled dragMove(const MouseMove & e) {
+    Widget * source = drag_->source.get();
+    if (!source) {
+      endDrag(false, nullptr);
+      return Handled::yes;
+    }
+    Widget * hit = hitTest(e.row, e.col);
+    Widget * old = drag_->over.get();
+    if (old && old != hit) old->postDirect(DragLeave{});
+    drag_->over.set(hit);
+    drag_->accepted = hit && target(hit).post(DragOver{ drag_->payload, e.x, e.y, e.row, e.col, e.mods }) == Handled::yes;
+    if (Widget * s = drag_->source.get()) s->postDirect(DragMove{ e.x, e.y, e.row, e.col, e.mods, drag_->accepted });
+    return Handled::yes;
+  }
+
+  // Ends the session: a drop to the widget that accepted, if `up` says the
+  // button went up over it, else a cancel. The source hears DragEnd either way.
+  void endDrag(bool drop, const MouseUp * up) {
+    if (!drag_) return;
+    Drag d = std::move(*drag_);
+    drag_.reset();
+    after_drag_ = pressed_ != 0;
+    Widget * over = d.over.get();
+    bool dropped = false;
+    if (drop && up && over && d.accepted) {
+      dropped = target(over).post(Drop{ d.payload, up->x, up->y, up->row, up->col, up->mods }) == Handled::yes;
+    }
+    if (Widget * w = d.over.get()) w->postDirect(DragLeave{});
+    if (Widget * s = d.source.get()) s->postDirect(DragEnd{ dropped });
+  }
+
   Widget * root_;
+  Connection start_drag_;
+  bool drag_enabled_ = false;
+  std::optional<Drag> drag_;
+  // After a cancel the button may still be held: its moves and release belong to nobody.
+  bool after_drag_ = false;
   std::vector<HitArea> areas_;
   Ref focus_;
   Ref grab_;

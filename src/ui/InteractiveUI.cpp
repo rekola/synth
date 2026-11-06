@@ -428,6 +428,7 @@ private:
 
 InteractiveUI::InteractiveUI(cellui::Backend & backend)
     : backend_(backend), screen_(backend.rows(), backend.cols()) {
+  dispatcher_.setDragDropEnabled(backend.display().drag_drop);
   // Something that closes on a bare Escape gets it at once, rather than when
   // the next key shows it was no Alt prefix.
   key_reader_.takeEscape = [this](const cellui::Input & escape) {
@@ -627,7 +628,13 @@ void InteractiveUI::setReducedMotion(bool reduced) {
 
 // What the link allows: the user's choice of reduced motion stays on whatever the link.
 void InteractiveUI::applyProfile(cellui::LinkClass cls) {
+  auto previous = profile_;
   profile_ = profileFor(cls);
+  auto now = std::chrono::steady_clock::now();
+  if (previous.scopes && !profile_.scopes) scopes_off_since_ = now, scopes_cleared_ = false;
+  if (previous.meter && !profile_.meter) meter_off_since_ = now, meter_cleared_ = false;
+  backend_.setPointerDetail(profile_.hover, profile_.pointer_shapes);
+  if (pattern_editor_) pattern_editor_->setPageScroll(profile_.page_scroll);
   bool reduced = user_reduced_motion_ || profile_.reduced_motion;
   if (reduced == styles_.reduced_motion) return;
   styles_.reduced_motion = reduced;
@@ -1224,10 +1231,9 @@ void InteractiveUI::drawScopeTitle(int row, int col, int width, const std::strin
 }
 
 int InteractiveUI::arrangementScopeRows() const {
-  // The two scopes at their Live View size under their title bars; more for a
-  // song with more tracks (a header of two rows, then a row per track), but at
-  // most a third of the screen.
-  constexpr int kMinRows = 2 * kScopeHeight + 2;
+  // One scope under its title bar; more for a song with more tracks (a header
+  // of two rows, then a row per track), but at most a third of the screen.
+  constexpr int kMinRows = kScopeHeight + 1;
   auto num_tracks = static_cast<int>(getController().getSong().getPlayableTrackIds().size());
   int rows = getDim().first;
   return std::clamp(ArrangementGrid::kHeaderRows + num_tracks, kMinRows, std::max(kMinRows, rows / 3));
@@ -1262,28 +1268,29 @@ InteractiveUI::layout() {
   if (scopes_on_screen_ && !scopes_were_on_screen) scopes_stale_ = true;
 
   // Arrangement view's top band: the arrangement grid takes the width, with a
-  // column of scopes beside it: the spectrum across the whole column, and
-  // under it the DirAC heatmap with the channel meter to its right. The
+  // row of scopes beside it: the spectrum, the DirAC heatmap and the channel
+  // meter, side by side. The
   // grid's height follows the song's track count (see arrangementScopeRows()).
   int scope_rows = arrangementScopeRows();
   laid_out_scope_rows_ = scope_rows;
   constexpr int kMeterWidth = static_cast<int>(ChannelMeter::kMaxChannels / 2);
-  int column_x = cols - kHeatmapWidth - 1 - kMeterWidth;
-  int meter_x = column_x + kHeatmapWidth + 1;
+  constexpr int kSpectrumWidth = 36;
+  int column_x = cols - kSpectrumWidth - 1 - kHeatmapWidth - 1 - kMeterWidth;
+  int heatmap_x = column_x + kSpectrumWidth + 1;
+  int meter_x = heatmap_x + kHeatmapWidth + 1;
   int matrix_divider_x = column_x - 1;
   int matrix_width = std::max(1, matrix_divider_x);
   arrangement_grid_->resize(scope_rows, matrix_width).move(scope_row, 0);
 
   // Each scope has a title bar over it, as in Live View, and its height there.
   int band_chart_row = scope_row + 1;
-  int band_heatmap_row = band_chart_row + kScopeHeight + 1;
   if (getView() == View::ARRANGEMENT) {
     chart_->setVisible(show_scopes);
     heatmap_->setVisible(show_scopes);
-    chart_->resize(kScopeHeight, cols - column_x).move(band_chart_row, column_x);
-    heatmap_->resize(kScopeHeight, kHeatmapWidth).move(band_heatmap_row, column_x);
+    chart_->resize(kScopeHeight, kSpectrumWidth).move(band_chart_row, column_x);
+    heatmap_->resize(kScopeHeight, kHeatmapWidth).move(band_chart_row, heatmap_x);
   }
-  volume_meter_->resize(kScopeHeight, kMeterWidth).move(band_heatmap_row, meter_x);
+  volume_meter_->resize(kScopeHeight, kMeterWidth).move(band_chart_row, meter_x);
 
   // Single-column dividers between the grid and the scopes and between the
   // heatmap and the meter, and the scopes' title bars - drawn once here
@@ -1294,13 +1301,14 @@ InteractiveUI::layout() {
   setBgColor(styles_.window_bg_color);
   const char * divider_glyph = styles_.grid_lines ? "│" : " ";
   for (int row = 0; show_scopes && row < scope_rows; row++) putstr(scope_row + row, matrix_divider_x, divider_glyph);
-  for (int row = band_heatmap_row - 1; show_scopes && row <= band_heatmap_row + kScopeHeight - 1; row++) {
+  for (int row = scope_row; show_scopes && row <= band_chart_row + kScopeHeight - 1; row++) {
+    putstr(row, heatmap_x - 1, divider_glyph);
     putstr(row, meter_x - 1, divider_glyph);
   }
   if (show_scopes) {
-    drawScopeTitle(scope_row, column_x, cols - column_x, "Spectrum", false);
-    drawScopeTitle(band_heatmap_row - 1, column_x, kHeatmapWidth, "DirAC", true);
-    drawScopeTitle(band_heatmap_row - 1, meter_x, kMeterWidth, "Level", false);
+    drawScopeTitle(scope_row, column_x, kSpectrumWidth, "Spectrum", false);
+    drawScopeTitle(scope_row, heatmap_x, kHeatmapWidth, "DirAC", false);
+    drawScopeTitle(scope_row, meter_x, kMeterWidth, "Level", false);
   }
   // The workspace below the scope row. A widget the current view doesn't
   // show gets the same rect as a visible one instead of being shrunk to
@@ -1920,14 +1928,35 @@ void InteractiveUI::handleVisualizationResultEvent(const VisualizationResultEven
     // AuxA/AuxB last - see VisualizationThread.cpp) rather than the final
     // decoded L/R output.
     // A reading equal to the last still has to go in while the bars fall.
-    if (getView() == View::ARRANGEMENT && (ev.getChannelLoudness() != last_loudness_ || !volume_meter_->atRest())) {
+    auto now = std::chrono::steady_clock::now();
+    // Switched off by the link, they keep their picture a moment and then go blank.
+    if (!profile_.scopes && !scopes_cleared_ && holdExpired(now - scopes_off_since_)) {
+      scopes_cleared_ = true;
+      chart_->clear();
+      heatmap_->setGrid(std::vector<float>(DiracAnalyzer::kGridSize, 0.0f), std::vector<float>(DiracAnalyzer::kGridSize, 0.0f));
+      heatmap_->commit();
+      last_fft_.clear();
+      last_brightness_.clear();
+      last_saturation_.clear();
+      fft_pending_ = grid_pending_ = false;
+      dirac_running_max_ = 0.0f;
+      changed = true;
+    }
+    if (!profile_.meter && !meter_cleared_ && holdExpired(now - meter_off_since_)) {
+      meter_cleared_ = true;
+      volume_meter_->clear(last_meter_label_);
+      last_loudness_.clear();
+      meter_pending_ = false;
+      changed = true;
+    }
+    if (profile_.meter && getView() == View::ARRANGEMENT && (ev.getChannelLoudness() != last_loudness_ || !volume_meter_->atRest())) {
       last_loudness_ = ev.getChannelLoudness();
       volume_meter_->feed(ev.getChannelLoudness());
       meter_pending_ = true;
       changed = true;
     }
 
-    if (!ev.getFFT().empty() && ev.getFFT() != last_fft_) {
+    if (profile_.scopes && !ev.getFFT().empty() && ev.getFFT() != last_fft_) {
       last_fft_ = ev.getFFT();
       pending_fft_ = ev.getFFT();
       pending_fft_hz_ = ev.getFFTBinHz();
@@ -1935,7 +1964,7 @@ void InteractiveUI::handleVisualizationResultEvent(const VisualizationResultEven
       changed = true;
     }
 
-    if (ev.hasDiracGrid()) {
+    if (profile_.scopes && ev.hasDiracGrid()) {
       // displayed[cell] = the grid's own
       // directional energy plus the per-band diffuse haze, spread
       // uniformly across every cell (one shared scalar summed from all 8
@@ -2155,7 +2184,7 @@ InteractiveUI::startUI(AudioAPI &, MidiInput & midi, LaunchpadIO & launchpad_io)
   midi.addTo(waits, midi_group);
   launchpad_io.addTo(waits, launchpad_group);
 
-
+  applyProfile(backend_.linkStatus().cls); // a class pinned before the widgets existed
   renderComponents(true);
 
   string waiting_stderr;

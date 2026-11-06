@@ -53,6 +53,9 @@ class TestBackend : public Backend {
   // The link is this from now on; the handler is told if its class changed.
   void setLinkStatus(const LinkStatus & status) { link_.set(status); }
   void setNativeSelection(bool on) override { native_selection_ = on; }
+  void setPointerDetail(bool hover, bool shapes) override { hover_reported_ = hover, shapes_followed_ = shapes; }
+  bool hoverReported() const { return hover_reported_; }
+  bool shapesFollowed() const { return shapes_followed_; }
   bool nativeSelection() const { return native_selection_; }
 
   // The display reports `hdr` from now on (unset: a backend with no HDR
@@ -109,6 +112,7 @@ class TestBackend : public Backend {
   bool emulate_backdrops_ = false;
   size_t frames_ = 0, redraws_ = 0;
   bool native_selection_ = false;
+  bool hover_reported_ = true, shapes_followed_ = true;
 };
 
 }  // namespace cellui::test

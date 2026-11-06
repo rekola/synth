@@ -329,8 +329,11 @@ bool InputParser::stringIntroPossible() const {
     }
     return true;
   }
-  const char * prefixes[4] = {">|", "!|", "1+r", "0+r"};
-  if (string_type_ == '_') prefixes[0] = "G", prefixes[1] = prefixes[2] = prefixes[3] = nullptr;
+  const char * prefixes[6] = {">|", "!|", "1+r", "0+r", "1$r", "0$r"};
+  if (string_type_ == '_') {
+    prefixes[0] = "G";
+    for (size_t i = 1; i < 6; i++) prefixes[i] = nullptr;
+  }
   for (const char * p : prefixes) {
     if (p && std::string(p).compare(0, s.size(), s) == 0) return true;
   }
@@ -441,7 +444,7 @@ void InputParser::byte(unsigned char c) {
     case State::STRING_INTRO: {
       string_ += static_cast<char>(c);
       bool complete = string_type_ == ']' ? (string_.size() > 1 && string_.back() == ';')
-                    : string_ == ">|" || string_ == "!|" || string_ == "1+r" || string_ == "0+r" || (string_type_ == '_' && string_ == "G");
+                    : string_ == ">|" || string_ == "!|" || string_ == "1+r" || string_ == "0+r" || string_ == "1$r" || string_ == "0$r" || (string_type_ == '_' && string_ == "G");
       if (stringIntroPossible()) {
         if (complete) state_ = State::STRING;
         return;
@@ -814,6 +817,10 @@ void InputParser::dispatchString() {
     } else if (s.compare(0, 2, "!|") == 0) {
       e.reply = ReplyKind::TERTIARY_DA;
       e.text = s.substr(2);
+    } else if (s.compare(1, 2, "$r") == 0 && !s.empty() && s.back() == 'm') {
+      e.reply = ReplyKind::SGR_STATE;
+      e.params = {s[0] == '1' ? 1 : 0};
+      e.text = s.substr(3, s.size() - 4);
     } else if (s.compare(1, 2, "+r") == 0) {
       e.reply = ReplyKind::XTGETTCAP;
       e.params = {s[0] == '1' ? 1 : 0};

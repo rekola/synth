@@ -120,6 +120,9 @@ std::string Discovery::queries() const {
     q += "\x1b[>0q";                                 // XTVERSION
     q += "\x1bP+q544e;524742;687061\x1b\\";          // XTGETTCAP TN, RGB, hpa
     q += "\x1b[>c";                                  // DA2
+    // Sets a colour no 256-colour palette entry holds and reads the pen back: a terminal that keeps
+    // 24-bit colour reports it, one that maps it to its palette reports the entry.
+    q += "\x1b[48;2;1;2;3m\x1bP$qm\x1b\\\x1b[0m";
   }
   if (!env_.linux_console) q += "\x1b]10;?\x1b\\\x1b]11;?\x1b\\";  // default colours
   q += "\x1b[?u";                 // kitty keyboard flags (answered only where supported)
@@ -187,6 +190,10 @@ void Discovery::ingest(const TermEvent & e) {
       }
       break;
     }
+    case ReplyKind::SGR_STATE:
+      // "48:2::1:2:3" (or with semicolons) is kept as 24-bit; "48:5:16" was mapped to the palette.
+      if (param(0) == 1 && (e.text.find("48:2:") != std::string::npos || e.text.find("48;2;") != std::string::npos)) direct_sgr_ = true;
+      break;
     case ReplyKind::SECONDARY_DA:
       da2_pp_ = param(0);
       da2_pv_ = param(1);
@@ -289,7 +296,7 @@ Capabilities Discovery::result() const {
   // $COLORTERM does not say so.
   bool program_direct = env_.term_program == "iTerm.app" || env_.term_program == "Hyper" ||
                         env_.term_program == "HyperTerm" || env_.term_program == "MacTerm";
-  bool truecolor = term_colors > 256 || env_.colorterm == "truecolor" || env_.colorterm == "24bit" || tcap_rgb_ ||
+  bool truecolor = term_colors > 256 || env_.colorterm == "truecolor" || env_.colorterm == "24bit" || tcap_rgb_ || direct_sgr_ ||
                    always_direct || program_direct;
   if (name == "screen" && !atLeast(version, "5")) truecolor = false;
   if (name == "apple" || name == "terminology") truecolor = false;

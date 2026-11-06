@@ -628,6 +628,9 @@ PatternEditor::PatternEditor(Plane & parent)
   commands_.define("rename", [this]() { startTrackNameEdit(); });
   commands_.define("rename-track", [this]() { startTrackNameEdit(); });
 
+  commands_.define("previous-instrument", [this]() { stepInstrument(-1); });
+  commands_.define("next-instrument", [this]() { stepInstrument(1); });
+
   // Manual note-column add/remove (see Controller::addNoteColumn/
   // removeNoteColumn and LeafTrack::getMinNoteColumns).
   commands_.define("add-note-column", [this]() {
@@ -1312,10 +1315,11 @@ PatternEditor::render(const StyleProvider & styles, bool refresh, bool focused) 
     auto margin = pointer_scroll_ ? 0 : std::min(kScrollMargin, (visible - 1) / 2);
     RowAddress top{ view_block_, current_scroll_.row };
     auto line = source_->rowsBetween(top, point);
+    // By page, the cursor comes to the far margin so the view stays still for a page of rows.
     if (line < margin) {
-      top = source_->advance(point, -margin);
+      top = source_->advance(point, page_scroll_ ? -(visible - 1 - margin) : -margin);
     } else if (line > visible - 1 - margin) {
-      top = source_->advance(point, -(visible - 1 - margin));
+      top = source_->advance(point, page_scroll_ ? -margin : -(visible - 1 - margin));
     }
     if (!isLiveMode() && top.row < 0) top = { 0, 0 };
     if (isLiveMode()) {
@@ -1967,6 +1971,27 @@ bool PatternEditor::keyUp(const cellui::KeyUp & e) {
   return true;
 }
 
+// Moves the current instrument track to the previous or next instrument of
+// the pool; other track types have no instrument of their own to change.
+void PatternEditor::stepInstrument(int delta) {
+  auto & song = getController().getSong();
+  auto track_ids = trackIds(song);
+  if (track_ids.empty()) return;
+  auto track = song.getMasterTrack().getChildByInternalId(track_ids[static_cast<size_t>(current_cursor.track)]);
+  if (!track || track->getType() != TrackType::INSTRUMENT_CONTROL) return;
+  auto & instrument_track = dynamic_cast<const InstrumentTrack &>(*track);
+  auto track_internal_id = instrument_track.getInternalId();
+  int target = instrument_track.getInstrumentId() + delta;
+  if (target < 0 || target >= static_cast<int>(song.getInstrumentPool().getInstruments().size())) return;
+  {
+    Song::Edit edit(song, "change instrument");
+    song.editTrack(track_internal_id, [&](Track & edited) { static_cast<InstrumentTrack &>(edited).setInstrumentId(target); });
+  }
+  // After the edit has published: the audio thread rebuilds the cleared
+  // track's state from the content it holds, which must be the new one.
+  getController().getPlaybackEventQueue().push(make_unique<PlaybackControlEvent>(PlaybackControlEvent::CLEAR_VOICES, getController().getActiveBufferName(), track_internal_id));
+}
+
 bool PatternEditor::keyDown(const cellui::KeyDown & e) {
   // Only consecutive hex digits extend a pending value; any other key
   // (a move, a click, undo, ...) commits it first.
@@ -2086,33 +2111,7 @@ bool PatternEditor::keyDown(const cellui::KeyDown & e) {
       // its own to cycle (it plays through the song's one pool-wide drum
       // kit instead - see
       // InstrumentPool::getDefaultKitInstrument()).
-      auto track = song.getMasterTrack().getChildByInternalId(track_ids[static_cast<size_t>(current_cursor.track)]);
-      if (track && track->getType() == TrackType::INSTRUMENT_CONTROL) {
-	auto & instrument_track = dynamic_cast<const InstrumentTrack&>(*track);
-	bool changed = false;
-        auto track_internal_id = instrument_track.getInternalId();
-        {
-          Song::Edit edit(song, "change instrument");
-          auto set_instrument = [&](int instrument_id) {
-            song.editTrack(track_internal_id, [&](Track & edited) { static_cast<InstrumentTrack &>(edited).setInstrumentId(instrument_id); });
-            changed = true;
-          };
-          if (e.key == Key::KpDivide && instrument_track.getInstrumentId() > 0) {
-            set_instrument(instrument_track.getInstrumentId() - 1);
-          } else {
-            auto & instruments = song.getInstrumentPool().getInstruments();
-            if (e.key == Key::KpMultiply && instrument_track.getInstrumentId() + 1 < static_cast<int>(instruments.size())) {
-              set_instrument(instrument_track.getInstrumentId() + 1);
-            }
-          }
-          if (!changed) edit.discard();
-        }
-        // After the edit has published: the audio thread rebuilds the cleared
-        // track's state from the content it holds, which must be the new one.
-        if (changed) {
-          event_queue.push(make_unique<PlaybackControlEvent>(PlaybackControlEvent::CLEAR_VOICES, getController().getActiveBufferName(), track_internal_id));
-        }
-      }
+      stepInstrument(e.key == Key::KpDivide ? -1 : 1);
       return true;
     } else if (e.key == Key::Left || e.key == Key::Right) {
       // Emacs-style word motion, one level up from plain Left/Right's
@@ -3905,7 +3904,31 @@ PatternEditor::renderRow(const StyleProvider & styles, int heading_height, const
 	  setBgColor(cell_bg);
 	  auto s = note.toString(tuning);
 	  while (s.size() < 3) s += ' ';
-	  putstr(display_row, current_pos, s);
+	  // The comma arrows (alone or in a sharp or flat) in their own hues; the
+	  // region's foreground inside the highlight, like velocity and delay.
+	  auto comma_hue = [&](std::string_view glyph) -> const Color * {
+	    for (auto up : {"\u2191", "\U0001D130", "\U0001D12C"})
+	      if (glyph == up) return &styles.comma_up_color;
+	    for (auto down : {"\u2193", "\U0001D131", "\U0001D12D"})
+	      if (glyph == down) return &styles.comma_down_color;
+	    return nullptr;
+	  };
+	  int x = current_pos;
+	  for (size_t at = 0; at < s.size();) {
+	    size_t n = 1;
+	    while (at + n < s.size() && (static_cast<unsigned char>(s[at + n]) & 0xC0) == 0x80) n++;
+	    auto piece = s.substr(at, n);
+	    if (auto hue = comma_hue(piece); hue && !cell_is_selected) {
+	      Color c = tintForPlayhead(dim_fixed_color(*hue));
+	      if (!note.isDefined()) c = c.blend(0.5f, cell_bg);
+	      setFgColor(c);
+	    } else {
+	      setFgColor(cell_fg);
+	    }
+	    putstr(display_row, x, piece);
+	    x += Utf8::displayWidth(piece);
+	    at += n;
+	  }
 	  current_pos += 3;
 	} else if (column_type == ColumnType::VELOCITY || column_type == ColumnType::DELAY) {
 	  auto l = track_info.getNoteNumber(k);

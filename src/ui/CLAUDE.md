@@ -37,9 +37,13 @@ headers for what moved to cellui. The UI sources are the `synth_ui` library.
 ## Link profile
 
 `PerformanceProfile.h`: `profileFor(LinkClass)` is what the app draws by link class (`plans/link-degradation.md`
-3.7). `InteractiveUI::applyProfile()` runs when the backend's link handler fires. So far: a cap on autonomous
-redraws (`frameDue()`: a frame an input or an edit asked for is never held back, one only the audio blocks
-want waits for the class's gap) and reduced motion from 15 Hz down, which adds to the user's own setting.
+3.7). `InteractiveUI::applyProfile()` runs when the backend's link handler fires (and once at start, for a pinned
+class). It sets: a cap on autonomous redraws (`frameDue()`: a frame an input or an edit asked for is never held
+back, one only the audio blocks want waits for the class's gap); reduced motion from 15 Hz down, added to the
+user's own setting; whether the scopes and the channel meter run (their speed is the frame cap's; switched off, they keep
+their picture for `kScopeHold` (2 s) and are then cleared); `Backend::setPointerDetail()` (hover and pointer shapes, which cost a
+terminal's link bytes); and `PatternEditor::setPageScroll()`. Not yet by class: Live View's per-column lines, the
+arrangement grid, the backdrop.
 
 ## Where commands live
 
@@ -260,9 +264,19 @@ Controller-level and per-widget commands. Not migrated: `StatusLine`,
   drag sets the mark at the press cell and extends to the pointer. A drag is
   a `MouseMove` with the button held (`MouseMove::buttons`), sent to the
   widget that got the press; a `MouseDown` is always a fresh press.
+  **Dragging a clip** (window only, `cellui/DragDrop.h`): a press on a
+  populated clip slot is a candidate; once the pointer has moved
+  (`dragStarted()`) `ClipGrid` posts `StartDrag` (refused where the display has
+  no drag and drop, and the press stays a click) and holds a `DragGhost`
+  drawn by the same `putClipSlot()` as the grid's slots, its own slot showing
+  empty meanwhile. As the target it accepts a clip slot of a track `canHold()`s
+  the clip's kind (the rule of `yank`), marks it (`drop_target_bg_color`), and
+  a `Drop` is `placeClipCopy()` plus `ClipPlayer::deleteClip()` of the source
+  (so a playing clip stops first, as for a cut) in one edit; Ctrl keeps the
+  source.
 - **Scopes**: the spectrum is a `cellui::LineChart` fed by
   `spectrum_curve::values()` (`ui/SpectrumCurve.h`: dBFS bins on a log axis,
-  80 dB range); it and the DirAC heatmap show in Arrangement view's top band
+  80 dB range); it, the DirAC heatmap and the level meter sit side by side in Arrangement view's top band
   and in Live View's left column under the outline (only while the outline
   is shown and the screen is tall enough); off-screen scopes are not
   updated. Cell or pixel versions are chosen once at startup

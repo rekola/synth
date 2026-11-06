@@ -245,6 +245,17 @@ class BackdropSource {
 
 }  // namespace
 
+BackdropMode backdropModeFor(LinkClass cls, bool pictures) {
+  switch (cls) {
+    case LinkClass::FULL: return BackdropMode::LIVE;
+    case LinkClass::HZ_30: return pictures ? BackdropMode::STATIC : BackdropMode::LIVE;
+    case LinkClass::HZ_15: return BackdropMode::STATIC;
+    case LinkClass::HZ_5: return pictures ? BackdropMode::CELLS : BackdropMode::STATIC;
+    case LinkClass::HZ_1: return BackdropMode::FLAT;
+  }
+  return BackdropMode::LIVE;
+}
+
 BackdropEmulation::BackdropEmulation(std::shared_ptr<CellRasterizer> rasterizer) : rasterizer_(std::move(rasterizer)) { }
 
 int BackdropEmulation::tile(const CellBuffer & below, std::vector<ImagePlacement> & images, int row, int col, int rows, int cols, const Backdrop & backdrop,
@@ -262,12 +273,23 @@ int BackdropEmulation::tile(const CellBuffer & below, std::vector<ImagePlacement
   int margin_rows = (reach + ch - 1) / ch, margin_cols = (reach + cw - 1) / cw;
   int r0 = std::max(0, row - margin_rows), r1 = std::min(below.rows(), row + rows + margin_rows);
   int c0 = std::max(0, col - margin_cols), c1 = std::min(below.cols(), col + cols + margin_cols);
+  Tile * tile = nullptr;
+  for (auto & t : tiles_) {
+    if (t.row == row && t.col == col && t.rows == rows && t.cols == cols) tile = &t;
+  }
+  if (!tile) {
+    tiles_.push_back(Tile{row, col, rows, cols, 0, next_key_++, {}, nullptr, false});
+    tile = &tiles_.back();
+  }
+  tile->used = true;
+  // A static backdrop is not looked at again once drawn.
+  bool frozen = mode_ != BackdropMode::LIVE && tile->image && tile->backdrop == backdrop;
   Fingerprint print;
   print.add(static_cast<uint64_t>(r0) << 32 | static_cast<uint32_t>(c0));
   print.add(static_cast<uint64_t>(r1) << 32 | static_cast<uint32_t>(c1));
   print.add(std::optional<Color>(default_fg));
   print.add(std::optional<Color>(default_bg));
-  for (int r = r0; r < r1; r++) {
+  for (int r = r0; r < r1 && !frozen; r++) {
     for (int c = c0; c < c1; c++) {
       const CellBuffer::Cell & cell = below.at(r, c);
       if (cell.image > 0 && static_cast<size_t>(cell.image) <= images.size()) {
@@ -283,16 +305,7 @@ int BackdropEmulation::tile(const CellBuffer & below, std::vector<ImagePlacement
       print.add(static_cast<uint64_t>(cell.bold()) | static_cast<uint64_t>(cell.continuation) << 1);
     }
   }
-  Tile * tile = nullptr;
-  for (auto & t : tiles_) {
-    if (t.row == row && t.col == col && t.rows == rows && t.cols == cols) tile = &t;
-  }
-  if (!tile) {
-    tiles_.push_back(Tile{row, col, rows, cols, 0, next_key_++, {}, nullptr, false});
-    tile = &tiles_.back();
-  }
-  tile->used = true;
-  if (!tile->image || tile->hash != print.value() || tile->backdrop != backdrop) {
+  if (!frozen && (!tile->image || tile->hash != print.value() || tile->backdrop != backdrop)) {
     Image drawn = rasterizer_->render(below, images, r0, c0, r1 - r0, c1 - c0, ch, cw, scale, default_fg, default_bg);
     filterPixels(drawn, backdrop, radius, backdrop.tint.value_or(default_bg));
     // The tile's own pixels, and a pad of its neighbours' around them for
@@ -348,7 +361,13 @@ std::shared_ptr<const Image> BackdropEmulation::filtered(const ImagePlacement & 
 
 void BackdropEmulation::applyLayer(CellBuffer & out, std::vector<ImagePlacement> & images, const BackdropLayer & layer,
                                    const DisplayInfo & display) {
-  const Backdrop & backdrop = layer.backdrop;
+  Backdrop flat;
+  if (mode_ == BackdropMode::FLAT) {
+    // Only dimmed and tinted.
+    flat = layer.backdrop;
+    flat.blur = 0;
+  }
+  const Backdrop & backdrop = mode_ == BackdropMode::FLAT ? flat : layer.backdrop;
   int row_lo = std::max(0, layer.row), row_hi = std::min(out.rows(), layer.row + layer.rows);
   int col_lo = std::max(0, layer.col), col_hi = std::min(out.cols(), layer.col + layer.cols);
   if (row_lo >= row_hi || col_lo >= col_hi) return;
@@ -359,12 +378,23 @@ void BackdropEmulation::applyLayer(CellBuffer & out, std::vector<ImagePlacement>
   // With pictures, a blurring backdrop is pictures in tiles of the screen.
   constexpr int kTileRows = 4, kTileCols = 16;
   std::map<std::pair<int, int>, int> tiles;  // tile origin -> placement index
-  if (backdrop.blur > 0 && rasterizer_ && display.cell_px_height > 0 && display.cell_px_width > 0) {
+  if (backdrop.blur > 0 && mode_ != BackdropMode::CELLS && rasterizer_ && display.cell_px_height > 0 && display.cell_px_width > 0) {
     for (int tr = row_lo / kTileRows * kTileRows; tr < row_hi; tr += kTileRows) {
       for (int tc = col_lo / kTileCols * kTileCols; tc < col_hi; tc += kTileCols) {
         int r0 = std::max(tr, row_lo), r1 = std::min(tr + kTileRows, row_hi);
         int c0 = std::max(tc, col_lo), c1 = std::min(tc + kTileCols, col_hi);
         tiles[{tr, tc}] = tile(below, images, r0, c0, r1 - r0, c1 - c0, backdrop, display);
+      }
+    }
+  }
+  // A static cell blur is made once and shown as it was.
+  if (mode_ != BackdropMode::LIVE && tiles.empty()) {
+    for (auto & region : regions_) {
+      if (region.row == row_lo && region.col == col_lo && region.rows == row_hi - row_lo && region.cols == col_hi - col_lo && region.backdrop == backdrop) {
+        region.used = true;
+        for (int r = 0; r < region.rows; r++)
+          for (int c = 0; c < region.cols; c++) out.put(row_lo + r, col_lo + c, region.cells.at(r, c));
+        return;
       }
     }
   }
@@ -387,12 +417,23 @@ void BackdropEmulation::applyLayer(CellBuffer & out, std::vector<ImagePlacement>
     ImagePlacement & placement = images[static_cast<size_t>(index)];
     placement.image = filtered(placement, filtered_backdrop, display);
   }
+  if (mode_ != BackdropMode::LIVE && tiles.empty() && filtered_placements.empty()) {
+    Region region;
+    region.row = row_lo, region.col = col_lo, region.rows = row_hi - row_lo, region.cols = col_hi - col_lo;
+    region.backdrop = backdrop;
+    region.cells = CellBuffer(region.rows, region.cols);
+    for (int r = 0; r < region.rows; r++)
+      for (int c = 0; c < region.cols; c++) region.cells.put(r, c, out.at(row_lo + r, col_lo + c));
+    region.used = true;
+    regions_.push_back(std::move(region));
+  }
 }
 
 void BackdropEmulation::apply(CellBuffer & frame, std::vector<ImagePlacement> & images, const std::vector<BackdropLayer> & layers,
                               const DisplayInfo & display) {
   for (auto & f : filtered_) f.used = false;
   for (auto & t : tiles_) t.used = false;
+  for (auto & r : regions_) r.used = false;
   redrawn_tiles_ = 0;
   if (!layers.empty()) {
     if (!rasterizer_ && display.pictures) rasterizer_ = canvasRasterizer("monospace", true);
@@ -424,6 +465,7 @@ void BackdropEmulation::apply(CellBuffer & frame, std::vector<ImagePlacement> & 
     frame = std::move(out);
   }
   tiles_.erase(std::remove_if(tiles_.begin(), tiles_.end(), [](const Tile & t) { return !t.used; }), tiles_.end());
+  regions_.erase(std::remove_if(regions_.begin(), regions_.end(), [](const Region & r) { return !r.used; }), regions_.end());
   filtered_.erase(std::remove_if(filtered_.begin(), filtered_.end(), [](const Filtered & f) { return !f.used; }), filtered_.end());
 }
 

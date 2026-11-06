@@ -75,6 +75,10 @@ class Backend {
   // Whether the user selects text with the mouse instead of the application
   // getting the clicks. Default no-op.
   virtual void setNativeSelection(bool) { }
+  // How much of the pointer the application wants reported, for a link that cannot afford all of
+  // it: `hover` is motion with no button held (a terminal then asks for drag motion only), `shapes`
+  // is the pointer's shape following what it is over. A window ignores both.
+  virtual void setPointerDetail(bool /*hover*/, bool /*shapes*/) { }
 };
 
 }  // namespace cellui

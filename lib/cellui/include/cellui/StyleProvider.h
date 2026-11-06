@@ -69,6 +69,7 @@ class StyleProvider {
     button_bg_color = t.button_bg;
     button_pressed_bg_color = t.button_pressed_bg;
     row_pressed_bg_color = t.row_pressed_bg;
+    drop_target_bg_color = t.row_pressed_bg;
     master_track_color = t.master_track;
     menu_fg_color = t.menu_fg;
     menu_bg_color = t.menu_bg;
@@ -80,6 +81,8 @@ class StyleProvider {
     data_fx_color = t.data_fx;
     data_velocity_color = t.data_velocity;
     data_delay_color = t.data_delay;
+    comma_up_color = t.comma_up;
+    comma_down_color = t.comma_down;
   }
 
   Theme theme;
@@ -217,6 +220,8 @@ class StyleProvider {
   Color button_pressed_bg_color;
   // While the mouse is held down on a list row.
   Color row_pressed_bg_color;
+  // The cell a dragged clip would land on.
+  Color drop_target_bg_color;
 
   // Same hue as command_column_color, but at half that color's lightness
   // and a moderately lower saturation - the pattern editor's
@@ -240,6 +245,8 @@ class StyleProvider {
   Color data_fx_color;
   Color data_velocity_color;
   Color data_delay_color;
+  Color comma_up_color;
+  Color comma_down_color;
 };
 
 }  // namespace cellui

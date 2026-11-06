@@ -260,6 +260,7 @@ protected:
   // track_name_screen_width_, cached by renderHeading() itself, same
   // reasoning as startLocatorEdit()'s own comment.
   void startTrackNameEdit();
+  void stepInstrument(int delta);
 
   // `copy-to-clip` - saves the current selection as a new, unnamed clip.
   // Always whole-track scope (SelectionScope::TRACK), on the cursor's own
@@ -295,12 +296,14 @@ protected:
   std::optional<Song::EditPlace> focus_cell_;
   const cellui::Charts * charts_ = nullptr;
 public:
-  // Writes a half-typed velocity or delay to the song.
-  void commitPendingValue();
-  // The backend's scopes, which draw the sparklines; unset, they are drawn
-  // in cells.
-  void setCharts(const cellui::Charts * scopes) { charts_ = scopes; }
-  void focusCell(const Song::EditPlace & place) { focus_cell_ = place; }
+ // Jump a page when the cursor leaves the rows (a slow link repaints once a page, not once a row).
+ void setPageScroll(bool page) { page_scroll_ = page; }
+ // Writes a half-typed velocity or delay to the song.
+ void commitPendingValue();
+ // The backend's scopes, which draw the sparklines; unset, they are drawn
+ // in cells.
+ void setCharts(const cellui::Charts * scopes) { charts_ = scopes; }
+ void focusCell(const Song::EditPlace & place) { focus_cell_ = place; }
 private:
  bool keyDown(const cellui::KeyDown & e);
  bool keyUp(const cellui::KeyUp & e);
@@ -525,6 +528,7 @@ private:
   // How close the highlighted row gets to the top or bottom before the
   // whole view scrolls.
   static constexpr int kScrollMargin = 3;
+  bool page_scroll_ = false;
   // Says so on the status line when the cursor can't move - it follows a
   // playing track's playhead. True then.
   void changeEditStep(int delta);

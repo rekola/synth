@@ -63,8 +63,24 @@ carries the app's object as an opaque `getAppContext()`.
   says the display reports this key's release (a preview note held by a key
   needs it). `Input::getFx()`/`getFy()` carry the sub-cell pointer position
   (windows always; the terminal in pixel mouse mode 1016).
-  `DisplayInfo::key_release`/`precise_mouse`/`hover` say what the display
-  reports.
+  `DisplayInfo::key_release`/`precise_mouse`/`hover`/`drag_drop` say what the
+  display reports.
+- `DragDrop.h`: drag and drop inside the app, only where `DisplayInfo::drag_drop`
+  (the GTK window). The source, with the button held, posts
+  `StartDrag{this, DragPayload{kind, data}}` to the root (`Handled::no` where
+  the display has none, or no button is held: the widget carries on as before;
+  `dragStarted()`/`kDragThreshold` say when a press has moved enough). The
+  dispatcher then runs the session: the widget under the pointer gets
+  `DragOver` on every move and accepts by returning `Handled::yes`, and
+  `DragLeave`; the source gets `DragMove` (position, whether the target
+  accepts) and `DragEnd{dropped}`, and no `MouseMove`/`MouseUp` meanwhile; a
+  release over an accepting widget posts `Drop` to it. The move that started the
+  session is its first move (the target hears `DragOver` for it). Escape cancels, and
+  the rest of that gesture goes to nobody. `DragGhost` is the plane that
+  follows the pointer (modal elevation, the grabbed point kept under the
+  pointer, to the pixel where the display scrolls smoothly; the pointer shows
+  `MouseCursor::GRABBING` or `NOT_ALLOWED` over it); the source makes it on
+  `StartDrag` and drops it on `DragEnd`.
 - `ThreadPosts.h`: `ThreadInbox` lets other threads post events to the root,
   dispatched on the UI thread at the start of every loop turn and in the
   turn a post woke; `addRing()` adds a `RealtimeRing` for a producer that
@@ -90,8 +106,8 @@ carries the app's object as an opaque `getAppContext()`.
   its own draws one row more and calls `Plane::setScrollOffset()` with the
   fraction; the plane composes as a `BackdropLayer::scroll` layer, which the
   window draws translated from a texture of its own. A plane shifted by part
-  of a cell keeps its pictures, proportional text and raised-cell shadows in
-  the GTK window; the Win32 one does not draw them shifted yet.
+  of a cell keeps its pictures, proportional text and raised-cell shadows
+  (`ElevatedArea::shift_row`/`shift_col`) in the GTK and Win32 windows.
 - `Plane::setBand()` puts a translucent strip at a fractional row over a
   plane, unshifted (a playhead, a cursor row). A `Band` can have an inside
   border (`border_px`, rounded by `border_radius`; `bandBorder()` gives the
@@ -140,7 +156,7 @@ carries the app's object as an opaque `getAppContext()`.
   gets the text written as cells (`Plane::cutToCells()`). Writing over a
   marked cell takes the text back.
 - The pointer shape is a plane attribute (`Plane::setMouseCursor()`:
-  `INHERIT`/`DEFAULT`/`POINTER`/`TEXT`); `refresh()` lists the requesting
+  `INHERIT`/`DEFAULT`/`POINTER`/`TEXT`/`GRABBING`/`NOT_ALLOWED`); `refresh()` lists the requesting
   planes' rectangles in drawing order (`FrameInfo::mouse_cursors`) and the
   backend shows the last one under the pointer (GTK by cursor name, the
   terminal with OSC 22, which is why it asks for any-motion mouse reporting).
@@ -190,10 +206,10 @@ timing (and missed-vsync counts) at exit.
 
 - `InputParser` (keys, mouse, paste, focus, query replies, a short grace for
   split sequences), `Discovery`/`Capabilities` (start-up queries with a
-  deadline; display scale guessed from the cell size, light/dark from the
+  deadline; true colour is also found by setting a 24-bit background and reading the pen back with DECRQSS, which xterm answers with the colour only when it keeps 24 bits; display scale guessed from the cell size, light/dark from the
   default colours, which picks the default `--theme`), `FrameEncoder` (frame
   diff as escape sequences), `ImageEncoder` (kitty graphics, iTerm2 inline
-  images, Sixel; a Sixel image gets its own palette, the picture's exact colours when they fit the registers or their median cut, one Sixel per visible rectangle, and only the changed rows of cells when that is smaller; `PictureQuality` follows the link class (`pictureQualityFor()`): FULL to 30 Hz, REDUCED (64 colours) at 15 Hz, LOW (16) below, as a palette PNG for kitty and iTerm2 (quantised RGB where a terminal refuses the PNG) and fewer Sixel registers, undithered unless the picture is stretched over its cells (a blurred backdrop); kitty uploads and PNGs deflated by the in-tree
+  images, Sixel; a Sixel image gets its own palette, the picture's exact colours when they fit the registers or their median cut (colours first put on the 101 levels a Sixel colour definition has, so two the terminal cannot tell apart are one register), one Sixel per visible rectangle, and only the changed rows of cells when that is smaller; `PictureQuality` follows the link class (`pictureQualityFor()`): FULL to 30 Hz, REDUCED (64 colours) at 15 Hz, LOW (16) below, as a palette PNG for kitty and iTerm2 (quantised RGB where a terminal refuses the PNG) and fewer Sixel registers, undithered unless the picture is stretched over its cells (a blurred backdrop); kitty uploads and PNGs deflated by the in-tree
   `term/Deflate.h`, raw fallback when it saves under 10 % or the terminal
   refuses), `TerminalSession` (tty, modes, signals, restoration). `TermEvent`s
   stay inside `term/`; `Capabilities` (image protocol, kitty keyboard, query
@@ -221,7 +237,9 @@ timing (and missed-vsync counts) at exit.
   (ctest `cellui_pacing_harness`) runs `cellui_pacing_probe` on a shaped pty.
 - The terminal cannot blur: `term::BackdropEmulation` averages cells over
   their neighbours with glyphs faded out, or with pictures draws, blurs and
-  stretches the cells in 4x16-cell tiles redrawn only when changed.
+  stretches the cells in 4x16-cell tiles redrawn only when changed. The link
+  class picks its `BackdropMode` (`backdropModeFor()`): live, static (kept as
+  when the backdrop appeared, until it goes), cell blur only, or a flat dim.
 
 ## GTK window backend (`cellui/gtk/`)
 

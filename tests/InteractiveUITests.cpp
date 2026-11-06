@@ -275,6 +275,23 @@ TEST(terminal_ui_ctrl_keypad_operators_change_the_track_instrument) {
   CHECK(instrument_id() == before);
 }
 
+TEST(terminal_ui_next_and_previous_instrument_commands_change_the_track_instrument) {
+  UIFixture f(fixture("center_note.xml"), UI::View::ARRANGEMENT);
+  f.controller->getSong().addInstrument(std::make_unique<Oscillator>(WaveformType::SINE));
+  auto instrument_id = [&] {
+    auto track = f.controller->getSong().getMasterTrack().getChildren().front();
+    return dynamic_cast<const InstrumentTrack &>(*track).getInstrumentId();
+  };
+  if (f.terminal.info().focus != "pattern-editor") f.otherWindow();
+  int before = instrument_id();
+  f.execute("next-instrument");
+  CHECK(instrument_id() == before + 1);
+  f.execute("next-instrument");
+  CHECK(instrument_id() == before + 1);
+  f.execute("previous-instrument");
+  CHECK(instrument_id() == before);
+}
+
 // A song file with no tracks still opens, draws in both views and takes keys.
 TEST(terminal_ui_song_without_tracks_does_not_crash) {
   for (auto view : {UI::View::LIVE, UI::View::ARRANGEMENT}) {
@@ -362,6 +379,35 @@ TEST(profile_caps_autonomous_redraws_by_link_class_and_stills_motion_on_slow_one
   CHECK(profileFor(LinkClass::HZ_30).autonomous_fps == 30 && !profileFor(LinkClass::HZ_30).reduced_motion);
   CHECK(profileFor(LinkClass::HZ_15).autonomous_fps == 15 && profileFor(LinkClass::HZ_15).reduced_motion);
   CHECK(profileFor(LinkClass::HZ_5).autonomous_fps == 5 && profileFor(LinkClass::HZ_1).autonomous_fps == 1);
+}
+
+TEST(profile_thins_scopes_hover_and_scrolling_as_the_link_gets_slower) {
+  using cellui::LinkClass;
+  auto p30 = profileFor(LinkClass::HZ_30), p15 = profileFor(LinkClass::HZ_15), p5 = profileFor(LinkClass::HZ_5), p1 = profileFor(LinkClass::HZ_1);
+  CHECK(profileFor(LinkClass::FULL).scopes && p30.scopes && p15.scopes && !p5.scopes && !p1.scopes);
+  CHECK(p15.meter && p5.meter && !p1.meter);
+  CHECK(p30.hover && !p15.hover && !p5.hover);
+  CHECK(p15.pointer_shapes && !p5.pointer_shapes);
+  CHECK(!p15.page_scroll && p5.page_scroll && p1.page_scroll);
+  using namespace std::chrono;
+  // A scope switched off keeps its picture for 2 s and is then cleared.
+  CHECK(!holdExpired(milliseconds(1900)) && holdExpired(milliseconds(2000)));
+}
+
+TEST(a_slow_link_stops_reporting_hover_and_pointer_shapes_to_the_terminal) {
+  UIFixture f;
+  CHECK(f.terminal.hoverReported() && f.terminal.shapesFollowed());
+  cellui::LinkStatus slow;
+  slow.cls = cellui::LinkClass::HZ_5;
+  slow.available = true;
+  f.terminal.setLinkStatus(slow);
+  f.ui->step();
+  CHECK(!f.terminal.hoverReported() && !f.terminal.shapesFollowed());
+  cellui::LinkStatus fast;
+  fast.available = true;
+  f.terminal.setLinkStatus(fast);
+  f.ui->step();
+  CHECK(f.terminal.hoverReported() && f.terminal.shapesFollowed());
 }
 
 TEST(frame_due_holds_back_only_what_nobody_asked_for) {

@@ -360,6 +360,145 @@ TEST(a_drag_is_motion_with_the_button_held) {
   CHECK(held == (std::vector<unsigned>{ 0u, 1u, 0u }));
 }
 
+// Two panels, a (the source) and b, and a log of what each hears of a drag.
+struct DragScreen {
+  Screen s;
+  Panel a{ s.top.plane(), 0, 0, 4, 10 };
+  Panel b{ s.top.plane(), 0, 20, 4, 10 };
+  Log log;
+  bool b_accepts = true;
+  bool a_starts_on_move = false;
+  std::vector<Connection> conns;
+
+  DragScreen(bool enabled = true) {
+    a.attach(s.top);
+    b.attach(s.top);
+    s.refresh();
+    s.dispatcher.setDragDropEnabled(enabled);
+    conns.push_back(a.on<DragMove>([this](const DragMove & e, EventContext &) {
+      log.push_back(e.accepted ? "a move accepted" : "a move refused");
+      return Handled::yes;
+    }));
+    conns.push_back(a.on<DragEnd>([this](const DragEnd & e, EventContext &) {
+      log.push_back(e.dropped ? "a end dropped" : "a end cancelled");
+      return Handled::yes;
+    }));
+    conns.push_back(a.on<MouseMove>([this](const MouseMove &, EventContext &) {
+      log.push_back(a_starts_on_move ? "a starts" : "a mouse move");
+      if (a_starts_on_move) a.postToRoot(StartDrag{ &a, DragPayload{ "thing", 7 } });
+      return Handled::yes;
+    }));
+    conns.push_back(a.on<MouseUp>([this](const MouseUp &, EventContext &) { log.push_back("a mouse up"); return Handled::yes; }));
+    conns.push_back(b.on<DragOver>([this](const DragOver & e, EventContext &) {
+      log.push_back("b over");
+      return b_accepts && e.payload.kind == "thing" ? Handled::yes : Handled::no;
+    }));
+    conns.push_back(b.on<DragLeave>([this](const DragLeave &, EventContext &) { log.push_back("b leave"); return Handled::yes; }));
+    conns.push_back(b.on<Drop>([this](const Drop & e, EventContext &) {
+      log.push_back(e.payload.get<int>() && *e.payload.get<int>() == 7 ? "b drop 7" : "b drop ?");
+      return Handled::yes;
+    }));
+  }
+
+  // The press on a, then the session starting.
+  bool begin() {
+    s.dispatcher.mouseDown(down(1, 1));
+    return a.postToRoot(StartDrag{ &a, DragPayload{ "thing", 7 } }) == Handled::yes;
+  }
+};
+
+TEST(a_drag_session_needs_a_display_that_has_drag_drop) {
+  DragScreen d(false);
+  CHECK(!d.begin());
+  CHECK(!d.s.dispatcher.dragging());
+}
+
+TEST(a_drag_session_needs_the_button_held) {
+  DragScreen d;
+  CHECK(d.a.postToRoot(StartDrag{ &d.a, DragPayload{ "thing", 7 } }) == Handled::no);
+}
+
+TEST(a_drop_reaches_the_widget_that_accepted) {
+  DragScreen d;
+  CHECK(d.begin());
+  d.s.dispatcher.mouseMove(move(1, 25, 1));
+  d.s.dispatcher.mouseUp(up(1, 25));
+  CHECK(d.log == (Log{ "b over", "a move accepted", "b drop 7", "b leave", "a end dropped" }));
+  CHECK(!d.s.dispatcher.dragging() && d.s.dispatcher.pressedButtons() == 0u);
+}
+
+TEST(a_refused_drop_is_a_cancel_and_the_source_hears_no_release) {
+  DragScreen d;
+  d.b_accepts = false;
+  CHECK(d.begin());
+  d.s.dispatcher.mouseMove(move(1, 25, 1));
+  d.s.dispatcher.mouseUp(up(1, 25));
+  CHECK(d.log == (Log{ "b over", "a move refused", "b leave", "a end cancelled" }));
+}
+
+TEST(leaving_a_widget_during_a_drag_posts_drag_leave) {
+  DragScreen d;
+  CHECK(d.begin());
+  d.s.dispatcher.mouseMove(move(1, 25, 1));
+  d.s.dispatcher.mouseMove(move(1, 5, 1));
+  d.log.clear();
+  d.s.dispatcher.mouseMove(move(1, 6, 1));
+  CHECK(d.log == (Log{ "a move refused" }));
+  d.s.dispatcher.mouseUp(up(1, 6));
+  CHECK(d.log == (Log{ "a move refused", "a end cancelled" }));
+}
+
+TEST(escape_cancels_a_drag_and_the_rest_of_the_gesture_goes_nowhere) {
+  DragScreen d;
+  CHECK(d.begin());
+  d.s.dispatcher.mouseMove(move(1, 25, 1));
+  d.log.clear();
+  KeyDown esc;
+  esc.key = Key::Escape;
+  CHECK(d.s.dispatcher.keyDown(esc) == Handled::yes);
+  CHECK(d.log == (Log{ "b leave", "a end cancelled" }));
+  d.log.clear();
+  d.s.dispatcher.mouseMove(move(1, 27, 1));
+  d.s.dispatcher.mouseUp(up(1, 27));
+  CHECK(d.log.empty());
+  CHECK(d.s.dispatcher.pressedButtons() == 0u);
+  // A new press works as before.
+  d.s.dispatcher.mouseDown(down(1, 1));
+  d.s.dispatcher.mouseMove(move(1, 2, 1));
+  CHECK(d.log == (Log{ "a mouse move" }));
+}
+
+TEST(the_move_that_starts_a_drag_is_its_first_move) {
+  DragScreen d;
+  d.a_starts_on_move = true;  // the source starts the session from its own move handler
+  d.s.dispatcher.mouseDown(down(1, 1));
+  d.s.dispatcher.mouseMove(move(1, 25, 1));
+  CHECK(d.log == (Log{ "a starts", "b over", "a move accepted" }));
+}
+
+TEST(a_drag_ghost_follows_the_pointer_and_shows_the_drag_cursor) {
+  Screen s;
+  s.root.setFlatChildren(true);
+  bool last_accepted = true;
+  {
+    DragGhost ghost(s.root, 1, 4, 0.0f, 1.0f, [&](Plane & plane, bool accepted) {
+      last_accepted = accepted;
+      plane.putstr(0, 0, "clip");
+    });
+    ghost.moveTo(3.0f, 8.0f);  // the pointer a column into the ghost
+    s.root.refresh();
+    auto cursors = s.root.takeMouseCursors();
+    CHECK(mouseCursorAt(cursors, 3, 7) == MouseCursor::GRABBING);
+    CHECK(mouseCursorAt(cursors, 3, 6) == MouseCursor::DEFAULT);
+    ghost.setAccepted(false);
+    CHECK(!last_accepted);
+    s.root.refresh();
+    CHECK(mouseCursorAt(s.root.takeMouseCursors(), 3, 7) == MouseCursor::NOT_ALLOWED);
+  }
+  s.root.refresh();
+  CHECK(mouseCursorAt(s.root.takeMouseCursors(), 3, 7) == MouseCursor::DEFAULT);
+}
+
 TEST(offer_translates_keys_with_their_text) {
   Screen s;
   std::vector<KeyDown> downs;
