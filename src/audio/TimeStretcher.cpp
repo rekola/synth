@@ -5,13 +5,14 @@
 using namespace std;
 
 vector<float>
-stretchMono(const vector<float> & input, int sample_rate, double tempo_ratio) {
-  if (sample_rate <= 0 || tempo_ratio <= 0.0 || tempo_ratio == 1.0 || input.empty()) return input;
+stretchMono(const vector<float> & input, int sample_rate, double tempo_ratio, double pitch_ratio) {
+  if (sample_rate <= 0 || tempo_ratio <= 0.0 || pitch_ratio <= 0.0 || (tempo_ratio == 1.0 && pitch_ratio == 1.0) || input.empty()) return input;
 
   soundtouch::SoundTouch st;
   st.setSampleRate(static_cast<uint>(sample_rate));
   st.setChannels(1);
   st.setTempo(tempo_ratio);
+  if (pitch_ratio != 1.0) st.setPitch(pitch_ratio);
 
   st.putSamples(input.data(), static_cast<uint>(input.size()));
   st.flush(); // makes every remaining internally-buffered sample available to receiveSamples() below

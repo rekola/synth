@@ -49,6 +49,12 @@ PatternEditor::PatternEditor(Plane & parent)
       arrangement_source_(std::make_unique<ArrangementPatternSource>(getController())),
       scene_source_(std::make_unique<ScenePatternSource>(getController())) {
   source_ = arrangement_source_.get();
+  auto handled = [](bool taken) { return taken ? cellui::Handled::yes : cellui::Handled::no; };
+  connections_.push_back(on<cellui::KeyDown>([this, handled](const cellui::KeyDown & e, cellui::EventContext &) { return handled(keyDown(e)); }));
+  connections_.push_back(on<cellui::KeyUp>([this, handled](const cellui::KeyUp & e, cellui::EventContext &) { return handled(keyUp(e)); }));
+  connections_.push_back(on<cellui::MouseDown>([this, handled](const cellui::MouseDown & e, cellui::EventContext &) { return handled(mouseDown(e)); }));
+  connections_.push_back(on<cellui::MouseUp>([this, handled](const cellui::MouseUp & e, cellui::EventContext &) { return handled(mouseUp(e)); }));
+  connections_.push_back(on<cellui::Wheel>([this, handled](const cellui::Wheel & e, cellui::EventContext &) { return handled(wheel(e)); }));
   // Whichever buffer is already active by construction time (main.cpp
   // always opens/creates one before the UI itself exists) - without this,
   // handleBufferChanged()'s first real call would have nothing to compare
@@ -61,7 +67,7 @@ PatternEditor::PatternEditor(Plane & parent)
   // getPlane().setScrolling(true);
 
   // Emacs-style commands, dispatched centrally via UIElement::dispatchCommand
-  // (see offerInput() below). Each lambda re-fetches song/info/track_ids
+  // (see keyDown() below). Each lambda re-fetches song/info/track_ids
   // itself, exactly like the code that used to run inline here did on every
   // call - none of this is cached across calls, so there's no staleness risk
   // from moving it into a constructor-time closure.
@@ -601,7 +607,7 @@ PatternEditor::PatternEditor(Plane & parent)
   // reaches a nested effect track exactly as well as a top-level one, no
   // extra resolution needed (see Controller::toggleTrackCollapsed()'s own
   // comment on why it's generic over TrackType). Also reachable by pressing
-  // Enter while the cursor sits on a collapsed track - see offerInput().
+  // Enter while the cursor sits on a collapsed track - see keyDown().
   commands_.define("toggle-track-collapse", [this]() {
     auto & song = getController().getSong();
     auto track_ids = trackIds(song);
@@ -644,7 +650,7 @@ PatternEditor::PatternEditor(Plane & parent)
 
   keymap_.bind(KeyStroke::pack('+', true, false, false, false), "edit-step-increase");
   keymap_.bind(KeyStroke::pack('-', true, false, false, false), "edit-step-decrease");
-  // The desktop keymap selects with Shift+arrows (see offerInputKey()).
+  // The desktop keymap selects with Shift+arrows (see keyDown()).
   keymap_.bind(KeymapProfile::TERMINAL, KeyStroke::pack(' ', true, false, false, false), "set-mark"); // Ctrl-Space
   // Cut, copy and paste: the terminal keymap's shortcuts, the usual
   // desktop ones elsewhere.
@@ -942,7 +948,7 @@ PatternEditor::startLocatorEdit() {
   auto locator_row = source_->locatorRow(point);
   if (!locator_row) return;
 
-  // Already true in practice (the only caller is offerInput()'s Enter
+  // Already true in practice (the only caller is keyDown()'s Enter
   // check, gated on new_cursor.isOnLocator() already) - set directly
   // anyway so this stays correct regardless of what calls it, matching
   // GridPosition::scope's own "single source of truth" point.
@@ -1605,7 +1611,7 @@ void PatternEditor::handleMidiEvent(const MidiEvent & ev) {
   // nothing about where a note belongs.
   options.delay = source_->cursorFollowsTransport() || source_->cursorLocked() ? getController().getPlaybackInfo().getCurrentDelay() : 0;
   // Writes into whatever's actually active at the cursor's row - see
-  // offerInput()'s own raw-key note entry for the same resolution.
+  // keyDown()'s own raw-key note entry for the same resolution.
   if (midi_input_.handle(ev, getController(), track_id, options, [this](int id) { return source_->edit(id, source_->cursor()); })) {
     row_edited = true;
   }
@@ -1728,9 +1734,8 @@ PatternEditor::handleBufferChanged() {
   last_active_buffer_name_ = new_name;
 }
 
-bool
-PatternEditor::handleMouse(const cellui::Input & input) {
-  if (input.getKind() == InputEvent::Kind::RELEASE) {
+bool PatternEditor::handleMouse(int screen_y, int screen_x, bool release) {
+  if (release) {
     mouse_down_ = false;
     return true;
   }
@@ -1738,7 +1743,7 @@ PatternEditor::handleMouse(const cellui::Input & input) {
   auto track_ids = trackIds(song);
   auto [ pos_y, pos_x ] = getPosition();
   auto [ rows, cols ] = getDim();
-  auto y = input.getY() - pos_y, x = input.getX() - pos_x;
+  auto y = screen_y - pos_y, x = screen_x - pos_x;
   auto heading_height = song.getMasterTrack().getDepth() + 1;
   // A drag that reaches past the top or bottom of the rows scrolls the view
   // along, one row per kDragScrollInterval.
@@ -1883,38 +1888,104 @@ PatternEditor::commitPendingValue() {
   row_edited = true;
 }
 
-bool
-PatternEditor::offerInput(const cellui::Input & input) {
+// A left press (and each drag repeat) or its release.
+bool PatternEditor::mouseDown(const cellui::MouseDown & e) {
+  if (e.button != 1) return false;
+  getController().getSong().breakTypingRun();
+  if (inline_editor_.isOpen()) return true;
+  return handleMouse(e.row, e.col, false);
+}
+
+bool PatternEditor::mouseUp(const cellui::MouseUp & e) {
+  if (e.button != 1) return false;
+  if (inline_editor_.isOpen()) return true;
+  return handleMouse(e.row, e.col, true);
+}
+
+// The mouse wheel scrolls the view, never the cursor (which in arrangement
+// mode is the transport); Shift or a sideways wheel scrolls tracks.
+bool PatternEditor::wheel(const cellui::Wheel & e) {
+  getController().getSong().breakTypingRun();
+  if (inline_editor_.isOpen()) return true;
+  pointer_scroll_ = false;
+  bool sideways = e.dx != 0;
+  int direction = sideways ? (e.dx > 0 ? 1 : -1) : (e.dy > 0 ? -1 : 1);
+  if (sideways || e.mods.shift)
+    scrollViewTracks(direction);
+  else
+    scrollView(direction * wheel_acceleration_.step(kWheelRows));
+  return true;
+}
+
+bool PatternEditor::keyUp(const cellui::KeyUp & e) {
+  // The release of the key that opened the editor must not reach the notes; a held note key's release stops its note.
+  if (inline_editor_.keyUp()) return true;
+  auto & song = getController().getSong();
+  auto & info = getController().getPlaybackInfo();
+  bool transport_owns_row = info.isPlaying() && source_->cursorFollowsTransport();
+  auto & event_queue = getController().getPlaybackEventQueue();
+  (void)song;
+  auto it = active_keyboard_notes_.find(e.key);
+  if (it == active_keyboard_notes_.end()) return false;
+  auto held = it->second;
+  active_keyboard_notes_.erase(it);
+
+  event_queue.push(make_unique<PlaybackControlEvent>(PlaybackControlEvent::STOP_NOTE, getController().getActiveBufferName(), held.track_id, held.note_column));
+
+  // Mirrors LaunchpadManager's own RELEASE handling: while playing,
+  // write an explicit off at the row the transport has since reached
+  // - unless that's still the note's own row, which would erase the
+  // note it belongs to instead of ending it.
+  if (transport_owns_row) {
+    auto release_row = info.getAbsolutePosition();
+    if (release_row != held.row) {
+      getController().writeReleaseOff(auto_record_cleared_rows_, auto_started_playback_, release_row, held.track_id, held.note_column, info.getCurrentDelay());
+    }
+  }
+
+  // Realtime auto-play-while-held (mirrors LaunchpadManager's own -
+  // see its RELEASE branch for the identical reasoning): stop exactly
+  // when the last held note key releases, but only if this code
+  // started the transport itself - stopAutoRecordSession() itself
+  // handles only actually stopping if it's still genuinely playing
+  // (the user may have manually stopped it in the meantime).
+  if (active_keyboard_notes_.empty() && pending_step_ != 0) {
+    source_->moveCursor(limitToSelectionPattern(pending_step_));
+    pending_step_ = 0;
+  }
+  if (auto_started_playback_ && active_keyboard_notes_.empty()) {
+    getController().stopAutoRecordSession(auto_started_playback_, auto_record_cleared_rows_, info, auto_record_clip_ids_);
+  }
+  if (active_keyboard_notes_.empty()) getController().setNoteHeld(false);
+  return true;
+}
+
+bool PatternEditor::keyDown(const cellui::KeyDown & e) {
   // Only consecutive hex digits extend a pending value; any other key
   // (a move, a click, undo, ...) commits it first.
-  if (pending_.valid && input.getKind() != InputEvent::Kind::RELEASE && input.getId() == Key::Enter) {
+  if (pending_.valid && e.key == Key::Enter) {
     auto next = pending_.next;
     commitPendingValue();
     new_cursor = next;
     return true;
   }
-  if (pending_.valid && input.getKind() != InputEvent::Kind::RELEASE) {
-    bool digit = !input.hasCtrl() && !input.hasAlt() && input.getId() >= '0' && input.getId() <= 'f' && (isxdigit(static_cast<int>(input.getId())) != 0);
-    if (!digit) commitPendingValue();
+  if (pending_.valid) {
+    bool hex = !e.mods.ctrl && !e.mods.alt && e.key >= '0' && e.key <= 'f' && (isxdigit(static_cast<int>(e.key)) != 0);
+    if (!hex) commitPendingValue();
   }
-  return offerInputKey(input);
-}
 
-bool
-PatternEditor::offerInputKey(const cellui::Input & input) {
   // Anything but typing ends the run of typed characters that undoes as one
   // step (Song::breakTypingRun()).
-  if (input.getKind() != InputEvent::Kind::RELEASE) {
-    auto id = input.getId();
-    bool typing_key = !input.hasCtrl() && !input.hasAlt() && ((id >= 32 && id < 127) || id == Key::Delete || id == Key::Backspace);
+  {
+    auto id = e.key;
+    bool typing_key = !e.mods.ctrl && !e.mods.alt && ((id >= 32 && id < 127) || id == Key::Delete || id == Key::Backspace);
     if (!typing_key) getController().getSong().breakTypingRun();
   }
 
   // While the locator or track-name editor is open it owns every key.
-  if (inline_editor_.offerInput(input)) return true;
+  if (inline_editor_.key(e)) return true;
 
-  if (input.getId() == Key::Button1) return handleMouse(input);
-  if (input.getKind() != InputEvent::Kind::RELEASE) pointer_scroll_ = false;
+  pointer_scroll_ = false;
 
   // Cursor parked on the locator slot (Right arrow past the last
   // track's last column - see GridPosition::scope's own comment) but not
@@ -1922,8 +1993,8 @@ PatternEditor::offerInputKey(const cellui::Input & input) {
   // reaching the slot on its own must never start editing by itself.
   // The release (or repeat) of the Enter that just committed an edit
   // arrives after the field has closed and must not reopen it.
-  if (new_cursor.isOnLocator() && input.getId() == Key::Enter) {
-    if (input.getKind() != InputEvent::Kind::RELEASE && input.getKind() != InputEvent::Kind::REPEAT) startLocatorEdit();
+  if (new_cursor.isOnLocator() && e.key == Key::Enter) {
+    if (!e.repeat) startLocatorEdit();
     return true;
   }
 
@@ -1934,8 +2005,7 @@ PatternEditor::offerInputKey(const cellui::Input & input) {
   // toggle-track-collapse (Ctrl+Shift+C) is still the only way to
   // collapse a track, so Enter never surprises the user by hiding
   // something they just landed on.
-  if (!new_cursor.isOnLocator() && input.getId() == Key::Enter && input.getKind() != InputEvent::Kind::RELEASE &&
-      input.getKind() != InputEvent::Kind::REPEAT) {
+  if (!new_cursor.isOnLocator() && e.key == Key::Enter && !e.repeat) {
     auto & song = getController().getSong();
     auto track_ids = trackIds(song);
     if (current_cursor.track < static_cast<int>(track_ids.size())) {
@@ -1948,16 +2018,15 @@ PatternEditor::offerInputKey(const cellui::Input & input) {
     }
   }
 
-  if (dispatchCommand(input)) return true;
+  if (dispatchCommand(e.key, e.mods)) return true;
 
   // Desktop selection: Shift+arrow sets the mark where the cursor is, then
   // moves like the plain arrow, extending the region.
-  if (keymapProfile() == KeymapProfile::DESKTOP && input.hasShift() && !input.hasCtrl() && !input.hasAlt() && !input.hasMeta() &&
-      input.getKind() != InputEvent::Kind::RELEASE &&
-      (input.getId() == Key::Up || input.getId() == Key::Down || input.getId() == Key::Left || input.getId() == Key::Right)) {
+  if (keymapProfile() == KeymapProfile::DESKTOP && e.mods.shift && !e.mods.ctrl && !e.mods.alt && !e.mods.meta &&
+      (e.key == Key::Up || e.key == Key::Down || e.key == Key::Left || e.key == Key::Right)) {
     if (!selection_active_) setMarkAtPoint();
-    if (input.getId() == Key::Up) return commands_.execute("move-row-up");
-    if (input.getId() == Key::Down) return commands_.execute("move-row-down");
+    if (e.key == Key::Up) return commands_.execute("move-row-up");
+    if (e.key == Key::Down) return commands_.execute("move-row-down");
     // Left and Right move through the plain branch below.
   }
 
@@ -1968,60 +2037,6 @@ PatternEditor::offerInputKey(const cellui::Input & input) {
   bool transport_owns_row = info.isPlaying() && source_->cursorFollowsTransport();
   auto & event_queue = getController().getPlaybackEventQueue();
 
-  // Kitty-protocol RELEASE events now reach offerInput() (previously
-  // dropped in InteractiveUI::readInput() - see InputEvent::Kind's own doc
-  // comment). Only the raw computer-keyboard note-entry code below cares
-  // about a key actually going up (to stop a held note, mirroring real
-  // MIDI/Launchpad note-off) - it's fully self-contained, since
-  // active_keyboard_notes_ is keyed by the physical key alone, with no
-  // dependency on modifier state or which on-screen column/track the
-  // cursor happens to be over right now. Every *other* manual key handler
-  // below (cursor movement, Ctrl+Left/Right instrument change, hex-digit
-  // entry for effect/velocity/delay columns, ...) assumes a single-fire
-  // press and has no Kind-awareness of its own - without this guard, a
-  // held note key's RELEASE naturally falls into the same branch its
-  // PRESS did if the release happened during a different one (e.g. a
-  // held note key was actually just an arrow key, whose PRESS-branch has
-  // no note to release), causing it to fire the same action a second
-  // time. Handling every RELEASE right here, before any of that code
-  // even runs, means a release either matches a held note (fully handled)
-  // or is inert - it never reaches the rest of this function either way.
-  if (input.getKind() == InputEvent::Kind::RELEASE) {
-    auto it = active_keyboard_notes_.find(input.getId());
-    if (it == active_keyboard_notes_.end()) return false;
-    auto held = it->second;
-    active_keyboard_notes_.erase(it);
-
-    event_queue.push(make_unique<PlaybackControlEvent>(PlaybackControlEvent::STOP_NOTE, getController().getActiveBufferName(), held.track_id, held.note_column));
-
-    // Mirrors LaunchpadManager's own RELEASE handling: while playing,
-    // write an explicit off at the row the transport has since reached
-    // - unless that's still the note's own row, which would erase the
-    // note it belongs to instead of ending it.
-    if (transport_owns_row) {
-      auto release_row = info.getAbsolutePosition();
-      if (release_row != held.row) {
-	getController().writeReleaseOff(auto_record_cleared_rows_, auto_started_playback_, release_row, held.track_id, held.note_column, info.getCurrentDelay());
-      }
-    }
-
-    // Realtime auto-play-while-held (mirrors LaunchpadManager's own -
-    // see its RELEASE branch for the identical reasoning): stop exactly
-    // when the last held note key releases, but only if this code
-    // started the transport itself - stopAutoRecordSession() itself
-    // handles only actually stopping if it's still genuinely playing
-    // (the user may have manually stopped it in the meantime).
-    if (active_keyboard_notes_.empty() && pending_step_ != 0) {
-      source_->moveCursor(limitToSelectionPattern(pending_step_));
-      pending_step_ = 0;
-    }
-    if (auto_started_playback_ && active_keyboard_notes_.empty()) {
-      getController().stopAutoRecordSession(auto_started_playback_, auto_record_cleared_rows_, info, auto_record_clip_ids_);
-    }
-    if (active_keyboard_notes_.empty()) getController().setNoteHeld(false);
-    return true;
-  }
-
   auto all_track_info = getTrackInformation(song, current_scroll_.row);
 
   auto track_ids = trackIds(song);
@@ -2029,7 +2044,7 @@ PatternEditor::offerInputKey(const cellui::Input & input) {
 
   auto current_track = song.getMasterTrack().getChildByInternalId(track_ids[static_cast<size_t>(current_cursor.track)]);
 
-  auto input_hex_value = digit(input.getId(), 16);
+  auto input_hex_value = digit(e.key, 16);
 
   VisibleTrackInfo track_info;
   if (current_track) {
@@ -2037,23 +2052,21 @@ PatternEditor::offerInputKey(const cellui::Input & input) {
     if (it0 != all_track_info.end()) track_info = it0->second;
   }
 
-  if (input.getId() == Key::Button1) {
-
-  } else if (input.hasCtrl() && !input.hasMeta()) {
-    if (input.getId() == 'a') {
+  if (e.mods.ctrl && !e.mods.meta) {
+    if (e.key == 'a') {
       new_cursor.track = new_cursor.col = new_cursor.subcol = 0;
       return true;
-    } else if (input.getId() == 'e') {
+    } else if (e.key == 'e') {
       new_cursor.track = num_tracks > 1 ? num_tracks - 1 : 0;
       new_cursor.subcol = 0;
 
       auto it = all_track_info.find(track_ids[static_cast<size_t>(new_cursor.track)]);
       new_cursor.col = it != all_track_info.end() ? it->second.getColumnCount() - 1: 0;
       return true;
-    } else if (input.getId() == 'd') {
+    } else if (e.key == 'd') {
       // duplicate track
       return true;
-    } else if (input.getId() == Key::KpDivide || input.getId() == Key::KpMultiply) {
+    } else if (e.key == Key::KpDivide || e.key == Key::KpMultiply) {
       // Instrument selection - moved here from Ctrl+Left/Right (now "move
       // cursor to the neighboring track", see below) to free that shortcut
       // up. Numpad Divide/Multiply rather than a modifier combo on
@@ -2077,11 +2090,11 @@ PatternEditor::offerInputKey(const cellui::Input & input) {
             song.editTrack(track_internal_id, [&](Track & edited) { static_cast<InstrumentTrack &>(edited).setInstrumentId(instrument_id); });
             changed = true;
           };
-          if (input.getId() == Key::KpDivide && instrument_track.getInstrumentId() > 0) {
+          if (e.key == Key::KpDivide && instrument_track.getInstrumentId() > 0) {
             set_instrument(instrument_track.getInstrumentId() - 1);
           } else {
             auto & instruments = song.getInstrumentPool().getInstruments();
-            if (input.getId() == Key::KpMultiply && instrument_track.getInstrumentId() + 1 < static_cast<int>(instruments.size())) {
+            if (e.key == Key::KpMultiply && instrument_track.getInstrumentId() + 1 < static_cast<int>(instruments.size())) {
               set_instrument(instrument_track.getInstrumentId() + 1);
             }
           }
@@ -2094,9 +2107,9 @@ PatternEditor::offerInputKey(const cellui::Input & input) {
         }
       }
       return true;
-    } else if (input.getId() == Key::Left || input.getId() == Key::Right) {
+    } else if (e.key == Key::Left || e.key == Key::Right) {
       // Emacs-style word motion, one level up from plain Left/Right's
-      // note-column navigation (see the !input.hasMeta() branch below):
+      // note-column navigation (see the !e.mods.meta branch below):
       // jumps straight to the neighboring track rather than stepping
       // through its columns, landing on its first column the same way
       // crossing a track boundary during plain-Right navigation already
@@ -2106,8 +2119,8 @@ PatternEditor::offerInputKey(const cellui::Input & input) {
       // doing nothing, and Ctrl+Left backs out of it the same way plain
       // Left does, rather than also stepping a track left in the same
       // keypress.
-      if (input.getId() == Key::Left) {
-	if (new_cursor.isOnLocator()) {
+      if (e.key == Key::Left) {
+        if (new_cursor.isOnLocator()) {
 	  new_cursor.scope = SelectionScope::NOTE_COLUMN;
 	} else if (new_cursor.track > 0) {
 	  new_cursor.track--;
@@ -2115,28 +2128,28 @@ PatternEditor::offerInputKey(const cellui::Input & input) {
 	  new_cursor.subcol = 0;
 	}
       } else if (new_cursor.track + 1 < num_tracks) {
-	new_cursor.track++;
+        new_cursor.track++;
 	new_cursor.col = 0;
 	new_cursor.subcol = 0;
       } else if (!new_cursor.isOnLocator() && source_->hasLocators()) {
-	new_cursor.scope = SelectionScope::LOCATOR;
+        new_cursor.scope = SelectionScope::LOCATOR;
       }
       return true;
-    } else if (input.getId() == 'i') {
+    } else if (e.key == 'i') {
       // create new instrument
     } else {
       return false;
     }
-  } else if (input.hasAlt()) {
-    if (input.getId() == Key::Left) {
+  } else if (e.mods.alt) {
+    if (e.key == Key::Left) {
       // move selected track to left
       return true;
-    } else if (input.getId() == Key::Right) {
+    } else if (e.key == Key::Right) {
       // move selected track to right
       return true;
     }
-  } else if (!input.hasMeta()) {
-    if (input.getId() == Key::Left) {
+  } else if (!e.mods.meta) {
+    if (e.key == Key::Left) {
       if (new_cursor.isOnLocator()) {
 	// Back out of the locator slot without touching track/col -
 	// they're already sitting on the last track's last column, exactly
@@ -2153,7 +2166,7 @@ PatternEditor::offerInputKey(const cellui::Input & input) {
 	new_cursor.col = it != all_track_info.end() ? it->second.getColumnCount() - 1 : 0;
       }
       return true;
-    } else if (input.getId() == Key::Right) {
+    } else if (e.key == Key::Right) {
       if (new_cursor.col + 1 < track_info.getColumnCount()) {
 	new_cursor.col++;
 	new_cursor.subcol = 0;
@@ -2172,25 +2185,13 @@ PatternEditor::offerInputKey(const cellui::Input & input) {
 	if (source_->hasLocators()) new_cursor.scope = SelectionScope::LOCATOR;
       }
       return true;
-    } else if (input.getId() >= Key::Button4 && input.getId() <= Key::Button7) {
-      // The mouse wheel scrolls the view, never the cursor (which in
-      // arrangement mode is the transport); Shift or a sideways wheel
-      // scrolls tracks.
-      if (input.getKind() == InputEvent::Kind::RELEASE) return true;
-      bool sideways = input.getId() >= Key::Button6;
-      int direction = (input.getId() == Key::Button4 || input.getId() == Key::Button6) ? -1 : 1;
-      if (sideways || input.hasShift())
-        scrollViewTracks(direction);
-      else
-        scrollView(direction * wheel_acceleration_.step(kWheelRows));
-      return true;
-    } else if (input.getId() == Key::PageUp) {
+    } else if (e.key == Key::PageUp) {
       if (!transport_owns_row) {
         source_->moveCursor(limitToSelectionPattern(-16));
         new_cursor.subcol = 0;
       }
       return true;
-    } else if (input.getId() == Key::PageDown) { // scrollwheel down
+    } else if (e.key == Key::PageDown) { // scrollwheel down
       if (!transport_owns_row) {
         source_->moveCursor(limitToSelectionPattern(16));
         new_cursor.subcol = 0;
@@ -2206,6 +2207,7 @@ PatternEditor::offerInputKey(const cellui::Input & input) {
       // resolved row, not the raw playhead one, the same "a Pattern
       // shorter than its context repeats" transparency getEffectiveRow()
       // already gave the background-only case.
+      if (isLiveMode()) scene_source_->selectClip(track_id);
       auto edit_target = source_->edit(track_id, point);
       auto column_type = track_info.getColumnType(new_cursor.col);
 
@@ -2234,23 +2236,23 @@ PatternEditor::offerInputKey(const cellui::Input & input) {
 	// (non-ASCII, synthesized) key code into the command as if
 	// it were a typed character, instead of being ignored (subcol 2/3)
 	// or actually deleting.
-	if (input.getId() == Key::Delete || input.getId() == Key::Backspace) {
-	  Song::Edit edit(song, "clear command", Song::Edit::Kind::CONTENT, Song::Edit::Origin::USER, true);
+        if (e.key == Key::Delete || e.key == Key::Backspace) {
+          Song::Edit edit(song, "clear command", Song::Edit::Kind::CONTENT, Song::Edit::Origin::USER, true);
 	  set_command(Command());
 	  row_edited = true;
 	  // Same row-level Backspace-steps-back/Delete-stays-put distinction
 	  // the note column's own is_delete handling makes below.
-	  if (!transport_owns_row && input.getId() == Key::Backspace) {
+          if (!transport_owns_row && e.key == Key::Backspace) {
             source_->moveCursor(limitToSelectionPattern(-edit_step_size));
           }
-	  return true;
-	}
+          return true;
+        }
 
         // In effect command, column 0/1 (mnemonic) accepts [A-Za-z0-9-] and
         // column 2/3 (hex argument) accepts [A-Fa-f0-9-] - Command::
         // updateData() (see its own comment) validates and reports
         // success/failure itself, so this call site doesn't need to
-        // pre-classify input.getId() at all before attempting it - without
+        // pre-classify e.key at all before attempting it - without
         // updateData()'s own validation, every unbound non-printable key
         // (arrows/F-keys/Insert/PageUp/... not already intercepted by an
         // earlier else-if branch above, or Ctrl/Alt shortcuts with no keymap
@@ -2260,8 +2262,8 @@ PatternEditor::offerInputKey(const cellui::Input & input) {
         int command_row;
 	auto existing = command_grid->findCommands(track_id, point.row, command_row);
 	auto command = existing ? existing->getCommand(command_row) : Command();
-	if (command.updateData(new_cursor.subcol, input.getId())) {
-	  Song::Edit edit(song, "edit command", Song::Edit::Kind::CONTENT, Song::Edit::Origin::USER, true);
+        if (command.updateData(new_cursor.subcol, e.key)) {
+          Song::Edit edit(song, "edit command", Song::Edit::Kind::CONTENT, Song::Edit::Origin::USER, true);
 	  set_command(command);
 	  row_edited = true;
 
@@ -2273,23 +2275,23 @@ PatternEditor::offerInputKey(const cellui::Input & input) {
 	    new_cursor.subcol = 0;
 	  }
 	  return true;
-	}
+        }
       } else if (column_type == ColumnType::LOCAL_FX) {
 	auto notes = edit_target.pattern->getNotes(edit_target.effective_row);
 	auto note_column = track_info.getNoteNumber(new_cursor.col);
 	Note note;
 	if (note_column < static_cast<int>(notes.size())) note = notes[static_cast<size_t>(note_column)];
-	if (input.getId() == Key::Delete || input.getId() == Key::Backspace) {
-	  // The whole three characters go together, like the effect column's.
+        if (e.key == Key::Delete || e.key == Key::Backspace) {
+          // The whole three characters go together, like the effect column's.
 	  note.setFx("---");
 	  Song::Edit edit(song, "clear note fx", Song::Edit::Kind::CONTENT, Song::Edit::Origin::USER, true);
 	  edit_target.pattern->setNote(edit_target.effective_row, note_column, note);
 	  row_edited = true;
 	  new_cursor.subcol = 0;
 	  return true;
-	}
-	if (note.setFxChar(new_cursor.subcol, input.getId())) {
-	  Song::Edit edit(song, "edit note fx", Song::Edit::Kind::CONTENT, Song::Edit::Origin::USER, true);
+        }
+        if (note.setFxChar(new_cursor.subcol, e.key)) {
+          Song::Edit edit(song, "edit note fx", Song::Edit::Kind::CONTENT, Song::Edit::Origin::USER, true);
 	  edit_target.pattern->setNote(edit_target.effective_row, note_column, note);
 	  row_edited = true;
 	  if (new_cursor.subcol + 1 < 3) {
@@ -2303,7 +2305,7 @@ PatternEditor::offerInputKey(const cellui::Input & input) {
 	    new_cursor.subcol = 0;
 	  }
 	  return true;
-	}
+        }
       } else if (column_type == ColumnType::VELOCITY || column_type == ColumnType::DELAY) {
 	if (input_hex_value != -1) {
 	  auto note_column = track_info.getNoteNumber(new_cursor.col);
@@ -2357,26 +2359,26 @@ PatternEditor::offerInputKey(const cellui::Input & input) {
 	  return true;
 	}
 
-	bool is_off = input.getId() == 'a';
-	bool is_delete = input.getId() == Key::Delete || input.getId() == Key::Backspace;
-	auto note_column = track_info.getNoteNumber(new_cursor.col);
+        bool is_off = e.key == 'a';
+        bool is_delete = e.key == Key::Delete || e.key == Key::Backspace;
+        auto note_column = track_info.getNoteNumber(new_cursor.col);
         // A cursor that neither follows the transport nor a playing clip's
         // playhead isn't on the transport's row, so its sub-row position says
         // nothing about where a note belongs.
         auto current_delay = source_->cursorFollowsTransport() || source_->cursorLocked() ? info.getCurrentDelay() : 0;
 
         // A held note key's terminal-generated auto-repeat must not retrigger
-	// a fresh note-on (holding a key should sustain one note, not restart
-	// its envelope over and over) - RELEASE itself is handled once, up
-	// front in this function (see offerInput()'s own top-of-function
-	// comment), so only REPEAT needs handling here.
-	bool is_repeat = input.getKind() == InputEvent::Kind::REPEAT;
+        // a fresh note-on (holding a key should sustain one note, not restart
+        // its envelope over and over) - RELEASE itself is handled once, up
+        // front in this function (see keyDown()'s own top-of-function
+        // comment), so only REPEAT needs handling here.
+        bool is_repeat = e.repeat;
 
-	int midi_note = -1;
+        int midi_note = -1;
 	if (!is_off) {
 	  auto track = song.getMasterTrack().getChildByInternalId(track_id);
 	  auto tuning = track ? song.getTuningForTrack(*track) : song.getTuning();
-          if (auto input_note = keyToMidiNote(input, tuning, song.getScale()); !input_note.empty()) {
+          if (auto input_note = keyToMidiNote(e.key, tuning, song.getScale()); !input_note.empty()) {
             midi_note = Note(input_note, tuning, 0x28, 0, getController().getGlobalOctave()).getValue();
           }
         }
@@ -2388,14 +2390,14 @@ PatternEditor::offerInputKey(const cellui::Input & input) {
 	// chord's row, in the next note column, and leaves the cursor where the
 	// chord's first key put it.
         bool chord_follower = false;
-        bool legacy_note_key = midi_note >= 0 && !is_off && !is_delete && input.getKind() == InputEvent::Kind::UNKNOWN && !input.hasShift();
+        bool legacy_note_key = midi_note >= 0 && !is_off && !is_delete && !e.release_reported && !e.mods.shift;
         if (legacy_note_key) {
-          if (auto slot = chord_.join(input.getTimestamp(), track_id, midi_note)) {
+          if (auto slot = chord_.join(e.timestamp, track_id, midi_note)) {
             edit_target = source_->edit(track_id, slot->row);
             note_column = slot->column;
             chord_follower = true;
           } else {
-            chord_.begin(input.getTimestamp(), track_id, point, note_column, midi_note);
+            chord_.begin(e.timestamp, track_id, point, note_column, midi_note);
           }
         }
 
@@ -2406,9 +2408,9 @@ PatternEditor::offerInputKey(const cellui::Input & input) {
         bool hold_tracked_note = false;
 
 	// The group of a chord opens before the first write, not inside it.
-	if (midi_note >= 0 && !is_delete && !is_off && input.getKind() != InputEvent::Kind::UNKNOWN && active_keyboard_notes_.empty()) getController().setNoteHeld(true);
+        if (midi_note >= 0 && !is_delete && !is_off && e.release_reported && active_keyboard_notes_.empty()) getController().setNoteHeld(true);
 
-	if (is_delete || midi_note >= 0 || is_off) {
+        if (is_delete || midi_note >= 0 || is_off) {
 	  // Typed notes, offs and deletes undo as a run, like typed digits; the keys of a chord are
 	  // already one group, which joins the run when it ends.
 	  Song::Edit edit(song, "enter note", Song::Edit::Kind::CONTENT, Song::Edit::Origin::USER, !song.document().inGroup());
@@ -2435,17 +2437,17 @@ PatternEditor::offerInputKey(const cellui::Input & input) {
             // fixes. Falls back to the simple, immediate, one-shot-per-
             // keystroke behavior this codebase always had before Kitty
             // support existed.
-            bool has_hold_info = input.getKind() != InputEvent::Kind::UNKNOWN;
+            bool has_hold_info = e.release_reported;
 
-	    // Both views treat held keys alike: the row stays put and the cursor
+            // Both views treat held keys alike: the row stays put and the cursor
 	    // steps once when the last key lifts (pending_step_). Nothing starts
 	    // the transport; only a transport that already runs moves the row.
 	    bool was_first_held_note = has_hold_info && active_keyboard_notes_.empty();
 
-	    if (input.hasShift()) {
-	      note_column = edit_target.pattern->pushNote(edit_target.effective_row, note);
-	    } else {
-	      // A lone key still lands exactly on the cursor's own column,
+            if (e.mods.shift) {
+              note_column = edit_target.pattern->pushNote(edit_target.effective_row, note);
+            } else {
+              // A lone key still lands exactly on the cursor's own column,
 	      // unchanged - only steps off it when another currently-held key
 	      // already claims that column (a genuine chord), so it sounds
 	      // alongside the others instead of stealing the voice already
@@ -2462,13 +2464,13 @@ PatternEditor::offerInputKey(const cellui::Input & input) {
 		while (edit_target.pattern->getNote(edit_target.effective_row, note_column).isDefined()) note_column++;
 	      }
 	      edit_target.pattern->setNote(edit_target.effective_row, note_column, note);
-	    }
+            }
 
-	    if (getController().isMonitoring(track_id)) {
+            if (getController().isMonitoring(track_id)) {
 	      event_queue.push(make_unique<PlaybackControlEvent>(PlaybackControlEvent::PLAY_NOTE, getController().getActiveBufferName(), track_id, note_column, note.getValue(), note.getVelocity()));
 	    }
-	    if (has_hold_info) active_keyboard_notes_[input.getId()] = { note_column, info.getAbsolutePosition(), track_id };
-	    hold_tracked_note = has_hold_info;
+            if (has_hold_info) active_keyboard_notes_[e.key] = {note_column, info.getAbsolutePosition(), track_id};
+            hold_tracked_note = has_hold_info;
 	  }
 
 	  row_edited = true;
@@ -2479,9 +2481,11 @@ PatternEditor::offerInputKey(const cellui::Input & input) {
 	    // done above) and step backward, undoing the forward step a note
 	    // entry would have made - unlike Delete, which deletes in place and
 	    // leaves the cursor where it was.
-	    if (input.getId() == Key::Backspace) n = -1;
-	    else if (input.getId() != Key::Delete && !chord_follower) n = 1;
-	    if (n && hold_tracked_note) {
+            if (e.key == Key::Backspace)
+              n = -1;
+            else if (e.key != Key::Delete && !chord_follower)
+              n = 1;
+            if (n && hold_tracked_note) {
 	      // The transport moves the row itself once a session auto-started by
 	      // this chord is playing; otherwise the step waits for the last
 	      // key to be released.
@@ -2496,7 +2500,7 @@ PatternEditor::offerInputKey(const cellui::Input & input) {
       }
     }
   }
-  
+
   return false;
 }
 
@@ -3493,8 +3497,8 @@ PatternEditor::renderRow(const StyleProvider & styles, int heading_height, const
       auto track_id = track_ids[static_cast<size_t>(i)];
       if (per_track_rows) {
         auto own = source_->trackAddress(track_id, address);
-        if (own.block < 0 || own.row < 0) {
-          // Before its first clip the track has no row here - nothing to
+        if (own.block < 0 || own.row < 0 || !source_->showsRows(track_id)) {
+          // No clip chosen yet, or before its first clip the track has no row here - nothing to
           // show, however a neighbouring column scrolls: blank up to its
           // divider.
           auto info_it = all_track_info.find(track_id);
@@ -3531,7 +3535,7 @@ PatternEditor::renderRow(const StyleProvider & styles, int heading_height, const
       auto track = song.getMasterTrack().getChildByInternalId(track_id);
       // A Pattern shorter than the song's own pattern length repeats
       // (Pattern.h's own getEffectiveRow() comment) - reads (and, per
-      // offerInput()'s own writes) land on the tiled repeat's real row,
+      // keyDown()'s own writes) land on the tiled repeat's real row,
       // dimmed here below so it's clear at a glance which rows are the
       // resolved Pattern's own real content vs. a repeat of it. Per-track,
       // unlike is_neighboring_pattern's own whole-row dim above - two
@@ -3874,8 +3878,8 @@ PatternEditor::renderRow(const StyleProvider & styles, int heading_height, const
 	} else if (column_type == ColumnType::LOCAL_FX) {
 	  auto l = track_info.getNoteNumber(k);
 	  auto note = l < static_cast<int>(notes.size()) ? notes[static_cast<size_t>(l)] : Note();
-	  string s(note.isDefined() ? note.getFx() : "...");
-	  // Unset characters show as a middle dot; s stays one byte per cell.
+          string s(note.hasContent() ? note.getFx() : "...");
+          // Unset characters show as a middle dot; s stays one byte per cell.
 	  auto glyph = [](char c) { return c == Note::kFxEmpty ? string("\u00b7") : string(1, c); };
 	  string shown;
 	  for (char c : s) shown += glyph(c);
@@ -3883,8 +3887,8 @@ PatternEditor::renderRow(const StyleProvider & styles, int heading_height, const
 	  // dark foreground inside the highlight.
 	  cell_fg = column_selected ? cur_fg : tintForPlayhead(dim_fixed_color(styles.data_fx_color));
 	  cell_bg = cell_is_selected ? cur_bg : tintForPlayhead(bg);
-	  if (!note.isDefined() || !note.hasFx()) cell_fg = cell_fg.blend(0.5f, cell_bg);
-	  setFgColor(cell_fg);
+          if (!note.hasFx()) cell_fg = cell_fg.blend(0.5f, cell_bg);
+          setFgColor(cell_fg);
 	  setBgColor(cell_bg);
 	  putstr(display_row, current_pos, shown);
 	  if (column_highlighted) {

@@ -1078,7 +1078,7 @@ class Controller {
 
   // Writes an explicit note-off at `row` for a live take's release, once
   // the transport has moved past the note's own row - shared tail of
-  // PatternEditor::offerInput()'s and LaunchpadManager::handlePadEvent()'s
+  // PatternEditor::keyDown()'s and LaunchpadManager::handlePadEvent()'s
   // RELEASE handling (mirroring handleMidiEvent()'s own NOTE_OFF write).
   // In this tracker's own pattern model, a single line can't hold both a
   // note and its own note-off, so the caller only calls this once it's

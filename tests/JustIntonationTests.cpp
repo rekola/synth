@@ -169,12 +169,14 @@ TEST(chords_that_hold_the_tonic_tune_the_same_against_any_of_their_notes) {
 
 namespace {
 
-// Steps above C of a scale's degrees, from their names, as the tuner places them.
+// Steps above C of a scale's degrees, as the tuner places them: each gamut
+// note on its nearest step.
 std::vector<int> degreeSteps(Tuning tuning, Scale scale) {
   int edo = edoStepsFor(tuning);
-  int c = Note::stringToKey(tuning, "C");
   std::vector<int> steps;
-  for (auto name : scaleDegreeNames(scale)) steps.push_back((((Note::stringToKey(tuning, name) - c) % edo) + edo) % edo);
+  auto just = justScale(scale);
+  if (!just) return steps;
+  for (auto i : scaleGamutIndices(scale)) steps.push_back(((just->gamut[i].ratio.steps(edo) % edo) + edo) % edo);
   return steps;
 }
 
@@ -189,7 +191,7 @@ TEST(scale_corrections_give_each_degree_its_exact_ratio_in_every_tuning) {
       // Where two degrees of a scale share a step (12-EDO), the first named wins.
       {Tuning::EDO12, {0, 39, 4, -33, -14, -2, 2, -16, -31, -31, -12}, {0, 12, -49, -49, 16, -2, 2, 14, 33, -4, -39}},
       {Tuning::EDO19, {0, 12, 14, 14, 7, -7, 7, 0, 21, -24, -24}, {0, -15, -15, -21, 0, -7, 7, -7, -14, -14, -12}},
-      {Tuning::EDO31, {0, 22, 10, -4, -1, -5, 5, -6, 1, 4, 4}, {0, -4, -4, -1, 6, -5, 5, 1, 4, -10, -22}},
+      {Tuning::EDO31, {0, -16, 10, -4, -1, -5, 5, -6, 1, 4, 4}, {0, -4, -4, -1, 6, -5, 5, 1, 4, -10, 16}},
       {Tuning::EDO53, {0, 3, 0, -5, 1, 0, 0, 1, -5, 8, 1}, {0, -1, -8, 5, -1, 0, 0, -1, 5, 0, -3}},
   };
   for (auto & row : rows) {

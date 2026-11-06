@@ -139,12 +139,6 @@ class Widget {
   // root. Defaults to seconds on a steady clock.
   void setEventClock(std::function<double()> clock) { clock_ = std::move(clock); }
 
-  // Offers a key or mouse event to this widget; true when it was used. The
-  // default passes it on to the plane.
-  virtual bool offerInput(const Input & input) {
-    return plane_ ? plane_->offerInput(input) : false;
-  }
-
   // Emacs-style named-command dispatch: subclasses populate keymap_/
   // commands_ (typically in their constructor) and call dispatchCommand()
   // from their own offerInput() wherever a migrated binding should take
@@ -176,11 +170,6 @@ class Widget {
     }
     return *this;
   }
-#if 0
-  Widget & putstrN(int y, int x, const std::string & s, int limit) {
-    
-  }
-#endif
   Widget & move(int y, int x) {
     if (plane_) plane_->move(y, x);
     return *this;

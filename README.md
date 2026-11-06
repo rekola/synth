@@ -5,14 +5,14 @@
 [![Windows x86-64](https://github.com/rekola/synth/actions/workflows/ci-windows-x86_64.yml/badge.svg)](https://github.com/rekola/synth/actions/workflows/ci-windows-x86_64.yml)
 [![macOS ARM64](https://github.com/rekola/synth/actions/workflows/ci-macos-arm64.yml/badge.svg)](https://github.com/rekola/synth/actions/workflows/ci-macos-arm64.yml)
 
-![Screenshot of Live View](https://raw.githubusercontent.com/rekola/synth/refs/heads/main/assets/screenshot1.png)
+![Screenshot of Live View](https://raw.githubusercontent.com/rekola/synth/refs/heads/main/assets/screenshot2.png)
 
 A microtonal, multiparadigm music production system that combines a live sequencer with a traditional tracker.
 
 ## Features
 
 - Live sequencer with sample and note based clips
-- Microtonal: 12, 19, 31 or 53 equal divisions of the octave (EDO), with just intonation
+- Microtonal: 12, 19, 24, 31 or 53 equal divisions of the octave (EDO), with just intonation
 - SoundFont 2 (General MIDI) instruments
 - Headless mode (for art installations or escape rooms)
 - 3D spatial audio (ambisonics), heard binaurally on headphones
@@ -60,19 +60,16 @@ The application draws on several traditions.
 
 ## Scales and Tunings
 
-- **Tunings.** A song is tuned to 12, 19, 31 or 53 equal divisions of the
+- **Tunings.** A song is tuned to 12, 19, 24, 31 or 53 equal divisions of the
   octave (EDO); a new song starts in 31-EDO, which Christiaan Huygens described
   in 1691 and Adriaan Fokker revived: his 31-tone organ, built by Bernard Pels,
   stood in Teylers Museum, Haarlem, from 1950 and is now in the Muziekgebouw
-  aan 't IJ, Amsterdam. Drum tracks have no tuning: a
-  note is a General MIDI drum. Notes are spelled with sharps, flats, double sharps and double flats
-  (plus a comma `+`/`−` in 53-EDO, below), and a tuning can spell the same pitch in several ways. In 12-EDO, E♯ is F. In
-  31-EDO, E♯ and F are different pitches, but D𝄪 and F𝄫 are the same one. Note numbers for each tuning
-  are in `docs/`, for example [31edo_note_numbers.txt](docs/31edo_note_numbers.txt).
-  Changing a song's tuning (the Song menu) moves each note to the new
-  tuning's step nearest its pitch, so an otonal 7:4 written in 31-EDO lands
-  on 53-EDO's 7:4; editing `temperament` in the song file keeps the note
-  names instead.
+  aan 't IJ, Amsterdam. Drum tracks have no tuning: a note is a General MIDI drum.
+  Notes are spelled with sharps, flats, double sharps and double flats
+  (plus a comma `↑`/`↓` in 53-EDO, below), and a tuning can spell the same pitch
+  in several ways. In 12-EDO, E♯ is F. In 31-EDO, E♯ and F are different pitches,
+  but D𝄪 and F𝄫 are the same one. Note numbers for each tuning are in `docs/`,
+  for example [31edo_note_numbers.txt](docs/31edo_note_numbers.txt).  
 - **Notation.** In 12, 19 and 31-EDO the note names are a chain of fifths: the seven
   natural notes C D E F G A B are the usual seven consecutive fifths
   (F C G D A E B), and each further fifth up adds a sharp, each fifth down a
@@ -87,9 +84,9 @@ The application draws on several traditions.
 - **53-EDO notation.** Four 53-EDO fifths make the Pythagorean third, a comma
   above 5:4, so its names follow Ben Johnston's just-intonation notation
   instead: the natural notes are the just major scale, a sharp or flat is
-  25:24 (3 steps) and a `+` or `−` after an accidental raises or lowers by the
-  syntonic comma 81:80 (1 step), as in A♯+ (the app draws these as single
-  glyphs). The other tunings ignore the `+`/`−`, so a 53-EDO spelling still
+  25:24 (3 steps) and a `↑` or `↓` after an accidental raises or lowers by the
+  syntonic comma 81:80 (1 step), as in A♯↑ (the app draws the combined accidental
+  as a single glyph). The other tunings ignore the `↑`/`↓`, so a 53-EDO spelling still
   names the right note in 31-EDO. Details and the full table:
   [53edo_note_numbers.txt](docs/53edo_note_numbers.txt); see John Fonville,
   "Ben Johnston's Extended Just Intonation: A Guide for Interpreters",
@@ -99,21 +96,24 @@ The application draws on several traditions.
   note names: major and minor come out meantone in 12, 19 and 31-EDO and just
   in 53-EDO. The scale decides which notes the Launchpad's step view steps
   through; it does not change the playing keyboard.
-- **Otonal and utonal.** Two 7-note scales that mirror each other around the
-  tonic. **Otonal** (C D♯ E F G A A♯+ = 1/1 7/6 5/4 4/3 3/2 5/3 7/4): all
-  seven are harmonics (12, 14, 15, 16, 18, 20, 21) of one low F, which is what
-  Harry Partch called otonal (*Genesis of a Music*, 1949). It holds the
-  4:5:6:7 chords C E G A♯+ and F A C D♯ and pure major triads on C and F.
-  **Utonal** (C E𝄫 E♭ F G A♭ B𝄫 = 1/1 8/7 6/5 4/3 3/2 8/5 12/7) is the otonal
-  scale turned upside down: all seven are undertones of one high G. It holds
-  the 1/7:1/6:1/5:1/4 chords E𝄫 F A♭ C and B𝄫 C E♭ G and pure minor triads on
-  C and F. Partch's own otonalities and utonalities are six-note chords; these
-  scales are the author's own, inspired by Kyle Gann's *The Arithmetic of
-  Listening* (2019) and its account of the arithmetic and harmonic means. They
-  are spelled so that 31 and 53-EDO both come within 6 cents of every ratio;
-  12 and 19-EDO only approximate the septimal ones. The 7:4 is A♯+ because
-  53-EDO's A♯ is 26:15; the other tunings read it as A♯.
-  [otonal-and-utonal.md](docs/otonal-and-utonal.md) lists the chords of both.
+- **Otonal and utonal.** Two scales that mirror each other around the tonic,
+  built by dividing intervals at their arithmetic and harmonic means
+  (Zarlino's divisions, as told in Kyle Gann's *The Arithmetic of Listening*,
+  2019). **Otonal** keeps the arithmetic means: C D♯ E F G A A♯↑ = 1/1 7/6 5/4
+  4/3 3/2 5/3 7/4, all harmonics (12, 14, 15, 16, 18, 20, 21) of the F a fifth
+  below the tonic, which makes it otonal in Harry Partch's sense (*Genesis of
+  a Music*, 1949). It holds the 4:5:6:7 chords C E G A♯↑ and F A C D♯ and pure
+  major triads on C and F. **Utonal** keeps the harmonic means and is the
+  otonal scale turned upside down: C E𝄫 E♭ F G A♭ B𝄫 = 1/1 8/7 6/5 4/3 3/2 8/5
+  12/7, undertones of the G a twelfth above the tonic. It holds the
+  1/7:1/6:1/5:1/4 chords E𝄫 F A♭ C and B𝄫 C E♭ G and pure minor triads on C
+  and F. Further divisions extend both scales to 11 notes. Partch's own
+  otonalities and utonalities are chords, not scales; the scales and their
+  chords are the author's own. They are spelled so that 31 and 53-EDO both
+  come within 6 cents of every ratio; 12 and 19-EDO only approximate the
+  septimal ones. The 7:4 is A♯↑ because 53-EDO's A♯ is 26:15; the other
+  tunings read it as A♯. [otonal-and-utonal.md](docs/otonal-and-utonal.md)
+  lists the chords of both.
 
 ### Pianos and Just Intervals
 
@@ -184,6 +184,7 @@ The major things that are missing are the following:
 * Adaptive just intonation, which tunes each note against what sounds with it in any track
 * Continuous MIDI recording with retroactive capture
 * Drag & Drop
+* Collaborative Editing
 
 ### Minor Missing Features
 

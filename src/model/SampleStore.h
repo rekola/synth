@@ -45,7 +45,11 @@ class SampleStore {
     int64_t asset = 0;
     float in = 0, out = 0;
     int original_tempo = 0, native_rate = 0;
-    bool operator==(const Signature & o) const { return asset == o.asset && in == o.in && out == o.out && original_tempo == o.original_tempo && native_rate == o.native_rate; }
+    float original_standard_pitch = 440.0f;
+    bool operator==(const Signature & o) const {
+      return asset == o.asset && in == o.in && out == o.out && original_tempo == o.original_tempo && native_rate == o.native_rate &&
+             original_standard_pitch == o.original_standard_pitch;
+    }
   };
   struct Cached {
     Signature signature;

@@ -2,6 +2,7 @@
 
 #include <cellui/CellBuffer.h>
 #include <cellui/Image.h>
+#include <cellui/LinkStatus.h>
 #include <cellui/term/Capabilities.h>
 
 #include <cstdint>
@@ -13,8 +14,8 @@
 
 namespace cellui::term {
 
-// How colours go to a palette where the terminal has only one: today a
-// Sixel image's to the 240 xterm cube and grey-ramp entries.
+// How colours go to the registers of a Sixel image when the picture has more
+// colours than the registers.
 struct Dither {
   enum class Method {
     NEAREST,          // the nearest entry everywhere: bands in a gradient
@@ -34,6 +35,18 @@ struct Dither {
   int origin_x = 0, origin_y = 0;
 };
 
+// How many colours a picture keeps, which a slow link turns instead of the screen's colour: FULL sends
+// the pixels as they are (kitty and iTerm2 RGB, deflated; Sixel up to 128 registers), REDUCED and LOW
+// send a palette of at most 64 and 16 colours (a palette PNG for kitty and iTerm2, that many Sixel
+// registers). Charts have few colours, so REDUCED is close to lossless for them. Below FULL nothing
+// is dithered but the pictures stretched over their cells (a blurred backdrop, a smooth gradient),
+// which would band: dithering is noise to a chart, and noise costs bytes a slow link has not got.
+enum class PictureQuality { FULL, REDUCED, LOW };
+// The palette size at a quality; 0 for FULL (no palette: the pixels as they are).
+int pictureColours(PictureQuality quality);
+// The quality a link class gets: FULL down to 30 Hz, REDUCED at 15 Hz, LOW below.
+PictureQuality pictureQualityFor(LinkClass cls);
+
 // The bytes that show a frame's images, by kitty graphics, iTerm2's inline
 // images or Sixel. Only
 // what changed is sent: a new picture, a move, or a change in which of its
@@ -51,6 +64,9 @@ class ImageEncoder {
     int cell_px_height = 0, cell_px_width = 0;
     // Sent once, before the first Sixel image.
     std::string sixel_setup;
+    // The colour registers one Sixel image may use (the terminal's count, at most 128: more only cost
+    // bytes and passes).
+    int sixel_registers = 128;
     Dither::Method dither = Dither::Method::ORDERED;
     static Profile from(const Capabilities & caps);
   };
@@ -85,6 +101,12 @@ class ImageEncoder {
   // upload turns it off for good, and the pictures it refused go up again raw.
   bool compressing() const { return compress_; }
   void setCompressing(bool on) { compress_ = on; }
+  // Applies to the pictures sent from now on; the ones shown stay as they are until they change.
+  void setPictureQuality(PictureQuality quality) { quality_ = quality; }
+  PictureQuality pictureQuality() const { return quality_; }
+  // Whether a palette PNG may be sent to kitty. A terminal that refuses one (an error reply to its
+  // upload) turns it off for good, and quantised raw RGB, deflated, goes up in its place.
+  bool palettePng() const { return palette_png_; }
   // Removes every image (kitty graphics; Sixel images go with the text).
   std::string clear();
 
@@ -100,6 +122,7 @@ class ImageEncoder {
     uint64_t version = 0;
     int row = 0, col = 0;
     std::vector<Rect> rects;  // what shows of it
+    Image sent;               // (Sixel) the pixels last drawn, to send only the cells that changed
   };
 
   std::string kitty(const CellBuffer & frame, const ImagePlacement & p, Shown & shown, bool fresh, bool cleared);
@@ -112,19 +135,32 @@ class ImageEncoder {
   uint32_t next_id_ = 0;
   bool sixel_ready_ = false;
   bool compress_ = true;
+  PictureQuality quality_ = PictureQuality::FULL;
+  bool palette_png_ = true;
+  std::set<uint32_t> png_ids_;  // kitty ids uploaded as a palette PNG and not yet confirmed
   std::set<uint32_t> deflated_ids_;  // kitty ids uploaded compressed and not yet confirmed
   Sizes sizes_;
   std::map<std::pair<int, int>, PictureStat> picture_stats_;
 };
 
 // The pixels encoded as Sixel: covered pixels (where `keep` says false, one
-// entry per pixel) are left transparent, and colours go to the 240 xterm
-// cube and grey-ramp entries, dithered. Exposed for tests.
+// entry per pixel) are left transparent. The registers (at most `registers`)
+// are the picture's own colours: exactly, with no dithering, when they fit,
+// else their median cut, dithered. Exposed for tests.
 std::string encodeSixel(const Image & image, int x, int y, int width, int height, const std::vector<bool> & keep,
-                        const Dither & dither = {});
+                        const Dither & dither = {}, int registers = 256);
 
-// A rectangle of the pixels as a PNG file (8-bit RGBA, stored uncompressed).
-// Exposed for tests.
+// A rectangle of the pixels as a PNG file (8-bit RGBA, deflated). Exposed for tests.
 std::vector<uint8_t> encodePng(const Image & image, int x, int y, int width, int height);
+
+// The same as a palette PNG (colour type 3) of at most `colours` colours: the picture's own when they
+// fit, else their median cut (dithered where `dither` says: a smooth picture such as a blurred
+// backdrop bands without it, a chart only grows noise); 8 bits an index, or 4 for 16 colours or fewer.
+// Exposed for tests.
+std::vector<uint8_t> encodePalettePng(const Image & image, int x, int y, int width, int height, int colours, bool dither = false);
+
+// The picture's pixels (R, G, B) with their colours cut down to at most `colours`, as the palette PNG
+// shows them; for a terminal that takes no palette PNG.
+std::vector<uint8_t> quantisedRgb(const Image & image, int colours, bool dither = false);
 
 }  // namespace cellui::term

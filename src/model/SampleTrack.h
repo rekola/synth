@@ -34,7 +34,16 @@ struct ResolvedSampleAudio {
 // triggerVoice() only still calls this when tempo-stretching is also
 // needed, since SoundTouch has no real-time path in this codebase yet
 // (docs/known_bugs.md's own entry on that).
-ResolvedSampleAudio resolveSampleAudio(const SampleContent & content, int output_rate, int song_tempo);
+// `pitch_cents` is the pitch to play it at, in cents from the nominal
+// standard pitch (RenderContext::globalPitchCents()): audio recorded at
+// another standard pitch is shifted by the difference, its duration kept
+// (sampleShiftCents()).
+ResolvedSampleAudio resolveSampleAudio(const SampleContent & content, int output_rate, int song_tempo, double pitch_cents = 0.0);
+
+// How far, in cents, `content` is shifted to sound at `pitch_cents`: rounded
+// to a tenth of a cent (a shift under that is none) and held to 6 octaves
+// either way, as far as the pitch shift can go and stay usable.
+double sampleShiftCents(const SampleContent & content, double pitch_cents);
 
 // resolveRealtimeSampleAudio()'s own result - like ResolvedSampleAudio,
 // but `samples` may still be at `content`'s own native rate rather than
@@ -65,7 +74,7 @@ struct RealtimeSampleAudio {
 // 1.0, already at output_rate) whenever tempo-stretching is also needed -
 // that step has no real-time path of its own yet (docs/known_bugs.md),
 // so its synchronous cost isn't something this function fixes.
-RealtimeSampleAudio resolveRealtimeSampleAudio(const SampleContent & content, int output_rate, int song_tempo);
+RealtimeSampleAudio resolveRealtimeSampleAudio(const SampleContent & content, int output_rate, int song_tempo, double pitch_cents = 0.0);
 
 // Additively mixes frame_count frames of `source` into `dest`'s own
 // channel-0 buffer starting at dest_offset frames in, growing/zero-filling

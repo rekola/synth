@@ -58,9 +58,14 @@ struct PacerConfig {
   int delay_frames = 2;
   double lag_ratio = 1.5;
   int lag_frames = 4;
-  // RTT_min also takes the running minimum of the delay beyond transfer time
-  // after this many acknowledgements.
+  // RTT_min also takes the running minimum of the time from a frame's last
+  // byte to its reply after this many acknowledgements.
   int rtt_refine_after = 10;
+  // The link is taken to hold frames back only when the gap its estimate asks for is this many times
+  // the floor between frames. Frames are never closer than the floor, so an estimate near the rate
+  // they are sent at on the floor says only what was sent: small frames settle there, with the gap at
+  // the floor and a little over, whatever the link could take.
+  double link_bound_margin = 1.25;
   // No acknowledgement for this long halves the estimate; with none ever, or
   // this many times in a row, the terminal is taken not to answer.
   std::chrono::milliseconds stall{1500};
@@ -79,6 +84,9 @@ struct PacerStats {
   double fps = 0;             // frames sent over the last second
   size_t bytes_in_flight = 0, frames_in_flight = 0;
   FrameBytes last_frame, totals;
+  // What the last frame's size comes to at the floor between frames: the rate an estimate cannot
+  // tell from the application's own when it is near it.
+  double floor_rate = 0;
   size_t frames = 0, acks = 0, backoffs = 0, stalls = 0;
   size_t kitty_errors = 0;
   std::string last_kitty_error;

@@ -17,7 +17,7 @@ class InfoModal : public ModalDialog {
 
  protected:
   void layout(Plane & screen, int rows, int cols) override;
-  void offerInput(const Input & input) override;
+  void keyDown(const KeyDown & e) override;
   void close() override { dialog_.close(); }
 
  private:

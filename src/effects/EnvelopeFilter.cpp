@@ -183,7 +183,7 @@ EnvelopeFilter::playNote(const ChannelConfiguration & config, const SphericalPos
   // The key number comes from the pitch, so it means the same in every
   // tuning: one key per 12-EDO semitone, 69 at 440 Hz.
   float frequency = getFrequencyFor(tuning, note_value) * detune;
-  int midi_key = frequency > 0.0f ? static_cast<int>(lroundf(69.0f + 12.0f * log2f(frequency / 440.0f))) : kNeutralKey;
+  int midi_key = frequency > 0.0f ? static_cast<int>(lroundf(69.0f + 12.0f * log2f(frequency / kNominalStandardPitchHz))) : kNeutralKey;
   auto group = make_unique<EnvelopeFilterVoiceState>(config, envelope_, midi_key);
   auto child_config = getChildChannelConfiguration(config);
   for (auto & child : getChildren()) {

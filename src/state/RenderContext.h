@@ -7,6 +7,8 @@
 #include "../ambisonic/ChannelConfiguration.h"
 #include "../instruments/Tuning.h"
 
+#include <algorithm>
+#include <cmath>
 #include <cstdint>
 #include <map>
 #include <memory>
@@ -30,6 +32,13 @@
 // cents (a +hh / -hh fx).
 struct NoteOverride {
   bool has_azimuth = false, has_extent = false, has_detune = false;
+  // 0Gxx for this note's column: glide the column's sounding note here, at
+  // `glide_cents_per_frame` for the `glide_frames` left of the row (instantly
+  // when `glide_instant`).
+  bool has_glide = false;
+  float glide_cents_per_frame = 0;
+  int glide_frames = 0;
+  bool glide_instant = false;
   float azimuth = 0, extent = 0, detune_cents = 0;
 };
 
@@ -148,6 +157,99 @@ class RenderContext {
     return pending_azimuth_ticks_[track_id];
   }
 
+  // 0Uxx/0Dxx: from `frame`, raise every sounding voice of the track by
+  // `cents` in all, linearly over `frames` frames.
+  struct PitchSlide {
+    float cents;
+    int frames;
+  };
+  void addPendingPitchSlide(int track_id, int frame, float cents, int frames) {
+    pending_pitch_slides_[track_id][frame].push_back({cents, frames});
+  }
+  std::map<int, std::vector<PitchSlide> > & getPendingPitchSlides(int track_id) {
+    return pending_pitch_slides_[track_id];
+  }
+
+  // 0Gxx: from `frame`, the sounding notes of `column` (-1: every column)
+  // that have a glide target move toward it by `cents_per_frame` for
+  // `frames` frames (instantly when `instant`).
+  struct PitchGlide {
+    int column;
+    float cents_per_frame;
+    int frames;
+    bool instant;
+  };
+  void addPendingPitchGlide(int track_id, int frame, int column, float cents_per_frame, int frames, bool instant) {
+    pending_pitch_glides_[track_id][frame].push_back({column, cents_per_frame, frames, instant});
+  }
+  std::map<int, std::vector<PitchGlide> > & getPendingPitchGlides(int track_id) {
+    return pending_pitch_glides_[track_id];
+  }
+
+  // The transport stopped or jumped: slides not yet begun are dropped, and
+  // the epoch tells each track to end the ones running (it freezes them
+  // where they are).
+  void noteTransportJump() {
+    pending_pitch_slides_.clear();
+    pending_pitch_glides_.clear();
+    transport_epoch_++;
+    if (keep_global_pitch_)
+      keep_global_pitch_ = false;
+    else
+      freezeGlobalPitch();
+  }
+  // The next noteTransportJump() is part of the song's flow (a pattern
+  // break): the song's pitch slides run on through it.
+  void keepGlobalPitchThroughJump() { keep_global_pitch_ = true; }
+  int getTransportEpoch() const { return transport_epoch_; }
+
+  // The song's pitch, shared by every track: the standard pitch and the
+  // YUxx/YDxx offset, applied after every per-track pitch effect.
+  // The offset is kept in sixteenths of a step and converted with the
+  // tuning in force when it is read, so a tuning change keeps its count.
+  // Call once per block, before any track renders.
+  void setGlobalPitchTuning(float standard_pitch_hz, int edo_steps) {
+    global_base_cents_ = standardPitchCents(standard_pitch_hz);
+    global_cents_per_unit_ = 1200.0 / (16.0 * static_cast<double>(edo_steps > 0 ? edo_steps : 12));
+  }
+  // YUxx/YDxx: from `frame`, move the offset by `units` sixteenths of a step
+  // in all, linearly over `frames` frames.
+  void addGlobalPitchSlide(int frame, double units, int frames) {
+    if (frames > 0 && units != 0.0) global_slides_.push_back({units, frame, frames});
+  }
+  // The offset (sixteenths of a step) at block-relative `frame`.
+  double globalPitchUnits(int frame) const {
+    double units = global_completed_units_;
+    for (auto & slide : global_slides_) {
+      int elapsed = std::clamp(frame - slide.start, 0, slide.length);
+      units += slide.units * static_cast<double>(elapsed) / static_cast<double>(slide.length);
+    }
+    return units;
+  }
+  // The song's pitch in cents from the nominal standard pitch at `frame`.
+  // Never infinite or NaN however far the offset has run: only the voices'
+  // own frequencies are limited, where they are computed.
+  double globalPitchCents(int frame) const {
+    double cents = global_base_cents_ + global_cents_per_unit_ * globalPitchUnits(frame);
+    return finiteValue(cents) ? cents : 0.0;
+  }
+  // The first frame after `frame` and before `limit` where a global slide
+  // starts or ends (`limit` if none): a voice's pitch ramp is linear within
+  // a chunk, so chunks are cut there.
+  int nextGlobalPitchBreak(int frame, int limit) const {
+    int next = limit;
+    for (auto & slide : global_slides_) {
+      if (slide.start > frame) next = std::min(next, slide.start);
+      if (slide.start + slide.length > frame) next = std::min(next, slide.start + slide.length);
+    }
+    return next;
+  }
+  // A seek or restart: the offset is what the song reached by that row.
+  void setGlobalPitchUnits(double units) {
+    global_slides_.clear();
+    global_completed_units_ = units;
+  }
+
   // A SampleTrack content's own trigger (SongState.h's per-row scheduling -
   // a fresh instance becoming active, a looping clip's own later lap, or a
   // track's own background bed starting or being jumped into) due at a specific
@@ -192,6 +294,12 @@ class RenderContext {
     for (auto & td : pending_azimuth_ticks_) {
       if (!td.second.empty()) return false;
     }
+    for (auto & td : pending_pitch_slides_) {
+      if (!td.second.empty()) return false;
+    }
+    for (auto & td : pending_pitch_glides_) {
+      if (!td.second.empty()) return false;
+    }
     for (auto & td : pending_sample_events_) {
       if (!td.second.empty()) return false;
     }
@@ -199,6 +307,11 @@ class RenderContext {
   }
 
   void updateFrameOffset(int offset) {
+    for (auto & slide : global_slides_) slide.start += offset;
+    for (auto & slide : global_slides_)
+      if (slide.start + slide.length <= 0) global_completed_units_ += slide.units;
+    global_slides_.erase(std::remove_if(global_slides_.begin(), global_slides_.end(), [](const GlobalSlide & g) { return g.start + g.length <= 0; }), global_slides_.end());
+
     for (auto & [ track_id, events ] : pending_events_) {
       auto old_events = events;
       events.clear();
@@ -214,6 +327,24 @@ class RenderContext {
       for (auto & [ frame, delta ] : old_ticks) {
 	auto new_frame = frame + offset;
 	if (new_frame >= 0) ticks[new_frame] += delta;
+      }
+    }
+
+    for (auto & [track_id, glides] : pending_pitch_glides_) {
+      auto old_glides = glides;
+      glides.clear();
+      for (auto & [frame, list] : old_glides) {
+        auto new_frame = frame + offset;
+        if (new_frame >= 0) glides[new_frame] = list;
+      }
+    }
+
+    for (auto & [track_id, slides] : pending_pitch_slides_) {
+      auto old_slides = slides;
+      slides.clear();
+      for (auto & [frame, list] : old_slides) {
+        auto new_frame = frame + offset;
+        if (new_frame >= 0) slides[new_frame] = list;
       }
     }
 
@@ -236,8 +367,27 @@ class RenderContext {
   ChannelConfiguration channel_config_;
   std::unordered_map<int, std::map<int, std::vector<TrackEvent> > > pending_events_;
   std::unordered_map<int, std::map<int, float> > pending_azimuth_ticks_;
+  std::unordered_map<int, std::map<int, std::vector<PitchSlide> > > pending_pitch_slides_;
+  std::unordered_map<int, std::map<int, std::vector<PitchGlide> > > pending_pitch_glides_;
   std::unordered_map<int, std::map<int, std::vector<SampleTrackEvent> > > pending_sample_events_;
   float bpm_ = 0.0f;
+  int transport_epoch_ = 0;
+
+  // A stop: running global slides keep the offset they reached.
+  void freezeGlobalPitch() {
+    global_completed_units_ = globalPitchUnits(0);
+    global_slides_.clear();
+  }
+  struct GlobalSlide {
+    double units;
+    int start; // block-relative; negative once it began in an earlier block
+    int length;
+  };
+  std::vector<GlobalSlide> global_slides_;
+  double global_completed_units_ = 0.0;
+  bool keep_global_pitch_ = false;
+  double global_base_cents_ = 0.0;
+  double global_cents_per_unit_ = 1200.0 / (16.0 * 31.0);
 };
 
 #endif

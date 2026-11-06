@@ -45,7 +45,7 @@ class HeadlessPlane : public Plane {
   void putstr(int, int, const std::string &, const cellui::TextFace &) override {}
   std::unique_ptr<Plane> createChild() override { return std::make_unique<HeadlessPlane>(getAppContext(), getStyles()); }
   void drawBorder() override { }
-  bool offerInput(const cellui::Input &) override { return false; }
+  bool offerKey(const cellui::KeyDown &) override { return false; }
   void showReader(const std::string &, int, int, int, int, const std::string &, std::optional<Color>) override { }
   std::string closeReader() override { return ""; }
   bool readerActive() const override { return false; }

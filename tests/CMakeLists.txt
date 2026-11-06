@@ -22,6 +22,7 @@ add_executable(synth_tests
 	DeviceLabelsTests.cpp
 	PatternBlockOpsTests.cpp
 	JustIntonationTests.cpp
+	GamutTests.cpp
 	KeyboardNotesTests.cpp
 	SpatialPlacementTests.cpp
 	TuningCorrectionOpsTests.cpp
@@ -32,6 +33,9 @@ add_executable(synth_tests
 	PatternBreakTests.cpp
 	CommandTests.cpp
 	AzimuthSlideTests.cpp
+	PitchSlideTests.cpp
+	GlobalPitchTests.cpp
+	SamplePitchTests.cpp
 	SendSetCommandTests.cpp
 	SendLiveUpdateTests.cpp
 	PerformanceTests.cpp

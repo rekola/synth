@@ -153,32 +153,37 @@ void ChoiceDialog::show(Plane & parent, int screen_rows, int screen_cols) {
 }
 
 ChoiceDialog::Result
-ChoiceDialog::offerInput(const cellui::Input & input) {
+ChoiceDialog::click(int y, int x) {
   if (labels_.empty()) return Result::CANCELLED;
-  auto id = input.getId();
-
-  if (id == Key::Button1) {
-    // Resolved on release, like every other click in the app.
-    if (input.getKind() != Input::Kind::RELEASE) return Result::NONE;
-    int row = input.getY() - y_ - kTopRows, col = input.getX() - x_;
-    if (row < 0 || row >= visibleRows() || col < 0 || col >= width_) {
-      // Outside the list: the padding and title are inert, the page behind dismisses.
-      bool inside_box = input.getY() >= y_ && input.getY() < y_ + rows_ && col >= 0 && col < width_;
-      return inside_box ? Result::NONE : Result::CANCELLED;
-    }
-    list_.select(list_.indexAt(row));
-    return Result::CHOSEN;
+  int row = y - y_ - kTopRows, col = x - x_;
+  if (row < 0 || row >= visibleRows() || col < 0 || col >= width_) {
+    // Outside the list: the padding and title are inert, the page behind dismisses.
+    bool inside_box = y >= y_ && y < y_ + rows_ && col >= 0 && col < width_;
+    return inside_box ? Result::NONE : Result::CANCELLED;
   }
-  // Releases of keys do nothing; everything below acts on the press.
-  if (input.getKind() == Input::Kind::RELEASE) return Result::NONE;
+  list_.select(list_.indexAt(row));
+  return Result::CHOSEN;
+}
 
+ChoiceDialog::Result
+ChoiceDialog::wheel(bool up) {
+  if (labels_.empty()) return Result::CANCELLED;
+  list_.scroll(up ? -1 : 1, visibleRows());
+  return Result::NONE;
+}
+
+ChoiceDialog::Result
+ChoiceDialog::key(const KeyDown & e) {
+  if (labels_.empty()) return Result::CANCELLED;
+  auto id = e.key;
+  bool ctrl = e.mods.ctrl;
   if (id == Key::Enter) return Result::CHOSEN;
-  if (id == Key::Escape || id == 'q' || (input.hasCtrl() && id == 'g')) return Result::CANCELLED;
+  if (id == Key::Escape || id == 'q' || (ctrl && id == 'g')) return Result::CANCELLED;
 
   int page = std::max(1, visibleRows() - 1);
-  if (id == Key::Up || (input.hasCtrl() && id == 'p'))
+  if (id == Key::Up || (ctrl && id == 'p'))
     list_.move(-1);
-  else if (id == Key::Down || (input.hasCtrl() && id == 'n'))
+  else if (id == Key::Down || (ctrl && id == 'n'))
     list_.move(1);
   else if (id == Key::PageUp)
     list_.move(-page);
@@ -188,10 +193,6 @@ ChoiceDialog::offerInput(const cellui::Input & input) {
     list_.home();
   else if (id == Key::End)
     list_.end();
-  else if (id == Key::Button4)
-    list_.scroll(-1, visibleRows());
-  else if (id == Key::Button5)
-    list_.scroll(1, visibleRows());
   return Result::NONE;
 }
 

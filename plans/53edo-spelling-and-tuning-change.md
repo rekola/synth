@@ -5,7 +5,7 @@
 is 25:24 (3 steps), an arrow a syntonic comma (1 step), a double sharp or flat
 35:32 (7 steps). The requirements: every accidental is one Unicode symbol, and
 a spelling means roughly the same interval in 31 and 53-EDO (C-E is a major
-third in both). The otonal scale spells its 7:4 as A𝄰, because 53-EDO's A♯ is
+third in both). The otonal scale spells its 7:4 as A♯↑, because 53-EDO's A♯ is
 26:15 (42 steps); the other tunings ignore the arrow.
 
 ## 1. Open: yanking notes between tunings
@@ -32,8 +32,8 @@ less, which could reopen this.
 ## 3. Open: should 31-EDO spell 7:4 with an arrow?
 
 31-EDO displays step 25 as A♯. A song saved in 31-EDO therefore stores the
-otonal 7:4 as A♯, even if it was typed A𝄰, and renaming it to 53-EDO gives
-26:15. Displaying step 25 as A𝄰 in 31-EDO would keep it.
+otonal 7:4 as A♯, even if it was typed A♯↑, and renaming it to 53-EDO gives
+26:15. Displaying step 25 as A♯↑ in 31-EDO would keep it.
 
 Against: arrows mean nothing in 31-EDO (it has no comma step), the display is
 one name per step, so every A♯ would show the arrow, including where it is an
@@ -43,12 +43,12 @@ augmented sixth; and it is not the only note that renames badly. Reading each
 
 | 31-EDO step | Name | Ratio in 31-EDO | Renamed to 53-EDO | Ratio kept? |
 |---|---|---|---|---|
-| 3 | D♭ | 16:15 | 6 steps, +19.7 c | no, 16:15 is D𝄭 (5) |
+| 3 | D♭ | 16:15 | 6 steps, +19.7 c | no, 16:15 is D♭↓ (5) |
 | 9 | D𝄪 | 11:9, 16:13 | 16 steps, +13.9 c | 16:13 only; 11:9 is 15 |
-| 12 | E♯ | 21:16, 13:10 | 20 steps, -11.7 c | 13:10 only; 21:16 is E𝄰 (21) |
-| 15 | F♯ | 7:5 | 25 steps, -14.6 c | no, 7:5 is F𝄰 (26) |
-| 16 | G♭ | 10:7 | 28 steps, +14.6 c | no, 10:7 is G𝄭 (27) |
-| 25 | A♯ | 7:4 | 42 steps, -16.8 c | no, 7:4 is A𝄰 (43) |
+| 12 | E♯ | 21:16, 13:10 | 20 steps, -11.7 c | 13:10 only; 21:16 is E♯↑ (21) |
+| 15 | F♯ | 7:5 | 25 steps, -14.6 c | no, 7:5 is F♯↑ (26) |
+| 16 | G♭ | 10:7 | 28 steps, +14.6 c | no, 10:7 is G♭↓ (27) |
+| 25 | A♯ | 7:4 | 42 steps, -16.8 c | no, 7:4 is A♯↑ (43) |
 | 26 | B♭ | 9:5 | 45 steps, +12.4 c | yes (31-EDO's B♭ is a wide 9:5) |
 
 D (+10.2 c) is just inside the limit: 31-EDO's D lies between 9:8 and 10:9.

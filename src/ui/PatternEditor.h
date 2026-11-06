@@ -32,6 +32,9 @@
 
 class Synth;
 #include <cellui/Input.h>
+#include <cellui/InputDispatcher.h>
+#include <cellui/InputEvents.h>
+#include <cellui/Signal.h>
 #include "StyleProvider.h"
 class Song;
 class VisibleTrackInfo;
@@ -47,11 +50,10 @@ class PatternEditor : public UIElement {
   // playhead-row tint is transport state, not input focus - the same
   // either way.
   bool render(const StyleProvider & styles, bool refresh, bool focused);
-  bool offerInput(const cellui::Input & input) override;
   void handleMidiEvent(const MidiEvent & ev);
 
   // Mirrors StatusLine::isReaderActive(): while this widget's inline editor
-  // is open, UI::offerInput() must not let a global keybinding (Space/
+  // is open, UI::keyDown() must not let a global keybinding (Space/
   // toggle-playing, C-x C-c/quit, ...) steal a keystroke meant for it.
   bool isReaderActive() const { return inline_editor_.isOpen(); }
   // The focus level is still easing: the loop keeps drawing frames.
@@ -241,7 +243,7 @@ protected:
   void renderRow(const StyleProvider & styles, int heading_height, const std::vector<int> & track_ids, const std::unordered_map<int, VisibleTrackInfo> & track_info, int row, bool highlight, const SelectionBounds & sel_bounds, bool focused);
 
   // Opens the locator editor for the cursor's current row - called
-  // once offerInput() sees Enter pressed while the cursor is parked on
+  // once keyDown() sees Enter pressed while the cursor is parked on
   // the locator slot (Right arrow past the last track's last column).
   // Positions the reader at locator_screen_row_/locator_screen_col_,
   // cached by renderRow() itself (whenever it draws the cursor's own row)
@@ -276,7 +278,7 @@ protected:
   // own comment on why that's the field to check instead of a one-off
   // bool, and getEffectiveSelectionBounds()/isHighlighted() for the two
   // places it actually matters. Reaching the slot must not start editing
-  // on its own; only Enter (see offerInput()) does that
+  // on its own; only Enter (see keyDown()) does that
   // (startLocatorEdit()).
   GridPosition current_cursor, new_cursor;
 
@@ -300,32 +302,37 @@ public:
   void setCharts(const cellui::Charts * scopes) { charts_ = scopes; }
   void focusCell(const Song::EditPlace & place) { focus_cell_ = place; }
 private:
-  bool offerInputKey(const cellui::Input & input);
-  static bool anyMeterLive(const PlaybackInfo & info, const std::vector<int> & track_ids);
+ bool keyDown(const cellui::KeyDown & e);
+ bool keyUp(const cellui::KeyUp & e);
+ bool mouseDown(const cellui::MouseDown & e);
+ bool mouseUp(const cellui::MouseUp & e);
+ bool wheel(const cellui::Wheel & e);
+ std::vector<cellui::Connection> connections_;
+ static bool anyMeterLive(const PlaybackInfo & info, const std::vector<int> & track_ids);
 
-  int current_score_playing_row = 0;
-  int current_score_pattern = 0;  
-  int current_score_total_columns = 0;
-  // .row/.track is where the grid is scrolled to; .col is only meaningful
-  // when .track's own width alone exceeds the screen (see GridPosition.h,
-  // PatternScroll.h) - scrolling whole tracks can't keep the cursor's own
-  // always-on highlight (its note/velocity/delay group, not just its own
-  // column - see VisibleTrackInfo::getNoteColumnRange) in view by itself
-  // then, so .col picks which of .track's own columns is the first one
-  // actually drawn. Meaningless for any other track, which always renders
-  // from its own column 0.
-  GridPosition current_scroll_;
-  int current_tempo = 0;
-  // Last frame's PlaybackInfo::getVoiceCount() - lets the sparkline catch
-  // the one extra redraw needed right as the last voice finishes (see
-  // render()'s own use of it), not just while it's still sounding.
-  int current_voice_count_ = 0;
-  // A track's sparkline smoothing, by track id, and whether any meter drawn
-  // last was still showing a level (the heading keeps redrawing until they
-  // have all fallen back to silent).
-  struct MeterSmoothing {
-    level_meter::Ballistics ballistics;
-    std::chrono::steady_clock::time_point last_update;
+ int current_score_playing_row = 0;
+ int current_score_pattern = 0;
+ int current_score_total_columns = 0;
+ // .row/.track is where the grid is scrolled to; .col is only meaningful
+ // when .track's own width alone exceeds the screen (see GridPosition.h,
+ // PatternScroll.h) - scrolling whole tracks can't keep the cursor's own
+ // always-on highlight (its note/velocity/delay group, not just its own
+ // column - see VisibleTrackInfo::getNoteColumnRange) in view by itself
+ // then, so .col picks which of .track's own columns is the first one
+ // actually drawn. Meaningless for any other track, which always renders
+ // from its own column 0.
+ GridPosition current_scroll_;
+ int current_tempo = 0;
+ // Last frame's PlaybackInfo::getVoiceCount() - lets the sparkline catch
+ // the one extra redraw needed right as the last voice finishes (see
+ // render()'s own use of it), not just while it's still sounding.
+ int current_voice_count_ = 0;
+ // A track's sparkline smoothing, by track id, and whether any meter drawn
+ // last was still showing a level (the heading keeps redrawing until they
+ // have all fallen back to silent).
+ struct MeterSmoothing {
+   level_meter::Ballistics ballistics;
+   std::chrono::steady_clock::time_point last_update;
   };
   std::unordered_map<int, MeterSmoothing> meter_smoothing_;
   bool meters_showing_ = false;
@@ -353,7 +360,7 @@ private:
   // safe key, the same reasoning midi_input_ above already relies
   // on for MIDI note numbers). Populated on a fresh note-on press, erased
   // and used to target the right STOP_NOTE on that same key's eventual
-  // Kitty-protocol release - see offerInput()'s raw note-entry code.
+  // Kitty-protocol release - see keyDown()'s raw note-entry code.
   struct ActiveKeyboardNote { int note_column, row, track_id; int cleared_to = -1; };
   std::unordered_map<int, ActiveKeyboardNote> active_keyboard_notes_;
 
@@ -483,7 +490,8 @@ private:
   // A left-button press picks a cell, dragging from it selects a region;
   // handleMouse() tells a drag from a fresh press by the button not having
   // been released in between.
-  bool handleMouse(const cellui::Input & input);
+  bool handleMouse(int screen_y, int screen_x, bool release);
+
  public:
   bool isMouseDown() const { return mouse_down_; }
   void releaseMouse() { mouse_down_ = false; }

@@ -23,6 +23,27 @@ The grid of clips inside Live View: one column per track, one row per scene,
 each slot triggered on the next bar. On a Launchpad it is the pad grid in the
 Live mode (the device's Session button). See launchpad.md and scenes.md.
 
+**Gamut**
+The complete set of notes available to a system of music, from which
+its scales are drawn. The word is Guido of Arezzo’s (c. 991–after
+1033), who named the lowest note of his system Γ, gamma, and sang it
+as ut; the whole range from gamma-ut upward became the gamut, first
+the full scale of medieval music and then any complete range. The
+twelve chromatic notes are the gamut behind the tempered major and
+minor scales, the 22 śruti behind the scales of Indian music, the 24
+quarter-tones behind the maqāmāt. A gamut may be fixed, every note
+having one ratio to the tonic; may hold pairs of notes a comma apart,
+as the śruti do; or may be tempered, with no ratios at all. A just
+major scale with free modulation has no gamut, only an unbounded
+lattice. In the application a gamut is a rule for tuning every key, a
+set of accidentals, and the scales drawn from it: the just-intonation
+tuner tunes any gamut note a song uses, whether or not it is in the
+scale, and the scale decides the keys where two gamut notes share a
+step and which notes the Launchpad and keyboard show. Keys with no
+gamut note stay tempered. The superparticular gamut (see otonal and
+utonal) is generated in rounds of division and is just; the
+quartertone gamut (see maqāmāt) is 24-EDO and has no ratios.
+
 **Groove**
 The general word for rhythmic feel: how a pattern's timing (and often
 accents) deviates from a rigid grid. Swing is the simplest groove. Other
@@ -91,6 +112,18 @@ The view with the clip launcher, the outline panel and the pattern editor
 showing each track's own clip; Tab switches to and from the arrangement
 view. The Launchpad's Live mode shows the same clip grid on the pads.
 
+**Maqāmāt**
+The scales of the quartertone gamut, the modern Arabic system of 24
+equal quarter-tones standardised in Cairo in 1932. A maqām (plural
+maqāmāt) is a seven-note scale built from two tetrachords, ajnās; in
+practice it also carries a melodic path, a dominant and customary
+modulations, of which the application holds only the scale. The gamut
+is tempered, so the just-intonation tuner leaves its keys as they are;
+the neutral degrees at 150 and 350 cents stand where the medieval
+frets put 12/11 and 27/22. Accidentals: half-flat 𝄳 and half-sharp 𝄲
+(one quarter-tone), ♭ and ♯ (two). The scales are Rāst (C D E𝄳 F G A
+B𝄳, given on C), Bayātī, Ḥijāz, Nahāwand, Kurd, ʿAjam, Ṣabā and Sīkāh.
+
 **Narrow major and narrow minor**
 Two triads that divide the perfect fourth the way major and minor
 divide the fifth. A major triad (4:5:6) places its third at the
@@ -111,25 +144,28 @@ sense. The names are the author’s own; the chords have no settled
 name in the just-intonation literature. See otonal and utonal.
 
 **Otonal and utonal**
-Two 7-note scales that mirror each other around the tonic. Both are
-given here on C. Otonal (1/1 7/6 5/4 4/3 3/2 5/3 7/4, on C: C D♯ E F G
-A A♯): all seven are harmonics (12, 14, 15, 16, 18, 20, 21) of one low
-fundamental, so the scale is otonal in Harry Partch’s sense. Note that
-the fundamental is not the tonic but the note a fifth below it (F for
-C otonal): the tonic sits on identity 3, not 1. It holds the 4:5:6:7
-chords C E G A♯ and F A C D♯, pure major triads on C and F, and a pure
-minor triad on A. Utonal (1/1 8/7 6/5 4/3 3/2 8/5 12/7, on C: C E𝄫 E♭
-F G A♭ B𝄫) is the otonal scale turned upside down: all seven are
-undertones of one high fundamental, a twelfth above the tonic (G for C
-utonal). It holds the 1/7:1/6:1/5:1/4 chords E𝄫 F A♭ C and B𝄫 C E♭ G,
-pure minor triads on C and F, and a pure major triad on A♭. Neither
-scale has a major or minor triad on every degree, but the gaps are
-filled by narrow triads (see narrow major and narrow minor), which
-divide the fourth instead of the fifth. Partch’s Otonalities and
-Utonalities are six-note chords over the odd identities 1, 3, 5, 7, 9
-and 11; these scales drop 11 and add 15 and 21, and are the
-author’s own. Their chords are tabled in
-[otonal-and-utonal.md](otonal-and-utonal.md).
+Two scales that mirror each other around the tonic, built by dividing
+intervals at their arithmetic and harmonic means. Both are given here
+on C. Dividing the octave C–C′ gives G (arithmetic mean) and F
+(harmonic mean); dividing each new note’s interval to the nearer of C
+and C′ gives four notes a step, of which the superparticular results
+are kept. Otonal keeps the arithmetic means. Its 7-note form is 1/1
+7/6 5/4 4/3 3/2 5/3 7/4, on C: C D♯ E F G A A♯↑, all harmonics (12,
+14, 15, 16, 18, 20, 21) of one fundamental, so the scale is otonal in
+Harry Partch’s sense; the fundamental is not the tonic but the note a
+fifth below it (F for C otonal), the tonic sitting on identity 3. Its
+chords are the two 4:5:6:7 chords C E G A♯↑ and F A C D♯, each read
+from every one of its notes, so that every degree has a chord and
+every chord contains the tonic; the major triad 4:5:6 and the narrow
+major triad 6:7:8 are these chords with a note removed. Utonal keeps
+the harmonic means and is the otonal scale turned upside down: 1/1 8/7
+6/5 4/3 3/2 8/5 12/7, on C: C E𝄫 E♭ F G A♭ B𝄫, undertones of the note
+a twelfth above the tonic (G for C utonal). Its chords are the
+mirrors, E𝄫 F A♭ C and B𝄫 C E♭ G (1/7:1/6:1/5:1/4), with the minor and
+narrow minor triads as their subsets. A further step of divisions
+extends both scales to 11 notes. Partch’s Otonalities and Utonalities
+are chords, not scales; these scales and their chords are the author’s
+own. Their chords are tabled in otonal-and-utonal.md.
 
 **Performance effect**
 An effect held on a track from the Launchpad's Custom grid (stutter,
@@ -159,6 +195,15 @@ name, tempo and time signature stored by position. See scenes.md.
 How a track places its notes around its position: `auto` (the instrument
 decides), `ring` (a spiral by note column) or `arc` (by pitch). See spatial.md.
 
+**Standard pitch**
+The frequency of A4 that every note is tuned from: 440 Hz unless the song
+sets another (`Song::getStandardPitch()`, `<song standardPitch="">`, any
+positive value). The song's pitch offset (`YUxx`/`YDxx`, commands.md) moves
+it at playback, never the setting itself. Not the tuning (the EDO).
+Each sample-track take remembers the standard pitch it was recorded at
+(`<sample originalStandardPitch="">`, 440 for older takes) and is
+pitch-shifted from it to the song's when it plays.
+
 **Strike point**
 Where a hammer or pluck meets the string, as a fraction of its length. Modes
 with a node there are not excited: at 1/8, the 8th, 16th and 24th partials.
@@ -177,7 +222,7 @@ note data.
 **Tuning correction**
 A note's pitch offset in cents, stored in its fx as `+hh` or `-hh`
 (commands.md). Not the song's tuning, which always means the EDO
-(12/19/31/53 steps per octave).
+(12/19/24/31/53 steps per octave).
 
 **Unison**
 Several sounds at the same pitch at once; as an interval, 1:1. Exactly alike

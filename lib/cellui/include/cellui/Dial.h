@@ -2,6 +2,7 @@
 
 #include <cellui/Color.h>
 #include <cellui/Input.h>
+#include <cellui/InputEvents.h>
 #include <cellui/Plane.h>
 
 #include <cstdint>
@@ -103,12 +104,15 @@ class Dial {
   void draw();
   bool contains(int screen_y, int screen_x) const;
 
-  // The mouse: a press, a drag (the press again), the release and the wheel.
-  // True if the dial took it. A press is taken only over the dial, the rest
-  // of a drag wherever the pointer is.
-  bool offerMouse(const Input & input);
+  // The mouse, in cells of the screen (`y` with its fraction where the display
+  // has one): a press, a drag (the press again), the release and the wheel
+  // (`up` for a notch up). True if the dial took it. A press is taken only
+  // over the dial, the rest of a drag wherever the pointer is.
+  bool press(float y, int row, int col, bool shift);
+  bool release();
+  bool wheel(int row, int col, bool up, bool shift);
   // While the editor is open, every key.
-  bool offerInput(const Input & input);
+  bool key(int key, const Modifiers & mods);
   bool isDragging() const { return down_; }
   bool isEditing() const { return editing_; }
   // Starts typing a value: the current one is shown and the first key replaces it.

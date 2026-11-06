@@ -102,7 +102,7 @@ class BufferPlane : public Plane {
   std::unique_ptr<Plane> createChild() override;
   void drawBorder() override;
   // Feeds the reader when it is open.
-  bool offerInput(const Input & input) override;
+  bool offerKey(const KeyDown & e) override;
   // Composes the whole tree into the root's buffer.
   void refresh() override;
 

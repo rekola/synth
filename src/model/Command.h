@@ -49,12 +49,12 @@ class Command {
 
   // Validates and stores a single raw InputEvent::getId() codepoint into
   // values_[i], reporting whether it was accepted so the caller (only
-  // PatternEditor::offerInput()'s ColumnType::TRACK_FX branch) doesn't need
+  // PatternEditor::keyDown()'s ColumnType::TRACK_FX branch) doesn't need
   // to separately pre-classify input.getId() before attempting this -
   // there's exactly one authoritative definition of "valid", here, not one
   // in the caller and a second one duplicated/drifting inside this class.
   // Column 0/1 (docs/commands.md's two-character mnemonic - ZB, ZT, 0U,
-  // 0D, 0G, 0V, 0I, 0O, 0T, 0L, 0F, 0M, 0P, YM, YA, YB, YL, YR, YZ)
+  // 0D, 0G, 0V, 0I, 0O, 0T, 0L, 0F, 0M, 0P, YM, YA, YB, YL, YR, YZ, YU, YD)
   // accepts [A-Za-z0-9-]; column 2/3 (the hex argument) accepts the
   // narrower [A-Fa-f0-9-]. Column 0 is 'Z' (a global command, not scoped
   // to any one track/device - ZBxx pattern break, ZTxx tempo), 'Y' (this
@@ -140,6 +140,38 @@ class Command {
     float magnitude = static_cast<float>((hi < 0 ? 0 : hi) * 16 + (lo < 0 ? 0 : lo));
     return values_[1] == 'L' ? -magnitude : magnitude;
   }
+
+  // 0Uxx/0Dxx - slide pitch up/down by `xx` sixteenths of one scale step of
+  // the song's tuning, spread over the row. 00 repeats the track's last
+  // amount, U and D sharing it (getPitchSlideCode()).
+  bool isPitchSlide() const { return values_[0] == '0' && (values_[1] == 'U' || values_[1] == 'D'); }
+  // YUxx/YDxx - the same slide for the whole song's pitch, every track at
+  // once; its memory is the song's.
+  bool isGlobalPitchSlide() const { return values_[0] == 'Y' && (values_[1] == 'U' || values_[1] == 'D'); }
+  // The slide's `xx` (0 = repeat the remembered amount), and its direction.
+  int getPitchSlideCode() const {
+    auto hi = digit(values_[2], 16), lo = digit(values_[3], 16);
+    return (hi < 0 ? 0 : hi) * 16 + (lo < 0 ? 0 : lo);
+  }
+  bool isPitchSlideDown() const { return values_[1] == 'D'; }
+  // Signed scale steps (positive up) for isPitchSlide().
+  float getPitchSlideSteps() const {
+    auto hi = digit(values_[2], 16), lo = digit(values_[3], 16);
+    float magnitude = static_cast<float>((hi < 0 ? 0 : hi) * 16 + (lo < 0 ? 0 : lo)) / 16.0f;
+    return values_[1] == 'D' ? -magnitude : magnitude;
+  }
+
+  // 0Gxx - glide the sounding note of a column to the note on this row (which
+  // is not retriggered) by `xx` sixteenths of a scale step per row; FF is
+  // instant. Like the slides it has no memory: it moves only on rows that
+  // carry it.
+  bool isPitchGlide() const { return values_[0] == '0' && values_[1] == 'G'; }
+  int getPitchGlideCode() const {
+    auto hi = digit(values_[2], 16), lo = digit(values_[3], 16);
+    return (hi < 0 ? 0 : hi) * 16 + (lo < 0 ? 0 : lo);
+  }
+  float getPitchGlideSteps() const { return static_cast<float>(getPitchGlideCode()) / 16.0f; }
+  bool isPitchGlideInstant() const { return getPitchGlideCode() == 0xFF; }
 
   // 0Rxy - retrigger the track's most recently played note every `y` ticks
   // (constants::TICKS_PER_ROW per row) for the rest of this row, changing

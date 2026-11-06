@@ -514,9 +514,47 @@ deflate ratio on real charts is known.
    error reply to one turns compression off and sends the picture raw; iTerm2's PNG uses it too.
    **Measured through the real app** (`measure_link.py`, kitty, 60 frames/s): playing in Live View
    363 kB/s, in Arrangement 403 kB/s, against 5.5-6.4 MB/s before (about 15 times less), and
-   `LinkThresholds` are now 570 / 290 / 145 / 60 kB/s. Still to do in this phase: the palette PNG for
-   REDUCED/LOW picture quality (3.2).
-3. **Sixel** (3.3): palette and damage.
+   `LinkThresholds` are now 570 / 290 / 145 / 60 kB/s. **Picture quality done** (3.2):
+   `PictureQuality` on `ImageEncoder` follows the link class (`pictureQualityFor()`, applied in
+   `TerminalSession::sendFrame()`: full to 30 Hz, REDUCED at 15 Hz, LOW below). REDUCED/LOW send a
+   palette PNG of at most 64/16 colours (4 bits an index up to 16) to kitty (`f=100`) and iTerm2, and cut
+   the Sixel registers to the same; the palette is the picture's own colours when they fit, else the
+   median cut of phase 3. A terminal that refuses a palette PNG (an error reply) gets quantised RGB,
+   deflated, from then on. A PNG's headers and palette outweigh the saving in a small picture, so
+   under 16384 pixels the smaller of the palette PNG and the pixels is sent. Measured on the real
+   pictures, bytes a kitty upload (error is the mean absolute difference from the original, 0-255):
+   spectrum 232x80 3676 B full, 1880 B reduced (error 0.04), 1186 B low (0.18); arrangement 248x80
+   3446, 1891, 1112; heatmap 328x80 6716, 2810 (0.11), 2063 (0.39); the 8x16 and 8x96 meters are
+   smaller as pixels and stay so. Through the real app at 60 frames a second (`measure_link.py
+   --link-class`): Live View playing 360 kB/s full, 258 reduced, 185 low; Arrangement 402, 277, 216.
+   On a 100 kB/s link the churn probe sends 7.5 kB frames instead of 25.8 kB, 13 frames a second
+   instead of 4 (harness check 9).
+   Below full quality nothing is dithered but the pictures stretched over their cells (a blurred
+   backdrop, a smooth gradient), which would band: dithering is noise to a chart. On the real
+   charts the saving is small, within 3% either way (at 16 registers 3124 B against 3057 B on
+   average, and no change in error), because the dither already touches only a pixel more than 5
+   levels off its register; the rule is for the backdrops and for the palette PNGs, which do not
+   dither at all below full quality unless stretched.
+3. **Sixel** (3.3): palette and damage. **Done**, with these differences from 3.3: the palette is
+   made once per rectangle of a picture (exact colours when they fit the registers, else a
+   population-weighted median cut; `ImageEncoder::Profile::sixel_registers`, the terminal's count
+   capped at 128, which is as good as 256 on the real pictures at 30% fewer bytes) and the ordered dither
+   adds its offset only to a pixel more than 5 levels off its nearest register, so a flat area does not
+   turn into a pattern of near-equal registers. One Sixel to a visible rectangle. The tile diff sends,
+   per row of cells, from the first changed cell to the last, and only when that is smaller than the
+   whole rectangle (it is encoded both ways when the changed rows cover under 80%): a piece repeats the
+   definitions of the registers it uses, so on the playing UI's charts, where a moving line touches
+   every row, it rarely wins; on a picture whose changes stay in one place it halves the bytes.
+   Measured on 24 real pictures of each size, bytes a frame and mean absolute error against the
+   original (0-255, per channel), old 240-entry cube against the new palette at 128 registers:
+   spectrum 232x80 8.5 kB, error 5.8 (20.5 on a frame with many colours) against 7.4 kB, error 0.7;
+   arrangement 248x80 9.0 kB, 5.8 against 7.5 kB, 0.7; heatmap 328x80 17.0 kB, 20 against 10.4 kB,
+   0.6; 72x64 4.2 kB, 17.6 against 5.5 kB, 0.65 (2.7 kB when only part of it changes). Through the
+   real app (`measure_link.py --pixels sixel`): playing in Live View 737 kB/s before, 515 after;
+   in Arrangement 1003 before, 699 after. That is about 1.4 times what kitty sends (363, 403), so
+   `LinkThresholds` (kitty's demands) are low for Sixel: they want a Sixel set, which waits for the
+   class profiles of phase 5. Registers shared between images (`?1070`) are not used: whether a
+   terminal keeps them has not been tried on one.
 4. **Shared pictures and dials** (3.4, 3.5): the registry, `drawSharedImageAt()`, the byte cap, the
    16-position, four-look dial set.
 5. **App profile** (3.6, 3.7): scope/meter rates and off, animations, page scrolling, hover, mouse

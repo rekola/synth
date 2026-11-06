@@ -115,7 +115,7 @@ PatternView::setNote(int row, int note_column, Note note) {
   auto index = lowerBound(kNotesSlot, row, note_column);
   auto & list = ids(kNotesSlot);
   bool exists = index < list.size() && rowOf(list[index]) == row && columnOf(list[index]) == note_column;
-  if (!note.isDefined()) {
+  if (!note.hasContent()) {
     if (exists) doc_->removeChild(node_, kNotesSlot, index);
     return;
   }
@@ -143,10 +143,10 @@ PatternView::setNotes(int row, const std::vector<Note> & notes) {
   // Drop the columns that are no longer there, last first so indices hold.
   for (auto i = last; i > first; i--) {
     auto column = static_cast<size_t>(columnOf(ids(kNotesSlot)[i - 1]));
-    if (column >= notes.size() || !notes[column].isDefined()) doc_->removeChild(node_, kNotesSlot, i - 1);
+    if (column >= notes.size() || !notes[column].hasContent()) doc_->removeChild(node_, kNotesSlot, i - 1);
   }
   for (size_t column = 0; column < notes.size(); column++) {
-    if (notes[column].isDefined()) setNote(row, static_cast<int>(column), notes[column]);
+    if (notes[column].hasContent()) setNote(row, static_cast<int>(column), notes[column]);
   }
 }
 

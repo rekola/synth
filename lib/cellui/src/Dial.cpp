@@ -124,7 +124,7 @@ void Dial::startEdit() {
   if (editing_) return;
   editing_ = replaceable_ = true;
   if (value_ < spec_.off + 1.0f) {
-    edit_text_ = "-inf";
+    edit_text_ = "off";
   } else {
     char buf[32];
     std::snprintf(buf, sizeof buf, "%g", std::round(static_cast<double>(value_) * 10.0) / 10.0);
@@ -145,6 +145,11 @@ void Dial::commitEdit() {
   // Locale-independent, and a typed decimal comma counts as a point.
   std::string text = edit_text_;
   std::replace(text.begin(), text.end(), ',', '.');
+  if (text == "off" || text == "-inf") {
+    value_ = spec_.off;
+    if (on_change) on_change(value_);
+    return;
+  }
   const char * begin = text.c_str();
   if (*begin == '+') begin++;  // "+3" is a fine thing to type
   float value = 0.0f;
@@ -153,16 +158,14 @@ void Dial::commitEdit() {
   if (on_change) on_change(value_);
 }
 
-bool Dial::offerInput(const Input & input) {
+bool Dial::key(int id, const Modifiers & mods) {
   if (!editing_) return false;
-  if (input.getKind() == Input::Kind::RELEASE) return true;
-  int id = input.getId();
   if (id == Key::Enter) {
     commitEdit();
-  } else if (id == Key::Escape || (input.hasCtrl() && id == 'g')) {
+  } else if (id == Key::Escape || (mods.ctrl && id == 'g')) {
     cancelEdit();
   } else {
-    bool printable = id >= 32 && id < 127 && !input.hasCtrl() && !input.hasAlt();
+    bool printable = id >= 32 && id < 127 && !mods.ctrl && !mods.alt;
     if (replaceable_ && (printable || id == Key::Backspace || id == Key::Delete)) edit_text_.clear();
     replaceable_ = false;
     if (printable) edit_text_ += static_cast<char>(id);
@@ -173,32 +176,40 @@ bool Dial::offerInput(const Input & input) {
   return true;
 }
 
-bool Dial::offerMouse(const Input & input) {
+bool Dial::wheel(int row, int col, bool up, bool shift) {
+  if (editing_ || !contains(row, col)) return false;
+  float base = std::max(value_, spec_.min);
+  if (shift) {
+    turn(base, (up ? 1.0f : -1.0f) * spec_.wheel_step * spec_.fine);
+  } else {
+    // A plain step lands on a multiple of itself, so a level between steps (or with float noise)
+    // does not carry its fraction through every step.
+    float steps = base / spec_.wheel_step;
+    float target = up ? std::floor(steps + 0.01f) + 1.0f : std::ceil(steps - 0.01f) - 1.0f;
+    turn(target * spec_.wheel_step, 0.0f);
+  }
+  return true;
+}
+
+bool Dial::release() {
+  if (editing_ || !down_) return false;
+  bool dragged = moved_;
+  down_ = pressed_ = moved_ = false;
+  if (dragged) {
+    if (on_turn_end) on_turn_end();
+  } else {
+    if (on_click) on_click();
+    startEdit();
+  }
+  return true;
+}
+
+bool Dial::press(float fy, int row, int col, bool shift) {
   if (editing_) return false;
-  bool fine = input.hasShift();
-  if (input.getId() == Key::Button4 || input.getId() == Key::Button5) {
-    if (input.getKind() == Input::Kind::RELEASE || !contains(input.getY(), input.getX())) return false;
-    float up = input.getId() == Key::Button4 ? 1.0f : -1.0f;
-    turn(std::max(value_, spec_.min), up * spec_.wheel_step * (fine ? spec_.fine : 1.0f));
-    return true;
-  }
-  if (input.getId() != Key::Button1) return false;
-  if (input.getKind() == Input::Kind::RELEASE) {
-    if (!down_) return false;
-    bool dragged = moved_;
-    down_ = pressed_ = moved_ = false;
-    if (dragged) {
-      if (on_turn_end) on_turn_end();
-    } else {
-      if (on_click) on_click();
-      startEdit();
-    }
-    return true;
-  }
-  float y = input.getFy() - static_cast<float>(plane_.getPosition().first);
+  float y = fy - static_cast<float>(plane_.getPosition().first);
   if (!down_) {
     // A fresh press, over the dial.
-    if (!contains(input.getY(), input.getX())) return false;
+    if (!contains(row, col)) return false;
     down_ = pressed_ = true;
     moved_ = false;
     start_y_ = y;
@@ -212,7 +223,7 @@ bool Dial::offerMouse(const Input & input) {
     moved_ = true;
     if (on_turn_begin) on_turn_begin();
   }
-  if (moved_) turn(start_value_, rows_up * spec_.drag_per_row * (fine ? spec_.fine : 1.0f));
+  if (moved_) turn(start_value_, rows_up * spec_.drag_per_row * (shift ? spec_.fine : 1.0f));
   return true;
 }
 

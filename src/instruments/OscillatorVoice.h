@@ -178,7 +178,11 @@ public:
   }
 
   AudioBuffer render(int frames) override {
-    const double rate = static_cast<double>(getFrequency()) / getChannelConfiguration().getAudioOutSampleRate();
+    const double sample_rate = getChannelConfiguration().getAudioOutSampleRate();
+    const double rate = static_cast<double>(getFrequency()) / sample_rate;
+    // A pitch slide moves the increment linearly from the first sample's to
+    // the last's.
+    const double rate_slope = frames > 0 ? (static_cast<double>(getFrequencyEnd()) / sample_rate - rate) / frames : 0.0;
     const size_t padded = oscillator_kernel::paddedFrames(frames);
 
     const bool has_main = getSends().main > 0.0f;
@@ -203,10 +207,11 @@ public:
       float * row = bucket_sums_.data() + b * padded;
       for (auto & member : buckets_[b].members) {
 	const double step = member.ratio * rate;
-	oscillator_kernel::mix(type_, pulse_width_, member.phase, step, member.level, frames, row, &member.drift, drifting ? drift_points_.data() : nullptr);
-	member.phase += step * frames;
-	if (drifting && member.drift.active()) member.phase += step * (member.drift.integral(drift_points_[groups]) - member.drift.integral(drift_points_[0]));
-	member.phase -= std::floor(member.phase);
+        const double slope = member.ratio * rate_slope;
+        const double drift_phase = oscillator_kernel::mix(type_, pulse_width_, member.phase, step, member.level, frames, row, &member.drift, drifting ? drift_points_.data() : nullptr, slope);
+        member.phase += step * frames + 0.5 * slope * frames * frames;
+        if (drifting && member.drift.active()) member.phase += drift_phase;
+        member.phase -= std::floor(member.phase);
       }
     }
 

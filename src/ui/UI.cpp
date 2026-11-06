@@ -457,7 +457,7 @@ UI::initializeCommands() {
   // ratios of a just scale's notes, so the notes that carry a tuning
   // correction are retuned for it in the same edit.
   commands_.define("set-song-scale", [this]() {
-    static const Scale kScales[] = {Scale::NONE, Scale::MAJOR, Scale::MINOR, Scale::OTONAL, Scale::UTONAL};
+    static const Scale kScales[] = {Scale::NONE, Scale::MAJOR, Scale::MINOR, Scale::OTONAL, Scale::UTONAL, Scale::DIAMOND7, Scale::RAST, Scale::BAYATI, Scale::HIJAZ, Scale::NAHAWAND, Scale::KURD, Scale::AJAM, Scale::SABA, Scale::SIKAH};
     std::vector<std::pair<std::string, Scale>> choices;
     int current = -1;
     for (auto scale : kScales) {
@@ -474,7 +474,7 @@ UI::initializeCommands() {
   // Converts the song by pitch: notes move to the nearest step of the new
   // tuning, and tuned notes keep what is left as their correction.
   commands_.define("set-song-tuning", [this]() {
-    static const Tuning kTunings[] = {Tuning::EDO12, Tuning::EDO19, Tuning::EDO31, Tuning::EDO53};
+    static const Tuning kTunings[] = {Tuning::EDO12, Tuning::EDO19, Tuning::EDO24, Tuning::EDO31, Tuning::EDO53};
     std::vector<std::pair<std::string, Tuning>> choices;
     int current = -1;
     for (auto tuning : kTunings) {

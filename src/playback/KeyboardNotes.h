@@ -47,70 +47,144 @@ inline const std::string_view keyToMidiNote(int key, Tuning tuning, Scale scale)
       case '5':
         return "RD"; // 51 Ride Cymbal 1
     }
+  } else if (scale == Scale::RAST) {
+    switch (key) {
+      case 'z':
+        return "C";
+      case 'x':
+        return "D";
+      case 'c':
+        return "E𝄳";
+      case 'v':
+        return "F";
+      case 'b':
+        return "G";
+      case 'n':
+        return "A";
+      case 'm':
+        return "B𝄳";
+    }
+  } else if (scale == Scale::UTONAL) {
+    switch (key) {
+      case 'z':
+        return "C";
+      case 's':
+        return "D♭↓";
+      case 'e':
+        return "C𝄪";
+      case 'x':
+        return "E𝄫";
+      case 'c':
+        return "E♭";
+      case 'v':
+        return "F";
+      case 'b':
+        return "G";
+      case 'n':
+        return "A♭";
+      case 'm':
+        return "B𝄫";
+      case 'o':
+        return "B♭↓";
+      case 'p':
+        return "B↓";
+      case ',':
+        return "C'";
+      case '.':
+        return "E𝄫'";
+      case '-':
+        return "E♭'";
+
+        // The otonal notes are also available
+      case 'd':
+        return "D♯";
+      case 'f':
+        return "E";
+      case 'j':
+        return "A";
+      case 'k':
+        return "A♯";
+    }
+  } else if (scale == Scale::DIAMOND7) {
+    // The tonality diamond on C: the otonal layout's lower row with the
+    // utonal notes above it, and the two tritones, 7/5 and 10/7, between F and G.
+    switch (key) {
+      case 'z':
+        return "C";
+      case 's':
+        return "E𝄫";
+      case 'x':
+        return "D♯";
+      case 'd':
+        return "E♭";
+      case 'c':
+        return "E";
+      case 'v':
+        return "F";
+      case 'f':
+        return "F♯↑";
+      case 'g':
+        return "G♭↓";
+      case 'b':
+        return "G";
+      case 'h':
+        return "A♭";
+      case 'n':
+        return "A";
+      case 'j':
+        return "B𝄫";
+      case 'm':
+        return "A♯↑";
+      case ',':
+        return "C'";
+      case '.':
+        return "D♯'";
+      case '-':
+        return "E'";
+    }
   } else {
     // A scale with no layout of its own plays the otonal one.
-    if (scale != Scale::UTONAL) {
-      switch (key) {
-        case 'z':
-          return "C";
-        case 's':
-          return "D♭";
-        case 'd':
-          return "D";
-        case 'x':
-          return "D♯";
-        case 'c':
-          return "E";
-        case 'v':
-          return "F";
-        case 'b':
-          return "G";
-        case 'n':
-          return "A";
-        case 'm':
-          return "A#";
-        case 'k':
-          return "C𝄫'";
-        case 'l':
-          return "B";
-        case ',':
-          return "C'";
-        case '.':
-          return "D#'";
-        case '-':
-          return "E'";
-      }
-    } else {
-      switch (key) {
-        case 'z':
-          return "C";
-        case 's':
-          return "D𝄭";
-        case 'd':
-          return "C𝄪";
-        case 'x':
-          return "E𝄫";
-        case 'c':
-          return "E♭";
-        case 'v':
-          return "F";
-        case 'b':
-          return "G";
-        case 'n':
-          return "A♭";
-        case 'm':
-          return "B𝄫";
-        case 'k':
-          return "B𝄭";
-        case 'l':
-          return "B↓";
-        case ',':
-          return "C'";
-        case '.':
-          return "E𝄫'";
-        case '-':
-          return "E♭'";
-      }
+    switch (key) {
+      case 'z':
+        return "C";
+      case 'w':
+        return "D♭";
+      case 'e':
+        return "D";
+      case 'x':
+        return "D♯";
+      case 'c':
+        return "E";
+      case 'v':
+        return "F";
+      case 'b':
+        return "G";
+      case 'n':
+        return "A";
+      case 'm':
+        return "A♯";
+      case 'o':
+        return "C𝄫'";
+      case 'p':
+        return "B";
+      case ',':
+        return "C'";
+      case '.':
+        return "D♯'";
+      case '-':
+        return "E'";
+
+        // The utonal notes are also available
+      case 's':
+        return "E𝄫";
+      case 'd':
+        return "E♭";
+      case 'h':
+        return "A♭";
+      case 'j':
+        return "B𝄫";
+      case 'l':
+        return "E𝄫";
     }
   }
   return "";

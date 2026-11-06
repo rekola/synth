@@ -4,6 +4,8 @@
 #include <cellui/StyleProvider.h>
 #include <cellui/Color.h>
 #include <cellui/Input.h>
+#include <cellui/InputEvents.h>
+#include <cellui/Signal.h>
 #include <cellui/Digit.h>
 #include <cellui/Utf8.h>
 
@@ -43,7 +45,12 @@ class SpinBox : public Widget {
           Color bg_color, Color fg_color)
     : Widget(parent), label_(std::move(label)), min_value_(min_value), max_value_(max_value),
       get_value_(std::move(get_value)), set_value_(std::move(set_value)),
-      bg_color_(bg_color), fg_color_(fg_color) { }
+      bg_color_(bg_color), fg_color_(fg_color) {
+    // The mouse arrives as events; keys while editing come from the app's key layers.
+    connections_.push_back(on<MouseDown>([this](const MouseDown & e, EventContext &) { return e.button == 1 && press(e.row, e.col) ? Handled::yes : Handled::no; }));
+    connections_.push_back(on<MouseUp>([this](const MouseUp & e, EventContext &) { return e.button == 1 && release(e.row, e.col) ? Handled::yes : Handled::no; }));
+    connections_.push_back(on<Wheel>([this](const Wheel & e, EventContext &) { return e.dy != 0 && wheel(e.dy > 0) ? Handled::yes : Handled::no; }));
+  }
 
   // Exact column width this widget needs at its current label/min/max -
   // callers size their resize() call from this instead of guessing a
@@ -108,60 +115,60 @@ class SpinBox : public Widget {
     return true;
   }
 
-  bool offerInput(const cellui::Input & input) override {
-    if (input.getId() == Key::Button1) {
-      if (input.getKind() != Input::Kind::RELEASE) {
-        arrow_press_ = hitsArrow(input.getY(), input.getX());
-        return true;
-      }
-      arrow_press_ = false; // resolved on release, a click is resolved on release
-      auto [pos_y, pos_x] = getPosition();
-      auto [rows, cols] = getDim();
-      auto y = input.getY() - pos_y, x = input.getX() - pos_x;
-      if (y < 0 || y >= rows || x < 0 || x >= cols) return true; // shouldn't happen - only reached while this is the click's own target
-      auto c = layoutColumns();
-      if (y == 0 && x >= c.minus_start && x < c.minus_start + buttonWidth()) {
-	cancelEditing();
-	step(-1);
-      } else if (y == 0 && x >= c.plus_start && x < c.plus_start + buttonWidth()) {
-	cancelEditing();
-	step(1);
-      } else if (y == 0 && x >= c.field_start && x < c.field_end) {
-	editing_ = true;
-	edit_buffer_.clear();
-      } else {
-	cancelEditing();
-      }
-      return true;
-    } else if (input.getId() == Key::Button4) { // scroll wheel up
-      cancelEditing();
-      step(1);
-      return true;
-    } else if (input.getId() == Key::Button5) { // scroll wheel down
+  // The left button: a press shows an arrow pressed, the release steps, opens
+  // the editor or, elsewhere, closes it (a click is resolved on release).
+  bool press(int screen_y, int screen_x) {
+    arrow_press_ = hitsArrow(screen_y, screen_x);
+    return true;
+  }
+  bool release(int screen_y, int screen_x) {
+    arrow_press_ = false;
+    auto [pos_y, pos_x] = getPosition();
+    auto [rows, cols] = getDim();
+    auto y = screen_y - pos_y, x = screen_x - pos_x;
+    if (y < 0 || y >= rows || x < 0 || x >= cols) return true; // shouldn't happen - only reached while this is the click's own target
+    auto c = layoutColumns();
+    if (y == 0 && x >= c.minus_start && x < c.minus_start + buttonWidth()) {
       cancelEditing();
       step(-1);
-      return true;
-    }
-
-    if (!editing_) return false;
-    if (input.getKind() == Input::Kind::RELEASE) return true; // consume key-up while editing - nothing to do
-
-    if (input.getId() == Key::Enter) {
-      commitEdit();
-    } else if (input.getId() == Key::Escape) {
+    } else if (y == 0 && x >= c.plus_start && x < c.plus_start + buttonWidth()) {
       cancelEditing();
-    } else if (input.getId() == Key::Backspace) {
+      step(1);
+    } else if (y == 0 && x >= c.field_start && x < c.field_end) {
+      editing_ = true;
+      edit_buffer_.clear();
+    } else {
+      cancelEditing();
+    }
+    return true;
+  }
+  // The scroll wheel steps the value.
+  bool wheel(bool up) {
+    cancelEditing();
+    step(up ? 1 : -1);
+    return true;
+  }
+  // While editing, every key: false when not editing, or when the key ended
+  // the edit and is left for the app to handle.
+  bool key(const KeyDown & e) {
+    if (!editing_) return false;
+    if (e.key == Key::Enter) {
+      commitEdit();
+    } else if (e.key == Key::Escape) {
+      cancelEditing();
+    } else if (e.key == Key::Backspace) {
       if (!edit_buffer_.empty()) edit_buffer_.pop_back();
-    } else if (auto d = digit(input.getId(), 10);
-               d >= 0 && !input.hasCtrl() && !input.hasAlt() && !input.hasMeta()) {
+    } else if (auto d = digit(e.key, 10); d >= 0 && !e.mods.ctrl && !e.mods.alt && !e.mods.meta) {
       edit_buffer_ += static_cast<char>('0' + d);
       if (parsedBuffer() * 10 > max_value_ || static_cast<int>(edit_buffer_.size()) >= fieldWidth()) commitEdit(); // no further digit could apply
     } else {
-      cancelEditing(); // any other key ends the edit and is left for the app to handle
+      cancelEditing();
       return false;
     }
     return true;
   }
+  // A key's release while editing is consumed.
+  bool keyUp() const { return editing_; }
 
   bool isEditing() const { return editing_; }
 
@@ -179,7 +186,7 @@ class SpinBox : public Widget {
   bool arrowPressPending() const { return arrow_press_; }
 
   // Discards any half-typed value without committing it - called both by
-  // this widget's own offerInput() (a click on +/-/elsewhere while
+  // this widget's own press()/release() (a click on +/-/elsewhere while
   // editing) and by whatever tracks focus (a click that moves focus away
   // from this widget entirely). The contract is "explicit commit or cancel,
   // never commit-on-blur".
@@ -201,7 +208,7 @@ class SpinBox : public Widget {
   // (see render()).
   struct Columns { int label_width, minus_start, field_start, field_end, plus_start; };
 
-  // Column ranges (half-open), shared by render() and offerInput() so
+  // Column ranges (half-open), shared by render() and release() so
   // layout and hit-testing can never drift apart.
   Columns layoutColumns() const {
     auto label_width = utf8::displayWidth(label_);
@@ -247,6 +254,7 @@ class SpinBox : public Widget {
   Color bg_color_, fg_color_;
 
   bool editing_ = false;
+  std::vector<Connection> connections_;
   bool arrow_press_ = false;
   std::string edit_buffer_;
 

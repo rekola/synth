@@ -164,7 +164,9 @@ link would allow hundreds of frames a second.
   (b) uses `1.25 * B`. A higher back-to-back sample raises `B` through the rule
   above; otherwise nothing changes.
 - **RTT:** `RTT_min` from the first probe. After about 10 acks it becomes the
-  running minimum of `max(0, t_ack - t_sent - S/B)`.
+  running minimum of `t_ack - t_sent` (`t_sent` is when the last byte is taken,
+  so less `S/B` it fell to zero on a link with a small buffer, and the delay
+  rule then backed off on jitter).
 - **Backoff:** `B *= 0.8` when `(t_ack - t_sent - S/B) > 2 * RTT_min` for two
   consecutive frames, or when ack spacing lags the send rate (the last four ack
   gaps average more than 1.25x the send gaps).
@@ -284,7 +286,7 @@ Final defaults (`PacerConfig`): `min_frame_interval` 16 ms, `in_flight_bdp` 1.5,
 `min_in_flight_frames` 2 (x S_prev), `startup_frames_in_flight` 2,
 `sample_window` 8, `sample_cap` 2.0, `down_weight` 0.125, `probe_every` 8,
 `probe_gain` 1.25, `backoff_factor` 0.8, `delay_ratio` 2.0, `delay_floor` 10 ms,
-`delay_frames` 2, `lag_ratio` 1.5, `lag_frames` 4, `rtt_refine_after` 10,
+`delay_frames` 2, `lag_ratio` 1.5, `lag_frames` 4, `rtt_refine_after` 10, `link_bound_margin` 1.25,
 `stall` 1.5 s, `stalls_before_giving_up` 3, `fallback_fps` 4,
 `min_bandwidth` 1000 B/s.
 

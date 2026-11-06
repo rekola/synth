@@ -31,6 +31,11 @@ class AdditiveVoice : public InstrumentVoice {
         body_width_deg_(body_width_deg) {
   }
 
+  // The bank is built once at note-on, so a pitch slide or glide cannot
+  // move it.
+  void setPitchRamp(double, double) override {}
+  void setPitchGlideTarget(double) override {}
+
   // Builds the bank; called once, right after playNote(), so getFrequency()
   // and velocity_ already reflect this note-on.
   void trigger(const AdditiveModelParams & model, const NoteCoordinate & note_coord) {

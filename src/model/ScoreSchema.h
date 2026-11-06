@@ -48,6 +48,7 @@ inline const doc::Prop<int64_t> kSampleAsset{"asset", 0};
 inline const doc::Prop<float> kSampleIn{"in", 0.0f};
 inline const doc::Prop<float> kSampleOut{"out", 0.0f};
 inline const doc::Prop<int> kSampleOriginalTempo{"originalTempo", 0};
+inline const doc::Prop<float> kSampleOriginalStandardPitch{"originalStandardPitch", 440.0f}; // kNominalStandardPitchHz
 inline const doc::Prop<int> kSampleNativeRate{"nativeRate", 0};
 inline const doc::Prop<int> kSampleTrack{"track", 0};  // backgrounds only
 

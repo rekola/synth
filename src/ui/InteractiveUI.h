@@ -59,7 +59,7 @@ class InteractiveUI : public UI {
   void setLinkPin(std::optional<cellui::LinkClass> pin);
   void render() override;
 
-  bool offerInput(const cellui::Input & input) override;
+  bool offerInput(const cellui::Input & input);
 
   void setStatus(std::string s) override;
   void showInfoDialog(const std::string & title, const std::string & markdown) override;
@@ -188,13 +188,18 @@ class InteractiveUI : public UI {
   void showCommandPalette();
   void layoutCommandPalette();
   bool anyModalOpen() const;
-  bool modalLayerOpen(const cellui::Input & input) const;
-  bool offerModal(const cellui::Input & input);
-  bool offerKeyLayers(const cellui::Input & input);
-  bool offerMenu(const cellui::Input & input);
-  void activateAt(const cellui::Input & input);
+  bool modalLayerOpen(int key, const cellui::Modifiers & mods) const;
+  // The layers that see a key before the focused widget, and the pointer
+  // events while a modal layer or the menu is up (all capture handlers on the
+  // root). True when one took the event.
+  bool offerModalKey(const cellui::KeyDown & e);
+  bool offerModalKeyUp(const cellui::KeyUp & e);
+  bool offerKeyLayers(const cellui::KeyDown & e);
+  bool offerKeyLayersUp(const cellui::KeyUp & e);
+  bool offerMenuCommand(bool taken);
+  void activateAt(int row, int col);
   bool button1_was_held_ = false;
-  void handleCommandPaletteInput(const cellui::Input & input);
+  void handleCommandPaletteResult(cellui::CommandPalette::Result result);
   std::string bindingFor(const std::string & command) const;
   void raiseOverlays();
   // Arrangement view's scope row (toggle-scopes); Live View never

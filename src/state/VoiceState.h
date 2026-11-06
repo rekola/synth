@@ -30,6 +30,14 @@ class VoiceState : public TreeNode<VoiceState> {
   }
 
  protected:
+  // Kills only the children, for a voice whose own killNote() has nothing
+  // else of the base's to do.
+  void killChildren() {
+    for (auto & [id, child] : getChildren()) {
+      child->killNote();
+    }
+  }
+
   // Gathers children into an accumulator of `accumulator_config`'s shape
   // rather than always this node's own getChannelConfiguration() - used
   // directly (not through the render() override above) by ChorusVoiceState/
@@ -101,11 +109,7 @@ class VoiceState : public TreeNode<VoiceState> {
     }
   }
 
-  virtual void killNote() {
-    for (auto & [ id, child ] : getChildren()) {
-      child->killNote();
-    }
-  }
+  virtual void killNote() { killChildren(); }
 
   // Reclaim a voice quickly without a hard cut - used by
   // InstrumentTrackState::retriggerVoices()/chokeExclusiveClasses() (see
@@ -199,6 +203,36 @@ class VoiceState : public TreeNode<VoiceState> {
   virtual void adjustAzimuth(float delta) {
     for (auto & [ id, child ] : getChildren()) {
       child->adjustAzimuth(delta);
+    }
+  }
+
+  // 0Uxx/0Dxx pitch slide: the track's absolute slide position in cents at
+  // the first and the last sample of the coming chunk. The voice's own
+  // offset is relative to the position it was started at (InstrumentVoice
+  // overrides; groups recurse to their leaves).
+  virtual void setPitchRamp(double start_cents, double end_cents) {
+    for (auto & [id, child] : getChildren()) {
+      child->setPitchRamp(start_cents, end_cents);
+    }
+  }
+
+  // 0Gxx glide (InstrumentVoice overrides; groups recurse to their leaves).
+  // The target is in cents from the pitch the voice started at; each chunk
+  // the voice moves toward it by `cents_per_frame` (0 holds), and a jump
+  // lands on it at once.
+  virtual void setPitchGlideTarget(double cents) {
+    for (auto & [id, child] : getChildren()) {
+      child->setPitchGlideTarget(cents);
+    }
+  }
+  virtual void advancePitchGlide(double cents_per_frame, int frames) {
+    for (auto & [id, child] : getChildren()) {
+      child->advancePitchGlide(cents_per_frame, frames);
+    }
+  }
+  virtual void jumpPitchGlide() {
+    for (auto & [id, child] : getChildren()) {
+      child->jumpPitchGlide();
     }
   }
 

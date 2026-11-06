@@ -1,5 +1,6 @@
 #include <cellui/LineEditor.h>
 
+#include <cellui/Input.h>
 #include <cellui/Utf8.h>
 
 namespace cellui {
@@ -62,10 +63,9 @@ void LineEditor::kill(size_t from, size_t to) {
   cursor_ = from;
 }
 
-bool LineEditor::offerInput(const Input & input) {
-  if (input.getKind() == Input::Kind::RELEASE) return false;
-  int id = input.getId();
-  bool ctrl = input.hasCtrl(), alt = input.hasAlt() || input.hasMeta();
+bool LineEditor::key(const KeyDown & e) {
+  int id = e.key;
+  bool ctrl = e.mods.ctrl, alt = e.mods.alt || e.mods.meta;
   size_t n = clusters_.size();
   if ((ctrl && id == 'b') || (!ctrl && !alt && id == Key::Left)) {
     if (cursor_ > 0) cursor_--;
@@ -105,7 +105,7 @@ bool LineEditor::offerInput(const Input & input) {
       cursor_ = at + 1;
     }
   } else if (!ctrl && !alt && id >= 0x20 && id != 0x7f && id < Key::First) {
-    insert(utf8::encodeCodepoint(static_cast<uint32_t>(input.getTrueCaseId())));
+    insert(e.text);
   } else {
     return false;
   }

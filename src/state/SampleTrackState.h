@@ -87,13 +87,15 @@ public:
 	  for (auto & event : it->second) {
 	    auto voice_id = event.is_background ? kBackgroundVoiceId : kClipVoiceId;
 	    if (event.kind == SampleTrackEvent::START && event.content) {
-	      // context.getBpm() is exactly the song's own current tempo
-	      // (SongState::initialize()'s render_context_.setBpm(tempo_)) -
-	      // triggerVoice()'s own tempo-stretch decision needs it in
-	      // the same units SampleContent::getOriginalTempo() is
-	      // authored in.
-	      triggerVoice(*event.content, static_cast<int>(context.getBpm()), event.start_offset_frames, voice_id);
-	    } else if (event.kind == SampleTrackEvent::STOP) {
+              // context.getBpm() is exactly the song's own current tempo
+              // (SongState::initialize()'s render_context_.setBpm(tempo_)) -
+              // triggerVoice()'s own tempo-stretch decision needs it in
+              // the same units SampleContent::getOriginalTempo() is
+              // authored in.
+              // At the song's pitch here (standard pitch and YUxx/YDxx): a lap
+              // already sounding keeps the pitch it started with.
+              triggerVoice(*event.content, static_cast<int>(context.getBpm()), event.start_offset_frames, voice_id, context.globalPitchCents(i));
+            } else if (event.kind == SampleTrackEvent::STOP) {
 	      // A short natural release, not a hard cut - stopping outright
 	      // here would click (SampleTrackEvent's own comment).
 	      stopVoices(voice_id);
@@ -170,9 +172,10 @@ public:
   // audio duration (rounded up when it was first derived), so a stale
   // value must fall back to playing nothing rather than reading out of
   // bounds.
-  void triggerClip(const Clip & clip, int song_tempo, int start_offset_frames = 0);
+  // `pitch_cents`: the song's pitch (resolveSampleAudio()).
+  void triggerClip(const Clip & clip, int song_tempo, int start_offset_frames = 0, double pitch_cents = 0.0);
 
-private:
+ private:
   // The fixed voices a SampleTrack has - see this class's own doc comment
   // for why these stay fixed, named ids rather than a general "which voice"
   // parameter anywhere outside this class.
@@ -187,7 +190,7 @@ private:
   // addVoice(), stopping whatever was already that same voice first
   // (stopVoices(voice_id)) so a fresh trigger on one never disturbs the
   // other. A no-op if `content` carries no buffer.
-  void triggerVoice(const SampleContent & content, int song_tempo, int start_offset_frames, int voice_id);
+  void triggerVoice(const SampleContent & content, int song_tempo, int start_offset_frames, int voice_id, double pitch_cents);
 
   float input_loudness_ = 0.0f;
   MonitorInput monitor_input_;

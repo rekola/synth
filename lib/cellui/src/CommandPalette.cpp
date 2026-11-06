@@ -204,27 +204,29 @@ void CommandPalette::show(Plane & parent, int screen_rows, int screen_cols) {
   plane_->moveToTop();
 }
 
-CommandPalette::Result CommandPalette::offerInput(const Input & input) {
+CommandPalette::Result CommandPalette::click(int y, int x) {
   if (!open_) return Result::CANCELLED;
-  auto id = input.getId();
-
-  if (id == Key::Button1) {
-    // Resolved on release, like every other click in the app.
-    if (input.getKind() != Input::Kind::RELEASE) return Result::NONE;
-    int row = input.getY() - y_, col = input.getX() - x_;
-    int count = static_cast<int>(shown_.size());
-    int index = list_.firstVisible(visibleRows()) + row;
-    if (row >= 0 && row < visibleRows() && col >= 0 && col < width_ && index < count) {
-      list_.select(index);
-      return Result::CHOSEN;
-    }
-    bool inside_box = input.getY() >= y_ && input.getY() < y_ + rows_ && col >= 0 && col < width_;
-    return inside_box ? Result::NONE : Result::CANCELLED;
+  int row = y - y_, col = x - x_;
+  int count = static_cast<int>(shown_.size());
+  int index = list_.firstVisible(visibleRows()) + row;
+  if (row >= 0 && row < visibleRows() && col >= 0 && col < width_ && index < count) {
+    list_.select(index);
+    return Result::CHOSEN;
   }
-  // Releases of keys do nothing; everything below acts on the press.
-  if (input.getKind() == Input::Kind::RELEASE) return Result::NONE;
+  bool inside_box = y >= y_ && y < y_ + rows_ && col >= 0 && col < width_;
+  return inside_box ? Result::NONE : Result::CANCELLED;
+}
 
-  bool ctrl = input.hasCtrl();
+CommandPalette::Result CommandPalette::wheel(bool up) {
+  if (!open_) return Result::CANCELLED;
+  list_.scroll(up ? -1 : 1, visibleRows());
+  return Result::NONE;
+}
+
+CommandPalette::Result CommandPalette::key(const KeyDown & e) {
+  if (!open_) return Result::CANCELLED;
+  auto id = e.key;
+  bool ctrl = e.mods.ctrl;
   if (id == Key::Enter) return chosen() ? Result::CHOSEN : Result::NONE;
   if (id == Key::Escape || (ctrl && id == 'g')) return Result::CANCELLED;
 
@@ -237,10 +239,6 @@ CommandPalette::Result CommandPalette::offerInput(const Input & input) {
     list_.move(-page);
   else if (id == Key::PageDown)
     list_.move(page);
-  else if (id == Key::Button4)
-    list_.scroll(-1, visibleRows());
-  else if (id == Key::Button5)
-    list_.scroll(1, visibleRows());
   else if (id == Key::Tab)
     complete();
   else if (id == Key::Backspace || (ctrl && id == 'h')) {
@@ -251,8 +249,8 @@ CommandPalette::Result CommandPalette::offerInput(const Input & input) {
   } else if (ctrl && id == 'u') {
     query_.clear();
     refilter();
-  } else if (!ctrl && !input.hasAlt() && !input.hasMeta() && input.getTrueCaseId() >= 32 && input.getTrueCaseId() < Key::First) {
-    query_ += utf8::encodeCodepoint(static_cast<uint32_t>(input.getTrueCaseId()));
+  } else if (!e.text.empty()) {
+    query_ += e.text;
     refilter();
   }
   return Result::NONE;

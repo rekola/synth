@@ -25,8 +25,7 @@ class RecordingPlane : public Plane {
   void putstr(int, int, const std::string & s, const TextFace &) override { drawn += s; }
   std::unique_ptr<Plane> createChild() override { return std::make_unique<RecordingPlane>(getStyles()); }
   void drawBorder() override { }
-  int offered = 0;
-  bool offerInput(const Input &) override { offered++; return true; }
+  bool offerKey(const KeyDown &) override { return true; }
   void showReader(const std::string &, int, int, int, int, const std::string &, std::optional<Color>) override { }
   std::string closeReader() override { return ""; }
   bool readerActive() const override { return false; }
@@ -94,21 +93,6 @@ TEST(element_prefix_sequence_consumes_the_next_key) {
   CHECK(p.hello == 0);
   CHECK(p.press('h'));
   CHECK(p.hello == 1);
-}
-
-TEST(element_offers_input_to_its_plane_by_default) {
-  StyleProvider styles;
-  RecordingPlane root(styles);
-  class Plain : public Widget {
-   public:
-    explicit Plain(Plane & parent) : Widget(parent) { }
-    RecordingPlane & plane() { return static_cast<RecordingPlane &>(getPlane()); }
-  } e(root);
-  Input in('a', 0, 0, false, false, false, false);
-  CHECK(e.offerInput(in));
-  CHECK(e.plane().offered == 1);
-  Widget none;
-  CHECK(!none.offerInput(in));
 }
 
 TEST(plane_knows_the_widget_that_owns_it) {

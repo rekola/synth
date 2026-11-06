@@ -106,7 +106,13 @@ class OutlineView : public UIElement {
     connections_.push_back(on<cellui::Wheel>([this](const cellui::Wheel & e, cellui::EventContext &) { return wheel(e) ? cellui::Handled::yes : cellui::Handled::no; }));
   }
 
-  bool offerInput(const cellui::Input & input) override;
+  // The events, for the modal popup the app routes them to.
+  bool keyDown(const cellui::KeyDown & e);
+  bool keyUp(const cellui::KeyUp & e);
+  bool mouseDown(int row, int col);
+  bool mouseUp(int row, int col);
+  bool wheel(const cellui::Wheel & e);
+
   bool render(const StyleProvider & styles, bool refresh, bool focused);
   // Closes the details popup - for when this panel stops being shown
   // (the popup is a separate plane that would otherwise stay up).
@@ -192,11 +198,6 @@ protected:
   // convention - a press, or a drag while held, only shows what is
   // pressed; the release acts on it.
   bool handleClick(int screen_y, int screen_x, bool release);
-  bool keyDown(const cellui::KeyDown & e);
-  bool keyUp(const cellui::KeyUp & e);
-  bool mouseDown(int row, int col);
-  bool mouseUp(int row, int col);
-  bool wheel(const cellui::Wheel & e);
   // What a click at the screen position lands on: a tree row (data_
   // index) or a button, or neither.
   struct ClickTarget {
@@ -207,7 +208,7 @@ protected:
   ClickTarget hitTest(int screen_y, int screen_x) const;
   // The actual effect behind a DetailsAction - shared by handleClick()
   // above and every keyboard path that already triggers the same thing
-  // (Key::Enter/Key::Delete/'p'/'a'/'t' in offerInput()), so a click and its
+  // (Key::Enter/Key::Delete/'p'/'a'/'t' in keyDown()), so a click and its
   // keyboard equivalent can never drift apart.
   void runDetailsAction(DetailsAction action);
   // Key::Enter on a Library > Instruments row - see this class's own
@@ -296,6 +297,7 @@ protected:
   double current_shown_row_ = -1;
   int current_first_row_ = 0;  // the first data row the tree plane was drawn from
   int current_column_scroll_ = 0;
+  double current_column_shown_ = 0;
   std::unique_ptr<Plane> tree_plane_;
   // The cursor's row in the view, a whole number except while it eases.
   double cursor_y_ = 0;

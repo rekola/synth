@@ -98,7 +98,11 @@ mergeClipToBackground(Song & song, int track_id, int row, const ChannelConfigura
     auto & content = clip.getMixedContent();
     auto output_rate = channel_config.getAudioOutSampleRate();
     auto song_tempo = song.getTempo();
-    auto resolved = resolveSampleAudio(content, output_rate, song_tempo);
+    // The bed keeps one standard pitch (the song's when it is new); a clip
+    // recorded at another is shifted to it.
+    auto * existing_bed = arrangement.getSampleBackgroundContent(track_id);
+    const float reference = existing_bed ? existing_bed->getOriginalStandardPitch() : song.getStandardPitch();
+    auto resolved = resolveSampleAudio(content, output_rate, song_tempo, standardPitchCents(reference));
     if (!resolved.samples || resolved.in_frame >= resolved.out_frame) return false; // nothing playable to merge
 
     auto sample_interval = channel_config.getSampleInterval(song_tempo);
@@ -127,6 +131,7 @@ mergeClipToBackground(Song & song, int track_id, int row, const ChannelConfigura
       mixIntoSampleContent(background, output_rate, needed_frames, src, frames_to_mix, dest_offset, 1.0f);
       if (!clip.isLooping()) break;
     }
+    background.setOriginalStandardPitch(reference);
     arrangement.setSampleBackground(track_id, background);
   } else {
     auto leaf = clip.getLeafPattern();
@@ -228,7 +233,7 @@ quantizeClip(Song & song, int track_id, int clip_index) {
   for (auto & [ row, columns ] : pattern.getNotesByRow()) {
     for (size_t column = 0; column < columns.size(); column++) {
       auto note = columns[column];
-      if (!note.isDefined()) continue;
+      if (!note.hasContent()) continue;
       auto new_row = row + (note.getDelay() >= 128 ? 1 : 0);
       if (new_row >= length) new_row = clip.isLooping() ? new_row % length : length - 1;
       note.setDelay(0);
@@ -252,9 +257,9 @@ quantizeClip(Song & song, int track_id, int clip_index) {
     auto column = entry.column;
     if (entry.note.isOff()) {
       // A row can't hold both a note and its own off.
-      for (int tries = 0; slot(row, column).isDefined() && tries < length; tries++) row = (row + 1) % length;
+      for (int tries = 0; slot(row, column).hasContent() && tries < length; tries++) row = (row + 1) % length;
     } else {
-      while (slot(row, column).isDefined()) column++;
+      while (slot(row, column).hasContent()) column++;
     }
     slot(row, column) = entry.note;
   }

@@ -24,11 +24,11 @@ class StatusLine : public UIElement {
   // (whether the terminal sent it as one event or as ESC then x, KeyReader
   // folds either into a single Meta-modified event before it gets here),
   // Ctrl+Shift+P on the desktop one.
-  bool isCommandPromptShortcut(const cellui::Input & input) {
+  bool isCommandPromptShortcut(const cellui::KeyDown & e) {
     if (keymapProfile() == cellui::KeymapProfile::DESKTOP) {
-      return input.hasCtrl() && input.hasShift() && !input.hasAlt() && !input.hasMeta() && input.getId() == 'p';
+      return e.mods.ctrl && e.mods.shift && !e.mods.alt && !e.mods.meta && e.key == 'p';
     }
-    return (input.hasAlt() || input.hasMeta()) && (input.getId() == 'x' || input.getId() == 'X');
+    return (e.mods.alt || e.mods.meta) && (e.key == 'x' || e.key == 'X');
   }
 
   bool isReaderActive() { return getPlane().readerActive(); }
@@ -108,33 +108,34 @@ class StatusLine : public UIElement {
     showPrompt(prompt, std::move(on_submit), initial_text);
   }
 
-  bool offerInput(const cellui::Input & input) override {
-    // A key's release never submits or edits the reader.
-    if (getPlane().readerActive() && input.getKind() == cellui::Input::Kind::RELEASE) return true;
+  // A key's release never submits or edits the reader.
+  bool keyUp(const cellui::KeyUp &) { return getPlane().readerActive(); }
+
+  bool keyDown(const cellui::KeyDown & e) {
     if (getPlane().readerActive()) {
-      if (tab_completer_ && input.getId() == Key::Tab) {
+      if (tab_completer_ && e.key == Key::Tab) {
         // A local copy, not tab_completer_() directly: finishing the reader
         // reassigns tab_completer_, which would destroy the std::function
         // still executing if it were called through the member itself.
         auto completer = tab_completer_;
 	completer();
 	return true;
-      } else if (input.getId() == Key::Enter) {
+      } else if (e.key == Key::Enter) {
         // Accepts whatever is typed, matched or not (buffer names, file
         // paths: a name that doesn't exist yet is still worth trying).
         submitReader();
         return true;
-      } else if (input.hasCtrl() && input.getId() == 'g') {
-	cancelReader();
+      } else if (e.mods.ctrl && e.key == 'g') {
+        cancelReader();
 	return true;
       } else {
-	// The user resumed typing - an indicator left over from an earlier
+        // The user resumed typing - an indicator left over from an earlier
 	// Tab press is now stale (a no-op when no completer is active or
 	// nothing is currently shown).
 	showIndicator("");
-	return UIElement::offerInput(input);
+        return getPlane().offerKey(e);
       }
-    } else if (isCommandPromptShortcut(input)) {
+    } else if (isCommandPromptShortcut(e)) {
       if (open_command_palette_) open_command_palette_();
       return true;
     }

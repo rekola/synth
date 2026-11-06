@@ -145,7 +145,8 @@ class SongState : public TrackState {
   // `breaks_only` applies nothing but a pattern break - for a track
   // Live View has taken over, whose arrangement automation doesn't
   // apply while the song's flow still does.
-  void applyRowCommands(const Pattern & pattern, int pattern_row, int track_id, int frame_offset, bool breaks_only = false) {
+  // `edo_steps` is the song tuning's steps per octave, the unit of 0Uxx/0Dxx.
+  void applyRowCommands(const Pattern & pattern, int pattern_row, int track_id, int frame_offset, bool breaks_only = false, int edo_steps = 0) {
     for (auto & command : pattern.getCommandsAt(pattern_row)) {
 	if (!command.isDefined()) continue;
 	if (breaks_only && !command.isPatternBreak()) continue;
@@ -154,6 +155,40 @@ class SongState : public TrackState {
           pending_break_row_ = command.getBreakRow();
         } else if (command.isRetrigger()) {
           scheduleRetrigger(track_id, frame_offset, command.getRetriggerIntervalTicks(), command.getRetriggerVolumeCode());
+        } else if (command.isPitchSlide()) {
+          // The whole amount ramps over this row, whatever the tick count.
+          // 00 repeats the track's last amount, in this command's direction.
+          int code = slideCode(command, last_slide_codes_[track_id]);
+          int row_samples = getChannelConfiguration().getSampleInterval(tempo_);
+          if (edo_steps > 0 && row_samples > 0 && code != 0) {
+            float cents = static_cast<float>(code) / 16.0f * 1200.0f / static_cast<float>(edo_steps);
+            render_context_.addPendingPitchSlide(track_id, frame_offset, cents, row_samples);
+          }
+        } else if (command.isGlobalPitchSlide()) {
+          // The song's pitch offset, in sixteenths of a step; rows of several
+          // tracks add up.
+          int code = slideCode(command, last_global_slide_code_);
+          int row_samples = getChannelConfiguration().getSampleInterval(tempo_);
+          if (row_samples > 0 && code != 0) render_context_.addGlobalPitchSlide(frame_offset, static_cast<double>(code), row_samples);
+        } else if (command.isPitchGlide()) {
+          // The effect column's glide applies to every note column; the notes
+          // carry the targets (NoteOverride::has_glide). A rate sets them all;
+          // G00 repeats what each column last had (the track's own when it
+          // had none). The track default (-1) goes first so a column's own
+          // rate overrides it.
+          int row_samples = getChannelConfiguration().getSampleInterval(tempo_);
+          auto & memory = last_glide_codes_[track_id];
+          if (command.getPitchGlideCode() > 0) {
+            for (auto & entry : memory) entry.second = command.getPitchGlideCode();
+            memory[-1] = command.getPitchGlideCode();
+          }
+          if (edo_steps > 0 && row_samples > 0) {
+            for (auto & [column, code] : memory) {
+              if (code <= 0) continue;
+              float cents_per_row = static_cast<float>(code) / 16.0f * 1200.0f / static_cast<float>(edo_steps);
+              render_context_.addPendingPitchGlide(track_id, frame_offset, column, cents_per_row / static_cast<float>(row_samples), row_samples, code == 0xFF);
+            }
+          }
         } else if (command.isAzimuthSlide()) {
           scheduleAzimuthSlide(track_id, frame_offset, command.getAzimuthSlidePerTick());
         } else if (command.isExtentSet()) {
@@ -271,6 +306,12 @@ class SongState : public TrackState {
     // renders, so neither cares when its child was actually created); a
     // track whose state doesn't exist yet at that lookup point would
     // otherwise silently skip the stop entirely.
+    render_context_.setGlobalPitchTuning(content.scalars.standard_pitch, edoStepsFor(content.scalars.tuning));
+    if (global_pitch_rescan_) {
+      global_pitch_rescan_ = false;
+      rescanGlobalPitch(content);
+    }
+
     std::vector<const Track *> track_snapshot;
     track_snapshot.reserve(content.tracks->master->getChildren().size());
     for (auto & track : content.tracks->master->getChildren()) track_snapshot.push_back(track.get());
@@ -568,7 +609,21 @@ class SongState : public TrackState {
 	    auto track = content.tracks->master->getChildByInternalId(track_id);
 	    auto tuning = track && track->getType() == TrackType::PERCUSSION_CONTROL ? Tuning::PERCUSSION : content.scalars.tuning;
 
-	    for (size_t j = 0; j < notes.size(); j++) {
+            // The row's own 0Gxx in the effect column (-1: none): a clip's own
+            // wins over the track's background, as with every command.
+            int row_glide_raw = -1;
+            {
+              auto find_glide = [](const Pattern & pattern, int pattern_row) {
+                for (auto & command : pattern.getCommandsAt(pattern_row))
+                  if (command.isDefined() && command.isPitchGlide()) return command.getPitchGlideCode();
+                return -1;
+              };
+              auto glide_background = arrangement.getPatternsByTrack().find(track_id);
+              if (from_clip) row_glide_raw = find_glide(*active_pattern, effective_row);
+              if (row_glide_raw < 0 && !taken_over && glide_background != arrangement.getPatternsByTrack().end()) row_glide_raw = find_glide(glide_background->second, glide_background->second.getEffectiveRow(row_idx, 0));
+            }
+
+            for (size_t j = 0; j < notes.size(); j++) {
 	      if (notes[j].isDefined()) {
 		auto & note = notes[j];
 		float velocity = note.isOff() ? 0.0f : note.getVelocityAsFloat();
@@ -589,15 +644,54 @@ class SongState : public TrackState {
 		    else if (fx.isExtentSet()) { note_override.has_extent = true; note_override.extent = fx.getExtentSetMeters(); }
 		  }
 		}
-		render_context_.addPendingEvent(track_id, i + delay_samples, int(j), tuning, velocity, note_value, NoteCoordinate(song_structure_.getOrdinalFor(track_id), row_idx, int(j)), note_override);
-		if (note.isOff()) last_notes_[track_id].erase(int(j));
+                auto event_override = note_override;
+                // A note column glides by its own fx (G04) or else the row's
+                // 0Gxx; G00 repeats what the column last had.
+                int own_glide = fx.isPitchGlide() ? fx.getPitchGlideCode() : -1;
+                if (note_value >= 0 && velocity > 0.0f && (own_glide >= 0 || row_glide_raw >= 0)) {
+                  int raw = own_glide >= 0 ? own_glide : row_glide_raw;
+                  int code = raw > 0 ? raw : rememberedGlideCode(track_id, int(j));
+                  if (own_glide > 0) last_glide_codes_[track_id][int(j)] = own_glide;
+                  int glide_edo = edoStepsFor(content.scalars.tuning);
+                  int row_samples = getChannelConfiguration().getSampleInterval(tempo_);
+                  if (code > 0 && glide_edo > 0 && row_samples > 0) {
+                    event_override.has_glide = true;
+                    event_override.glide_cents_per_frame = static_cast<float>(code) / 16.0f * 1200.0f / static_cast<float>(glide_edo) / static_cast<float>(row_samples);
+                    event_override.glide_frames = std::max(1, row_samples - std::max(0, delay_samples));
+                    event_override.glide_instant = code == 0xFF;
+                  }
+                }
+                render_context_.addPendingEvent(track_id, i + delay_samples, int(j), tuning, velocity, note_value, NoteCoordinate(song_structure_.getOrdinalFor(track_id), row_idx, int(j)), event_override);
+                if (note.isOff()) last_notes_[track_id].erase(int(j));
 		else if (note_value >= 0 && velocity > 0.0f) {
 		  LastNote last { int(j), tuning, velocity, note_value, row_idx, note_override };
 		  last_notes_[track_id][int(j)] = last;
 		  if (fx.isRetrigger()) scheduleNoteRetrigger(track_id, i + delay_samples, last, fx.getRetriggerIntervalTicks(), fx.getRetriggerVolumeCode());
 		}
-	      }
-	    }
+              } else if (notes[j].hasFx()) {
+                // A cell with only fx starts and stops no note; the fx acts on its
+                // column: a glide rate (G00 repeats the column's last), or a
+                // retrigger of the column's last note.
+                std::string text = std::string("0") + std::string(notes[j].getFx());
+                std::replace(text.begin(), text.end(), Note::kFxEmpty, '-');
+                Command fx;
+                if (fx.setData(text)) {
+                  int row_samples = getChannelConfiguration().getSampleInterval(tempo_);
+                  int glide_edo = edoStepsFor(content.scalars.tuning);
+                  if (fx.isPitchGlide()) {
+                    int code = fx.getPitchGlideCode() > 0 ? fx.getPitchGlideCode() : rememberedGlideCode(track_id, int(j));
+                    if (fx.getPitchGlideCode() > 0) last_glide_codes_[track_id][int(j)] = code;
+                    if (code > 0 && glide_edo > 0 && row_samples > 0) {
+                      float cents_per_row = static_cast<float>(code) / 16.0f * 1200.0f / static_cast<float>(glide_edo);
+                      render_context_.addPendingPitchGlide(track_id, i, int(j), cents_per_row / static_cast<float>(row_samples), row_samples, code == 0xFF);
+                    }
+                  } else if (fx.isRetrigger()) {
+                    auto remembered = last_notes_[track_id].find(int(j));
+                    if (remembered != last_notes_[track_id].end()) scheduleNoteRetrigger(track_id, i, remembered->second, fx.getRetriggerIntervalTicks(), fx.getRetriggerVolumeCode());
+                  }
+                }
+              }
+            }
 
 	    // Commands come from the track's own background pattern - one
 	    // shared place regardless of which clip (if any) plays there, so
@@ -607,9 +701,9 @@ class SongState : public TrackState {
 	    auto background_it = arrangement.getPatternsByTrack().find(track_id);
 	    if (background_it != arrangement.getPatternsByTrack().end()) {
 	      auto background_row = background_it->second.getEffectiveRow(row_idx, 0);
-              applyRowCommands(background_it->second, background_row, track_id, i, taken_over);
+              applyRowCommands(background_it->second, background_row, track_id, i, taken_over, edoStepsFor(content.scalars.tuning));
             }
-            if (from_clip) applyRowCommands(*active_pattern, effective_row, track_id, i);
+            if (from_clip) applyRowCommands(*active_pattern, effective_row, track_id, i, false, edoStepsFor(content.scalars.tuning));
           }
 	}
 	
@@ -765,7 +859,12 @@ class SongState : public TrackState {
 #endif
   
   bool isPlaying() const { return is_playing_; }
-  void setIsPlaying(bool b) { is_playing_ = b; }
+  void setIsPlaying(bool b) {
+    if (is_playing_ && !b) render_context_.noteTransportJump();
+    last_glide_codes_.clear();
+    last_slide_codes_.clear();
+    is_playing_ = b;
+  }
 
   // See render()'s own comment on recording_muted_'s use - set/cleared by
   // PlaybackControlEvent::SET_RECORDING_MUTE, pushed by LaunchpadManager/
@@ -777,9 +876,16 @@ class SongState : public TrackState {
   // long the previous song played; it means nothing against a different
   // song's (likely much shorter) pattern list, so it must be reset whenever
   // the underlying Song is swapped out from under this state.
-  void resetPosition() { sample_pos_ = 0; absolute_pos_ = 0; }
+  void resetPosition() {
+    sample_pos_ = 0;
+    absolute_pos_ = 0;
+    global_pitch_rescan_ = true;
+  }
 
   int getAbsolutePosition() const { return absolute_pos_; }
+  // The song's pitch offset (YUxx/YDxx) at the start of the next block, in
+  // sixteenths of a step.
+  double getGlobalPitchUnits() const { return render_context_.globalPitchUnits(0); }
   int getSamplePos() const { return sample_pos_; }
     
   void moveForwardSamples(int n = 1) {
@@ -825,6 +931,10 @@ class SongState : public TrackState {
   // sidesteps that entirely. See LaunchpadManager/PatternEditor's own
   // auto-stop-after-recording code for the concrete case this fixed.
   void setPosition(int absolute_row) {
+    render_context_.noteTransportJump();
+    last_glide_codes_.clear();
+    last_slide_codes_.clear();
+    global_pitch_rescan_ = true;
     sample_pos_ = 0;
     absolute_pos_ = absolute_row < 0 ? 0 : absolute_row;
     position_edit_seq_++;
@@ -840,6 +950,10 @@ class SongState : public TrackState {
   // counter behind wherever Controller's own per-buffer edit counter
   // already was.
   void setPositionWithEditSeq(int absolute_row, int edit_seq) {
+    render_context_.noteTransportJump();
+    last_glide_codes_.clear();
+    last_slide_codes_.clear();
+    global_pitch_rescan_ = true;
     sample_pos_ = 0;
     absolute_pos_ = absolute_row < 0 ? 0 : absolute_row;
     position_edit_seq_ = edit_seq;
@@ -849,9 +963,44 @@ class SongState : public TrackState {
   // row completes, go to row `row_in_bar` of the next bar (the bar's last
   // row at most). The live clock doesn't follow, so a launched clip
   // keeps its own place.
+  // The song's pitch offset carries on through the jump, as through a loop.
   void jumpToNextBar(int row_in_bar) {
     auto next_bar = barsAt(absolute_pos_).nextBarStart(absolute_pos_);
+    bool rescan = global_pitch_rescan_;
+    render_context_.keepGlobalPitchThroughJump();
     setPosition(next_bar + std::min(row_in_bar, barsAt(next_bar).barRows() - 1));
+    global_pitch_rescan_ = rescan;
+  }
+
+  // The song's pitch offset at absolute_pos_ as playing the arrangement from
+  // row 0 would leave it (each row's YUxx/YDxx in full; pattern breaks and
+  // Live View are not followed), with YU/YD's memory as it would be.
+  void rescanGlobalPitch(const PlaybackContent & content) {
+    last_global_slide_code_ = 0;
+    double units = 0.0;
+    auto & arrangement = content.arrangement;
+    std::unordered_set<int> track_ids;
+    for (auto & [track_id, pattern] : arrangement.getPatternsByTrack()) track_ids.insert(track_id);
+    for (auto & [track_id, instances] : arrangement.getInstancesByTrack())
+      if (!instances.empty()) track_ids.insert(track_id);
+    auto scan = [&](const Pattern & pattern, int row) {
+      for (auto & command : pattern.getCommandsAt(row))
+        if (command.isDefined() && command.isGlobalPitchSlide()) units += slideCode(command, last_global_slide_code_);
+    };
+    for (int row = 0; row < absolute_pos_; row++) {
+      for (int track_id : track_ids) {
+        auto background = arrangement.getPatternsByTrack().find(track_id);
+        if (background != arrangement.getPatternsByTrack().end()) scan(background->second, background->second.getEffectiveRow(row, 0));
+        auto active = resolveInstanceAt(content, track_id, row);
+        if (active.clip_index < 0) continue;
+        auto & clips = content.getClips(track_id);
+        if (static_cast<size_t>(active.clip_index) >= clips.size()) continue;
+        auto & clip = clips[static_cast<size_t>(active.clip_index)];
+        auto & pattern = clip.getLeafPattern();
+        scan(pattern, pattern.getEffectiveRow(row - active.start_row, clip.getLength() > 0 ? clip.getLength() : 1));
+      }
+    }
+    render_context_.setGlobalPitchUnits(units);
   }
 
   struct LastNote { int column; Tuning tuning; float velocity; int note_value; int row; NoteOverride note_override; };
@@ -1105,6 +1254,36 @@ private:
   int position_edit_seq_ = 0;
   // The notes still playing per track (last note-on per column), what 0Rxy retriggers.
   std::unordered_map<int, std::map<int, LastNote>> last_notes_; // track -> note column
+
+  // 0Gxx's last rates per track and note column; key -1 is the track's own
+  // (from the effect column). G00 repeats the column's, else the track's, and
+  // does nothing with neither. A stop or seek forgets them.
+  std::unordered_map<int, std::map<int, int>> last_glide_codes_;
+  // 0Uxx/0Dxx's memory per track and YUxx/YDxx's for the song: the last
+  // nonzero amount, shared by up and down.
+  std::unordered_map<int, int> last_slide_codes_;
+  int last_global_slide_code_ = 0;
+  // A seek or restart: the song's pitch offset is recomputed from the
+  // arrangement before the next block plays (rescanGlobalPitch()).
+  bool global_pitch_rescan_ = true;
+  // The signed amount (sixteenths of a step) a slide command moves by,
+  // remembering a nonzero one in `memory`.
+  static int slideCode(const Command & command, int & memory) {
+    int code = command.getPitchSlideCode();
+    if (code > 0)
+      memory = code;
+    else
+      code = memory;
+    return command.isPitchSlideDown() ? -code : code;
+  }
+  int rememberedGlideCode(int track_id, int column) const {
+    auto track = last_glide_codes_.find(track_id);
+    if (track == last_glide_codes_.end()) return 0;
+    auto own = track->second.find(column);
+    if (own != track->second.end()) return own->second;
+    auto fallback = track->second.find(-1);
+    return fallback == track->second.end() ? 0 : fallback->second;
+  }
   // Performance effects held per track (setPerformance()).
   std::unordered_map<int, HeldPerformance> performance_;
   // Performance effects held on the master (masterPerformance()).

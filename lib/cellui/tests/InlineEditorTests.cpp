@@ -2,11 +2,12 @@
 
 #include <cellui/BufferPlane.h>
 #include <cellui/InlineEditor.h>
+#include <cellui/InputDispatcher.h>
 
 using namespace cellui;
 
 namespace {
-Input key(int id, bool ctrl = false) { return Input(id, 0, 0, false, false, ctrl, false, Input::Kind::PRESS); }
+KeyDown key(int id, bool ctrl = false) { return InputDispatcher::keyDownFor(Input(id, 0, 0, false, false, ctrl, false, Input::Kind::PRESS)); }
 }  // namespace
 
 TEST(inlineeditor_opens_paints_its_backdrop_and_asks_for_a_redraw) {
@@ -15,7 +16,7 @@ TEST(inlineeditor_opens_paints_its_backdrop_and_asks_for_a_redraw) {
   BufferPlane root(b, styles);
   InlineEditor editor(root);
   CHECK(!editor.isOpen());
-  CHECK(!editor.offerInput(key('a')));
+  CHECK(!editor.key(key('a')));
   InlineEditor::Field field;
   field.row = 1;
   field.col = 3;
@@ -37,11 +38,11 @@ TEST(inlineeditor_enter_commits_and_ctrl_g_cancels) {
   InlineEditor editor(root);
   int commits = 0;
   editor.open({}, [&](std::string) { commits++; });
-  CHECK(editor.offerInput(key(cellui::Key::Enter)));
+  CHECK(editor.key(key(cellui::Key::Enter)));
   CHECK(commits == 1);
   CHECK(!editor.isOpen());
   editor.open({}, [&](std::string) { commits++; });
-  CHECK(editor.offerInput(key('g', true)));
+  CHECK(editor.key(key('g', true)));
   CHECK(commits == 1);
   CHECK(!editor.isOpen());
   CHECK(editor.consumeRedrawRequest());  // closing leaves the blanked field to redraw
@@ -53,7 +54,7 @@ TEST(inlineeditor_other_keys_are_taken_while_open) {
   BufferPlane root(b, styles);
   InlineEditor editor(root);
   editor.open({}, [](std::string) { });
-  CHECK(editor.offerInput(key('x')));
+  CHECK(editor.key(key('x')));
   editor.cancel();
   CHECK(!editor.isOpen());
   editor.cancel();  // a no-op when closed
@@ -66,10 +67,9 @@ TEST(inlineeditor_ignores_the_release_of_the_key_that_opened_it) {
   InlineEditor editor(root);
   int commits = 0;
   editor.open({}, [&](std::string) { commits++; });
-  Input release(cellui::Key::Enter, 0, 0, false, false, false, false, Input::Kind::RELEASE);
-  CHECK(editor.offerInput(release));
+  CHECK(editor.keyUp());
   CHECK(editor.isOpen());
   CHECK(commits == 0);
-  CHECK(editor.offerInput(key(cellui::Key::Enter)));
+  CHECK(editor.key(key(cellui::Key::Enter)));
   CHECK(commits == 1);
 }

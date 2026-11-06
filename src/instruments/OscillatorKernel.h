@@ -26,9 +26,10 @@ inline size_t paddedFrames(int frames) {
 // wander) and `points` (the shared clock's point for each group of eight, one
 // per group plus one more past the end) each group is shifted by the wander's
 // exact phase integral and plays at its instantaneous rate, so the result
-// doesn't depend on how the block was cut.
-void mix(WaveformType type, float pulse_width, double phase, double rate, float level, int frames, float * out, PitchDriftMember * drift = nullptr, const PitchDriftPoint * points = nullptr);
-
+// doesn't depend on how the block was cut. `rate_slope` is the change of
+// `rate` per sample (a pitch slide): the phase is the exact integral of it.
+// Returns the drift's phase over the whole block (cycles; 0 without drift).
+double mix(WaveformType type, float pulse_width, double phase, double rate, float level, int frames, float * out, PitchDriftMember * drift = nullptr, const PitchDriftPoint * points = nullptr, double rate_slope = 0.0);
 }
 
 #endif

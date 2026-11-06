@@ -2,6 +2,7 @@
 
 #include <cellui/BufferPlane.h>
 #include <cellui/ChoiceDialog.h>
+#include <cellui/InputDispatcher.h>
 
 #include <chrono>
 #include <thread>
@@ -10,10 +11,9 @@ using namespace cellui;
 
 namespace {
 
-Input key(int id, bool ctrl = false) {
-  return Input(id, 0, 0, false, false, ctrl, false, Input::Kind::PRESS);
+KeyDown key(int id, bool ctrl = false) {
+  return InputDispatcher::keyDownFor(Input(id, 0, 0, false, false, ctrl, false, Input::Kind::PRESS));
 }
-Input click(int y, int x) { return Input(cellui::Key::Button1, y, x, false, false, false, false, Input::Kind::RELEASE); }
 
 // A 10 x 40 screen with a three-entry dialog on it: 8 rows by 32 columns,
 // at row 1, column 4; the entries are on rows 3-5.
@@ -54,37 +54,29 @@ TEST(choicedialog_title_is_bold) {
 TEST(choicedialog_keys_move_choose_and_cancel) {
   Fixture f;
   using R = ChoiceDialog::Result;
-  CHECK(f.dialog.offerInput(key(cellui::Key::Down)) == R::NONE);
+  CHECK(f.dialog.key(key(cellui::Key::Down)) == R::NONE);
   CHECK(f.dialog.selected() == 1);
-  CHECK(f.dialog.offerInput(key('n', true)) == R::NONE);
+  CHECK(f.dialog.key(key('n', true)) == R::NONE);
   CHECK(f.dialog.selected() == 2);
-  CHECK(f.dialog.offerInput(key(cellui::Key::Down)) == R::NONE);
+  CHECK(f.dialog.key(key(cellui::Key::Down)) == R::NONE);
   CHECK(f.dialog.selected() == 2);  // stops at the end
-  CHECK(f.dialog.offerInput(key(cellui::Key::Home)) == R::NONE);
+  CHECK(f.dialog.key(key(cellui::Key::Home)) == R::NONE);
   CHECK(f.dialog.selected() == 0);
-  CHECK(f.dialog.offerInput(key(cellui::Key::End)) == R::NONE);
+  CHECK(f.dialog.key(key(cellui::Key::End)) == R::NONE);
   CHECK(f.dialog.selected() == 2);
-  CHECK(f.dialog.offerInput(key(cellui::Key::Enter)) == R::CHOSEN);
-  CHECK(f.dialog.offerInput(key(cellui::Key::Escape)) == R::CANCELLED);
-  CHECK(f.dialog.offerInput(key('q')) == R::CANCELLED);
-  CHECK(f.dialog.offerInput(key('g', true)) == R::CANCELLED);
-}
-
-TEST(choicedialog_key_releases_do_nothing) {
-  Fixture f;
-  Input release(cellui::Key::Enter, 0, 0, false, false, false, false, Input::Kind::RELEASE);
-  CHECK(f.dialog.offerInput(release) == ChoiceDialog::Result::NONE);
+  CHECK(f.dialog.key(key(cellui::Key::Enter)) == R::CHOSEN);
+  CHECK(f.dialog.key(key(cellui::Key::Escape)) == R::CANCELLED);
+  CHECK(f.dialog.key(key('q')) == R::CANCELLED);
+  CHECK(f.dialog.key(key('g', true)) == R::CANCELLED);
 }
 
 TEST(choicedialog_click_on_an_entry_chooses_it_outside_cancels_padding_is_inert) {
   Fixture f;
   using R = ChoiceDialog::Result;
-  CHECK(f.dialog.offerInput(click(4, 10)) == R::CHOSEN);  // second entry
+  CHECK(f.dialog.click(4, 10) == R::CHOSEN);  // second entry
   CHECK(f.dialog.selected() == 1);
-  CHECK(f.dialog.offerInput(click(0, 0)) == R::CANCELLED);
-  CHECK(f.dialog.offerInput(click(2, 10)) == R::NONE);  // the title
-  Input press(cellui::Key::Button1, 4, 10, false, false, false, false, Input::Kind::PRESS);
-  CHECK(f.dialog.offerInput(press) == R::NONE);  // resolved on release
+  CHECK(f.dialog.click(0, 0) == R::CANCELLED);
+  CHECK(f.dialog.click(2, 10) == R::NONE);  // the title
 }
 
 TEST(choicedialog_long_lists_scroll_and_show_it_on_the_edge) {
@@ -100,7 +92,7 @@ TEST(choicedialog_long_lists_scroll_and_show_it_on_the_edge) {
   CHECK(buffer.toPlainText().find("item 3") != std::string::npos);
   CHECK(buffer.toPlainText().find("item 4") == std::string::npos);
   CHECK(buffer.toPlainText().find("▼") != std::string::npos);
-  dialog.offerInput(key(cellui::Key::End));
+  dialog.key(key(cellui::Key::End));
   dialog.show(root, 10, 40);
   root.refresh();
   CHECK(buffer.toPlainText().find("item 10") != std::string::npos);
@@ -124,7 +116,7 @@ TEST(choicedialog_close_removes_it_and_empty_dialog_cancels) {
   f.root.refresh();
   CHECK(!f.dialog.isOpen());
   CHECK(f.buffer.toPlainText().empty());
-  CHECK(f.dialog.offerInput(key('x')) == ChoiceDialog::Result::CANCELLED);
+  CHECK(f.dialog.key(key('x')) == ChoiceDialog::Result::CANCELLED);
 }
 
 TEST(choicedialog_smooth_list_scrolls_under_a_cursor_band_that_stays_at_the_edge) {
@@ -149,7 +141,7 @@ TEST(choicedialog_smooth_list_scrolls_under_a_cursor_band_that_stays_at_the_edge
   };
   show();
   // Down past the bottom of the window: the band reaches the last row and stays there while the list scrolls.
-  for (int i = 0; i < 6; i++) dialog.offerInput(key(cellui::Key::Down));
+  for (int i = 0; i < 6; i++) dialog.key(key(cellui::Key::Down));
   bool shifted = false;
   double edge = -1;
   for (int i = 0; i < 100; i++) {
