@@ -213,7 +213,8 @@ class Plane {
   // caller need not know which it is.
   virtual void putText(int y, int x, int cols, const std::string & text, const TextStyle & style = {}) {
     if (cols < 0) cols = std::max(0, getDim().second - x);
-    putstr(y, x, cutToCells(text, cols, style.overflow), style.face);
+    // The box is the plane's style across all `cols` cells, as on a display that lays text out.
+    putstr(y, x, utf8::padToWidth(cutToCells(text, cols, style.overflow), cols), style.face);
   }
   // `text` fitted into `cols` cells as `overflow` says.
   static std::string cutToCells(const std::string & text, int cols, TextOverflow overflow) {
