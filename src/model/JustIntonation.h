@@ -48,12 +48,12 @@ int correctionCentsFor(int edo, int steps);
 // bass's correction.
 int correctionCentsInChord(int edo, int value, int bass, int key);
 
-// The correction of every note of a just scale (scaleDegreeRatios()) and of
-// the scale paired with it, by its step above the key: the exact ratio's
-// cents minus the step's equal-tempered cents. Which step a degree sits on
-// comes from its note name, as everywhere else the scale is used. Where the
-// two scales name the same step (12 and 19-EDO), the song's own scale has it.
-// Empty for a scale without ratios. Fixed-size, so the audio thread can hold
+// The correction of every gamut note (Gamut.h), by its nearest step above the
+// key: the exact ratio's cents minus the step's equal-tempered cents. A song
+// gets every gamut note it uses tuned, whichever scale it is in. Where several
+// notes share a step (31-EDO's 13/12 and 12/11, 12 and 19-EDO's several), the
+// one in the song's scale has it, else one of its side, else the lowest ratio.
+// Empty for a scale that is not just. Fixed-size, so the audio thread can hold
 // a copy.
 struct ScaleCorrections {
   static constexpr int kMaxSteps = 53;
@@ -63,7 +63,7 @@ struct ScaleCorrections {
   std::array<bool, kMaxSteps> present{};
 
   bool empty() const { return edo == 0; }
-  // The correction for an absolute note value, if it is a note of the scales.
+  // The correction for an absolute note value, if it is a gamut note.
   std::optional<int> forNote(int note_value) const;
   bool operator==(const ScaleCorrections & o) const {
     return edo == o.edo && key == o.key && cents == o.cents && present == o.present;

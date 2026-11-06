@@ -52,7 +52,7 @@ inline const std::string_view keyToMidiNote(int key, Tuning tuning, Scale scale)
       case 'z':
         return "C";
       case 's':
-        return "D𝄭";
+        return "D♭↓";
       case 'e':
         return "C𝄪";
       case 'x':
@@ -68,7 +68,7 @@ inline const std::string_view keyToMidiNote(int key, Tuning tuning, Scale scale)
       case 'm':
         return "B𝄫";
       case 'o':
-        return "B𝄭";
+        return "B♭↓";
       case 'p':
         return "B↓";
       case ',':

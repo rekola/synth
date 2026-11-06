@@ -2,6 +2,7 @@
 #include "Note.h"
 
 #include <algorithm>
+#include <array>
 #include <cmath>
 #include <map>
 #include <mutex>
@@ -119,22 +120,30 @@ std::optional<int> ScaleCorrections::forNote(int note_value) const {
 ScaleCorrections scaleCorrectionsFor(Tuning tuning, Scale scale, int key) {
   ScaleCorrections out;
   int edo = edoStepsFor(tuning);
-  if (edo <= 0 || edo > ScaleCorrections::kMaxSteps || scaleDegreeRatios(scale).empty()) return out;
+  auto side = scaleSide(scale);
+  if (edo <= 0 || edo > ScaleCorrections::kMaxSteps || !side) return out;
   out.edo = edo;
   out.key = ((std::max(key, 0) % edo) + edo) % edo;
   const double step_cents = 1200.0 / edo;
-  int c = Note::stringToKey(tuning, "C");
-  for (auto s : {scale, pairedScale(scale)}) {
-    auto names = scaleDegreeNames(s);
-    auto ratios = scaleDegreeRatios(s);
-    for (size_t i = 0; i < names.size() && i < ratios.size(); i++) {
-      int step = (((Note::stringToKey(tuning, names[i]) - c) % edo) + edo) % edo;
-      auto index = static_cast<size_t>(step);
-      if (out.present[index]) continue; // the song's own scale named it first
-      double just = 1200.0 * std::log2(static_cast<double>(ratios[i].num) / ratios[i].den);
-      out.cents[index] = static_cast<int16_t>(std::lround(just - step * step_cents));
-      out.present[index] = true;
-    }
+
+  // Every gamut note goes to its nearest step, in the scale or not. Where
+  // several share a step, a note in the scale beats one of the scale's side,
+  // which beats the rest; the lowest ratio breaks a tie.
+  std::array<int, ScaleCorrections::kMaxSteps> rank{};
+  std::vector<std::size_t> order(gamut::kGamut.size());
+  std::iota(order.begin(), order.end(), std::size_t{0});
+  std::sort(order.begin(), order.end(),
+            [](std::size_t a, std::size_t b) { return gamut::kGamut[a].ratio < gamut::kGamut[b].ratio; });
+  for (auto i : order) {
+    const auto & note = gamut::kGamut[i];
+    int step = ((note.ratio.steps(edo) % edo) + edo) % edo;
+    auto index = static_cast<std::size_t>(step);
+    int note_rank = scaleContains(scale, note) ? 0 : (note.side == GamutSide::BOTH || note.side == *side) ? 1
+                                                                                                          : 2;
+    if (out.present[index] && rank[index] <= note_rank) continue;
+    out.cents[index] = static_cast<int16_t>(std::lround(note.ratio.cents() - step * step_cents));
+    out.present[index] = true;
+    rank[index] = note_rank;
   }
   return out;
 }

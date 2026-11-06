@@ -59,7 +59,7 @@ TEST(scale_major_12edo_transposed_to_key) {
 
 // The two scales, 1/1 13/12 9/8 7/6 5/4 4/3 3/2 5/3 7/4 11/6 15/8 (OTONAL) and
 // 1/1 16/15 12/11 8/7 6/5 4/3 3/2 8/5 12/7 16/9 24/13 (UTONAL), in 31-EDO:
-// C D♭ D D♯ E F G A A𝄰 C𝄫' B and C D𝄭 C𝄪 E𝄫 E♭ F G A♭ B𝄫 B𝄭 B↓; the 12th row
+// C D♭ D D♯ E F G A A♯↑ C𝄫' B and C D♭↓ C𝄪 E𝄫 E♭ F G A♭ B𝄫 B♭↓ B↓; the 12th row
 // is the tonic an octave up.
 TEST(scale_otonal_31edo) {
   Song song(Tuning::EDO31, -1);
@@ -80,9 +80,9 @@ TEST(scale_utonal_31edo) {
 }
 
 // The same spellings in 53-EDO land on the same ratios
-// (docs/53edo_note_numbers.txt): 7:4 is A𝄰, 43 steps (A♯ would be 42), and
+// (docs/53edo_note_numbers.txt): 7:4 is A♯↑, 43 steps (A♯ would be 42), and
 // the 9-note degrees a syntonic comma apart have steps of their own (otonal D
-// 9/8 is 9, utonal D↓ 10/9 is 8; otonal B♭ 9/5 is 45, utonal B𝄭 16/9 is 44).
+// 9/8 is 9, utonal D↓ 10/9 is 8; otonal B♭ 9/5 is 45, utonal B♭↓ 16/9 is 44).
 TEST(scale_otonal_utonal_53edo) {
   Song song(Tuning::EDO53, -1);
   song.setScale(Scale::OTONAL);
@@ -95,7 +95,7 @@ TEST(scale_otonal_utonal_53edo) {
 
 // 12- and 19-EDO have no steps of their own for the septimal ratios; the
 // spellings land on the nearest ones, and in 12-EDO two degrees of each scale
-// share a key (otonal A𝄰 and B♭, utonal D↓ and E𝄫).
+// share a key (otonal A♯↑ and B♭, utonal D↓ and E𝄫).
 TEST(scale_otonal_utonal_12edo_19edo) {
   Song song12(Tuning::EDO12, -1);
   song12.setScale(Scale::OTONAL);
