@@ -67,10 +67,14 @@ that carries something.
 - Gate it with a `DisplayInfo::drag_drop` flag, true only for the GTK
   backend (it has precise pointer and floating planes). Where it is false
   `ClipGrid` never starts a session and presses behave as today.
-- Ghost placement: sub-cell positions need the precise mouse the window
-  already provides; the ghost plane is a `BufferPlane` child of the root
-  above everything else (check ordering in `Plane`, add a "top" layer if
-  there is none), drawn with `setLift()` so it reads as picked up.
+- Ghost placement: the ghost plane is a child of the root at the overlay
+  elevation (above popups), lifted higher than the grid's `card` lift so a
+  window shows a shadow under it. A plane moves by whole cells, so the
+  sub-cell part uses `setScrollOffset()` (the plane holds one extra row and
+  column), which is why `drag_drop` is true only where `smooth_scroll` and
+  the precise pointer are. The ghost keeps the grab point under the pointer.
+- Pointer shapes: add `MouseCursor::GRABBING` and `NOT_ALLOWED` (GTK cursor
+  names `grabbing`, `not-allowed`), set from the drag state.
 - Tests in cellui (`TestBackend`): session starts after the threshold,
   accept/refuse reach the right widget, Escape and release-outside both
   cancel, no session when `drag_drop` is false. Document it in
@@ -83,9 +87,15 @@ that carries something.
   track id, clip index, the `Clip` copy, track type) instead of leaving it
   to the release. A plain click still launches on release, unchanged; a
   drag never launches.
-- While dragging the source cell draws as empty (the clip "detaches") and
-  the ghost shows the clip's name and colour. The cell under the pointer
-  shows a drop mark when the target is valid, a refusal mark otherwise
+- First extract the slot drawing in `ClipGrid::render()` into
+  `drawClipSlot(plane, y, x, clip, styles, state)`, so the grid and the
+  ghost draw the same thing: track identity colour, clip name, loop icon,
+  no playing-state colour or pulse.
+- While dragging the source cell draws as empty (the clip "detaches"; it is
+  not deleted until the drop commits, so Escape or a refused drop restores
+  it) and the ghost is that slot drawing. The cell under the pointer shows
+  a drop mark (the pressed-cell treatment with its own `StyleProvider`
+  colour) when the target is valid, the ghost dimmed and no mark otherwise
   (wrong kind of track, master/scene/send rows, the header). Scroll the grid
   when the pointer nears an edge, as `PatternEditor` does for its drag
   (`kDragScrollInterval`).
