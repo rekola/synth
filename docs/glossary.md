@@ -143,6 +143,15 @@ E𝄫). Narrow major is otonal and narrow minor utonal, in Partch’s
 sense. The names are the author’s own; the chords have no settled
 name in the just-intonation literature. See otonal and utonal.
 
+**Pythagorean gamut and Mixolydian**
+The Pythagorean gamut is thirteen notes of the chain of fifths, six below
+the tonic and six above, octave-reduced (all 3-limit). The Mixolydian scale
+selects C D E F G A B♭ from it: 1/1 9/8 81/64 4/3 3/2 27/16 16/9. Use
+53-EDO: its fifth is almost exact, and its spellings write the Pythagorean
+E, A and B♭ as E↑, A↑ and B♭↓. The scale will take the name of the Babylonian
+tuning with this pattern once that mapping is verified; until then it is
+called mixolydian.
+
 **Otonal and utonal**
 Two scales that mirror each other around the tonic, built by dividing
 intervals at their arithmetic and harmonic means. Both are given here

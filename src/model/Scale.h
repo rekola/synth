@@ -2,6 +2,8 @@
 #define _SCALE_H_
 
 #include <algorithm>
+#include <array>
+#include <span>
 #include <cstddef>
 #include <optional>
 #include <string>
@@ -22,6 +24,9 @@ enum class Scale {
   OTONAL,
   UTONAL,
   DIAMOND7,
+  // C D E F G A B♭ of the Pythagorean gamut. Not yet named after the Babylonian
+  // tuning with this pattern: the mapping is unverified.
+  MIXOLYDIAN,
 
   // Arabic
   RAST,
@@ -43,6 +48,8 @@ static inline std::string to_string(Scale scale) {
   case Scale::UTONAL: return "utonal";
   case Scale::DIAMOND7:
     return "diamond7";
+  case Scale::MIXOLYDIAN:
+    return "mixolydian";
   case Scale::RAST:
     return "rast";
   case Scale::BAYATI:
@@ -78,6 +85,8 @@ static inline std::string scaleLabel(Scale scale) {
       return "Utonal";
     case Scale::DIAMOND7:
       return "Diamond (7-limit)";
+    case Scale::MIXOLYDIAN:
+      return "Mixolydian (Pythagorean)";
     case Scale::RAST:
       return "Rāst";
     case Scale::BAYATI:
@@ -104,6 +113,7 @@ static inline Scale scaleFromString(const std::string & text) {
   if (text == "otonal") return Scale::OTONAL;
   if (text == "utonal") return Scale::UTONAL;
   if (text == "diamond7") return Scale::DIAMOND7;
+  if (text == "mixolydian") return Scale::MIXOLYDIAN;
   if (text == "rast") return Scale::RAST;
   if (text == "bayati") return Scale::BAYATI;
   if (text == "hijaz") return Scale::HIJAZ;
@@ -125,12 +135,18 @@ static inline Scale scaleFromString(const std::string & text) {
 // diamond. Other scales are not just.
 constexpr int kJustScaleRound = 3;
 
+// C D E F G A B♭
+inline constexpr std::array<Ratio, 7> kMixolydianRatios = {Ratio{1, 1}, Ratio{9, 8}, Ratio{81, 64}, Ratio{4, 3}, Ratio{3, 2}, Ratio{27, 16}, Ratio{16, 9}};
+
 struct JustScale {
   std::span<const GamutNote> gamut;
   std::optional<GamutSide> side; // nullopt: every note of the gamut
   int round = 0;                 // the last round included
+  // When not empty, exactly these ratios are the scale (side and round unused).
+  std::span<const Ratio> only = {};
 
   bool contains(const GamutNote & note) const {
+    if (!only.empty()) return std::find(only.begin(), only.end(), note.ratio) != only.end();
     return note.round <= round && (!side || note.side == GamutSide::BOTH || note.side == *side);
   }
   // Whether the scale's side is the note's or the note is on both.
@@ -145,6 +161,8 @@ static inline std::optional<JustScale> justScale(Scale scale) {
       return JustScale{gamut::kSuperparticular, GamutSide::UTONAL, kJustScaleRound};
     case Scale::DIAMOND7:
       return JustScale{gamut::kDiamond7, std::nullopt, 0};
+    case Scale::MIXOLYDIAN:
+      return JustScale{gamut::kPythagorean, std::nullopt, 0, kMixolydianRatios};
     default:
       break;
   }
@@ -183,7 +201,8 @@ static inline std::vector<std::string_view> scaleDegreeNames(Scale scale) {
   case Scale::MINOR: return { "C", "D", "E♭", "F", "G", "A♭", "B♭" };
   case Scale::OTONAL:
   case Scale::UTONAL:
-  case Scale::DIAMOND7: {
+  case Scale::DIAMOND7:
+  case Scale::MIXOLYDIAN: {
     std::vector<std::string_view> names;
     auto just = justScale(scale);
     if (!just) return names;

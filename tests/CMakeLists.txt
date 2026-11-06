@@ -23,6 +23,7 @@ add_executable(synth_tests
 	PatternBlockOpsTests.cpp
 	JustIntonationTests.cpp
 	GamutTests.cpp
+	SeikilosTests.cpp
 	KeyboardNotesTests.cpp
 	SpatialPlacementTests.cpp
 	TuningCorrectionOpsTests.cpp
@@ -115,6 +116,7 @@ if(SYNTH_BUILD_INTERACTIVE AND SYNTH_BUILD_TERMINAL_UI AND NOT WIN32)
 endif()
 target_compile_definitions(synth_tests PRIVATE
 	TESTS_FIXTURES_DIR="${CMAKE_CURRENT_SOURCE_DIR}/fixtures"
+	TESTS_SONGS_DIR="${CMAKE_CURRENT_SOURCE_DIR}/../songs"
 	TESTS_SCRATCH_DIR="${CMAKE_CURRENT_BINARY_DIR}"
 	SYNTH_MARCH="${SYNTH_MARCH}")
 

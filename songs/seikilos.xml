@@ -1,0 +1,122 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  Seikilos
+  The Seikilos epitaph: the oldest surviving complete musical composition.
+  Source: M. L. West, Ancient Greek Music (Oxford 1992), no. 15, p. 301, in
+  the transcription a semitone above the stone's pitch (tonic f#). The stele
+  is Copenhagen, National Museum inv. 14897, 1st c. AD.
+
+  Hoson zes, phainou, / meden holos sy lypou; /
+  pros oligon esti to zen, / to telos ho chronos apaitei.
+  "While you live, shine; have no grief at all; life exists only for a short
+  while, and time demands its due."
+
+  The stone gives pitch and rhythm only. Our realisation choices: the tempo
+  (a dotted quarter at 66; the song tempo counts quarters, so 99), the
+  octave doubling and the drone.
+
+  The scale is the Mixolydian mode on C of the Pythagorean gamut, C D E F G A
+  B-flat = 1/1 9/8 81/64 4/3 3/2 27/16 16/9. In 53-EDO's notation the plain
+  names are the just major scale, so the Pythagorean E, A and B-flat are
+  written E-up, A-up and B-flat-down.
+-->
+<song temperament="53edo" key="C-4" scale="mixolydian" tempo="99" timeSignature="6/8" volume="1.0">
+  <instruments>
+    <instrument id="i1" from="string.plucked.harp" />
+  </instruments>
+  <tracks>
+    <track id="lyre" instrument="i1" azimuth="0" distance="1" />
+    <track id="lyre8vb" instrument="i1" azimuth="0" distance="1" volume="0.5" />
+    <track id="drone" instrument="i1" azimuth="0" distance="1" />
+  </tracks>
+  <arrangement>
+    <pattern track="lyre">
+      <note row="0" velocity="100" value="C-4" />
+      <note row="2" velocity="100" value="G-4" />
+      <note row="6" velocity="100" value="G-4" />
+      <note row="12" velocity="100" value="E↑4" />
+      <note row="14" velocity="100" value="F-4" />
+      <note row="16" velocity="100" value="G-4" />
+      <note row="18" velocity="100" value="F-4" />
+      <note row="24" velocity="100" value="E↑4" />
+      <note row="28" velocity="100" value="F-4" />
+      <note row="30" velocity="100" value="G-4" />
+      <note row="32" velocity="100" value="F-4" />
+      <note row="34" velocity="100" value="E↑4" />
+      <note row="36" velocity="100" value="D-4" />
+      <note row="38" velocity="100" value="C-4" />
+      <note row="42" velocity="100" value="D-4" />
+      <note row="44" velocity="100" value="B♭↓3" />
+      <note row="48" velocity="100" value="C-4" />
+      <note row="50" velocity="100" value="E↑4" />
+      <note row="52" velocity="100" value="G-4" />
+      <note row="54" velocity="100" value="F-4" />
+      <note row="56" velocity="100" value="E↑4" />
+      <note row="58" velocity="100" value="F-4" />
+      <note row="60" velocity="100" value="E↑4" />
+      <note row="62" velocity="100" value="C-4" />
+      <note row="66" velocity="100" value="D-4" />
+      <note row="68" velocity="100" value="B♭↓3" />
+      <note row="72" velocity="100" value="C-4" />
+      <note row="74" velocity="100" value="E↑4" />
+      <note row="76" velocity="100" value="D-4" />
+      <note row="78" velocity="100" value="F-4" />
+      <note row="80" velocity="100" value="G-4" />
+      <note row="82" velocity="100" value="E↑4" />
+      <note row="84" velocity="100" value="C-4" />
+      <note row="86" velocity="100" value="C-4" />
+      <note row="90" velocity="100" value="C-4" />
+      <note row="92" velocity="100" value="A↑3" />
+      <note row="94" velocity="100" value="G-3" />
+    </pattern>
+    <pattern track="lyre8vb">
+      <note row="0" velocity="100" value="C-3" />
+      <note row="2" velocity="100" value="G-3" />
+      <note row="6" velocity="100" value="G-3" />
+      <note row="12" velocity="100" value="E↑3" />
+      <note row="14" velocity="100" value="F-3" />
+      <note row="16" velocity="100" value="G-3" />
+      <note row="18" velocity="100" value="F-3" />
+      <note row="24" velocity="100" value="E↑3" />
+      <note row="28" velocity="100" value="F-3" />
+      <note row="30" velocity="100" value="G-3" />
+      <note row="32" velocity="100" value="F-3" />
+      <note row="34" velocity="100" value="E↑3" />
+      <note row="36" velocity="100" value="D-3" />
+      <note row="38" velocity="100" value="C-3" />
+      <note row="42" velocity="100" value="D-3" />
+      <note row="44" velocity="100" value="B♭↓2" />
+      <note row="48" velocity="100" value="C-3" />
+      <note row="50" velocity="100" value="E↑3" />
+      <note row="52" velocity="100" value="G-3" />
+      <note row="54" velocity="100" value="F-3" />
+      <note row="56" velocity="100" value="E↑3" />
+      <note row="58" velocity="100" value="F-3" />
+      <note row="60" velocity="100" value="E↑3" />
+      <note row="62" velocity="100" value="C-3" />
+      <note row="66" velocity="100" value="D-3" />
+      <note row="68" velocity="100" value="B♭↓2" />
+      <note row="72" velocity="100" value="C-3" />
+      <note row="74" velocity="100" value="E↑3" />
+      <note row="76" velocity="100" value="D-3" />
+      <note row="78" velocity="100" value="F-3" />
+      <note row="80" velocity="100" value="G-3" />
+      <note row="82" velocity="100" value="E↑3" />
+      <note row="84" velocity="100" value="C-3" />
+      <note row="86" velocity="100" value="C-3" />
+      <note row="90" velocity="100" value="C-3" />
+      <note row="92" velocity="100" value="A↑2" />
+      <note row="94" velocity="100" value="G-2" />
+    </pattern>
+    <pattern track="drone">
+      <note row="0" velocity="90" value="C-3" />
+      <note row="0" column="1" velocity="90" value="G-3" />
+      <note row="24" velocity="90" value="C-3" />
+      <note row="24" column="1" velocity="90" value="G-3" />
+      <note row="48" velocity="90" value="C-3" />
+      <note row="48" column="1" velocity="90" value="G-3" />
+      <note row="72" velocity="90" value="C-3" />
+      <note row="72" column="1" velocity="90" value="G-3" />
+    </pattern>
+  </arrangement>
+</song>
