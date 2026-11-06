@@ -209,7 +209,7 @@ def new_buffer(scr, name):
 def is_playing(scr):
     d = scr.dump()
     info_lines = [l for l in d.splitlines() if "voices:" in l]
-    return bool(info_lines) and "▶" in info_lines[-1]
+    return bool(info_lines) and "(▶)" in info_lines[-1]
 
 
 _ROW_RE = re.compile(r"^([0-9a-f]{2})\s")
