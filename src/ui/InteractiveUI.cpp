@@ -1230,15 +1230,6 @@ void InteractiveUI::drawScopeTitle(int row, int col, int width, const std::strin
   }
 }
 
-int InteractiveUI::arrangementScopeRows() const {
-  // One scope under its title bar; more for a song with more tracks (a header
-  // of two rows, then a row per track), but at most a third of the screen.
-  constexpr int kMinRows = kScopeHeight + 1;
-  auto num_tracks = static_cast<int>(getController().getSong().getPlayableTrackIds().size());
-  int rows = getDim().first;
-  return std::clamp(ArrangementGrid::kHeaderRows + num_tracks, kMinRows, std::max(kMinRows, rows / 3));
-}
-
 void
 InteractiveUI::layout() {
   auto [ rows, cols ] = getDim();
@@ -1269,10 +1260,9 @@ InteractiveUI::layout() {
 
   // Arrangement view's top band: the arrangement grid takes the width, with a
   // row of scopes beside it: the spectrum, the DirAC heatmap and the channel
-  // meter, side by side. The
-  // grid's height follows the song's track count (see arrangementScopeRows()).
-  int scope_rows = arrangementScopeRows();
-  laid_out_scope_rows_ = scope_rows;
+  // meter, side by side. The band has a fixed height; the grid scrolls its
+  // tracks within it.
+  constexpr int scope_rows = kScopeHeight + 1;
   constexpr int kMeterWidth = static_cast<int>(ChannelMeter::kMaxChannels / 2);
   constexpr int kSpectrumWidth = 36;
   int column_x = cols - kSpectrumWidth - 1 - kHeatmapWidth - 1 - kMeterWidth;
@@ -1391,10 +1381,6 @@ InteractiveUI::renderComponents(bool refresh) {
   // render() gate), not at whichever earlier, input-handling call site
   // actually requested it.
   if (getView() == View::LIVE && syncLiveView()) force_next_render_ = true;
-  if (getView() == View::ARRANGEMENT && scopes_visible_ && arrangementScopeRows() != laid_out_scope_rows_) {
-    layout();
-    force_next_render_ = true;
-  }
   refresh = refresh || force_next_render_;
   force_next_render_ = false;
   bool render = false;
