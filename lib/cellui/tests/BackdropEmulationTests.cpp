@@ -255,3 +255,72 @@ TEST(backdropemulation_a_layer_between_two_backdrops_is_dimmed_by_the_upper_one)
   CHECK(b.at(0, 0).fg->getRed() == dimmedTwice(200, 0.5f));  // dimmed by both
   CHECK(b.at(0, 8).fg->getRed() == dimmed(200, 0.5f));  // by the upper one only
 }
+
+TEST(backdropemulation_mode_follows_the_link_and_whether_there_are_pictures) {
+  using term::BackdropMode;
+  CHECK(term::backdropModeFor(LinkClass::FULL, true) == BackdropMode::LIVE);
+  CHECK(term::backdropModeFor(LinkClass::HZ_30, true) == BackdropMode::STATIC);
+  CHECK(term::backdropModeFor(LinkClass::HZ_30, false) == BackdropMode::LIVE);
+  CHECK(term::backdropModeFor(LinkClass::HZ_15, true) == BackdropMode::STATIC);
+  CHECK(term::backdropModeFor(LinkClass::HZ_15, false) == BackdropMode::STATIC);
+  CHECK(term::backdropModeFor(LinkClass::HZ_5, true) == BackdropMode::CELLS);
+  CHECK(term::backdropModeFor(LinkClass::HZ_5, false) == BackdropMode::STATIC);
+  CHECK(term::backdropModeFor(LinkClass::HZ_1, true) == BackdropMode::FLAT);
+  CHECK(term::backdropModeFor(LinkClass::HZ_1, false) == BackdropMode::FLAT);
+}
+
+TEST(backdropemulation_static_pictures_keep_the_blur_as_it_was_until_the_backdrop_goes) {
+  StyleProvider styles;
+  CellBuffer b(8, 48);
+  BufferPlane root(b, styles);
+  root.setCellPixelSize(8, 4);
+  DisplayInfo display;
+  display.pictures = true;
+  display.cell_px_height = 8;
+  display.cell_px_width = 4;
+  term::BackdropEmulation emulation(std::make_shared<CountingRasterizer>());
+  emulation.setMode(term::BackdropMode::STATIC);
+  for (int r = 0; r < 8; r++) root.putstr(r, 0, std::string(48, 'x'));
+  auto scrim = scrimOver(root, Backdrop{1});
+  std::vector<ImagePlacement> images;
+  show(root, b, emulation, display, images);
+  CHECK(emulation.redrawnTiles() == 6);
+  // What is below changes: the blur is not drawn again.
+  root.putstr(0, 0, "y");
+  root.putstr(4, 16, "y");
+  show(root, b, emulation, display, images);
+  CHECK(emulation.redrawnTiles() == 0 && images.size() == 6);
+  // Live again, it catches up.
+  emulation.setMode(term::BackdropMode::LIVE);
+  show(root, b, emulation, display, images);
+  CHECK(emulation.redrawnTiles() > 0);
+  // Gone and back, a static one is made afresh.
+  emulation.setMode(term::BackdropMode::STATIC);
+  scrim.reset();
+  show(root, b, emulation, display, images);
+  scrim = scrimOver(root, Backdrop{1});
+  show(root, b, emulation, display, images);
+  CHECK(emulation.redrawnTiles() == 6);
+}
+
+TEST(backdropemulation_cells_mode_makes_no_pictures_and_flat_mode_does_not_blur) {
+  StyleProvider styles;
+  CellBuffer b(8, 48);
+  BufferPlane root(b, styles);
+  root.setCellPixelSize(8, 4);
+  DisplayInfo display;
+  display.pictures = true;
+  display.cell_px_height = 8;
+  display.cell_px_width = 4;
+  term::BackdropEmulation emulation(std::make_shared<CountingRasterizer>());
+  for (int r = 0; r < 8; r++) root.putstr(r, 0, std::string(48, 'x'));
+  auto scrim = scrimOver(root, Backdrop{1, 0.5f});
+  std::vector<ImagePlacement> images;
+  emulation.setMode(term::BackdropMode::CELLS);
+  show(root, b, emulation, display, images);
+  CHECK(images.empty() && b.at(0, 0).image == 0);
+  emulation.setMode(term::BackdropMode::FLAT);
+  show(root, b, emulation, display, images);
+  // Only dimmed: the glyph stays.
+  CHECK(images.empty() && b.at(0, 0).text == "x");
+}

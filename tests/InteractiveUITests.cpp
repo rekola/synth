@@ -364,6 +364,35 @@ TEST(profile_caps_autonomous_redraws_by_link_class_and_stills_motion_on_slow_one
   CHECK(profileFor(LinkClass::HZ_5).autonomous_fps == 5 && profileFor(LinkClass::HZ_1).autonomous_fps == 1);
 }
 
+TEST(profile_thins_scopes_hover_and_scrolling_as_the_link_gets_slower) {
+  using cellui::LinkClass;
+  auto p30 = profileFor(LinkClass::HZ_30), p15 = profileFor(LinkClass::HZ_15), p5 = profileFor(LinkClass::HZ_5), p1 = profileFor(LinkClass::HZ_1);
+  CHECK(profileFor(LinkClass::FULL).scope_fps == 60 && p30.scope_fps == 30 && p15.scope_fps == 15 && p5.scope_fps == 0 && p1.scope_fps == 0);
+  CHECK(p15.meter_fps == 15 && p5.meter_fps == 5 && p1.meter_fps == 0);
+  CHECK(p30.hover && !p15.hover && !p5.hover);
+  CHECK(p15.pointer_shapes && !p5.pointer_shapes);
+  CHECK(!p15.page_scroll && p5.page_scroll && p1.page_scroll);
+  using namespace std::chrono;
+  CHECK(rateDue(milliseconds(1), 60) && !rateDue(seconds(100), 0));
+  CHECK(!rateDue(milliseconds(50), 15) && rateDue(milliseconds(70), 15));
+}
+
+TEST(a_slow_link_stops_reporting_hover_and_pointer_shapes_to_the_terminal) {
+  UIFixture f;
+  CHECK(f.terminal.hoverReported() && f.terminal.shapesFollowed());
+  cellui::LinkStatus slow;
+  slow.cls = cellui::LinkClass::HZ_5;
+  slow.available = true;
+  f.terminal.setLinkStatus(slow);
+  f.ui->step();
+  CHECK(!f.terminal.hoverReported() && !f.terminal.shapesFollowed());
+  cellui::LinkStatus fast;
+  fast.available = true;
+  f.terminal.setLinkStatus(fast);
+  f.ui->step();
+  CHECK(f.terminal.hoverReported() && f.terminal.shapesFollowed());
+}
+
 TEST(frame_due_holds_back_only_what_nobody_asked_for) {
   using namespace std::chrono;
   auto idle = milliseconds(100);

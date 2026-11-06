@@ -628,6 +628,8 @@ void InteractiveUI::setReducedMotion(bool reduced) {
 // What the link allows: the user's choice of reduced motion stays on whatever the link.
 void InteractiveUI::applyProfile(cellui::LinkClass cls) {
   profile_ = profileFor(cls);
+  backend_.setPointerDetail(profile_.hover, profile_.pointer_shapes);
+  if (pattern_editor_) pattern_editor_->setPageScroll(profile_.page_scroll);
   bool reduced = user_reduced_motion_ || profile_.reduced_motion;
   if (reduced == styles_.reduced_motion) return;
   styles_.reduced_motion = reduced;
@@ -1913,14 +1915,22 @@ void InteractiveUI::handleVisualizationResultEvent(const VisualizationResultEven
     // AuxA/AuxB last - see VisualizationThread.cpp) rather than the final
     // decoded L/R output.
     // A reading equal to the last still has to go in while the bars fall.
-    if (getView() == View::ARRANGEMENT && (ev.getChannelLoudness() != last_loudness_ || !volume_meter_->atRest())) {
+    auto now = std::chrono::steady_clock::now();
+    bool meter_due = rateDue(now - last_meter_update_, profile_.meter_fps);
+    bool scopes_due = rateDue(now - last_scope_update_, profile_.scope_fps);
+    if (meter_due && getView() == View::ARRANGEMENT && (ev.getChannelLoudness() != last_loudness_ || !volume_meter_->atRest())) {
+      last_meter_update_ = now;
       last_loudness_ = ev.getChannelLoudness();
       volume_meter_->feed(ev.getChannelLoudness());
       meter_pending_ = true;
       changed = true;
     }
 
-    if (!ev.getFFT().empty() && ev.getFFT() != last_fft_) {
+    // The spectrum and the heatmap come in only some results and take turns; one update of either
+    // starts the gap for both.
+    bool scope_taken = false;
+    if (scopes_due && !ev.getFFT().empty() && ev.getFFT() != last_fft_) {
+      scope_taken = true;
       last_fft_ = ev.getFFT();
       pending_fft_ = ev.getFFT();
       pending_fft_hz_ = ev.getFFTBinHz();
@@ -1928,7 +1938,8 @@ void InteractiveUI::handleVisualizationResultEvent(const VisualizationResultEven
       changed = true;
     }
 
-    if (ev.hasDiracGrid()) {
+    if (scopes_due && ev.hasDiracGrid()) {
+      scope_taken = true;
       // displayed[cell] = the grid's own
       // directional energy plus the per-band diffuse haze, spread
       // uniformly across every cell (one shared scalar summed from all 8
@@ -1992,6 +2003,7 @@ void InteractiveUI::handleVisualizationResultEvent(const VisualizationResultEven
         changed = true;
       }
     }
+    if (scope_taken) last_scope_update_ = now;
   }
 
   if (changed) {
@@ -2148,7 +2160,7 @@ InteractiveUI::startUI(AudioAPI &, MidiInput & midi, LaunchpadIO & launchpad_io)
   midi.addTo(waits, midi_group);
   launchpad_io.addTo(waits, launchpad_group);
 
-
+  applyProfile(backend_.linkStatus().cls); // a class pinned before the widgets existed
   renderComponents(true);
 
   string waiting_stderr;

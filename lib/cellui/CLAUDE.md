@@ -236,7 +236,9 @@ timing (and missed-vsync counts) at exit.
   (ctest `cellui_pacing_harness`) runs `cellui_pacing_probe` on a shaped pty.
 - The terminal cannot blur: `term::BackdropEmulation` averages cells over
   their neighbours with glyphs faded out, or with pictures draws, blurs and
-  stretches the cells in 4x16-cell tiles redrawn only when changed.
+  stretches the cells in 4x16-cell tiles redrawn only when changed. The link
+  class picks its `BackdropMode` (`backdropModeFor()`): live, static (kept as
+  when the backdrop appeared, until it goes), cell blur only, or a flat dim.
 
 ## GTK window backend (`cellui/gtk/`)
 
