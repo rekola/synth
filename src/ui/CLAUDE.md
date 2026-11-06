@@ -262,7 +262,7 @@ Controller-level and per-widget commands. Not migrated: `StatusLine`,
   widget that got the press; a `MouseDown` is always a fresh press.
 - **Scopes**: the spectrum is a `cellui::LineChart` fed by
   `spectrum_curve::values()` (`ui/SpectrumCurve.h`: dBFS bins on a log axis,
-  80 dB range); it and the DirAC heatmap show in Arrangement view's top band
+  80 dB range); it, the DirAC heatmap and the level meter sit side by side in Arrangement view's top band
   and in Live View's left column under the outline (only while the outline
   is shown and the screen is tall enough); off-screen scopes are not
   updated. Cell or pixel versions are chosen once at startup
