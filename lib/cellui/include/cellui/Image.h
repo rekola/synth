@@ -2,6 +2,7 @@
 
 #include <cstdint>
 #include <memory>
+#include <string_view>
 #include <vector>
 
 namespace cellui {
@@ -66,9 +67,22 @@ struct Image {
 // image's top-left corner. The cells it occupies in the frame are marked
 // with `index` + 1 (CellBuffer::Cell::image); a cell another plane covers
 // is not marked.
+// Every picture that is shared has an identity: what kind of picture, and which of them. Icons often have
+// the same size, so size says nothing; the kind does. `kind` is a string literal ("dial", "icon", ...);
+// `id` is within the kind, whatever the caller needs to tell its pictures apart.
+struct ImageKey {
+  const char * kind = nullptr;
+  uint64_t id = 0;
+  bool valid() const { return kind != nullptr; }
+  bool operator==(const ImageKey & o) const { return id == o.id && (kind == o.kind || (kind && o.kind && std::string_view(kind) == o.kind)); }
+};
+
 struct ImagePlacement {
   std::shared_ptr<const Image> image;
   uint64_t key = 0;
+  // Set when the pixels are the same for every placement of the key (Plane::drawSharedImageAt()): a
+  // backend that stores pictures sends them once and places them wherever they show.
+  ImageKey shared;
   int row = 0, col = 0;
   int index = 0;
 };

@@ -204,7 +204,7 @@ class TerminalSession : public Backend {
   std::chrono::steady_clock::time_point link_log_last_{};
   FrameBytes link_log_mark_;
   size_t link_log_frames_ = 0;
-  std::map<std::pair<int, int>, ImageEncoder::PictureStat> link_log_pictures_;
+  std::map<std::string, ImageEncoder::PictureStat> link_log_pictures_;
   void logLinkStats(std::chrono::steady_clock::time_point now);
   // Once a second: the class, from the bandwidth estimate, but only on a second the link held frames back
   // (otherwise the estimate says what the application sent, not what the link carries) and not in

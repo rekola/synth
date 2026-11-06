@@ -457,8 +457,8 @@ void TerminalSession::logLinkStats(std::chrono::steady_clock::time_point now) {
                s.frames - link_log_frames_, s.totals.upload - link_log_mark_.upload, s.totals.placement - link_log_mark_.placement,
                s.totals.other - link_log_mark_.other, s.bandwidth, s.rtt_min_us / 1000.0, s.bytes_in_flight);
   bool first = true;
-  for (const auto & [size, stat] : link_log_pictures_) {
-    std::fprintf(link_log_, "%s%dx%d:%zu/%zu", first ? "" : ",", size.first, size.second, stat.uploads, stat.bytes);
+  for (const auto & [label, stat] : link_log_pictures_) {
+    std::fprintf(link_log_, "%s%s:%zu/%zu", first ? "" : ",", label.c_str(), stat.uploads, stat.bytes);
     first = false;
   }
   std::fprintf(link_log_, "%s\n", first ? "-" : "");
@@ -592,9 +592,9 @@ void TerminalSession::sendFrame(const CellBuffer & frame, const CursorRequest & 
   }
   if (body.empty()) return;  // nothing changed: no bytes, no frame
   if (link_log_) {
-    for (const auto & [dims, stat] : images_.takePictureStats()) {
-      link_log_pictures_[dims].uploads += stat.uploads;
-      link_log_pictures_[dims].bytes += stat.bytes;
+    for (const auto & [label, stat] : images_.takePictureStats()) {
+      link_log_pictures_[label].uploads += stat.uploads;
+      link_log_pictures_[label].bytes += stat.bytes;
     }
   }
   FrameBytes size;

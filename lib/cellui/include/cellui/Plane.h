@@ -1,5 +1,7 @@
 #pragma once
 
+#include <cellui/Image.h>
+
 #include <cellui/Backdrop.h>
 #include <cellui/BackdropLayer.h>
 #include <cellui/Input.h>
@@ -12,6 +14,7 @@
 
 #include <algorithm>
 #include <climits>
+#include <functional>
 #include <cstdint>
 #include <string>
 #include <vector>
@@ -129,6 +132,25 @@ class Plane {
     (void)width;
     (void)height;
   }
+  // A picture whose pixels depend only on `key` (the caller promises it), shown from cell (row, col) like
+  // drawImageAt(). The plane tree keeps the pictures it has made by key: `render` runs only for a key no
+  // plane has made, so a dial on screen costs no rasterising after its first drawing and nothing is
+  // hashed per frame, and a backend that stores pictures (kitty) sends one once however many
+  // placements it has. The registry is emptied when the cell size or the display scale changes, and by
+  // invalidateSharedImages() (a new theme). Without pixels the default draws nothing.
+  virtual void drawSharedImageAt(int row, int col, ImageKey key, int width, int height, const std::function<std::vector<uint32_t>()> & render,
+                                 int clip_top = INT_MIN, int clip_bottom = INT_MAX) {
+    (void)row;
+    (void)col;
+    (void)key;
+    (void)width;
+    (void)height;
+    (void)render;
+    (void)clip_top;
+    (void)clip_bottom;
+  }
+  // Forget the shared pictures: what they show no longer holds (a new theme).
+  virtual void invalidateSharedImages() { }
   // The colours of what is drawn from now on. A colour may be wide (outside
   // sRGB, or above SDR white); a display that cannot show that takes
   // Color::toSrgb8().

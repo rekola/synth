@@ -555,8 +555,18 @@ deflate ratio on real charts is known.
    `LinkThresholds` (kitty's demands) are low for Sixel: they want a Sixel set, which waits for the
    class profiles of phase 5. Registers shared between images (`?1070`) are not used: whether a
    terminal keeps them has not been tried on one.
-4. **Shared pictures and dials** (3.4, 3.5): the registry, `drawSharedImageAt()`, the byte cap, the
-   16-position, four-look dial set.
+4. **Shared pictures and dials** (3.4, 3.5). **Shared pictures done**: `ImageKey{kind, id}`,
+   `Plane::drawSharedImageAt()` with the registry in the root (`render` runs only for a key no plane has
+   made; emptied by a new cell size, display scale or `invalidateSharedImages()`), `ImagePlacement::shared`,
+   and in the kitty encoder one upload per picture under one id with a placement id per place
+   (`a=p,i=ID,p=BASE+k`), only the placements deleted (`a=d,d=i`) when a place goes, the data kept and
+   freed (`a=d,d=I`), the oldest nothing shows first, past a budget of 8 MB; switching a place between a
+   shared picture and its own frees only its own. The statistics (`SYNTH_LINK_STATS`) are by kind
+   (`dial:6/8k`) or size for the rest. `drawDial()` uses it, keyed by everything its picture shows, so
+   dials alike are one picture: on the demo song 16 uploads of the 40x48 dial at start-up are 6, and
+   the bytes of the start-up 22.8 kB to 8.8 kB. Still to do: the 16-position table (Launchpad, commands
+   `YMxy`/`YAxy`/`YBxy`, the dial), the four looks with hover, and the three letter sets, which
+   make most dials one of 3 pictures.
 5. **App profile** (3.6, 3.7): scope/meter rates and off, animations, page scrolling, hover, mouse
    reporting. UI tests per class with `TestBackend`; a harness run at 50 kB/s asserts the editor
    stays usable (key latency, fps).

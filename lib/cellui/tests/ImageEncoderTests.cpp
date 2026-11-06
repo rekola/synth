@@ -717,3 +717,123 @@ TEST(a_stretched_picture_keeps_its_dither_on_a_slow_link) {
   CHECK(encodePalettePng(smooth, 0, 0, 40, 12, 4, true) != encodePalettePng(smooth, 0, 0, 40, 12, 4, false));
   CHECK(encodePalettePng(smooth, 0, 0, 40, 12, 4) == encodePalettePng(smooth, 0, 0, 40, 12, 4, false));
 }
+
+namespace {
+
+std::vector<uint32_t> flat(int w, int h, uint8_t v) { return solid(w, h, Image::pack(v, v, v)); }
+
+}  // namespace
+
+// The same shared picture shown in several places is rendered once for the tree and uploaded once; each
+// place is a placement of its own.
+TEST(kitty_uploads_a_shared_picture_once_and_places_it_wherever_it_shows) {
+  StyleProvider styles;
+  CellBuffer b(4, 12);
+  BufferPlane root(b, styles);
+  root.setCellPixelSize(6, 2);
+  auto left = root.createChild(), right = root.createChild();
+  left->resize(2, 6);
+  right->resize(2, 6);
+  right->move(0, 6);
+  int rendered = 0;
+  auto render = [&]() {
+    rendered++;
+    return flat(4, 12, 40);
+  };
+  left->drawSharedImageAt(0, 0, {"dial", 7}, 4, 12, render);
+  left->drawSharedImageAt(0, 2, {"dial", 7}, 4, 12, render);
+  right->drawSharedImageAt(0, 0, {"dial", 7}, 4, 12, render);
+  CHECK(rendered == 1);
+  root.refresh();
+  ImageEncoder enc(profile(PixelProtocol::KITTY));
+  std::string first = enc.encode(b, root.images(), true);
+  CHECK(count(first, "a=t,") == 1 && count(first, "a=p,i=1,") == 3);
+  // Three placements of the one picture, each with a placement id of its own.
+  std::set<std::string> ids;
+  for (size_t at = first.find(",p="); at != std::string::npos; at = first.find(",p=", at + 1)) ids.insert(first.substr(at, first.find(',', at + 3) - at));
+  CHECK(ids.size() == 3);
+  root.refresh();
+  CHECK(enc.encode(b, root.images(), false).empty());
+  auto stats = enc.takePictureStats();
+  CHECK(stats.count("dial") == 1 && stats["dial"].uploads == 1);
+  // Another key is another picture.
+  left->drawSharedImageAt(1, 0, {"dial", 8}, 4, 12, render);
+  CHECK(rendered == 2);
+  // A new cell size empties the registry: the pictures were made for the old one.
+  root.setCellPixelSize(8, 4);
+  left->drawSharedImageAt(1, 2, {"dial", 7}, 4, 12, render);
+  CHECK(rendered == 3);
+  root.invalidateSharedImages();
+  right->drawSharedImageAt(1, 0, {"dial", 7}, 4, 12, render);
+  CHECK(rendered == 4);
+}
+
+TEST(a_shared_picture_stays_in_the_terminal_after_its_last_placement_goes) {
+  StyleProvider styles;
+  CellBuffer b(4, 8);
+  BufferPlane root(b, styles);
+  root.setCellPixelSize(6, 2);
+  auto plane = root.createChild();
+  plane->resize(2, 8);
+  auto render = []() { return flat(4, 12, 90); };
+  ImageEncoder enc(profile(PixelProtocol::KITTY));
+  plane->drawSharedImageAt(0, 0, {"icon", 1}, 4, 12, render);
+  plane->drawSharedImageAt(0, 2, {"icon", 1}, 4, 12, render);
+  root.refresh();
+  CHECK(count(enc.encode(b, root.images(), true), "a=t,") == 1);
+  // One place goes: its placement only.
+  plane->erase();
+  plane->drawSharedImageAt(0, 0, {"icon", 1}, 4, 12, render);
+  root.refresh();
+  std::string one = enc.encode(b, root.images(), false);
+  CHECK(count(one, "a=d,d=i,i=1,p=") == 1 && count(one, "d=I") == 0 && count(one, "a=t,") == 0);
+  // The last goes: the data stays, and the picture shown again is placed, not sent.
+  plane->erase();
+  root.refresh();
+  std::string none = enc.encode(b, root.images(), false);
+  CHECK(count(none, "a=d,d=i,i=1,p=") == 1 && count(none, "d=I") == 0);
+  plane->drawSharedImageAt(0, 4, {"icon", 1}, 4, 12, render);
+  root.refresh();
+  std::string again = enc.encode(b, root.images(), false);
+  CHECK(count(again, "a=t,") == 0 && count(again, "a=p,i=1,") == 1);
+}
+
+TEST(shared_pictures_nothing_shows_are_freed_oldest_first_past_the_budget) {
+  StyleProvider styles;
+  CellBuffer b(4, 8);
+  BufferPlane root(b, styles);
+  root.setCellPixelSize(6, 2);
+  auto plane = root.createChild();
+  plane->resize(2, 8);
+  ImageEncoder enc(profile(PixelProtocol::KITTY));
+  enc.setSharedBudget(2 * 4 * 12 * 4);  // two pictures of 4 x 12
+  std::string sent;
+  for (uint64_t id = 1; id <= 3; id++) {
+    plane->erase();
+    plane->drawSharedImageAt(0, 0, {"icon", id}, 4, 12, [&]() { return flat(4, 12, static_cast<uint8_t>(id * 40)); });
+    root.refresh();
+    sent += enc.encode(b, root.images(), id == 1);
+  }
+  // The third picture takes the terminal over the budget, and the first, the oldest nothing shows, goes.
+  CHECK(count(sent, "a=d,d=I,i=1,") == 1 && count(sent, "d=I,i=2,") == 0 && count(sent, "d=I,i=3,") == 0);
+}
+
+TEST(a_place_that_changes_between_a_shared_picture_and_its_own_frees_only_what_is_its_own) {
+  StyleProvider styles;
+  CellBuffer b(4, 8);
+  BufferPlane root(b, styles);
+  root.setCellPixelSize(6, 2);
+  auto plane = root.createChild();
+  plane->resize(2, 8);
+  ImageEncoder enc(profile(PixelProtocol::KITTY));
+  auto render = []() { return flat(4, 12, 90); };
+  plane->drawSharedImageAt(0, 0, {"icon", 1}, 4, 12, render);
+  plane->drawSharedImageAt(0, 4, {"icon", 1}, 4, 12, render);
+  root.refresh();
+  enc.encode(b, root.images(), true);
+  // The first place becomes a picture of its own: the shared one stays for the other.
+  plane->drawImageAt(0, 0, flat(4, 12, 10), 4, 12);
+  root.refresh();
+  std::string changed = enc.encode(b, root.images(), false);
+  CHECK(count(changed, "d=I,i=1") == 0 && count(changed, "a=t,") == 1);
+}

@@ -311,6 +311,7 @@ void BufferPlane::compose(CellBuffer & out, int row, int col, int clip_row, int 
         ImagePlacement placement;
         placement.image = placed.image;
         placement.key = placed.key;
+        placement.shared = placed.shared;
         placement.row = placed.row;
         placement.col = placed.col;
         placement.index = static_cast<int>(top.placements_.size());
@@ -454,6 +455,7 @@ void BufferPlane::compose(CellBuffer & out, int row, int col, int clip_row, int 
     ImagePlacement placement;
     placement.image = placed.image;
     placement.key = placed.key;
+    placement.shared = placed.shared;
     placement.row = top_row;
     placement.col = left_col;
     placement.index = static_cast<int>(top.placements_.size());
@@ -546,6 +548,74 @@ void BufferPlane::drawImageAt(int row, int col, const std::vector<uint32_t> & pi
     return;
   }
   images_.push_back(PlacedImage{row, col, fresh(), nextKey(), identity, explicit_id, clip_top, clip_bottom});
+}
+
+void BufferPlane::drawSharedImageAt(int row, int col, ImageKey key, int width, int height, const std::function<std::vector<uint32_t>()> & render,
+                                    int clip_top, int clip_bottom) {
+  if (!key.valid() || width <= 0 || height <= 0) return;
+  // The picture of this key, made once for the whole tree.
+  auto picture = [&]() {
+    auto & registry = root().shared_images_;
+    auto id = std::make_tuple(std::string(key.kind), key.id, width, height);
+    auto it = registry.find(id);
+    if (it != registry.end()) return it->second;
+    std::vector<uint32_t> pixels = render();
+    if (pixels.size() < static_cast<size_t>(width) * static_cast<size_t>(height)) return std::shared_ptr<Image>();
+    auto image = std::make_shared<Image>();
+    image->width = width;
+    image->height = height;
+    image->pixels = std::move(pixels);
+    image->version = nextImageVersion();
+    registry.emplace(id, image);
+    return image;
+  };
+  // Identity for the plane's own bookkeeping: the key, folded.
+  uint64_t identity = 14695981039346656037ull;
+  auto mix = [&](uint64_t v) { identity = (identity ^ v) * 1099511628211ull; };
+  for (const char * c = key.kind; *c; c++) mix(static_cast<uint64_t>(static_cast<unsigned char>(*c)));
+  mix(key.id);
+  mix(static_cast<uint64_t>(width));
+  mix(static_cast<uint64_t>(height));
+  auto same = [&](const PlacedImage & placed) {
+    return placed.shared == key && placed.image && placed.image->width == width && placed.image->height == height;
+  };
+  for (PlacedImage & placed : images_) {
+    if (placed.row != row || placed.col != col) continue;
+    placed.clip_top = clip_top;
+    placed.clip_bottom = clip_bottom;
+    if (same(placed)) return;
+    if (auto image = picture()) {
+      placed.image = image;
+      placed.shared = key;
+      placed.identity = identity;
+      placed.explicit_id = true;
+    }
+    return;
+  }
+  for (auto it = erased_images_.begin(); it != erased_images_.end(); ++it) {
+    if (!same(*it)) continue;
+    PlacedImage placed = *it;
+    erased_images_.erase(it);
+    placed.row = row;
+    placed.col = col;
+    placed.clip_top = clip_top;
+    placed.clip_bottom = clip_bottom;
+    images_.push_back(std::move(placed));
+    return;
+  }
+  if (auto image = picture()) {
+    PlacedImage placed;
+    placed.row = row;
+    placed.col = col;
+    placed.image = image;
+    placed.key = nextKey();
+    placed.identity = identity;
+    placed.explicit_id = true;
+    placed.clip_top = clip_top;
+    placed.clip_bottom = clip_bottom;
+    placed.shared = key;
+    images_.push_back(std::move(placed));
+  }
 }
 
 std::pair<int, int> BufferPlane::screenPosition() const {

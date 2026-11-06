@@ -564,8 +564,191 @@ std::vector<ImageEncoder::Rect> ImageEncoder::visibleRects(const CellBuffer & fr
   return rects;
 }
 
-std::string ImageEncoder::kitty(const CellBuffer & frame, const ImagePlacement & p, Shown & shown, bool fresh, bool cleared) {
+namespace {
+
+// What the statistics call a placement's picture: the kind of a shared one, else its size.
+std::string statLabel(const ImagePlacement & p) {
+  if (p.shared.valid()) return p.shared.kind;
+  return std::to_string(p.image->width) + "x" + std::to_string(p.image->height);
+}
+
+}  // namespace
+
+// Sends the pixels of `img` as kitty image `id`: as they are, or at a lower quality a palette PNG
+// (quantised RGB where the terminal took no PNG); for a small picture both are made and the smaller
+// sent, as a PNG's headers and palette can outweigh what the colours save.
+void ImageEncoder::uploadKitty(const Image & img, uint32_t id, std::string & out) {
+  // What goes up: the pixels as they are, or at a lower quality a palette PNG (quantised RGB where the
+  // terminal took no PNG); for a small picture both are made and the smaller sent, as a PNG's headers
+  // and palette can outweigh what the colours save.
+  struct Upload {
+    std::vector<uint8_t> bytes;
+    bool png = false, deflated = false;
+  };
+  auto fullRgb = [&]() {
+    Upload u;
+    u.bytes.reserve(img.pixels.size() * 3);
+    for (uint32_t px : img.pixels) {
+      u.bytes.push_back(Image::red(px));
+      u.bytes.push_back(Image::green(px));
+      u.bytes.push_back(Image::blue(px));
+    }
+    return u;
+  };
+  // Compressed when that saves enough to be worth the terminal inflating it.
+  auto deflate = [&](Upload & u) {
+    if (!compress_ || u.png) return;
+    std::vector<uint8_t> z = zlibCompress(u.bytes);
+    if (z.size() * 10 < u.bytes.size() * 9) {
+      u.bytes = std::move(z);
+      u.deflated = true;
+    }
+  };
+  Upload up;
+  int colours = pictureColours(quality_);
+  if (colours > 0) {
+    if (palette_png_) {
+      up.bytes = encodePalettePng(img, 0, 0, img.width, img.height, colours, img.stretched());
+      up.png = true;
+    } else {
+      up.bytes = quantisedRgb(img, colours, img.stretched());
+      deflate(up);
+    }
+    if (img.pixels.size() <= kSmallPicturePixels) {
+      Upload plain = fullRgb();
+      deflate(plain);
+      if (plain.bytes.size() < up.bytes.size()) up = std::move(plain);
+    }
+  } else {
+    up = fullRgb();
+    deflate(up);
+  }
+  bool as_png = up.png, deflated = up.deflated;
+  std::vector<uint8_t> & rgb = up.bytes;
+  if (as_png) png_ids_.insert(id);
+  if (deflated) deflated_ids_.insert(id);
+  std::string data = base64(rgb);
+  for (size_t i = 0; i < data.size() || i == 0; i += kKittyChunk) {
+    bool more = i + kKittyChunk < data.size();
+    size_t chunk_start = out.size();
+    out += "\x1b_G";
+    if (i == 0 && as_png) out += "a=t,f=100,i=" + std::to_string(id) + ",";
+    else if (i == 0) out += std::string(deflated ? "o=z," : "") + "a=t,f=24,s=" + std::to_string(img.width) + ",v=" + std::to_string(img.height) + ",i=" + std::to_string(id) + ",";
+    out += "q=1,m=" + std::string(more ? "1" : "0") + ";";
+    out += data.substr(i, kKittyChunk);
+    out += "\x1b\\";
+    sizes_.upload += out.size() - chunk_start;
+    if (data.empty()) break;
+  }
+}
+
+// A placement of a shared picture: the pixels go up once, under one id for every placement of the picture,
+// and each placement is a `a=p` of its own (a placement id apart from the others of that picture).
+std::string ImageEncoder::kittySharedPlacement(const CellBuffer & frame, const ImagePlacement & p, Shown & shown, bool fresh, bool cleared) {
   std::string out;
+  const Image & img = *p.image;
+  SharedUpload & upload = shared_uploads_[img.version];
+  size_t upload_before = sizes_.upload;
+  if (upload.id == 0) {
+    if (++next_id_ == 0) next_id_ = 1;
+    upload.id = next_id_;
+    upload.bytes = static_cast<size_t>(img.width) * static_cast<size_t>(img.height) * 4;
+    uploadKitty(img, upload.id, out);
+    picture_stats_[statLabel(p)].uploads++;
+    picture_stats_[statLabel(p)].bytes += sizes_.upload - upload_before;
+  }
+  upload.last_used = ++tick_;
+  if (!shown.shared && shown.id) {
+    // This place showed a picture of its own and shows a shared one now: free the old.
+    deflated_ids_.erase(shown.id);
+    png_ids_.erase(shown.id);
+    std::string del = "\x1b_Ga=d,d=I,i=" + std::to_string(shown.id) + ",q=1\x1b\\";
+    sizes_.placement += del.size();
+    out += del;
+    shown = Shown{};
+    fresh = true;
+  }
+  bool changed = fresh || shown.version != img.version;
+  constexpr uint32_t kPlacementsPerPicture = 256;
+  std::vector<Rect> rects = visibleRects(frame, p, false);
+  if (changed || cleared || rects != shown.rects || p.row != shown.row || p.col != shown.col) {
+    if (shown.place_base == 0) shown.place_base = (next_place_ += kPlacementsPerPicture);
+    // The placements of the picture this one showed before, now another.
+    if (changed && shown.id && shown.id != upload.id) {
+      for (size_t k = 0; k < shown.rects.size(); k++) {
+        size_t before = out.size();
+        out += "\x1b_Ga=d,d=i,i=" + std::to_string(shown.id) + ",p=" + std::to_string(shown.place_base + k + 1) + ",q=1\x1b\\";
+        sizes_.placement += out.size() - before;
+      }
+    }
+    int ch = profile_.cell_px_height, cw = profile_.cell_px_width;
+    for (size_t k = 0; k < rects.size() && k < kPlacementsPerPicture - 1; k++) {
+      const Rect & r = rects[k];
+      int x0, x1, y0, y1;
+      img.pixelSpan(r.col - p.col, r.cols, cw, true, x0, x1);
+      img.pixelSpan(r.row - p.row, r.rows, ch, false, y0, y1);
+      if (x1 <= x0 || y1 <= y0) continue;
+      size_t place_start = out.size();
+      out += cup(r.row, r.col);
+      out += "\x1b_Ga=p,i=" + std::to_string(upload.id) + ",p=" + std::to_string(shown.place_base + k + 1) + ",x=" + std::to_string(x0) +
+             ",y=" + std::to_string(y0) + ",w=" + std::to_string(x1 - x0) + ",h=" + std::to_string(y1 - y0);
+      if (img.stretched()) out += ",c=" + std::to_string(r.cols) + ",r=" + std::to_string(r.rows);
+      out += ",C=1,q=1\x1b\\";
+      sizes_.placement += out.size() - place_start;
+    }
+    // Placements this picture no longer has (the data stays: other places show it).
+    if (!changed && !cleared) {
+      for (size_t k = rects.size(); k < shown.rects.size(); k++) {
+        size_t before = out.size();
+        out += "\x1b_Ga=d,d=i,i=" + std::to_string(upload.id) + ",p=" + std::to_string(shown.place_base + k + 1) + ",q=1\x1b\\";
+        sizes_.placement += out.size() - before;
+      }
+    }
+    shown.rects = rects;
+    shown.row = p.row;
+    shown.col = p.col;
+  }
+  shown.shared = true;
+  shown.id = upload.id;
+  shown.version = img.version;
+  return out;
+}
+
+// Frees the shared pictures nothing shows, the longest unplaced first, while the terminal would hold more
+// than the budget.
+void ImageEncoder::evictSharedUploads(const std::set<uint32_t> & in_use, std::string & out) {
+  size_t total = 0;
+  for (const auto & [version, upload] : shared_uploads_) total += upload.bytes;
+  while (total > shared_budget_) {
+    auto oldest = shared_uploads_.end();
+    for (auto it = shared_uploads_.begin(); it != shared_uploads_.end(); ++it) {
+      if (in_use.count(it->second.id)) continue;
+      if (oldest == shared_uploads_.end() || it->second.last_used < oldest->second.last_used) oldest = it;
+    }
+    if (oldest == shared_uploads_.end()) return;
+    std::string del = "\x1b_Ga=d,d=I,i=" + std::to_string(oldest->second.id) + ",q=1\x1b\\";
+    sizes_.placement += del.size();
+    out += del;
+    deflated_ids_.erase(oldest->second.id);
+    png_ids_.erase(oldest->second.id);
+    total -= oldest->second.bytes;
+    shared_uploads_.erase(oldest);
+  }
+}
+
+std::string ImageEncoder::kitty(const CellBuffer & frame, const ImagePlacement & p, Shown & shown, bool fresh, bool cleared) {
+  if (p.shared.valid()) return kittySharedPlacement(frame, p, shown, fresh, cleared);
+  std::string out;
+  if (shown.shared) {
+    // This place showed a shared picture and shows its own now: leave the shared one to its other places.
+    for (size_t k = 0; k < shown.rects.size(); k++) {
+      size_t before = out.size();
+      out += "\x1b_Ga=d,d=i,i=" + std::to_string(shown.id) + ",p=" + std::to_string(shown.place_base + k + 1) + ",q=1\x1b\\";
+      sizes_.placement += out.size() - before;
+    }
+    shown = Shown{};
+    fresh = true;
+  }
   const Image & img = *p.image;
   uint32_t old_id = shown.id;
   bool changed = fresh || shown.version != img.version;
@@ -576,70 +759,9 @@ std::string ImageEncoder::kitty(const CellBuffer & frame, const ImagePlacement &
     if (++next_id_ == 0) next_id_ = 1;
     shown.id = next_id_;
     shown.version = img.version;
-    // What goes up: the pixels as they are, or at a lower quality a palette PNG (quantised RGB where the
-    // terminal took no PNG); for a small picture both are made and the smaller sent, as a PNG's headers
-    // and palette can outweigh what the colours save.
-    struct Upload {
-      std::vector<uint8_t> bytes;
-      bool png = false, deflated = false;
-    };
-    auto fullRgb = [&]() {
-      Upload u;
-      u.bytes.reserve(img.pixels.size() * 3);
-      for (uint32_t px : img.pixels) {
-        u.bytes.push_back(Image::red(px));
-        u.bytes.push_back(Image::green(px));
-        u.bytes.push_back(Image::blue(px));
-      }
-      return u;
-    };
-    // Compressed when that saves enough to be worth the terminal inflating it.
-    auto deflate = [&](Upload & u) {
-      if (!compress_ || u.png) return;
-      std::vector<uint8_t> z = zlibCompress(u.bytes);
-      if (z.size() * 10 < u.bytes.size() * 9) {
-        u.bytes = std::move(z);
-        u.deflated = true;
-      }
-    };
-    Upload up;
-    int colours = pictureColours(quality_);
-    if (colours > 0) {
-      if (palette_png_) {
-        up.bytes = encodePalettePng(img, 0, 0, img.width, img.height, colours, img.stretched());
-        up.png = true;
-      } else {
-        up.bytes = quantisedRgb(img, colours, img.stretched());
-        deflate(up);
-      }
-      if (img.pixels.size() <= kSmallPicturePixels) {
-        Upload plain = fullRgb();
-        deflate(plain);
-        if (plain.bytes.size() < up.bytes.size()) up = std::move(plain);
-      }
-    } else {
-      up = fullRgb();
-      deflate(up);
-    }
-    bool as_png = up.png, deflated = up.deflated;
-    std::vector<uint8_t> & rgb = up.bytes;
-    if (as_png) png_ids_.insert(shown.id);
-    if (deflated) deflated_ids_.insert(shown.id);
-    std::string data = base64(rgb);
-    for (size_t i = 0; i < data.size() || i == 0; i += kKittyChunk) {
-      bool more = i + kKittyChunk < data.size();
-      size_t chunk_start = out.size();
-      out += "\x1b_G";
-      if (i == 0 && as_png) out += "a=t,f=100,i=" + std::to_string(shown.id) + ",";
-      else if (i == 0) out += std::string(deflated ? "o=z," : "") + "a=t,f=24,s=" + std::to_string(img.width) + ",v=" + std::to_string(img.height) + ",i=" + std::to_string(shown.id) + ",";
-      out += "q=1,m=" + std::string(more ? "1" : "0") + ";";
-      out += data.substr(i, kKittyChunk);
-      out += "\x1b\\";
-      sizes_.upload += out.size() - chunk_start;
-      if (data.empty()) break;
-    }
-    picture_stats_[{img.width, img.height}].uploads++;
-    picture_stats_[{img.width, img.height}].bytes += sizes_.upload - upload_before;
+    uploadKitty(img, shown.id, out);
+    picture_stats_[statLabel(p)].uploads++;
+    picture_stats_[statLabel(p)].bytes += sizes_.upload - upload_before;
   }
   std::vector<Rect> rects = visibleRects(frame, p, false);
   if (changed || cleared || rects != shown.rects || p.row != shown.row || p.col != shown.col) {
@@ -743,7 +865,7 @@ std::string ImageEncoder::sixel(const CellBuffer & frame, const ImagePlacement &
     out += from.bytes;
     sizes_.placement += from.position;
     sizes_.upload += from.picture;
-    picture_stats_[{p.image->width, p.image->height}].bytes += from.picture + from.position;
+    picture_stats_[statLabel(p)].bytes += from.picture + from.position;
   };
   for (const Rect & r : rects) {
     // One Sixel to a rectangle: what lies between two of them (a popup over a chart) is not sent.
@@ -803,7 +925,7 @@ std::string ImageEncoder::sixel(const CellBuffer & frame, const ImagePlacement &
     emit(rows.bytes.size() < whole.bytes.size() ? rows : whole);
   }
   shown.sent = img;
-  if (sizes_.upload > upload_before) picture_stats_[{p.image->width, p.image->height}].uploads++;
+  if (sizes_.upload > upload_before) picture_stats_[statLabel(p)].uploads++;
   return out;
 }
 
@@ -835,8 +957,8 @@ std::string ImageEncoder::iterm2(const CellBuffer & frame, const ImagePlacement 
     out += "\x1b]1337;File=inline=1;size=" + std::to_string(png.size()) + ";width=" + std::to_string(cols) +
            ";height=" + std::to_string(rows) + ";preserveAspectRatio=0;doNotMoveCursor=1:" + base64(png) + "\a";
     sizes_.upload += out.size() - osc_start;
-    picture_stats_[{img.width, img.height}].uploads++;
-    picture_stats_[{img.width, img.height}].bytes += out.size() - osc_start;
+    picture_stats_[statLabel(p)].uploads++;
+    picture_stats_[statLabel(p)].bytes += out.size() - osc_start;
   }
   return out;
 }
@@ -867,11 +989,27 @@ std::string ImageEncoder::encode(const CellBuffer & frame, const std::vector<Ima
       continue;
     }
     if (profile_.protocol == PixelProtocol::KITTY && it->second.id) {
-      std::string del = "\x1b_Ga=d,d=I,i=" + std::to_string(it->second.id) + ",q=1\x1b\\";
-      sizes_.placement += del.size();
-      out += del;
+      if (it->second.shared) {
+        // Only the placements: the picture stays for the next place that shows it.
+        for (size_t k = 0; k < it->second.rects.size(); k++) {
+          std::string del = "\x1b_Ga=d,d=i,i=" + std::to_string(it->second.id) + ",p=" + std::to_string(it->second.place_base + k + 1) + ",q=1\x1b\\";
+          sizes_.placement += del.size();
+          out += del;
+        }
+      } else {
+        std::string del = "\x1b_Ga=d,d=I,i=" + std::to_string(it->second.id) + ",q=1\x1b\\";
+        sizes_.placement += del.size();
+        out += del;
+      }
     }
     it = shown_.erase(it);
+  }
+  if (profile_.protocol == PixelProtocol::KITTY && !shared_uploads_.empty()) {
+    std::set<uint32_t> in_use;
+    for (const auto & [key, shown] : shown_) {
+      if (shown.shared) in_use.insert(shown.id);
+    }
+    evictSharedUploads(in_use, out);
   }
   return out;
 }
@@ -885,13 +1023,22 @@ std::string ImageEncoder::handleKittyReply(const std::string & body) {
   uint32_t id = 0;
   size_t at = keys.find("i=");
   if (at != std::string::npos) id = static_cast<uint32_t>(std::strtoul(keys.c_str() + at + 2, nullptr, 10));
+  // A refused shared upload is made again by the next placement that shows it.
+  auto forgetShared = [&]() {
+    for (auto it = shared_uploads_.begin(); it != shared_uploads_.end();) {
+      if (it->second.id == id) it = shared_uploads_.erase(it);
+      else ++it;
+    }
+  };
   if (id && png_ids_.erase(id) && palette_png_) {
+    forgetShared();
     // The terminal refused a palette PNG: quantised RGB from now on, and the refused picture again.
     palette_png_ = false;
     for (auto & [key, shown] : shown_) {
       if (shown.id == id) shown.version = ~uint64_t{0};
     }
   } else if (id && deflated_ids_.erase(id) && compress_) {
+    forgetShared();
     // The terminal refused a compressed upload: send raw from now on, and the refused pictures again.
     compress_ = false;
     for (auto & [key, shown] : shown_) {
@@ -912,6 +1059,10 @@ std::string ImageEncoder::clear() {
       if (shown.id) out += "\x1b_Ga=d,d=I,i=" + std::to_string(shown.id) + ",q=1\x1b\\";
     }
   }
+  for (const auto & [version, upload] : shared_uploads_) {
+    if (profile_.protocol == PixelProtocol::KITTY) out += "\x1b_Ga=d,d=I,i=" + std::to_string(upload.id) + ",q=1\x1b\\";
+  }
+  shared_uploads_.clear();
   shown_.clear();
   return out;
 }
