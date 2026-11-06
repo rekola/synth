@@ -1089,6 +1089,18 @@ TEST(bufferplane_put_text_without_text_layout_cuts_to_the_box) {
   CHECK(b.at(1, 11).text == "f");
 }
 
+// Without text layout the whole box takes the plane's colours, not only the text.
+TEST(bufferplane_put_text_without_text_layout_fills_the_box) {
+  StyleProvider styles;
+  CellBuffer b(1, 10);
+  BufferPlane root(b, styles);
+  root.setBgColor(Color(10, 20, 30));
+  root.putText(0, 1, 6, "ab", TextStyle{});
+  root.refresh();
+  CHECK(b.at(0, 1).text == "a" && b.at(0, 6).bg && b.at(0, 6).text == " ");
+  CHECK(!b.at(0, 7).bg);
+}
+
 // A display that lays text out gets the run, and the cells of its box marked
 // with it; writing over a cell takes the mark back.
 TEST(bufferplane_put_text_with_text_layout_marks_the_box) {

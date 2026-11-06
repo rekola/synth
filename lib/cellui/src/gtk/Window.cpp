@@ -412,20 +412,36 @@ void Window::Impl::measure(const WindowOptions & options) {
   g_object_unref(context);
   pango_font_description_free(desc);
 
-  // The proportional face, sized so that a line of it fits a cell's height.
+  // The proportional face, sized so that its capitals stand as tall as the
+  // cell font's (the faces' line heights differ, so matching those would
+  // make one look smaller), and a line of it still fits a cell's height.
   {
     PangoContext * ui = gtk_widget_get_pango_context(view);
     proportional = pango_font_description_copy(pango_context_get_font_description(ui));
+    auto capHeight = [](PangoContext * pc, PangoFontDescription * font) {
+      PangoLayout * probe = pango_layout_new(pc);
+      pango_layout_set_font_description(probe, font);
+      pango_layout_set_text(probe, "H", -1);
+      PangoRectangle ink;
+      pango_layout_get_pixel_extents(probe, &ink, nullptr);
+      g_object_unref(probe);
+      return std::max(ink.height, 1);
+    };
+    int target = capHeight(text_context, cell_base);
+    double px = cell_h * 0.72;
+    for (int i = 0; i < 4; i++) {
+      pango_font_description_set_absolute_size(proportional, px * PANGO_SCALE);
+      px = std::min(px * target / capHeight(ui, proportional), cell_h * 1.0);
+    }
     PangoLayout * probe = pango_layout_new(ui);
     pango_layout_set_text(probe, "Mgjy", -1);
-    double px = cell_h * 0.72;
     for (int i = 0; i < 12; i++) {
       pango_font_description_set_absolute_size(proportional, px * PANGO_SCALE);
       pango_layout_set_font_description(probe, proportional);
       int w = 0, h = 0;
       pango_layout_get_pixel_size(probe, &w, &h);
       if (h <= cell_h) break;
-      px *= 0.92;
+      px *= 0.97;
     }
     g_object_unref(probe);
   }
