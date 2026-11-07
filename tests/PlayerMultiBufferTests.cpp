@@ -820,3 +820,25 @@ TEST(a_live_note_of_a_just_scale_sounds_at_its_exact_ratio) {
   // 12-EDO D-sharp in an otonal song is 7/6, 33 cents below the equal-tempered step.
   CHECK_NEAR(1200.0 * std::log2(just / equal), -33.0, 1.0);
 }
+
+// A fresh buffer plays drums with no `from` authored anywhere: the starter
+// percussion track must find the pool's default kit.
+TEST(a_fresh_buffer_has_a_resolved_drum_kit) {
+  ChannelConfiguration config(44100, 1);
+  Controller controller(config);
+  controller.switchToBuffer(controller.freshBufferName());
+  CHECK(controller.getSong().getInstrumentPool().getDefaultKitInstrument() != nullptr);
+}
+
+// The starter tracks sit apart from each other rather than both at the origin.
+TEST(a_fresh_buffer_places_its_starter_tracks_apart) {
+  ChannelConfiguration config(44100, 1);
+  Controller controller(config);
+  controller.switchToBuffer(controller.freshBufferName());
+  auto & tracks = controller.getSong().getMasterTrack().getChildren();
+  CHECK(tracks.size() == 2);
+  auto & first = static_cast<const LeafTrack &>(*tracks[0]);
+  auto & second = static_cast<const LeafTrack &>(*tracks[1]);
+  CHECK(first.getAzimuth() != second.getAzimuth());
+  CHECK(first.getDistance() > 0.0f && second.getDistance() > 0.0f);
+}
