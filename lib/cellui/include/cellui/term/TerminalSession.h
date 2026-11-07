@@ -180,9 +180,10 @@ class TerminalSession : public Backend {
   // followed by a fence (a cursor position query) whose reply acknowledges it.
   OutputQueue out_;
   struct Mark {
-    uint64_t end;  // the queue position after the frame (or the bare query)
+    uint64_t end;  // the queue position after the frame (or the fence in front of it)
     FrameBytes size;
-    bool probe;
+    bool lead;     // the fence in front of a frame, not the frame
+    size_t lead_bytes = 0;
   };
   std::deque<Mark> marks_;
   FramePacer pacer_{false};

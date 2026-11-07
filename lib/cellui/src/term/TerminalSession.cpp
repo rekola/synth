@@ -401,8 +401,8 @@ void TerminalSession::flushOutput() {
   while (!marks_.empty() && marks_.front().end <= out_.accepted()) {
     Mark mark = marks_.front();
     marks_.pop_front();
-    if (mark.probe) pacer_.onProbeSent(now);
-    else pacer_.onFrameSent(mark.size, now);
+    if (mark.lead) pacer_.onLeadSent(now);
+    else pacer_.onFrameSent(mark.size, now, mark.lead_bytes);
   }
   if (!ok) {
     // The terminal is gone; the read side reports the end.
@@ -623,11 +623,15 @@ void TerminalSession::sendFrame(const CellBuffer & frame, const CursorRequest & 
     flushOutput();
     return;
   }
+  size_t lead_bytes = 0;
   if (pacer_.fencesEnabled()) {
-    if (pacer_.needsProbe()) {
-      out_.append(fenceBytes());
-      marks_.push_back({out_.queued(), {}, true});
-    }
+    // A fence in front of the frame as well as behind it: the time between their replies is the terminal
+    // taking in this frame alone, and the first reply's own delay is how long it takes to answer at all.
+    std::string lead = fenceBytes();
+    lead_bytes = lead.size();
+    size.other += lead_bytes;
+    out_.append(lead);
+    marks_.push_back({out_.queued(), {}, true});
     out_.append(body);
     std::string fence = fenceBytes();
     size.other += fence.size();
@@ -635,7 +639,7 @@ void TerminalSession::sendFrame(const CellBuffer & frame, const CursorRequest & 
   } else {
     out_.append(body);
   }
-  marks_.push_back({out_.queued(), size, false});
+  marks_.push_back({out_.queued(), size, false, lead_bytes});
   flushOutput();
 }
 

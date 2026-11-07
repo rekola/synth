@@ -33,46 +33,49 @@ struct PacerConfig {
   double min_in_flight_frames = 2;
   // Until the first frame is acknowledged, at most this many frames in flight.
   size_t startup_frames_in_flight = 2;
-  // The bandwidth estimate is the largest of this many recent back-to-back
-  // samples; a sample counts at most `sample_cap` times the current estimate,
-  // and a lower window pulls the estimate down by `down_weight` of the way.
+  // The bandwidth estimate is the largest of this many recent samples; a sample counts at most
+  // `sample_cap` times the current estimate, and a lower window pulls the estimate down by `down_weight`
+  // of the way.
   size_t sample_window = 8;
-  // A sample is the bytes of up to this many frames sent back to back, over the time from the reply
-  // before them to the last: replies come in batches, and one pair of them is too noisy.
+  // A saturation-grade frame's sample is the bytes of it and up to this many saturation-grade frames
+  // before it, over the time since the reply to the frame before them: replies are read in batches, and
+  // one frame's own time is too noisy where the link is the limit.
   size_t sample_frames = 4;
   double sample_cap = 2.0;
   double down_weight = 0.125;
+  // Every frame is led by a fence of its own and followed by another, so the time from the reply to the
+  // first to the reply to the second is the terminal taking in that frame alone, whether or not frames
+  // go back to back. It makes a sample, S bytes over that time, only when it is at least `sample_floor`:
+  // below it the clock, the batching of replies and the terminal's own timing say more than the link.
+  // (Set by pacing checks 10 and 11: a busy terminal answering 5 to 40 ms late.)
+  us sample_floor{10000};
+  // The terminal's response delay D, the time from a lead fence to its reply, is kept as the minimum
+  // over this long; it stands wherever a bare round trip would.
+  us delay_window{5000000};
+  // A sample may lower the estimate (or a frame count as queueing) only if it is saturation-grade: the
+  // bytes in flight when its frame was sent were at least this share of B*D, so the pipe was full and
+  // the frame's time is the link's. A frame sent as a probe, with S/B at least the floor, is probe-grade.
+  // An app-limited sample can only raise the estimate. (Pacing checks 10 and 11, and the unit tests.)
+  double saturation_fraction = 0.75;
   // Every `probe_every` frames one is sent `probe_gain` times faster than
   // the estimate, to find headroom. Probe frames are left out of the lag rule.
   int probe_every = 8;
   double probe_gain = 1.25;
-  // Back off by `backoff_factor` when a frame's queueing delay exceeds
-  // `delay_ratio` times RTT_min for `delay_frames` in a row (at least `delay_floor`), or when
-  // `lag_frames` consecutive acknowledgements are `lag_ratio` times further
+  // Back off by `backoff_factor` when a saturation-grade frame is queueing - its reply later than
+  // D + S/B + max(`queue_slack_d` * D, `queue_slack_floor`) after it was sent - `delay_frames` in a row,
+  // or when `lag_frames` consecutive saturation-grade acknowledgements are `lag_ratio` times further
   // apart than the frames were sent.
   double backoff_factor = 0.8;
-  double delay_ratio = 2.0;
-  // The delay that counts is never less than this, so a link with an RTT of
-  // microseconds does not back off at every scheduling jitter.
-  us delay_floor{10000};
+  double queue_slack_d = 2.0;
+  us queue_slack_floor{20000};
   int delay_frames = 2;
   double lag_ratio = 1.5;
   int lag_frames = 4;
-  // RTT_min also takes the running minimum of the time from a frame's last
-  // byte to its reply after this many acknowledgements.
-  int rtt_refine_after = 10;
   // The link is taken to hold frames back only when the gap its estimate asks for is this many times
   // the floor between frames. Frames are never closer than the floor, so an estimate near the rate
   // they are sent at on the floor says only what was sent: small frames settle there, with the gap at
   // the floor and a little over, whatever the link could take.
   double link_bound_margin = 1.25;
-  // A frame, or a run of them, of fewer bytes than this says nothing against the estimate: its reply is
-  // late by what the terminal took to draw it and the scheduler to read it, not by what the link took for
-  // so few bytes (a kilobyte a frame, each reply 40 ms late, is 25 kB/s), and a fast link would be taken
-  // for a slow one while the screen is nearly still. Such frames never lower the estimate or count as
-  // queueing; only a bigger one can. A slow link's frames are bigger than this at the picture quality it
-  // gets.
-  size_t min_evidence_bytes = 4096;
   // No acknowledgement for this long halves the estimate; with none ever, or
   // this many times in a row, the terminal is taken not to answer.
   std::chrono::milliseconds stall{1500};
@@ -87,7 +90,11 @@ struct PacerConfig {
 
 struct PacerStats {
   double bandwidth = 0;       // B, bytes per second; 0 until known
-  double rtt_min_us = 0;      // 0 until known
+  double rtt_min_us = 0;      // the terminal's response delay D (windowed minimum), 0 until known
+  double last_sample = 0;     // the last frame's own-time sample, bytes per second; 0 if none was valid
+  // What the last acknowledged frame was good for: 0 nothing (no sample), 1 app-limited (may raise
+  // the estimate only), 2 saturation-grade, 3 probe-grade (either may lower it).
+  int last_grade = 0;
   double fps = 0;             // frames sent over the last second
   size_t bytes_in_flight = 0, frames_in_flight = 0;
   FrameBytes last_frame, totals;
@@ -137,10 +144,10 @@ class FramePacer {
   // time is already the S/B).
   void onFrameStart(TimePoint now);
 
-  // The bare query that precedes the first frame has been written / a frame
-  // with its fence has (every byte accepted by the descriptor).
-  void onProbeSent(TimePoint t_sent);
-  void onFrameSent(FrameBytes size, TimePoint t_sent);
+  // The fence in front of a frame has been written / the frame with the fence behind it has (every
+  // byte accepted by the descriptor). `lead_bytes` are those of `size` that make the lead fence.
+  void onLeadSent(TimePoint t_sent);
+  void onFrameSent(FrameBytes size, TimePoint t_sent, size_t lead_bytes = 0);
   // The oldest outstanding fence was answered, `t_ack` being when the reply
   // was read.
   void onAck(TimePoint t_ack);
@@ -154,8 +161,6 @@ class FramePacer {
   }
   // The fence of this frame is not to be sent (an empty frame).
   bool fencesEnabled() const { return fences_; }
-  // The first frame goes with a bare query before it.
-  bool needsProbe() const { return fences_ && !probe_sent_; }
 
   double estimatedBytesPerSec() const { return bandwidth_; }
   PacerStats stats(TimePoint now) const;
@@ -163,8 +168,10 @@ class FramePacer {
 
  private:
   struct Fence {
-    bool probe = false;       // the bare query, not a frame
+    bool lead = false;        // the fence in front of a frame, not the frame
     bool probing = false;     // a frame sent faster than the estimate
+    size_t lead_bytes = 0;    // (frame) the bytes of its lead fence
+    size_t in_flight_at_send = 0;  // (frame) bytes in flight when it was sent, its own included
     FrameBytes size;
     TimePoint started;  // when the frame began to be made: its first bytes went into the queue
     TimePoint sent;     // when its last byte was taken by the descriptor
@@ -181,20 +188,25 @@ class FramePacer {
   PacerConfig config_;
   bool fences_;
   bool dirty_ = false;
-  bool probe_sent_ = false;
   bool starting_probe_ = false;  // the frame now starting is a probe frame
 
   double bandwidth_ = 0;
-  double rtt_min_us_ = 0;
-  bool rtt_known_ = false;
+  // The terminal's response delay: lead fence to reply, each with when it was read.
+  std::deque<std::pair<TimePoint, double>> delays_;
+  double delayUs() const;  // the minimum over the window, 0 until known
   std::deque<Fence> in_flight_;
-  std::deque<double> samples_;
   struct Acked {
     TimePoint ack;
-    size_t bytes = 0;
-    bool back_to_back = false;  // sent before the reply to the frame before it
+    double payload = 0;
+    bool saturated = false;
   };
   std::deque<Acked> acked_;
+  struct Sample {
+    double rate = 0;
+    bool may_lower = false;  // saturation- or probe-grade
+  };
+  std::deque<Sample> samples_;
+  std::optional<TimePoint> lead_ack_;  // when the lead fence of the frame now to be answered was
   size_t late_ = 0;
 
   std::optional<TimePoint> last_start_;    // when the last frame that sent anything started
@@ -202,10 +214,12 @@ class FramePacer {
   std::optional<TimePoint> last_sent_;     // when its last byte went
   size_t last_sent_bytes_ = 0;
   bool last_sent_probing_ = false;
-  std::optional<TimePoint> last_ack_;
-  std::optional<TimePoint> last_ack_started_;  // when the frame last acknowledged was started
-  bool last_ack_probing_ = false;
-  std::optional<TimePoint> probe_ack_;     // when the bare query was answered
+  std::optional<TimePoint> last_ack_;      // when the last fence of any kind was answered
+  std::optional<TimePoint> last_end_ack_;  // when the last frame's own fence was
+  std::optional<TimePoint> last_end_started_;  // when that frame was started
+  bool last_end_probing_ = false;
+  double last_sample_ = 0;
+  int last_grade_ = 0;
   size_t frame_acks_ = 0;
   int frames_since_probe_ = 0;
   int delay_streak_ = 0;

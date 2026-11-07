@@ -39,7 +39,6 @@ int main(int argc, char ** argv) {
   int min_interval_ms = -1;
   double burst_seconds = 3;
   int small_bytes = 1500;
-  long min_evidence = -1;
   std::string pin;
   for (int i = 1; i + 1 < argc; i += 2) {
     std::string a = argv[i];
@@ -51,7 +50,6 @@ int main(int argc, char ** argv) {
     else if (a == "--pin") pin = argv[i + 1];
     else if (a == "--burst-seconds") burst_seconds = std::atof(argv[i + 1]);
     else if (a == "--small-bytes") small_bytes = std::atoi(argv[i + 1]);
-    else if (a == "--min-evidence") min_evidence = std::atol(argv[i + 1]);
     else if (a == "--img") std::sscanf(argv[i + 1], "%dx%d", &img_w, &img_h);
   }
   FILE * log = std::fopen(out_path.c_str(), "w");
@@ -60,7 +58,6 @@ int main(int argc, char ** argv) {
 
   SessionOptions options;
   options.mouse = false;
-  if (min_evidence >= 0) options.pacer.min_evidence_bytes = static_cast<size_t>(min_evidence);
   if (min_interval_ms >= 0) options.pacer.min_frame_interval = std::chrono::milliseconds(min_interval_ms);
   std::string error;
   auto session = TerminalSession::open(options, &error);
