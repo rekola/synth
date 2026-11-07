@@ -47,13 +47,17 @@ anabole (the kitharode's "striking up"): the lyre runs up its open strings and
 settles on the fifth while the drones enter, and the singing begins at bar 3. A
 two-bar outro echoes the cadence on the lyre and settles on the tonic and fifth
 while the voice holds its last note, then stops. The tempo broadens over the
-outro from 80 to 64 (ZT commands on the master track).
+outro from 80 to 64 (tempo changes in the arrangement).
 
 The scale is nid qablim, the Phrygian mode on C of the Pythagorean gamut:
 C D-flat E-flat F G A-flat B-flat = 1/1 256/243 32/27 4/3 3/2 128/81 16/9. In
 53-EDO's notation the gamut spells these C-sharp-up, E-flat-down, A-flat-down
 and B-flat-down.</notes>
     <arrangement>
+        <tempo row="136" bpm="75"/>
+        <tempo row="140" bpm="70"/>
+        <tempo row="144" bpm="66"/>
+        <tempo row="148" bpm="64"/>
         <signature row="112" timeSignature="12/8"/>
         <signature row="136" timeSignature="2/4"/>
         <pattern track="kymbala">
@@ -319,13 +323,6 @@ and B-flat-down.</notes>
             <note row="130" velocity="20" fx="+00">C-3</note>
             <note row="136" velocity="18" fx="+00">B♭↓2</note>
             <note row="140" velocity="16" fx="+00">C-3</note>
-        </pattern>
-        <pattern track="master">
-            <command row="148" data="ZT40"/>
-            <command row="144" data="ZT42"/>
-            <command row="140" data="ZT46"/>
-            <command row="136" data="ZT4B"/>
-            <command row="0" data="ZT50"/>
         </pattern>
     </arrangement>
 </song>

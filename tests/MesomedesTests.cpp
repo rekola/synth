@@ -46,6 +46,9 @@ TEST(mesomedes_plays_scale_notes_tuned_to_their_ratios_in_120_rows) {
   CHECK(bars.barRows(kIntroRows) == 8 && bars.barRows(kIntroRows + 96) == 24 && bars.barRows(kIntroRows + kSongRows) == 8);
   CHECK(bars.barIndex(kIntroRows + kSongRows) == 2 + 13 && bars.barIndex(kIntroRows + kSongRows + kOutroRows) == 2 + 13 + 2);
 
+  // The tempo broadens over the outro, as tempo changes in the arrangement.
+  CHECK((song.getTempoChanges() == std::map<int, int>{{136, 75}, {140, 70}, {144, 66}, {148, 64}}));
+
   const int key = song.getKey();
   CHECK(key == Note::stringToKey(Tuning::EDO53, "C-4"));
   auto corrections = just_intonation::scaleCorrectionsFor(Tuning::EDO53, Scale::NID_QABLIM, key);

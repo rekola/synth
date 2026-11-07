@@ -38,7 +38,7 @@ two-bar anabole (the kitharode's "striking up"): the lyre runs through its open
 strings and settles on the fifth, the drones enter, and the singing begins at bar 3. A two-bar outro echoes
 the final cadence on the lyre and settles on the tonic frame while the voice
 holds its last note, then stops. The tempo broadens over the outro from 99
-to 80 (ZT commands on the lyre track). The two aulos tracks stand in for the singer;
+to 80 (tempo changes in the arrangement). The two aulos tracks stand in for the singer;
 the reed drone is a second player.
 
 The scale is the Pythagorean Mixolydian mode on C: C D E F G A B-flat = 1/1
@@ -46,6 +46,10 @@ The scale is the Pythagorean Mixolydian mode on C: C D E F G A B-flat = 1/1
 just major scale, so the Pythagorean E, A and B-flat are written E-up, A-up
 and B-flat-down.</notes>
     <arrangement>
+        <tempo row="120" bpm="92"/>
+        <tempo row="124" bpm="88"/>
+        <tempo row="128" bpm="84"/>
+        <tempo row="132" bpm="80"/>
         <pattern track="kymbala">
             <note row="24" velocity="40">TRM</note>
             <note row="48" velocity="36">TRM</note>
@@ -282,13 +286,6 @@ and B-flat-down.</notes>
             <note row="120" velocity="18" fx="+00">C-3</note>
             <note row="124" velocity="16" fx="+00">A↑2</note>
             <note row="128" velocity="15" fx="+00">G-2</note>
-        </pattern>
-        <pattern track="master">
-            <command row="132" data="ZT50"/>
-            <command row="128" data="ZT54"/>
-            <command row="124" data="ZT58"/>
-            <command row="120" data="ZT5C"/>
-            <command row="0" data="ZT63"/>
         </pattern>
     </arrangement>
 </song>
