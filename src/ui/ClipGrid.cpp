@@ -749,9 +749,9 @@ bool ClipGrid::dragOver(const cellui::DragOver & e) {
   bool accepted = false;
   if (slot) {
     auto track_ids = getController().getSong().getPlayableTrackIds();
-    // Its own slot is accepted and does nothing.
+    // Its own slot is a candidate like any other; dropping there does nothing.
     accepted = canHold(track_ids[static_cast<size_t>(slot->first)], drag->track_type);
-    if (accepted && !(drag_source_ && *drag_source_ == *slot)) target = slot;
+    if (accepted) target = slot;
   }
   if (target != drop_target_) {
     drop_target_ = target;

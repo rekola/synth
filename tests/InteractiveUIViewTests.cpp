@@ -1688,6 +1688,16 @@ TEST(terminal_ui_dragging_a_clip_moves_it_to_another_slot) {
   CHECK(hasClip(f, 0, 0) && !hasClip(f, 1, 1));
 }
 
+TEST(terminal_ui_a_clip_dropped_on_its_own_slot_stays) {
+  UIFixture f(repoSong("demo3.xml"), UI::View::LIVE, dragDisplay());
+  putNoteClip(f, 0, 0);
+  dragClip(f, 0, 0, 0, 0);
+  CHECK(hasClip(f, 0, 0));
+  f.ui->step();
+  dragClip(f, 0, 0, 0, 0, kModCtrl);
+  CHECK(hasClip(f, 0, 0) && !hasClip(f, 0, 1));
+}
+
 TEST(terminal_ui_dragging_a_clip_with_ctrl_copies_it) {
   UIFixture f(repoSong("demo3.xml"), UI::View::LIVE, dragDisplay());
   putNoteClip(f, 0, 0);
@@ -1808,6 +1818,22 @@ TEST(terminal_ui_dragging_a_placed_clip_moves_it_to_another_bar) {
   f.controller->getSong().undo();
   f.ui->step();
   CHECK(placedRows(f, 0) == std::vector<int>{0});
+}
+
+// A looping clip runs on past its pass; what is lifted is one pass of it, so a
+// grab in the tail counts from that pass, not from the start of the run.
+TEST(terminal_ui_a_looping_block_is_dragged_by_one_pass) {
+  UIFixture f(repoSong("demo3.xml"), UI::View::ARRANGEMENT, dragDisplay());
+  placeNoteClip(f, 0);
+  {
+    auto & song = f.controller->getSong();
+    Song::Edit edit(song, "loop");
+    song.getClips(song.getPlayableTrackIds()[0])[0].setLooping(true);
+  }
+  f.ui->step();
+  int y = trackRowOf(f, "T0");
+  dragBlock(f, y, 2, y, 6); // pressed in the tail of the run
+  CHECK(placedRows(f, 0) == std::vector<int>{barRow(f, 6)});
 }
 
 TEST(terminal_ui_dragging_a_placed_clip_to_another_track_copies_the_clip_there) {

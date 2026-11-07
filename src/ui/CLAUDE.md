@@ -265,7 +265,8 @@ Controller-level and per-widget commands. Not migrated: `StatusLine`,
   a `MouseMove` with the button held (`MouseMove::buttons`), sent to the
   widget that got the press; a `MouseDown` is always a fresh press.
   **Dragging a clip** (window only, `cellui/DragDrop.h`): a press on a
-  populated clip slot is a candidate; once the pointer has moved
+  populated clip slot is a candidate (its own slot is one too, and dropping there
+  does nothing); once the pointer has moved
   (`dragStarted()`) `ClipGrid` posts `StartDrag` (refused where the display has
   no drag and drop, and the press stays a click) and holds a `DragGhost`
   drawn by the same `putClipSlot()` as the grid's slots, its own slot showing
@@ -276,9 +277,11 @@ Controller-level and per-widget commands. Not migrated: `StatusLine`,
   a playing clip stops first, as for a cut) in one edit.
   **Dragging a placed clip** (`ArrangementGrid`, same session): a press on a
   block is the candidate, the block is found with `resolveInstanceForBar()` as
-  the bars it spans; the ghost is as wide as the block in bars and keeps the
-  bar grabbed under the pointer; the bars it would cover show it at half
-  strength. A drop moves the placement (`removeInstanceLeavingSilence()` then
+  the bars it spans (a looping clip's run ends with the shown bars; its bars
+  show empty while it is lifted); what is dragged and shown is one pass of the
+  clip (its length in bars), however long it runs once placed, and keeps the
+  bar grabbed under the pointer; the bars one pass would cover show it at
+  half strength. A drop moves the placement (`removeInstanceLeavingSilence()` then
   `placeClipInstance()`, one edit) to the bar under the grabbed point; onto
   another track of the same kind the clip goes there as an independent copy in
   the first free slot. Ctrl places another and keeps the first. The clip and
