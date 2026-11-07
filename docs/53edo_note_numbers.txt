@@ -1,4 +1,5 @@
 # value	note names	step	ratios  (value is C4 = 265; add 53 per octave)
+# a sharp or flat is 3 steps (25:24), an arrow 1 (81:80), a double sharp or flat 7 (35:32, not two sharps)
 265	C-4	0	1:1
 266	C↑4	1
 267	D𝄫4/C♯↓4/B𝄪3	2	33:32, 32:31

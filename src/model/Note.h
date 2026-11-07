@@ -461,6 +461,8 @@ class Note {
 	}
 
         // 𝄰 𝄱 𝄬 𝄭 are older one-glyph spellings of ♯↑ ♯↓ ♭↑ ♭↓, still read.
+        // A double sharp is 35:32, 7 steps, not two sharps: 31-EDO's double
+        // sharp is 35:32 too, so a septimal spelling (E𝄫 8:7) means the same in both.
         if (accidental == "x" || accidental == "𝄪") value += 7;
 	else if (accidental == "𝄰") value += 4;
 	else if (accidental == "#" || accidental == "♯") value += 3;
