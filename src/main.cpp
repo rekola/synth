@@ -167,7 +167,11 @@ int main(int argc, char *argv[]) {
         fmt::print(stderr, "--pacer-log requires a file name\n");
         exit(1);
       }
+#ifdef _WIN32
+      _putenv_s("SYNTH_PACER_LOG", argv[i + 1]);
+#else
       setenv("SYNTH_PACER_LOG", argv[i + 1], 1);
+#endif
       i++;
     } else if (strcmp(argv[i], "--dither") == 0) {
       if (i + 1 >= argc || !cellui::term::Dither::byName(argv[i + 1], dither)) {
