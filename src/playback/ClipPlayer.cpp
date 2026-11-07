@@ -218,7 +218,24 @@ ClipPlayer::launchScene(int clip_index, const vector<int> & track_ids) {
   for (auto track_id : track_ids) triggerClip(track_id, clip_index);
   // A scene starts the transport even when every slot in it is empty.
   if (!track_ids.empty() && !controller_.isNoteCaptureArmed()) startTransport();
+  if (!track_ids.empty()) recordSceneChange(clip_index);
   events.push(make_unique<PlaybackControlEvent>(PlaybackControlEvent::BATCH_END, controller_.getActiveBufferName()));
+}
+
+void ClipPlayer::recordSceneChange(int clip_index) {
+  if (!controller_.isNoteCaptureArmed()) return;
+  auto & song = controller_.getSong();
+  auto tempo = song.getSceneTempo(clip_index);
+  auto signature = song.getSceneTimeSignature(clip_index);
+  if (tempo <= 0 && !signature.isSet()) return;
+  auto & playback_info = controller_.getPlaybackInfo();
+  if (!playback_info.isPlaying() && assign_playback_starter_) assign_playback_starter_();
+  auto raw_row = playback_info.isPlaying() ? playback_info.getAbsolutePosition() : assign_row_;
+  Song::Edit edit(song, "record scene change");
+  auto bars = song.getArrangementBars();
+  auto row = quantizedBarRow(bars, raw_row);
+  if (tempo > 0 && tempo != song.getArrangementTempoAt(row)) song.setTempoChange(row, tempo);
+  if (signature.isSet() && signature != bars.gridAt(row).signature) song.setSignatureChange(row, signature);
 }
 
 void

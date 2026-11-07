@@ -28,17 +28,12 @@ inline const doc::Prop<int> kTransportNumerator{"transportNumerator", 0};
 inline const doc::Prop<int> kTransportDenominator{"transportDenominator", 0};
 inline const doc::Prop<int> kTransportOrigin{"transportOrigin", 0};
 inline constexpr const char * kScenesSlot = "scenes";
-inline constexpr const char * kLocatorsSlot = "locators";
 
 // type "scene", by position in the root's scenes slot.
 inline const doc::Prop<std::string> kSceneName{"name", ""};
 inline const doc::Prop<int> kSceneTempo{"tempo", 0};
 inline const doc::Prop<int> kSceneTimeNumerator{"timeNumerator", 0};
 inline const doc::Prop<int> kSceneTimeDenominator{"timeDenominator", 0};
-
-// type "locator", sorted by row in the root's locators slot.
-inline const doc::Prop<int> kLocatorRow{"row", 0};
-inline const doc::Prop<std::string> kLocatorText{"text", ""};
 
 }  // namespace songschema
 

@@ -27,6 +27,7 @@ class ChannelConfiguration;
 int quantizedBarRow(int raw_row, int rows_per_bar);
 // The same against a bar grid whose bars may change length.
 int quantizedBarRow(const BarGrid & bars, int raw_row);
+int quantizedBarRow(const ArrangementBars & bars, int raw_row);
 
 // The opposite direction, for a brand new clip's own placement
 // (Controller::ensureNoteRecordingClip()) rather than triggering one that
@@ -39,6 +40,7 @@ int quantizedBarRow(const BarGrid & bars, int raw_row);
 // starting partway through it.
 int previousBarRow(int raw_row, int rows_per_bar);
 int previousBarRow(const BarGrid & bars, int raw_row);
+int previousBarRow(const ArrangementBars & bars, int raw_row);
 
 // Places a real-clip instance event (clip_index - the clip's own ordinal
 // position in track_id's own clip list, Song::getClips(track_id) - what

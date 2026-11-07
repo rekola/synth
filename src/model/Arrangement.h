@@ -3,6 +3,7 @@
 
 #include "Pattern.h"
 #include "SampleContent.h"
+#include "TimeSignature.h"
 #include "VisibleTrackInfo.h"
 
 #include <map>
@@ -17,7 +18,8 @@
 // (patterns_by_track_id_ - its note/command content, never shared, unlike
 // a Clip's), and a SampleTrack's background bed
 // (sample_backgrounds_by_track_id_ - audio from row 0 on). Notes about a
-// moment in the song are its locators (Song::getLocators()).
+// moment in the song are its locators (Song::getLocators()), kept in the
+// arrangement node too.
 //
 // The row+track_id-keyed accessors delegate to the track's Pattern,
 // creating it on first use; getPatternsByTrack() is for the callers that
@@ -210,7 +212,17 @@ class Arrangement {
   // bed here" at once, not a single track_id at a time.
   const std::unordered_map<int, SampleContent> & getSampleBackgroundsByTrack() const { return sample_backgrounds_by_track_id_; }
 
-private:
+  // ---- Tempo and time signature changes, by absolute row: from that row
+  // on, the tempo (bpm) or the bars (counted from that row). Before the first
+  // one the song's own values apply.
+  const std::map<int, int> & getTempoChanges() const { return tempo_changes_; }
+  const std::map<int, TimeSignature> & getSignatureChanges() const { return signature_changes_; }
+  void setTempoChange(int row, int bpm) { tempo_changes_[row] = bpm; }
+  void setSignatureChange(int row, TimeSignature signature) { signature_changes_[row] = signature; }
+
+ private:
+  std::map<int, int> tempo_changes_;
+  std::map<int, TimeSignature> signature_changes_;
   std::unordered_map<int, Pattern> patterns_by_track_id_;
   std::unordered_map<int, std::map<unsigned short, std::string> > instances_by_track_id_;
   std::unordered_map<int, SampleContent> sample_backgrounds_by_track_id_;

@@ -88,6 +88,8 @@ contentDigest(const SongScalars & scalars, const Arrangement & arrangement, cons
     for (auto & [ row, clip_id ] : instances) t = combine(combine(t, row), hashString(clip_id));
     total += t;
   }
+  for (auto & [row, bpm] : arrangement.getTempoChanges()) total += combine(combine(14, static_cast<uint64_t>(row)), static_cast<uint64_t>(bpm));
+  for (auto & [row, signature] : arrangement.getSignatureChanges()) total += combine(combine(15, static_cast<uint64_t>(row)), static_cast<uint64_t>(signature.numerator * 100 + signature.denominator));
   for (auto & [ track_id, content ] : arrangement.getSampleBackgroundsByTrack()) total += combine(combine(12, static_cast<uint64_t>(track_id)), digestSample(content));
   for (auto & [ track_id, clips ] : clips_by_track) {
     uint64_t t = combine(13, static_cast<uint64_t>(track_id));

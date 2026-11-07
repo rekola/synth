@@ -17,8 +17,9 @@ paths:
   starts at a row, or an explicit stop; a looping clip plays on until the
   track's next event), an inline `Pattern` (the track's own notes/commands,
   always an independent copy, never shared like a clip), and a
-  `SampleTrack`'s merged background audio bed. Plus locators (named markers
-  by absolute row).
+  `SampleTrack`'s merged background audio bed. Plus the song-wide objects,
+  by absolute row: locators (named markers), tempo changes and time signature
+  changes (`<tempo row bpm>`, `<signature row timeSignature>`).
 - `src/state/` mirrors the model with cheaply-resettable `*State` objects.
   `src/playback/` has `Player` (the sequencer and its event vocabulary) and
   `ClipPlayer` (clip launching, Controller-owned).
@@ -178,9 +179,15 @@ paths:
   to Song gives a scene that has none. `docs/scenes.md`.
 - **Bars** (`TimeSignature.h`, `BarGrid.h`, `docs/time_signatures.md`): a row
   is a sixteenth; n/d is n*16/d rows per bar and 16/d per beat, three times
-  that in compound meter (6/8, 9/8, 12/8). The song has one signature (4/4
-  unless set, `set-time-signature`) the arrangement counts bars in
-  (`Song::getArrangementBars()`). A launched scene's signature is the
+  that in compound meter (6/8, 9/8, 12/8). The song has a starting signature
+  (4/4 unless set, `set-time-signature`) and the arrangement's signature
+  changes re-bar it from their rows; `Song::getArrangementBars()` is an
+  `ArrangementBars` (bars numbered across the changes). Tempo changes work
+  the same, applied by `SongState` when the row is reached (`rowTempo()`;
+  a `ZTxx` on the row wins, a seek rescans). Recording an arrangement
+  (`ClipPlayer::recordSceneChange()`) writes a launched scene's tempo and
+  signature as changes and `mirrorSceneChange()` then leaves the song tempo
+  alone. A launched scene's signature is the
   *running signature* (`RunningBars`, saved as `transportTimeSignature`/
   `transportBarOrigin`) overriding the song's from its origin until another
   scene or Back to Arrangement. The audio thread owns the running signature

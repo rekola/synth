@@ -60,7 +60,7 @@ class SongState : public TrackState {
     auto & scalars = content_reader->scalars;
     tempo_ = scalars.tempo;
     synced_song_tempo_ = tempo_;
-    song_signature_ = scalars.time_signature;
+    arrangement_bars_ = ArrangementBars(scalars.time_signature, content_reader->arrangement.getSignatureChanges());
     running_bars_ = scalars.running_bars;
     swing_ = scalars.swing;
     auto & tracks = *content_reader->tracks;
@@ -276,7 +276,7 @@ class SongState : public TrackState {
       song_structure_ = SongStructure(*content.tracks->master);
       song_structure_version_ = song.getMajorVersion();
       swing_ = content.scalars.swing;
-      song_signature_ = content.scalars.time_signature;
+      arrangement_bars_ = ArrangementBars(content.scalars.time_signature, content.arrangement.getSignatureChanges());
       // Only a tempo the song itself changed is applied: a scene launch has
       // set this one ahead of the song's copy (queueSceneChange()), and an
       // unrelated edit mustn't put it back.
@@ -1011,7 +1011,7 @@ class SongState : public TrackState {
   }
 
   // The tempo playing the arrangement from row 0 to absolute_pos_ would
-  // leave: the last ZTxx before it, else the song's (pattern breaks and
+  // leave: the last tempo change or ZTxx before it, else the song's (pattern breaks and
   // Live View are not followed).
   void rescanTempo(const PlaybackContent & content) {
     int bpm = 0;
@@ -1045,7 +1045,10 @@ class SongState : public TrackState {
     std::sort(track_ids.begin(), track_ids.end(), [&](int a, int b) { return song_structure_.getOrdinalFor(a) < song_structure_.getOrdinalFor(b); });
     track_ids.erase(std::unique(track_ids.begin(), track_ids.end()), track_ids.end());
 
+    // An arrangement tempo change at the row first; a ZTxx on the same row
+    // then overrides it.
     int bpm = 0;
+    if (auto change = arrangement.getTempoChanges().find(row); change != arrangement.getTempoChanges().end()) bpm = change->second;
     for (int track_id : track_ids) {
       auto background = arrangement.getPatternsByTrack().find(track_id);
       if (background != arrangement.getPatternsByTrack().end())
@@ -1236,7 +1239,7 @@ class SongState : public TrackState {
   const RunningBars & getRunningBars() const { return running_bars_; }
   void setRunningBars(RunningBars running) { running_bars_ = running; }
   // The bars in force at `row` on this thread.
-  BarGrid barsAt(int row) const { return ::barsAt(song_signature_, running_bars_, row); }
+  BarGrid barsAt(int row) const { return ::barsAt(arrangement_bars_, running_bars_, row); }
 
   // A performance effect (PerformanceEffect.h) held on a track, at
   // `pressure` (0-127), or released (performance::kRelease). Never touches
@@ -1414,7 +1417,9 @@ private:
   PendingScene pending_scene_;
   int scene_seq_ = 0;
   int scene_tempo_ = 0;
-  TimeSignature song_signature_{4, 4};
+  // The arrangement's bars (the song's signature and its changes), rebuilt
+  // when the song structure changes.
+  ArrangementBars arrangement_bars_{TimeSignature{4, 4}, {}};
   RunningBars running_bars_;
   int synced_song_tempo_ = 0; // the song tempo last applied from the song itself
 

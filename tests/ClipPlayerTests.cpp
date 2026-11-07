@@ -494,3 +494,58 @@ TEST(clip_player_delete_waiting_for_a_bar_completes_when_the_transport_stops) {
   f.player().tick();
   CHECK(f.song().getClips(track)[0].isEmpty());
 }
+
+TEST(arrangement_tempo_and_signature_changes_play_at_their_rows) {
+  LiveFixture f;
+  f.addTrack(1);
+  f.song().setTempo(120);
+  f.song().setTempoChange(3, 150);
+  f.song().setSignatureChange(8, TimeSignature{3, 4});
+  f.controller.togglePlaying();
+  f.playRows(3);
+  CHECK(f.state->getTempo() == 120);
+  f.playRows(1); // row 3 plays at the new tempo
+  CHECK(f.state->getTempo() == 150);
+  CHECK(f.state->barsAt(7).barRows() == 4 && f.state->barsAt(9).barRows() == 12 && f.state->barsAt(9).origin == 8);
+  CHECK(f.song().getBarsAt(9).barRows() == 12);
+}
+
+TEST(a_scene_launched_while_recording_writes_tempo_and_signature_changes_to_the_arrangement) {
+  LiveFixture f;
+  auto track = f.addTrack(2);
+  f.song().setSceneFromText(1, "Waltz 3/4 150 BPM");
+  auto start_tempo = f.song().getTempo();
+  f.controller.armNoteCapture();
+  f.controller.togglePlaying();
+  f.playRows(1);
+  f.player().launchScene(1, {track});
+  f.playRows(5);
+  CHECK(f.song().getTempoChanges().size() == 1 && f.song().getTempoChanges().at(4) == 150);
+  CHECK(f.song().getSignatureChanges().size() == 1 && f.song().getSignatureChanges().at(4) == (TimeSignature{3, 4}));
+  // The song's own tempo stays the starting one while recording.
+  CHECK(f.song().getTempo() == start_tempo);
+  CHECK(f.song().getArrangementBars().barRows(6) == 12);
+}
+
+TEST(a_scene_launched_without_recording_writes_nothing_to_the_arrangement) {
+  LiveFixture f;
+  auto track = f.addTrack(2);
+  f.song().setSceneFromText(1, "3/4 150 BPM");
+  f.controller.togglePlaying();
+  f.playRows(1);
+  f.player().launchScene(1, {track});
+  f.playRows(5);
+  CHECK(f.song().getTempoChanges().empty() && f.song().getSignatureChanges().empty());
+}
+
+TEST(a_scene_that_matches_the_arrangement_writes_no_change_while_recording) {
+  LiveFixture f;
+  auto track = f.addTrack(2);
+  f.song().setSceneFromText(1, "1/4");
+  f.controller.armNoteCapture();
+  f.controller.togglePlaying();
+  f.playRows(1);
+  f.player().launchScene(1, {track});
+  f.playRows(5);
+  CHECK(f.song().getSignatureChanges().empty());
+}

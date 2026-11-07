@@ -14,7 +14,7 @@
         <track id="0" instrument="i1" azimuth="30" distance="1" elevation="50" color="" sendA="-16.9020" sendB="0.0000" noteColumns="7"/>
         <percussionTrack id="perc" azimuth="0" distance="0.89999998" elevation="0" color="" sendA="-20.0000" sendB="-7.3595"/>
     </tracks>
-    <locators>
+    <arrangement>
         <locator row="0">Major</locator>
         <locator row="64">C narrow major</locator>
         <locator row="68">D# narrow</locator>
@@ -55,8 +55,6 @@
         <locator row="364">G narrow minor</locator>
         <locator row="384">C major harmonic seventh</locator>
         <locator row="388">C major harmonic seventh</locator>
-    </locators>
-    <arrangement>
         <pattern track="perc">
             <note row="0" velocity="33">CH </note>
             <note row="4" velocity="25">CH </note>

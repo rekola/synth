@@ -8,13 +8,11 @@
     <track id="0" instrument="i1" azimuth="30" distance="0" elevation="50" volume="1.0" preset="subtle"/>
   </tracks>
   
-  <locators>
+  <arrangement>
     <locator row="32">C narrow major</locator>
     <locator row="36">D# ?</locator>
     <locator row="40">G narrow major</locator>
     <locator row="44">A#4 narrow minor</locator>
-  </locators>
-  <arrangement>
     <pattern track="0">
       <note row="0" velocity="40" value="C-4" />
       <note row="2" velocity="40" value="D#4" />

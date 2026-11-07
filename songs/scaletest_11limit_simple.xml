@@ -20,11 +20,9 @@
     <track id="0" instrument="i1" sendA="-6.9357" elevation="50" azimuth="30" />
   </tracks>
   
-  <locators>
+  <arrangement>
     <locator row="0">Major</locator>
     <locator row="48">Major</locator>
-  </locators>
-  <arrangement>
     <pattern track="0">
       <note row="0" velocity="40">C-4</note>
       <note row="2" velocity="40">Db4</note>

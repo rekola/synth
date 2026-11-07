@@ -956,14 +956,6 @@ Song::open(const std::string & filename, const InstrumentProvider & provider) {
       setSongNotes(notes ? tidyNotesText(*notes) : "");
     }
 
-    if (auto locators = song->FirstChildElement("locators")) {
-      for (auto it = locators->FirstChildElement("locator"); it; it = it->NextSiblingElement("locator")) {
-        auto row_text = it->Attribute("row");
-        auto name = it->GetText();
-        if (row_text && name) setLocator(atoi(row_text), name);
-      }
-    }
-
     clearScenes();
     if (auto scenes = song->FirstChildElement("scenes")) {
       int scene_index = 0;
@@ -1066,6 +1058,23 @@ Song::open(const std::string & filename, const InstrumentProvider & provider) {
 	  auto clip_text = it->Attribute("clip");
 	  timeline.setInstance(track->getInternalId(), atoi(row_text), clip_text ? clip_text : "OFF");
 	}
+      }
+
+      for (auto it = arrangement->FirstChildElement("tempo"); it; it = it->NextSiblingElement("tempo")) {
+        auto row_text = it->Attribute("row");
+        auto bpm_text = it->Attribute("bpm");
+        if (row_text && bpm_text) setTempoChange(atoi(row_text), atoi(bpm_text));
+      }
+      for (auto it = arrangement->FirstChildElement("signature"); it; it = it->NextSiblingElement("signature")) {
+        auto row_text = it->Attribute("row");
+        auto signature_text = it->Attribute("timeSignature");
+        auto signature = signature_text ? TimeSignature::parse(signature_text) : std::nullopt;
+        if (row_text && signature) setSignatureChange(atoi(row_text), *signature);
+      }
+      for (auto it = arrangement->FirstChildElement("locator"); it; it = it->NextSiblingElement("locator")) {
+        auto row_text = it->Attribute("row");
+        auto name = it->GetText();
+        if (row_text && name) setLocator(atoi(row_text), name);
       }
 
       // A background bed is never trimmed or tempo-stretched, so it has no
@@ -1251,18 +1260,6 @@ Song::save(const std::string & filename) const {
     root->InsertEndChild(element);
   }
 
-  auto locator_map = getLocators();
-  if (!locator_map.empty()) {
-    auto locators = doc.NewElement("locators");
-    root->InsertEndChild(locators);
-    for (auto & [ row, name ] : locator_map) {
-      auto locator = doc.NewElement("locator");
-      locator->SetAttribute("row", row);
-      locator->SetText(name.c_str());
-      locators->InsertEndChild(locator);
-    }
-  }
-
   // One <scene> per scene position, in order; trailing empty ones aren't written.
   auto named_scenes = sceneCount();
   while (named_scenes > 0 && getSceneName(named_scenes - 1).empty() && getSceneTempo(named_scenes - 1) == 0 && !getSceneTimeSignature(named_scenes - 1).isSet()) named_scenes--;
@@ -1283,6 +1280,25 @@ Song::save(const std::string & filename) const {
   auto arrangement_element = doc.NewElement("arrangement");
   root->InsertEndChild(arrangement_element);
   auto & timeline = compiled->arrangement;
+
+  for (auto & [row, bpm] : getTempoChanges()) {
+    auto tempo = doc.NewElement("tempo");
+    tempo->SetAttribute("row", row);
+    tempo->SetAttribute("bpm", bpm);
+    arrangement_element->InsertEndChild(tempo);
+  }
+  for (auto & [row, signature] : getSignatureChanges()) {
+    auto change = doc.NewElement("signature");
+    change->SetAttribute("row", row);
+    change->SetAttribute("timeSignature", signature.toString().c_str());
+    arrangement_element->InsertEndChild(change);
+  }
+  for (auto & [row, name] : getLocators()) {
+    auto locator = doc.NewElement("locator");
+    locator->SetAttribute("row", row);
+    locator->SetText(name.c_str());
+    arrangement_element->InsertEndChild(locator);
+  }
 
   for (auto & [ track_id, pattern ] : timeline.getPatternsByTrack()) {
     auto track = getMasterTrack().getChildByInternalId(track_id);
@@ -1388,52 +1404,22 @@ Song::loadParameters(const ParameterSource & input) {
 
 const std::string &
 Song::getLocator(int row) const {
-  static const std::string none;
-  auto index = locatorIndex(row);
-  auto * children = doc_->get(doc_->root())->children(songschema::kLocatorsSlot);
-  if (!children || index >= children->size()) return none;
-  auto node = (*children)[index];
-  return doc::get(*doc_, node, songschema::kLocatorRow) == row ? doc::getRef(*doc_, node, songschema::kLocatorText) : none;
+  return getArrangement().getLocator(row);
 }
 
 void
 Song::setLocator(int row, std::string name) {
   Edit edit(*this, "set locator");
-  auto index = locatorIndex(row);
-  auto * children = doc_->get(doc_->root())->children(songschema::kLocatorsSlot);
-  doc::NodeId existing = doc::kNoNode;
-  if (children && index < children->size() && doc::get(*doc_, (*children)[index], songschema::kLocatorRow) == row) existing = (*children)[index];
-  if (name.empty()) {
-    if (existing != doc::kNoNode) doc_->removeChild(doc_->root(), songschema::kLocatorsSlot, index);
-    else edit.discard();
-  } else if (existing != doc::kNoNode) {
-    doc::set(*doc_, existing, songschema::kLocatorText, name);
-  } else {
-    auto node = doc_->create("locator", { { songschema::kLocatorRow.key, doc::toValue(row) }, { songschema::kLocatorText.key, doc::toValue(name) } });
-    doc_->insertChild(doc_->root(), songschema::kLocatorsSlot, index, node);
+  if (name == getLocator(row)) {
+    edit.discard();
+    return;
   }
+  getArrangement().setLocator(row, name);
 }
 
 std::map<int, std::string>
 Song::getLocators() const {
-  std::map<int, std::string> out;
-  if (auto * children = doc_->get(doc_->root())->children(songschema::kLocatorsSlot)) {
-    for (auto node : *children) out[doc::get(*doc_, node, songschema::kLocatorRow)] = doc::get(*doc_, node, songschema::kLocatorText);
-  }
-  return out;
-}
-
-size_t
-Song::locatorIndex(int row) const {
-  auto * children = doc_->get(doc_->root())->children(songschema::kLocatorsSlot);
-  if (!children) return 0;
-  size_t lo = 0, hi = children->size();
-  while (lo < hi) {
-    auto mid = (lo + hi) / 2;
-    if (doc::get(*doc_, (*children)[mid], songschema::kLocatorRow) < row) lo = mid + 1;
-    else hi = mid;
-  }
-  return lo;
+  return getArrangement().getLocators();
 }
 
 int
@@ -1544,7 +1530,40 @@ Song::getArrangementLength() const {
   }
   for (auto & [ track_id, background ] : arrangement.getSampleBackgroundsByTrack()) end = std::max(end, background.getRowCount(getTempo()));
   if (auto last = getLocators(); !last.empty()) end = std::max(end, last.rbegin()->first + 1);
+  if (auto last = getTempoChanges(); !last.empty()) end = std::max(end, last.rbegin()->first + 1);
+  if (auto last = getSignatureChanges(); !last.empty()) end = std::max(end, last.rbegin()->first + 1);
   return getArrangementBars().roundUpToBar(end);
+}
+
+int Song::getArrangementTempoAt(int row) const {
+  int bpm = getTempo();
+  for (auto & [change_row, change_bpm] : getTempoChanges()) {
+    if (change_row > row) break;
+    bpm = change_bpm;
+  }
+  return bpm;
+}
+
+void Song::setTempoChange(int row, int bpm) {
+  Edit edit(*this, "set tempo change");
+  auto changes = getTempoChanges();
+  auto it = changes.find(row);
+  if (bpm <= 0 ? it == changes.end() : (it != changes.end() && it->second == bpm)) {
+    edit.discard();
+    return;
+  }
+  getArrangement().setTempoChange(row, bpm);
+}
+
+void Song::setSignatureChange(int row, TimeSignature signature) {
+  Edit edit(*this, "set time signature change");
+  auto changes = getSignatureChanges();
+  auto it = changes.find(row);
+  if (!signature.isSet() ? it == changes.end() : (it != changes.end() && it->second == signature)) {
+    edit.discard();
+    return;
+  }
+  getArrangement().setSignatureChange(row, signature);
 }
 
 std::string
@@ -1552,9 +1571,9 @@ Song::formatPosition(int absolute_row) const {
   auto row = std::max(absolute_row, 0);
   auto bars = getBarsAt(row);
   // Numbering carries on from the bar the running bars began in.
-  auto bar = bars.barIndex(row);
+  auto arrangement_bars = getArrangementBars();
   auto running = getRunningBars();
-  if (running.isActive() && row >= running.origin) bar += getArrangementBars().barIndex(running.origin);
+  auto bar = running.isActive() && row >= running.origin ? arrangement_bars.barIndex(running.origin) + bars.barIndex(row) : arrangement_bars.barIndex(row);
   auto in_bar = bars.rowInBar(row);
   return std::to_string(bar + 1) + "." + std::to_string(in_bar / bars.beatRows() + 1) + "." + std::to_string(in_bar % bars.beatRows() + 1);
 }

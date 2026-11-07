@@ -1103,7 +1103,7 @@ PatternEditor::copyToClip() {
   auto grid = source_->readGrid(selectionAnchor());
   // Whole bars of the signature the rows are counted in: the song's, or
   // the scene's own.
-  BarGrid bars = song.getArrangementBars();
+  BarGrid bars = song.getArrangementBars().gridAt(b.row_lo);
   if (isLiveMode()) {
     auto signature = song.getSceneTimeSignature(selectionAnchor().block);
     bars = {signature.isSet() ? signature : song.getRunningTimeSignature(), 0};

@@ -69,8 +69,16 @@ queued for the next bar as always. Then:
 - Launching a single clip never touches the tempo or signature.
 
 Using Back to Arrangement for every track also hands the bars back to the
-song's own; the tempo stays, as the arrangement has no tempo
-changes of its own.
+arrangement's; the tempo stays where the scene left it until the arrangement's
+next tempo change or `ZTxx`.
+
+**Recording.** With Record Arm on, a scene launch also writes its tempo and
+signature into the arrangement, as a tempo change and a signature change at
+the bar its clips are placed on (time_signatures.md, "Changes in the
+arrangement"). Only what differs from the arrangement there is written, so a
+scene that repeats the current meter adds nothing. While recording, the scene's
+tempo does not replace the song's own tempo, which stays the starting tempo
+the changes are counted from.
 
 ## 4. The rhythm library
 

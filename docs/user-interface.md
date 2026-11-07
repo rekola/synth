@@ -372,3 +372,12 @@ slightly in shade from the cells beside it.
 Reload with `xrdb -merge ~/.Xresources` and start a new xterm; running ones
 keep their old settings. If `TERM` is still `xterm` inside it, check with
 `echo $TERM`; a shell profile that exports `TERM` overrides the resource.
+
+## Tempo and time signature changes
+
+In Arrangement view the Song menu (and M-x) has `set-signature-change` and
+`set-tempo-change`, which ask for a signature or a tempo from the bar under the
+arrangement grid's cursor, and `clear-arrangement-changes`, which removes both
+there. The changes show in the grid's header at their bar (`3/4`, `♩90`) and are
+undone like any edit. `set-time-signature` still sets the song's starting
+signature. See time_signatures.md.

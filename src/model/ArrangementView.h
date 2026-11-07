@@ -62,6 +62,19 @@ class ArrangementView {
   std::map<unsigned short, std::string> getInstancesForTrack(int track_id) const;
   std::map<int, std::map<unsigned short, std::string> > getInstancesByTrack() const;
 
+  // ---- Locators: named moments of the song, by absolute row. An empty
+  // name removes the locator.
+  const std::string & getLocator(int row) const;
+  void setLocator(int row, const std::string & name);
+  std::map<int, std::string> getLocators() const;
+
+  // ---- Tempo and time signature changes (Arrangement.h). Setting a tempo
+  // of 0 or an unset signature removes the change.
+  void setTempoChange(int row, int bpm);
+  void setSignatureChange(int row, TimeSignature signature);
+  std::map<int, int> getTempoChanges() const;
+  std::map<int, TimeSignature> getSignatureChanges() const;
+
   // ---- A SampleTrack's background bed.
   const SampleContent * getSampleBackgroundContent(int track_id) const;
   SampleLayerView sampleBackground(int track_id) const;
@@ -80,6 +93,7 @@ class ArrangementView {
   size_t patternIndex(int track_id) const;      // first pattern at or after `track_id`
   size_t backgroundIndex(int track_id) const;
   size_t instanceIndex(int track_id, int row) const;
+  size_t locatorIndex(int row) const; // first locator at or after `row`
 
   ScoreContext context_;
   doc::NodeId node_ = doc::kNoNode;
