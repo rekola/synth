@@ -4,6 +4,8 @@
 // the --out file; stdout is the terminal.
 //
 //   --mode churn   a picture and a counter change every frame, for --seconds
+//   --mode burst   churn for --burst-seconds, then for the rest of --seconds a text block of
+//                  --small-bytes bytes changing every frame (a nearly still screen)
 //   --mode static  N pictures drawn once, then a text change, then one picture removed
 //   --img WxH      the churning picture's pixels (3 bytes each, 4/3 as base64)
 //   --images N     static mode: how many pictures
@@ -35,6 +37,8 @@ int main(int argc, char ** argv) {
   double seconds = 5;
   int img_w = 80, img_h = 80, images = 6;
   int min_interval_ms = -1;
+  double burst_seconds = 3;
+  int small_bytes = 1500;
   std::string pin;
   for (int i = 1; i + 1 < argc; i += 2) {
     std::string a = argv[i];
@@ -44,6 +48,8 @@ int main(int argc, char ** argv) {
     else if (a == "--images") images = std::atoi(argv[i + 1]);
     else if (a == "--min-interval-ms") min_interval_ms = std::atoi(argv[i + 1]);
     else if (a == "--pin") pin = argv[i + 1];
+    else if (a == "--burst-seconds") burst_seconds = std::atof(argv[i + 1]);
+    else if (a == "--small-bytes") small_bytes = std::atoi(argv[i + 1]);
     else if (a == "--img") std::sscanf(argv[i + 1], "%dx%d", &img_w, &img_h);
   }
   FILE * log = std::fopen(out_path.c_str(), "w");
@@ -76,7 +82,8 @@ int main(int argc, char ** argv) {
   root.setCellPixelSize(display.cell_px_height, display.cell_px_width);
 
   long frame_no = 0;
-  bool churn = mode == "churn";
+  bool burst = mode == "burst";
+  bool churn = mode == "churn" || burst;
   std::unique_ptr<Plane> chart;
   std::vector<std::unique_ptr<Plane>> pics;
   auto cells_h = [&](int px) { return (px + display.cell_px_height - 1) / display.cell_px_height; };
@@ -97,12 +104,25 @@ int main(int argc, char ** argv) {
     }
   }
   std::string status = "start";
+  auto start_time = Clock::now();
 
+  auto since_start = [&] { return std::chrono::duration<double>(Clock::now() - start_time).count(); };
   auto draw = [&] {
     std::string line = status + " " + std::to_string(frame_no);
     line.resize(40, ' ');
     root.putstr(0, 0, line);
-    if (churn) {
+    bool in_burst = !burst || since_start() < burst_seconds;
+    if (burst && !in_burst) {
+      // A nearly still screen: about small_bytes of changed text a frame, in rows of the screen's width.
+      int width = session->cols();
+      int rows = std::max(1, std::min(session->rows() - 14, small_bytes / (width + 10)));
+      for (int r = 0; r < rows; r++) {
+        std::string text(static_cast<size_t>(width), ' ');
+        for (int c = 0; c < width; c++) text[static_cast<size_t>(c)] = static_cast<char>('a' + (frame_no + r + c) % 26);
+        root.putstr(12 + r, 0, text);
+      }
+    }
+    if (churn && in_burst) {
       std::vector<uint32_t> px(static_cast<size_t>(img_w * img_h));
       uint32_t seed = static_cast<uint32_t>(frame_no) * 2654435761u + 1;
       for (size_t k = 0; k < px.size(); k++) {
@@ -170,7 +190,8 @@ int main(int argc, char ** argv) {
     }
     if (t >= next_tick) {
       next_tick += 1.0;
-      std::fprintf(log, "TICK %lld frames=%zu\n", epochMicros(), session->pacerStats().frames);
+      PacerStats ps = session->pacerStats();
+      std::fprintf(log, "TICK %lld frames=%zu bandwidth=%.0f class=%d\n", epochMicros(), ps.frames, ps.bandwidth, static_cast<int>(session->linkStatus().cls));
     }
     if (now >= end) loop.quit();
   });

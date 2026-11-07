@@ -372,3 +372,24 @@ are the ones those would exercise. Proposed:
    it is simulated), so a later change to the pacer that costs efficiency or latency fails.
 
 The result is reported with the sweep tables, not only the final values.
+
+## A fence in front of every frame, and what may lower the estimate
+
+The estimator used to take any frames sent back to back as a saturated pipe and to read the time between
+their replies as the link. A terminal that answers on its own clock (VTE paints, and answers, on a tick of up
+to 17 ms, and 30 to 40 ms when busy) breaks that: a nearly still screen is a kilobyte a frame with every reply
+late, which looks like 25 kB/s, and the estimate fell to 5 % of the burst before it and the link class to 1 Hz.
+The harness did not see it because its terminal answered at once; `Link(reply_delay_ms=, reply_jitter_ms=,
+reply_delay_load=)` now models a late one and pacing checks 10 and 11 (a 3 s burst of 25 kB frames, then 10 s of
+1.5 kB or 5 kB frames, replies 5 ms late idle and 40 ms busy) failed on the old pacer (0.05x and 0.19x).
+
+- Each frame is led by a fence of its own. The reply to it gives D (the response delay, minimum and median over
+  5 s); the time to the reply to the end fence is the frame's own time, a sample only when at least 10 ms.
+- A sample may lower the estimate, or a frame count as queueing, only if it is saturation-grade (bytes in flight when
+  sent at least 0.75 B*D, with D the window's median, not its minimum: on a LAN the minimum is a lucky 0.3 ms and
+  makes a pipe of a couple of hundred bytes) or probe-grade. App-limited samples only raise it.
+- A saturated frame's sample is timed with the saturated frames just before it as long as the pipe never emptied
+  between them, so no idle time is in it (the first version took idle time too, and on a real VTE the estimate
+  fell from 850 to 22 kB/s in 6 s).
+- Tried before this: a lead fence alone (no gain), and a 4 kB size limit (the byte total of four small frames
+  passed it; a limit of 8 kB hid a 30 kB/s link whose frames are 7.5 kB).

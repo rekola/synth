@@ -222,9 +222,16 @@ timing (and missed-vsync counts) at exit.
   has the design): the app calls `Backend::requestFrame()` and renders in the
   handler it gave `setFrameHandler()`, called when the pacer lets a frame
   start. Writes go through a non-blocking `OutputQueue` and nothing is encoded
-  while it holds bytes. Each frame ends with a fence, `ESC[?6n`, whose reply
-  is its acknowledgement; a terminal that answers no cursor query gets a fixed
-  4 fps.
+  while it holds bytes. Each frame is led and ended by a fence, `ESC[?6n`, whose
+  replies are its acknowledgements; a terminal that answers no cursor query gets a
+  fixed 4 fps. The time from the reply to the lead fence to the reply to the end
+  fence is the terminal taking in that frame alone (a bandwidth sample when it is
+  at least 10 ms, otherwise only a lower bound); the lead fence's own delay is the
+  terminal's response delay D, kept over 5 s. Only a saturation-grade sample (the
+  bytes in flight when the frame was sent at least 0.75 B*D, using the window's
+  median D) can lower the estimate or back it off; an app-limited one can only raise
+  it. `--pacer-log FILE` writes a line per frame; `tools/pacing/real_terminals.py`
+  runs the app in VTE, gnome-terminal, kitty and xterm on a virtual display.
 - `Backend::linkStatus()` (`cellui/LinkStatus.h`): a `LinkClass` (`FULL`,
   `HZ_30`, `HZ_15`, `HZ_5`, `HZ_1`) from a `LinkClassifier` (down after 2 s, up
   one class after 15 s with a 1.5x margin; pinnable with `--link-class` or

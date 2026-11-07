@@ -14,6 +14,7 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from ptylink import Link  # noqa: E402
 
 RESULTS = []
+PROBE_ARGS = []  # --probe-arg: options added to every probe run
 
 
 def parse(path):
@@ -24,6 +25,8 @@ def parse(path):
             continue
         if w[0] == "TICK":
             d["ticks"].append((int(w[1]) / 1e6, int(w[2].split("=")[1])))
+            kv = dict(x.split("=") for x in w[3:] if "=" in x)
+            d.setdefault("tick_bw", []).append((int(w[1]) / 1e6, float(kv.get("bandwidth", 0)), int(kv.get("class", 0))))
         elif w[0] == "KEY":
             d["keys"].append((int(w[1]) / 1e6, int(w[2])))
         elif w[0] == "PHASE":
@@ -42,7 +45,7 @@ def parse(path):
 
 def run(probe, link, args, keys=(), env=None):
     out = tempfile.NamedTemporaryFile(prefix="pacing", suffix=".log", delete=False).name
-    res = link.run([probe] + args + ["--out", out], env=env, keys=keys)
+    res = link.run([probe] + args + PROBE_ARGS + ["--out", out], env=env, keys=keys)
     log = parse(out)
     os.unlink(out)
     if log["error"] or res.timed_out or not log["result"]:
@@ -205,14 +208,43 @@ def t9(probe):
           "frame %.0f B held at full, %.0f B following the class; %.1f fps and %.1f fps" % (held_size, free_size, held_fps, free_fps))
 
 
-TESTS = [t1, t2, t3, t4, t5, t6, t7, t8, t9]
+# 10. A terminal that answers late while it is busy is not a slow link. 5 MB/s, replies 5 ms late when idle and 40 ms
+# when busy (what it took over the last 100 ms), a 3 s burst of 25 kB frames and then 10 s of frames of a
+# kilobyte or two (or 5 kB, `--variant 5k`): the estimate and the class must hold through the small frames.
+def burst_check(probe, name, small_bytes):
+    link = Link(bandwidth=5e6, up_ms=1, down_ms=1, reply_delay_load=(5, 40, 4096))
+    res, log = run(probe, link, ["--mode", "burst", "--burst-seconds", "3", "--small-bytes", str(small_bytes), "--seconds", "14"])
+    ticks = [(t - res.start, b, c) for t, b, c in log["tick_bw"]]
+    burst = [x for x in ticks if x[0] <= 3.2 and x[0] >= 2.0]
+    small = [x for x in ticks if x[0] > 4.0]
+    if not burst or not small:
+        check(name, False, "no ticks in the phases (%d, %d)" % (len(burst), len(small)))
+        return
+    b0 = burst[-1][1]
+    low = min(b for _, b, _ in small)
+    classes = sorted(set(c for _, _, c in ticks))
+    check(name, low >= 0.5 * b0 and classes == [0],
+          "B %.0f kB/s at the end of the burst, lowest %.0f kB/s in the small-frame phase (%.2fx), classes seen %s" % (b0 / 1e3, low / 1e3, low / b0, classes))
+
+
+def t10(probe):
+    burst_check(probe, "10 busy terminal, small frames", 1500)
+
+
+def t11(probe):
+    burst_check(probe, "11 busy terminal, 5 kB frames", 5000)
+
+
+TESTS = [t1, t2, t3, t4, t5, t6, t7, t8, t9, t10, t11]
 
 
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("probe")
     ap.add_argument("--only", type=int, action="append")
+    ap.add_argument("--probe-arg", action="append", default=[], help="an option for every probe run, as --probe-arg=--min-evidence --probe-arg=0")
     a = ap.parse_args()
+    PROBE_ARGS.extend(a.probe_arg)
     for i, t in enumerate(TESTS, 1):
         if a.only and i not in a.only:
             continue
