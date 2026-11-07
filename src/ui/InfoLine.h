@@ -72,7 +72,7 @@ class InfoLine : public UIElement {
       // As the Emacs mode line: the modified/read-only pair ("**" modified, "%%" read-only,
       // "%*" both, "--" neither) and the remote marker ("-" for a local file), then the name.
       auto flags = read_only_ ? (modified ? "%*-" : "%%-") : (modified ? "**-" : "---");
-      auto prefix = fmt::format(" {} {} ", flags, buffer_display_name);
+      auto prefix = fmt::format("{} {} ", flags, buffer_display_name);
       // The transport button (TransportButton) is laid over the blank cells after the name.
       button_col_ = static_cast<int>(Utf8::displayWidth(prefix));
       // The transport's musical position (Song::formatPosition()).
