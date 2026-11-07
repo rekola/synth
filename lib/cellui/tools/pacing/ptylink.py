@@ -5,11 +5,13 @@ the frames are fenced with, and counts the kitty graphics commands and Sixel
 images it is sent. Standard library only.
 """
 import base64
+import collections
 import errno
 import fcntl
 import heapq
 import os
 import pty
+import random
 import re
 import select
 import struct
@@ -21,7 +23,8 @@ ROWS, COLS, CELL_H, CELL_W = 40, 120, 16, 8
 
 class Link:
     def __init__(self, bandwidth=None, up_ms=0.0, down_ms=0.0, decode=None, answer_dsr=True,
-                 split_reply=None, freeze=None):
+                 split_reply=None, freeze=None, reply_delay_ms=0.0, reply_jitter_ms=0.0, reply_delay_load=None,
+                 seed=1):
         self.bandwidth = bandwidth          # bytes/s from the program to the terminal; None: unshaped
         self.up = up_ms / 1000.0            # program -> terminal
         self.down = down_ms / 1000.0        # terminal -> program (replies, keys)
@@ -29,6 +32,15 @@ class Link:
         self.answer_dsr = answer_dsr
         self.split_reply = split_reply      # (bytes in the first piece, delay s, how many replies, how many to let by first) for fence replies
         self.freeze = freeze                # (start s, duration s): the terminal neither reads nor answers
+        # How late the terminal answers a cursor query after it has taken the bytes before it: a terminal
+        # draws and answers on its own clock. `reply_delay_ms` is fixed, `reply_jitter_ms` adds up to that
+        # much at random (seeded), and `reply_delay_load` = (idle ms, busy ms, bytes per 100 ms that make it
+        # busy) makes the delay grow with what the terminal took over the last 100 ms, as one that paints
+        # between reads does: quick when idle, slow when busy.
+        self.reply_delay = reply_delay_ms / 1000.0
+        self.reply_jitter = reply_jitter_ms / 1000.0
+        self.reply_delay_load = reply_delay_load
+        self.rng = random.Random(seed)
 
     # -- running ----------------------------------------------------------
     def run(self, argv, env=None, keys=(), duration=None, keep_pictures=False):
@@ -57,6 +69,8 @@ class Link:
         proc_free = 0.0                     # when the terminal has parsed everything so far
         term = _Terminal(res)
         pending_keys = sorted(keys)
+        recent = collections.deque()        # (time, bytes) the terminal took over the last 100 ms
+        last_reply_due = 0.0                # replies keep their order whatever their delays
         block_until = 0.0
         splits_left = self.split_reply[2] if self.split_reply else 0
         skip_fences = self.split_reply[3] if self.split_reply else 0
@@ -120,12 +134,26 @@ class Link:
                 arrive = time.time() + self.up
                 # The terminal parses the chunk at its own speed; its replies leave when it is done.
                 proc_free = max(proc_free, arrive) + (len(data) / self.decode if self.decode else 0.0)
+                recent.append((arrive, len(data)))
+                while recent and arrive - recent[0][0] > 0.1:
+                    recent.popleft()
                 for kind, _length, payload in term.feed(data, arrive):
                     if kind == "reply" and not self.answer_dsr:
                         continue
                     if kind in ("reply", "plain"):
                         seq += 1
-                        heapq.heappush(replies, (proc_free + self.down, seq, payload[0], "reply" if kind == "reply" else "key"))
+                        due = proc_free + self.down
+                        if kind == "reply":
+                            late = self.reply_delay + self.rng.uniform(0.0, self.reply_jitter)
+                            if self.reply_delay_load:
+                                idle, busy, ref = self.reply_delay_load
+                                taken = sum(n for _, n in recent)
+                                late += (idle + (busy - idle) * min(1.0, taken / ref)) / 1000.0
+                            due += late
+                        # In order: the start-up queries are told apart by which answer comes last.
+                        due = max(due, last_reply_due)
+                        last_reply_due = due
+                        heapq.heappush(replies, (due, seq, payload[0], "reply" if kind == "reply" else "key"))
             res.bytes_read += len(data)
             if data:
                 res.series.append((time.time(), len(data)))
