@@ -1305,6 +1305,8 @@ PatternEditor::render(const StyleProvider & styles, bool refresh, bool focused) 
     force_full_redraw_ = true;
   }
   auto new_row = current_scroll_.row;
+  // A cursor locked to a playhead can't be pointed anywhere, so a click keeps its margin.
+  bool pointing = pointer_scroll_ && !source_->cursorLocked() && !(info.isPlaying() && source_->cursorFollowsTransport());
   if (!view_detached_) {
     // The highlighted row moves freely - with the cursor, or the playhead
     // it follows - until it comes within kScrollMargin rows of an edge, and
@@ -1314,7 +1316,7 @@ PatternEditor::render(const StyleProvider & styles, bool refresh, bool focused) 
     // nothing before its first row.
     auto visible = std::max(rows - heading_height, 1);
     // Pointing at a row never scrolls: the margin applies again at the next key.
-    auto margin = pointer_scroll_ ? 0 : std::min(kScrollMargin, (visible - 1) / 2);
+    auto margin = pointing ? 0 : std::min(kScrollMargin, (visible - 1) / 2);
     RowAddress top{ view_block_, current_scroll_.row };
     auto line = source_->rowsBetween(top, point);
     // By page, the cursor comes to the far margin so the view stays still for a page of rows.
@@ -1420,7 +1422,7 @@ PatternEditor::render(const StyleProvider & styles, bool refresh, bool focused) 
       // the screen until it reaches the margin, then holds still while the
       // rows scroll under it.
       auto top_line = source_->rowsBetween(top, point);
-      bool pinned = top_line >= rows - heading_height - 1 - (pointer_scroll_ ? 0 : std::min(kScrollMargin, (std::max(rows - heading_height, 1) - 1) / 2));
+      bool pinned = top_line >= rows - heading_height - 1 - (pointing ? 0 : std::min(kScrollMargin, (std::max(rows - heading_height, 1) - 1) / 2));
       row_offset_ = pinned ? playPhase(info) : 0.0;
       row_band_phase_ = pinned ? 0.0 : playPhase(info);
     }
