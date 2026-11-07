@@ -894,6 +894,7 @@ PatternEditor::setLiveMode(bool live) {
   setSelectionActive(false);
   current_scroll_ = GridPosition();
   view_detached_ = false;
+  tracks_detached_ = false;
   if (!source_->hasLocators() && new_cursor.isOnLocator()) new_cursor.scope = current_cursor.scope = SelectionScope::NOTE_COLUMN;
   force_full_redraw_ = true;
 }
@@ -920,6 +921,7 @@ PatternEditor::scrollViewTracks(int delta_tracks) {
   current_scroll_.track = std::clamp(current_scroll_.track + delta_tracks, 0, std::max(num_tracks - 1, 0));
   current_scroll_.col = 0;
   view_detached_ = true;
+  tracks_detached_ = true;
   force_full_redraw_ = true;
 }
 
@@ -1379,7 +1381,12 @@ PatternEditor::render(const StyleProvider & styles, bool refresh, bool focused) 
   auto scroll_target_col = new_cursor.isOnLocator() ? 0 : new_cursor.col;
   auto new_scroll = current_scroll_;
   new_scroll.row = new_row;
-  if (!view_detached_) new_scroll = computeScrollPosition(current_scroll_, new_row, scroll_target_track, scroll_target_col, track_ids, track_info, cols, gutterWidth());
+  if (tracks_detached_ && (new_cursor.track != current_cursor.track || new_cursor.col != current_cursor.col || new_cursor.scope != current_cursor.scope))
+    tracks_detached_ = false;
+  if (!view_detached_ && !tracks_detached_) {
+    new_scroll = computeScrollPosition(current_scroll_, new_row, scroll_target_track, scroll_target_col, track_ids, track_info, cols, gutterWidth());
+  }
+  // Otherwise rows follow the playhead and the sideways position stays put.
 
   // Smooth scrolling: the shown top trails the logical one by an offset
   // that eases to zero; a jump too far to follow just lands.
