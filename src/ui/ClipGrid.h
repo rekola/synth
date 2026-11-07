@@ -12,6 +12,7 @@
 #include <cellui/WheelAcceleration.h>
 #include <cellui/Charts.h>
 #include "../launchpad/ClipHighlight.h"
+#include "../instruments/Tuning.h"
 #include "../model/Clip.h"
 #include "../model/SendLevels.h"
 
@@ -234,6 +235,7 @@ class ClipGrid : public UIElement {
   // different things under different tunings, audio only fits audio).
   std::optional<Clip> clip_clipboard_;
   int clip_clipboard_track_type_ = -1;
+  Tuning clip_clipboard_tuning_ = Tuning::EDO31;
   std::function<int(int track_id)> track_clip_source_;
   // Each track's clip (track_clip_source_) at the last redraw - a change
   // redraws.

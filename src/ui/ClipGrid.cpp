@@ -9,6 +9,7 @@
 #include "../Controller.h"
 #include "../model/Song.h"
 #include "../model/ArrangementOps.h"
+#include "../model/PatternBlockOps.h"
 #include "../model/LeafTrack.h"
 #include "../model/Clip.h"
 #include "../model/SendFader.h"
@@ -176,6 +177,7 @@ ClipGrid::ClipGrid(Plane & parent) : UIElement(parent) {
     clip_clipboard_ = clips[static_cast<size_t>(slot->second)].toClip();
     auto track = song.getMasterTrack().getChildByInternalId(slot->first);
     clip_clipboard_track_type_ = track ? static_cast<int>(track->getType()) : -1;
+    clip_clipboard_tuning_ = track ? song.getTuningForTrack(*track) : song.getTuning();
     return true;
   };
   // Copies the clip under the cursor into the clipboard.
@@ -209,7 +211,11 @@ ClipGrid::ClipGrid(Plane & parent) : UIElement(parent) {
       getController().log("Yank: that clip came from a different kind of track");
       return;
     }
-    placeClipCopy(song, slot->first, slot->second, *clip_clipboard_);
+    // A clip from a song in another tuning moves to it by pitch.
+    auto clip = *clip_clipboard_;
+    auto tuning = song.getTuningForTrack(*track);
+    if (tuning != clip_clipboard_tuning_) convertClipTuning(clip, clip_clipboard_tuning_, tuning);
+    placeClipCopy(song, slot->first, slot->second, std::move(clip));
   });
   // Snaps the notes of the clip under the cursor to the nearest row.
   commands_.define("quantize-clip", [this]() {

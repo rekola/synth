@@ -160,6 +160,18 @@ int retuneSong(Song & song);
 // correction, what is left between its new step and its old pitch. Both
 // scopes; percussion is untouched. Returns how many notes moved.
 int convertSongTuning(Song & song, Tuning to);
+// One note moved from one tuning to another by pitch, as convertSongTuning()
+// moves each: `from_anchor` (a note value in `from`) becomes `to_anchor` and
+// the note keeps its interval to it. Unchanged for the same tuning,
+// percussion, or aftertouch.
+Note convertNoteTuning(const Note & note, Tuning from, Tuning to, int from_anchor, int to_anchor);
+// The step of `to` nearest a note value of `from`, by pitch above C.
+int convertTuningAnchor(int value, Tuning from, Tuning to);
+// The notes of one track of a copied block, or of a clip, moved to another
+// tuning by pitch, anchored at C (C stays C), for pasting between songs in
+// different tunings.
+void convertBlockTuning(PatternBlock & block, size_t track_offset, Tuning from, Tuning to);
+void convertClipTuning(Clip & clip, Tuning from, Tuning to);
 void humanizeSong(Song & song, SongScope scope, const HumanizeAmount & amount, NoiseGenerator & rng);
 
 // Merges `block` into `grid` starting at (target_row, track_id, target_note_offset),

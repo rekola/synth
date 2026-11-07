@@ -155,7 +155,9 @@ Controller-level and per-widget commands. Not migrated: `StatusLine`,
   `clear-tuning-correction-region` removes them. A "tuned" note is retuned by
   transposition, by `set-song-scale` (`retuneSong()`, which removes them for a scale with no gamut) and by `set-song-tuning`
   (`convertSongTuning()` moves every note to the nearest step, a tuned note
-  keeping the rest as its correction); `transposeSong()` moves the key with
+  keeping the rest as its correction; a yank from a song in another tuning,
+  notes or a clip, converts the same way, from C: `convertBlockTuning()`/
+  `convertClipTuning()`, refusing only drum against pitched); `transposeSong()` moves the key with
   the notes when none is left outside its scope. "Tuning" means the song's
   EDO; the offset is a tuning correction (`docs/glossary.md`).
 

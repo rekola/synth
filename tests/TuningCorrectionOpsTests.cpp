@@ -509,3 +509,31 @@ TEST(converting_a_tie_takes_the_lower_step_and_leaves_percussion_alone) {
   CHECK(arrangement.getNotes(0, track_id)[0].getValue() == 31 * 5 + 15); // F♯, not G♭
   CHECK(arrangement.getNotes(0, drums_id)[0].getValue() == 38);
 }
+
+TEST(a_copied_block_converts_one_track_by_pitch_anchored_at_c) {
+  PatternBlock block(1);
+  block[0].resize(2);
+  block[0][0].notes = {Note(31 * 5 + 25, 100), Note(31 * 5, 100)}; // A♯4 (7:4), C4
+  block[0][1].notes = {Note(31 * 5 + 25, 100)};                    // another track: left alone
+  Note tuned(31 * 5 + 10, 100);                                    // E4, tuned to 5:4
+  tuned.setTuningCorrection(-1);
+  block[0][0].notes.push_back(tuned);
+  convertBlockTuning(block, 0, Tuning::EDO31, Tuning::EDO53);
+  CHECK(block[0][0].notes[0].getValue() == 53 * 5 + 43);
+  CHECK(block[0][0].notes[1].getValue() == 53 * 5); // C stays C
+  CHECK(block[0][0].notes[2].getValue() == 53 * 5 + 17);
+  CHECK(block[0][0].notes[2].hasTuningCorrection()); // what is left of 5:4 after 53-EDO's E
+  CHECK(std::abs(block[0][0].notes[2].getTuningCorrectionCents()) <= 2);
+  CHECK(!block[0][0].notes[0].hasFx());
+  CHECK(block[0][1].notes[0].getValue() == 31 * 5 + 25);
+}
+
+TEST(a_copied_clip_converts_by_pitch) {
+  Clip clip(1);
+  clip.setLength(4);
+  clip.getLeafPattern().setNote(0, 0, Note(53 * 5 + 31, 100)); // G4
+  clip.getLeafPattern().setNote(2, 0, Note(53 * 5 + 9, 100));  // D4
+  convertClipTuning(clip, Tuning::EDO53, Tuning::EDO12);
+  CHECK(clip.getLeafPattern().getNote(0, 0).getValue() == 60 + 7);
+  CHECK(clip.getLeafPattern().getNote(2, 0).getValue() == 60 + 2);
+}
