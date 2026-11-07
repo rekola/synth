@@ -910,3 +910,31 @@ TEST(sixel_gradient_is_dithered_between_the_terminals_levels_and_a_flat_picture_
   std::vector<bool> flat_all(16 * 12, true);
   CHECK(count(encodeSixel(flat, 0, 0, 16, 12, flat_all, Dither{}, 256), ";2;") == 1);
 }
+
+// A dark blurred backdrop spans a few levels: it has few colours, fewer than registers, yet bands at the
+// terminal's 101 levels. Told it is a gradient (stretched over its cells) it is dithered; not told, the
+// few colours are exact and nothing is.
+TEST(sixel_gradient_with_few_colours_is_dithered_when_it_is_stretched) {
+  Image g;
+  g.width = 240;
+  g.height = 12;
+  g.pixels.resize(240 * 12);
+  for (int y = 0; y < 12; y++)
+    for (int x = 0; x < 240; x++) g.pixels[static_cast<size_t>(y) * 240 + static_cast<size_t>(x)] = Image::pack(15 + x / 12, 20 + x / 12, 25 + x / 12);  // 20 greys-ish levels
+  std::vector<bool> all(240 * 12, true);
+  Dither plain;
+  Dither gradient;
+  gradient.gradient = true;
+  std::string exact = encodeSixel(g, 0, 0, 240, 12, all, plain, 128);
+  std::string dithered = encodeSixel(g, 0, 0, 240, 12, all, gradient, 128);
+  CHECK(dithered != exact);
+  // Between two grid levels it uses both: more registers than the 101 levels' snapping of 20 colours.
+  CHECK(count(dithered, ";2;") >= count(exact, ";2;"));
+  // Flat pictures stay as they are even when stretched: one register.
+  Image flat;
+  flat.width = 16;
+  flat.height = 12;
+  flat.pixels.assign(16 * 12, Image::pack(33, 33, 33));
+  std::vector<bool> flat_all(16 * 12, true);
+  CHECK(count(encodeSixel(flat, 0, 0, 16, 12, flat_all, gradient, 128), ";2;") == 1);
+}

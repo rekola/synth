@@ -33,6 +33,9 @@ struct Dither {
   }
   // The screen pixel of the region's top-left corner (ordered dithering).
   int origin_x = 0, origin_y = 0;
+  // The picture is a gradient whatever its colour count (a blurred backdrop: a dark one spans a few levels
+  // and has few colours, yet bands at the terminal's 101 colour levels), so it is dithered between them.
+  bool gradient = false;
 };
 
 // How many colours a picture keeps, which a slow link turns instead of the screen's colour: FULL sends
