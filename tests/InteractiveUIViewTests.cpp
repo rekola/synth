@@ -1889,3 +1889,70 @@ TEST(terminal_ui_a_display_without_drag_and_drop_does_not_drag_placements) {
   dragBlock(f, y, 0, y, 3);
   CHECK(placedRows(f, 0) == std::vector<int>{0});
 }
+
+// Copying notes in a 31-EDO song and yanking them into a 53-EDO one moves
+// each note to the nearest step by pitch, in the pattern editor and the clip
+// grid alike.
+TEST(terminal_ui_yank_into_a_song_in_another_tuning_converts_by_pitch) {
+  UIFixture f("", UI::View::ARRANGEMENT);
+  auto first_track = [&] { return f.controller->getSong().getPlayableTrackIds().at(0); };
+  {
+    auto & song = f.controller->getSong();
+    CHECK(song.getTuning() == Tuning::EDO31);
+    Song::Edit edit(song, "test notes");
+    song.getArrangement().setNote(0, first_track(), 0, Note(31 * 5 + 25, 100)); // A♯4, the otonal 7:4
+  }
+  f.ui->step();
+  f.otherWindow(); // the pattern editor, on the first track's row 0
+  f.meta('w');
+  CHECK(f.text().find("Copied") != std::string::npos || f.text().find("copied") != std::string::npos);
+
+  f.ctrl('x');
+  f.press('b');
+  f.type("in_53_edo");
+  f.press(Key::Enter);
+  {
+    auto & song = f.controller->getSong();
+    Song::Edit edit(song, "53-EDO");
+    song.setTuning(Tuning::EDO53);
+  }
+  f.ui->step();
+  f.ctrl('y');
+  CHECK(f.text().find("converted to 53-EDO") != std::string::npos);
+  auto notes = f.controller->getSong().getArrangement().getNotes(0, first_track());
+  CHECK(!notes.empty() && notes[0].getValue() == 53 * 5 + 43); // 7:4 in 53-EDO
+}
+
+TEST(terminal_ui_clip_yank_into_a_song_in_another_tuning_converts_by_pitch) {
+  UIFixture f; // Live View, on the clip grid's first slot
+  auto first_track = [&] { return f.controller->getSong().getPlayableTrackIds().at(0); };
+  {
+    auto & song = f.controller->getSong();
+    Song::Edit edit(song, "test clip");
+    Clip clip(first_track());
+    clip.setLength(4);
+    clip.getLeafPattern().setNote(0, 0, Note(31 * 5 + 10, 100)); // E4, 5:4
+    song.ensureClipAt(first_track(), 0);
+    placeClipCopy(song, first_track(), 0, std::move(clip));
+  }
+  f.ui->step();
+  f.meta('w');
+  CHECK(f.text().find("Copied clip") != std::string::npos);
+
+  f.ctrl('x');
+  f.press('b');
+  f.type("in_53_edo");
+  f.press(Key::Enter);
+  {
+    auto & song = f.controller->getSong();
+    Song::Edit edit(song, "53-EDO");
+    song.setTuning(Tuning::EDO53);
+  }
+  f.ui->step();
+  f.ctrl('y');
+  auto clips = f.controller->getSong().getClips(first_track());
+  CHECK(clips.size() >= 1);
+  if (clips.size() < 1) return;
+  auto note = clips[0].toClip().getLeafPattern().getNote(0, 0);
+  CHECK(note.getValue() == 53 * 5 + 17); // E, 5:4 in 53-EDO
+}

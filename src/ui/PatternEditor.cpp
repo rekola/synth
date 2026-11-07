@@ -270,29 +270,30 @@ PatternEditor::PatternEditor(Plane & parent)
       auto point = source_->cursor();
       auto track_ids = trackIds(song);
 
-      // A Note::getValue() means a different kind of value under a
-      // different tuning (percussion GM key vs. a pitched scale degree) -
-      // refuse the whole paste rather than silently reinterpreting it if
-      // any track the clipboard's content would land on doesn't match the
-      // tuning it was copied from. COMMAND/LOCATOR carry no
-      // tuning-dependent data (ClipboardEntry.h's own comment), so
-      // track_tunings is empty for those and this is vacuously true.
-      auto tuning_ok_for_range = [&](int target_track_start) {
-        for (size_t offset = 0; offset < clipboard_.track_tunings.size(); offset++) {
-          auto dest_index = target_track_start + static_cast<int>(offset);
-          if (dest_index < 0 || dest_index >= static_cast<int>(track_ids.size())) continue; // pastePatternBlock() clips this away too
-          auto * dest_track = song.getMasterTrack().getChildByInternalId(track_ids[static_cast<size_t>(dest_index)]);
-          auto dest_tuning = dest_track ? song.getTuningForTrack(*dest_track) : song.getTuning();
-          if (dest_tuning != clipboard_.track_tunings[offset]) return false;
-        }
-        return true;
-      };
+      // A note value means a different pitch under another tuning: notes
+      // copied from a track in another pitched tuning (another song's) move
+      // to the nearest step by pitch (convertBlockTuning()). A percussion
+      // note has no pitch, so a paste mixing percussion and pitched tracks
+      // is refused whole rather than reinterpreted. COMMAND/LOCATOR carry
+      // no notes (track_tunings is empty for them).
       // EVERYTHING always targets track 0 (see its own paste branch
       // below); every other scope targets current_cursor.track.
       auto target_track_start = clipboard_.scope == SelectionScope::EVERYTHING ? 0 : current_cursor.track;
-      if (!tuning_ok_for_range(target_track_start)) {
-        getController().log("Cannot paste: incompatible tuning");
-        return;
+      auto cells = clipboard_.cells;
+      int converted_tracks = 0;
+      for (size_t offset = 0; offset < clipboard_.track_tunings.size(); offset++) {
+        auto dest_index = target_track_start + static_cast<int>(offset);
+        if (dest_index < 0 || dest_index >= static_cast<int>(track_ids.size())) continue; // pastePatternBlock() clips this away too
+        auto * dest_track = song.getMasterTrack().getChildByInternalId(track_ids[static_cast<size_t>(dest_index)]);
+        auto dest_tuning = dest_track ? song.getTuningForTrack(*dest_track) : song.getTuning();
+        auto source_tuning = clipboard_.track_tunings[offset];
+        if (dest_tuning == source_tuning) continue;
+        if (dest_tuning == Tuning::PERCUSSION || source_tuning == Tuning::PERCUSSION) {
+          getController().log("Cannot paste: incompatible tuning");
+          return;
+        }
+        convertBlockTuning(cells, offset, source_tuning, dest_tuning);
+        converted_tracks++;
       }
 
       // yank writes, so it may create the block's storage.
@@ -301,12 +302,12 @@ PatternEditor::PatternEditor(Plane & parent)
       auto locator_base = source_->locatorRow({ point.block, 0 });
       auto context_length = source_->blockLength(point.block);
       if (clipboard_.scope == SelectionScope::TRACK) {
-        pastePatternBlock(*grid, clipboard_.cells, context_length, point.row, track_ids, current_cursor.track);
+        pastePatternBlock(*grid, cells, context_length, point.row, track_ids, current_cursor.track);
       } else if (clipboard_.scope == SelectionScope::NOTE_COLUMN) {
         auto track_id = track_ids[static_cast<size_t>(current_cursor.track)];
         auto track_info = getTrackInfoFor(song, track_id);
         auto target_note = clamp(track_info.getNoteNumber(current_cursor.col), 0, max(track_info.num_subtracks_ - 1, 0));
-        pastePatternBlockNotes(*grid, clipboard_.cells, context_length, point.row, track_id, target_note);
+        pastePatternBlockNotes(*grid, cells, context_length, point.row, track_id, target_note);
       } else if (clipboard_.scope == SelectionScope::COMMAND) {
         auto track_id = track_ids[static_cast<size_t>(current_cursor.track)];
         pastePatternBlockCommand(*grid, clipboard_.commands, context_length, point.row, track_id);
@@ -319,10 +320,10 @@ PatternEditor::PatternEditor(Plane & parent)
         // always targets track 0 rather than current_cursor.track: there's
         // no sense in which a whole-row block gets "shifted" to start at a
         // different track, only the row can move.
-        pastePatternBlock(*grid, clipboard_.cells, context_length, point.row, track_ids, 0);
+        pastePatternBlock(*grid, cells, context_length, point.row, track_ids, 0);
         if (locator_base) pastePatternBlockLocators(song, *locator_base, clipboard_.locators, context_length, point.row);
       }
-      getController().log("Yanked");
+      getController().log(converted_tracks > 0 ? fmt::format("Yanked, converted to {}-EDO", edoStepsFor(song.getTuning())) : "Yanked");
     } else {
       getController().log("Clipboard empty");
     }

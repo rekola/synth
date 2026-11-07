@@ -466,16 +466,48 @@ static int nearestStep(double cents, int edo) {
   return static_cast<int>(std::ceil(cents * edo / 1200.0 - 0.5 - 1e-9));
 }
 
+Note convertNoteTuning(const Note & note, Tuning from, Tuning to, int from_anchor, int to_anchor) {
+  int from_edo = edoStepsFor(from), to_edo = edoStepsFor(to);
+  if (from == to || from_edo <= 0 || to_edo <= 0 || note.getValue() < 0) return note;
+  double interval = (note.getValue() - from_anchor) * 1200.0 / from_edo + note.getTuningCorrectionCents();
+  int steps = nearestStep(interval, to_edo);
+  Note moved(std::max(to_anchor + steps, 0), note.getVelocity(), note.getDelay());
+  moved.setFx(note.getFx());
+  if (note.hasTuningCorrection()) moved.setTuningCorrection(static_cast<int>(std::lround(interval - steps * 1200.0 / to_edo)));
+  return moved;
+}
+
+int convertTuningAnchor(int value, Tuning from, Tuning to) {
+  int from_edo = edoStepsFor(from), to_edo = edoStepsFor(to);
+  if (from_edo <= 0 || to_edo <= 0) return value;
+  return nearestStep(value * 1200.0 / from_edo, to_edo);
+}
+
+void convertBlockTuning(PatternBlock & block, size_t track_offset, Tuning from, Tuning to) {
+  for (auto & row : block) {
+    if (track_offset >= row.size()) continue;
+    for (auto & note : row[track_offset].notes) note = convertNoteTuning(note, from, to, 0, 0);
+  }
+}
+
+void convertClipTuning(Clip & clip, Tuning from, Tuning to) {
+  auto & pattern = clip.getLeafPattern();
+  auto rows = pattern.getNotesByRow();
+  for (auto & [row, notes] : rows) {
+    auto converted = notes;
+    for (auto & note : converted) note = convertNoteTuning(note, from, to, 0, 0);
+    pattern.setNotes(row, converted);
+  }
+}
+
 int convertSongTuning(Song & song, Tuning to) {
   Tuning from = song.getTuning();
-  int from_edo = edoStepsFor(from), to_edo = edoStepsFor(to);
-  if (from == to || from_edo <= 0 || to_edo <= 0) return 0;
-  double from_step = 1200.0 / from_edo, to_step = 1200.0 / to_edo;
+  if (from == to || edoStepsFor(from) <= 0 || edoStepsFor(to) <= 0) return 0;
   // The key moves to its nearest step and every note keeps its interval to
   // it, so the song's harmony is kept rather than the exact concert pitch.
   int key = song.getKey();
   int anchor = std::max(key, 0);
-  int new_anchor = nearestStep(anchor * from_step, to_edo);
+  int new_anchor = convertTuningAnchor(anchor, from, to);
   int converted = 0;
   for (auto & entry : songPatterns(song)) {
     if (isPercussionTrack(song, entry.track_id)) continue;
@@ -483,12 +515,7 @@ int convertSongTuning(Song & song, Tuning to) {
       bool changed = false;
       for (auto & note : notes) {
         if (note.getValue() < 0) continue; // aftertouch
-        double interval = (note.getValue() - anchor) * from_step + note.getTuningCorrectionCents();
-        int steps = nearestStep(interval, to_edo);
-        Note moved(std::max(new_anchor + steps, 0), note.getVelocity(), note.getDelay());
-        moved.setFx(note.getFx());
-        if (note.hasTuningCorrection()) moved.setTuningCorrection(static_cast<int>(std::lround(interval - steps * to_step)));
-        note = moved;
+        note = convertNoteTuning(note, from, to, anchor, new_anchor);
         changed = true;
         converted++;
       }

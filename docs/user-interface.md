@@ -123,9 +123,9 @@ They act on the clip under the cursor.
   yank. The paste is an independent copy under a fresh id and replaces what is
   in the slot, together with that clip's arrangement placements.
 - **Move a clip:** cut it, move, yank.
-- **Between tracks:** yank only onto a track of the same kind, because note
-  values mean different things under different tunings and audio only fits
-  audio.
+- **Between tracks:** yank only onto a track of the same kind, because a drum
+  note has no pitch and audio only fits audio. A clip yanked into a song in
+  another tuning moves to it by pitch, as notes do (below).
 - **Delete a clip:** cut it. Del, Backspace and C-k do the same, so a deleted
   clip can always be yanked back. On an empty slot they remove the slot's stop
   button instead, which is not clip content and never reaches the clipboard.
@@ -261,6 +261,10 @@ note to the step nearest its interval to the key (a tuning correction
 counted; a tie takes the lower step), and a tuned note keeps what is left
 over as its correction, so a tuned chord stays pure and converting there
 and back gives the same notes. Percussion is untouched; one undo step.
+Notes yanked into a song in another tuning, in the pattern editor or as a
+clip, are converted the same way, counted from C rather than the key (C stays
+C), and the status line says so. A drum note yanked onto a pitched track, or
+the other way round, is refused.
 `undo` takes any of these back. Not on the Launchpad.
 
 ## Humanize

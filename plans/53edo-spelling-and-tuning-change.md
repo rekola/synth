@@ -8,13 +8,7 @@ a spelling means roughly the same interval in 31 and 53-EDO (C-E is a major
 third in both). The otonal scale spells its 7:4 as A♯↑, because 53-EDO's A♯ is
 26:15 (42 steps); the other tunings ignore the arrow.
 
-## 1. Open: yanking notes between tunings
-
-`set-song-tuning` converts a song by pitch (`convertSongTuning()`). Yanking
-notes from a buffer in one tuning into one in another still copies note
-values, not pitches. Decide whether a yank converts the same way.
-
-## 2. Open: double sharp and flat in 53-EDO, 35:32 or two sharps
+## 1. Open: double sharp and flat in 53-EDO, 35:32 or two sharps
 
 Now 35:32 (7 steps), the interval 31-EDO's double sharp is (4 steps,
 154.8 cents against 155.1). With it E𝄫 is 8:7 and B𝄫 12:7 in both tunings, so
@@ -29,7 +23,7 @@ as ratios rather than names, and a 31-EDO utonal song would no longer rename
 to 53-EDO. Now that `set-song-tuning` converts by pitch, renaming matters
 less, which could reopen this.
 
-## 3. Open: should 31-EDO spell 7:4 with an arrow?
+## 2. Open: should 31-EDO spell 7:4 with an arrow?
 
 31-EDO displays step 25 as A♯. A song saved in 31-EDO therefore stores the
 otonal 7:4 as A♯, even if it was typed A♯↑, and renaming it to 53-EDO gives
@@ -57,7 +51,7 @@ and the D♭ one (16:15, the diatonic semitone) is not septimal at all. Since
 `set-song-tuning` converts by pitch, the display question is only about how
 31-EDO reads, not about conversion.
 
-## 4. Considered: 41-EDO for the large tuning
+## 3. Considered: 41-EDO for the large tuning
 
 41-EDO was weighed as a smaller alternative to 53-EDO and dropped (its
 draft table is gone). It has the same notation problems: its fifth is pure

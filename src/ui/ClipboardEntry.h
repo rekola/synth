@@ -37,12 +37,11 @@ struct ClipboardEntry {
   // track-offset dimension - NOTE_COLUMN/COMMAND populate exactly one
   // (that single track_id), TRACK/EVERYTHING populate one per track in
   // [track_lo, track_hi], LOCATOR populates none (it isn't
-  // track-scoped at all - Song::getLocators()). yank()
-  // checks each offset it's about to write against the destination
-  // track's own tuning here (Song::getTuningForTrack()) before writing
-  // anything - a Note::getValue() means a different kind of value under
-  // a different tuning, so a mismatch anywhere in the range refuses the
-  // whole paste rather than silently reinterpreting it.
+  // track-scoped at all - Song::getLocators()). yank() compares each
+  // offset with the destination track's tuning (Song::getTuningForTrack()):
+  // notes from another pitched tuning move to the nearest step by pitch
+  // (convertBlockTuning()), and a percussion/pitched mismatch anywhere in
+  // the range refuses the whole paste, since a drum note has no pitch.
   std::vector<Tuning> track_tunings;
 };
 
