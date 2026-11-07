@@ -42,6 +42,9 @@ TEST(seikilos_plays_only_scale_notes_each_tuned_to_its_3_limit_ratio_in_144_rows
   CHECK(song.getScale() == Scale::PYTHAGOREAN_MIXOLYDIAN);
   CHECK(song.getArrangementLength() == 144); // a 24-row intro, 96 rows of song, a 24-row outro
 
+  // The tempo broadens over the outro, as tempo changes in the arrangement.
+  CHECK((song.getTempoChanges() == std::map<int, int>{{120, 92}, {124, 88}, {128, 84}, {132, 80}}));
+
   const int key = song.getKey();
   CHECK(key == Note::stringToKey(Tuning::EDO53, "C-4"));
   auto corrections = just_intonation::scaleCorrectionsFor(Tuning::EDO53, Scale::PYTHAGOREAN_MIXOLYDIAN, key);
