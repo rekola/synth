@@ -7,7 +7,7 @@ terminal. Prints B, D and the class over the decay.
     real_terminals.py SYNTH {vte,gnome-terminal,kitty,xterm}... [--outdir DIR] [--song songs/demo3.xml]
 
 vte: a Vte.Terminal widget in a window (vte_host.py, python3.12 with python3-gi and gir1.2-vte-2.91).
-gnome-terminal: the real program, under dbus-run-session (a UTF-8 locale, and python3.12 where the system's
+gnome-terminal: the real program, under dbus-run-session and a timeout, quit with its key sequence at the end (a UTF-8 locale, and python3.12 where the system's
 python3 is another version than python3-gi was built for); keys are typed with xdotool.
 kitty: software GL (LIBGL_ALWAYS_SOFTWARE=1); keys by its remote control. xterm: -ti vt340, so Sixel is on.
 """
@@ -66,7 +66,7 @@ sleep {END - STOP}
         """)
     if kind == "gnome-terminal":
         return textwrap.dedent(f"""
-            dbus-run-session -- bash -c '
+            timeout -k 5 {END + 30} dbus-run-session -- bash -c '
               export LANG=C.UTF-8 LC_ALL=C.UTF-8
               python3.12 /usr/bin/gnome-terminal --wait --geometry=120x40 -- {a} &
               GPID=$!
@@ -75,6 +75,7 @@ sleep {END - STOP}
               xdotool windowfocus "$WID" 2>/dev/null
               type_space() {{ xdotool key --window "$WID" space; }}
               {keys}
+              xdotool key --window "$WID" ctrl+x ctrl+c; sleep 2
               pkill -f gnome-terminal-server; kill $GPID 2>/dev/null; true
             '
         """)
@@ -104,6 +105,19 @@ def report(kind, path):
             continue
         last = chunk[-1]
         print("  %5d %7d %9.1f %9.0f %5d  S=%.0f" % (lo, len(chunk), last["D"], last["B"] / 1e3, last["class"], sum(r["S"] for r in chunk) / len(chunk)))
+    # The summary asked of a run: keys were typed PLAY and STOP seconds after the session started.
+    stop = t0 + STOP - 2  # the session starts about two seconds into the script's clock
+    burst = [r for r in rows if r["t"] < stop]
+    after = [r for r in rows if r["t"] >= stop]
+    delays = sorted(r["D"] for r in rows)
+    print("  B at the end of the burst %.0f kB/s, lowest afterwards %.0f kB/s (%.2fx); D median %.1f ms" % (
+        burst[-1]["B"] / 1e3 if burst else 0, min((r["B"] for r in after), default=0) / 1e3,
+        min((r["B"] for r in after), default=0) / burst[-1]["B"] if burst else 0, delays[len(delays) // 2]))
+    for k in (5, 15, 30):
+        win = [r for r in after if stop + k - 1 <= r["t"] < stop + k]
+        print("  %2d s after the stop: %d frames/s, %.0f kB/s" % (k, len(win), sum(r["S"] for r in win) / 1e3))
+    busy = [r["t"] for r in after if sum(1 for q in after if r["t"] <= q["t"] < r["t"] + 1) >= 2]
+    print("  frames stop (no second with two or more after): %s" % ("%.0f s after the stop" % (max(busy) + 1 - stop) if busy else "at the stop"))
     classes = sorted(set(int(r["class"]) for r in rows))
     print("  classes seen: %s; B min %.0f max %.0f kB/s; D min %.1f max %.1f ms" % (classes, min(r["B"] for r in rows) / 1e3, max(r["B"] for r in rows) / 1e3, min(r["D"] for r in rows), max(r["D"] for r in rows)))
 
