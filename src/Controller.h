@@ -1227,7 +1227,7 @@ class Controller {
   // must never reset or conflate them. Kept in lockstep with songs_ (same
   // key added/removed/renamed together) by addBuffer()/renameActiveBuffer()/
   // killActiveBuffer() below.
-  std::map<std::string, Version> last_saved_versions_;
+  std::map<std::string, Song::SaveMark> last_saved_versions_;
   // Which songs_ entry is current - see getActiveBufferName()/getSong().
   std::string active_buffer_name_;
   // Guards songs_/active_buffer_name_'s own reassignment (addBuffer()/
@@ -1246,7 +1246,7 @@ class Controller {
   // last_saved_versions_[name] - always song->getVersion() right after
   // a fresh open, but the caller's job to compute since it must be read
   // before this call, not after.
-  void addBuffer(std::shared_ptr<Song> song, const std::string & name, Version saved_version);
+  void addBuffer(std::shared_ptr<Song> song, const std::string & name, Song::SaveMark saved_version);
   // Renames the active buffer's own songs_/last_saved_versions_ entry to
   // `new_name` (erase old key, insert new, same Song and active either
   // way) - saveSongAs()'s own tail, once it's already called Song::save().
@@ -1254,7 +1254,7 @@ class Controller {
   // (song->getVersion() right after that save() call) for the same
   // reason addBuffer() takes it as a parameter rather than reading it
   // itself.
-  void renameActiveBuffer(const std::string & new_name, Version saved_version);
+  void renameActiveBuffer(const std::string & new_name, Song::SaveMark saved_version);
   // Saves the *currently* active buffer's own live playback_info/
   // recording_track_id/local_position_edit_seq_/focused_clip_id_ into
   // their map slots - a no-op before any buffer has

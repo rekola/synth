@@ -228,7 +228,7 @@ Controller::Controller(ChannelConfiguration _channel_config) : channel_config(_c
   commands_.define("save-buffer", [this]() {
     auto song = getCurrentSong();
     song->save(getActiveBufferName());
-    last_saved_versions_[getActiveBufferName()] = song->getVersion();
+    last_saved_versions_[getActiveBufferName()] = song->getSaveMark();
   });
   // Folds a clip's placement back into its track's own background content,
   // freeing the clip slot without deleting the clip itself - a destructive
@@ -502,8 +502,7 @@ Controller::toggleDrumClipFocus(int track_id, int clip_index) {
   return true;
 }
 
-void
-Controller::addBuffer(std::shared_ptr<Song> song, const string & name, Version saved_version) {
+void Controller::addBuffer(std::shared_ptr<Song> song, const string & name, Song::SaveMark saved_version) {
   saveActiveBufferState();
   // The real-time player renders this song: it sees only finished edits.
   song->setContentPublished(true);
@@ -518,8 +517,7 @@ Controller::addBuffer(std::shared_ptr<Song> song, const string & name, Version s
   buffers_changed.emit();
 }
 
-void
-Controller::renameActiveBuffer(const string & new_name, Version saved_version) {
+void Controller::renameActiveBuffer(const string & new_name, Song::SaveMark saved_version) {
   // A rename, not a switch - the active buffer itself doesn't change, so
   // the live playback_info/recording_track_id scalars stay exactly as they are; only the *old* key's own map slot
   // (if any, from a previous session under a different name) needs
@@ -603,7 +601,7 @@ Controller::openSong(const string & filename) {
     return false;
   }
 
-  addBuffer(song, filename, song->getVersion());
+  addBuffer(song, filename, song->getSaveMark());
   return true;
 }
 
@@ -612,7 +610,7 @@ Controller::hasUnsavedChanges() const {
   auto song = getCurrentSong();
   if (!song) return false;
   auto it = last_saved_versions_.find(active_buffer_name_);
-  return it == last_saved_versions_.end() || song->getVersion() != it->second;
+  return it == last_saved_versions_.end() || !song->matchesSaveMark(it->second);
 }
 
 bool Controller::isActiveBufferFileReadOnly() const {
@@ -629,7 +627,7 @@ bool
 Controller::hasAnyUnsavedChanges() const {
   for (auto & [name, song] : songs_) {
     auto it = last_saved_versions_.find(name);
-    if (it == last_saved_versions_.end() || song->getVersion() != it->second) return true;
+    if (it == last_saved_versions_.end() || !song->matchesSaveMark(it->second)) return true;
   }
   return false;
 }
@@ -638,7 +636,7 @@ void
 Controller::saveSongAs(const string & filename) {
   auto song = getCurrentSong();
   song->save(filename);
-  renameActiveBuffer(filename, song->getVersion());
+  renameActiveBuffer(filename, song->getSaveMark());
 }
 
 void
@@ -671,7 +669,7 @@ Controller::switchToBuffer(const string & name) {
       // leaves the drum kit unresolved; do it once here, as open() does.
       song->compileTracks(&getInstrumentProvider());
       song->setContentPublished(true);
-      last_saved_versions_[song_id] = song->getVersion();
+      last_saved_versions_[song_id] = song->getSaveMark();
       songs_[song_id] = std::move(song);
       created = true;
     }

@@ -409,6 +409,18 @@ class Song : public SongObject {
   // anything at all change" (Controller::hasUnsavedChanges()).
   Version getVersion() const { return version_; }
 
+  // What a save records, to tell later whether the song differs from the
+  // saved one. Undoing every change since the save matches again though the
+  // version has moved on.
+  struct SaveMark {
+    Version version;
+    uint64_t token = 0;
+  };
+  SaveMark getSaveMark() const { return {version_, history_.stateToken(*doc_)}; }
+  bool matchesSaveMark(const SaveMark & mark) const {
+    return version_ == mark.version || history_.stateToken(*doc_) == mark.token;
+  }
+
   // The currently selected track - a single shared value belonging to
   // this Song itself, not to any one caller's own view of it, so every
   // caller sharing this Song agrees on it with no separate bookkeeping.

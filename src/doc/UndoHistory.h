@@ -31,6 +31,11 @@ class UndoHistory {
   std::vector<Op> peekUndo(const Document & document) const;
   std::vector<Op> peekRedo(const Document & document) const;
 
+  // Identifies the content the document holds now by the tracked journal
+  // entry it equals: undoing back to an earlier state yields that state's
+  // token again, though the journal has grown.
+  uint64_t stateToken(const Document & document) const;
+
   bool undo(Document & document);
   bool redo(Document & document);
   void finish(const Document & document);
