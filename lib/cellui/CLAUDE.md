@@ -229,7 +229,8 @@ timing (and missed-vsync counts) at exit.
   at least 10 ms, otherwise only a lower bound); the lead fence's own delay is the
   terminal's response delay D, kept over 5 s. Only a saturation-grade sample (the
   bytes in flight when the frame was sent at least 0.75 B*D, using the window's
-  median D) can lower the estimate or back it off; an app-limited one can only raise
+  median D, and at least `PacerConfig::grade_floor_bytes` (64 kB, capped at 0.75 of 10 ms of data
+  at B so a slow link keeps working) so a terminal that answers in 0.2 ms cannot grade small frames) can lower the estimate or back it off; an app-limited one can only raise
   it. `--pacer-log FILE` writes a line per frame; `tools/pacing/real_terminals.py`
   runs the app in VTE, gnome-terminal, kitty and xterm on a virtual display.
 - `Backend::linkStatus()` (`cellui/LinkStatus.h`): a `LinkClass` (`FULL`,
