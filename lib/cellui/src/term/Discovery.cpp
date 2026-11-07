@@ -322,6 +322,7 @@ Capabilities Discovery::result() const {
   caps.pixel_mouse = pixel_mouse_;
   caps.display.key_release = kitty_keyboard_;
   caps.display.hover = true;
+  caps.display.drag_drop = true;
 
   // Synchronized output: what the mode query says, except on kitty (long
   // updates with large uploads went wrong there); some terminals implement

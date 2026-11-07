@@ -72,7 +72,9 @@ struct DisplayInfo {
   // display that reports no hover still reports a drag, as a MouseMove with the button held.
   bool hover = false;
   // Whether a widget can start a drag that carries something (DragDrop.h):
-  // needs the precise pointer and planes that follow it, so the window only.
+  // needs the pointer's motion with a button held and planes that follow it,
+  // which every display with a mouse has (a terminal moves the ghost by whole
+  // cells, a window to the pixel).
   bool drag_drop = false;
 };
 

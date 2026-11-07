@@ -65,8 +65,8 @@ carries the app's object as an opaque `getAppContext()`.
   (windows always; the terminal in pixel mouse mode 1016).
   `DisplayInfo::key_release`/`precise_mouse`/`hover`/`drag_drop` say what the
   display reports.
-- `DragDrop.h`: drag and drop inside the app, only where `DisplayInfo::drag_drop`
-  (the GTK window). The source, with the button held, posts
+- `DragDrop.h`: drag and drop inside the app, where `DisplayInfo::drag_drop`
+  (a window and a terminal; the ghost moves by whole cells on a terminal). The source, with the button held, posts
   `StartDrag{this, DragPayload{kind, data}}` to the root (`Handled::no` where
   the display has none, or no button is held: the widget carries on as before;
   `dragStarted()`/`kDragThreshold` say when a press has moved enough). The
