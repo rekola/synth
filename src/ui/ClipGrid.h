@@ -347,6 +347,10 @@ class ClipGrid : public UIElement {
   std::unique_ptr<cellui::DragGhost> ghost_;
   // Counts changes to the above, for the redraw.
   unsigned drag_version_ = 0, current_drag_version_ = 0;
+  // The dragged clip's label and loop icon, for the preview in the target slot,
+  // and whether Ctrl is held (the drop copies, and the source slot stays filled).
+  std::string drag_label_;
+  bool drag_looping_ = false, drag_copy_ = false;
   bool mouseUp(const cellui::MouseUp & e);
   bool wheel(const cellui::Wheel & e);
   std::vector<cellui::Connection> connections_;
