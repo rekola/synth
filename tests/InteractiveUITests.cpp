@@ -444,3 +444,28 @@ TEST(level_meter_step_hold_keeps_a_step_through_a_ripple_and_follows_a_real_move
   CHECK(hold.update(0.5f + 1.1f / 48.0f, 48) == 25);
   CHECK(hold.update(0.0f, 48) == 0 && hold.update(1.0f, 48) == 48);
 }
+
+TEST(info_line_shows_the_tempo_and_signature_after_the_position_and_follows_the_arrangement) {
+  UIFixture f;
+  {
+    auto & song = f.controller->getSong();
+    Song::Edit edit(song, "set up");
+    song.setTempo(100);
+    song.setTimeSignature({2, 4});
+    song.setTempoChange(16, 80);
+    song.setSignatureChange(16, {12, 8});
+  }
+  f.ui->step();
+  auto info_line = [&]() {
+    for (const auto & line : f.lines())
+      if (line.find("voices:") != std::string::npos) return line;
+    return std::string();
+  };
+  auto line = info_line();
+  CHECK(line.find("1.1.1 \xE2\x99\xA9"
+                  "100 2/4") != std::string::npos);
+  f.controller->setEditPosition(16);
+  f.ui->step();
+  CHECK(info_line().find("\xE2\x99\xA9"
+                         "80 12/8") != std::string::npos);
+}
