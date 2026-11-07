@@ -87,7 +87,10 @@ The application draws on several traditions.
   25:24 (3 steps) and a `↑` or `↓` after an accidental raises or lowers by the
   syntonic comma 81:80 (1 step), as in A♯↑ (the app draws the combined accidental
   as a single glyph, and the pattern editor colours the comma: one hue up, another down). The other tunings ignore the `↑`/`↓`, so a 53-EDO spelling still
-  names the right note in 31-EDO. Details and the full table:
+  names the right note in 31-EDO. A double sharp or flat is 35:32, 7 steps,
+  not two sharps (6 steps, as Johnston has it): 35:32 is 31-EDO's double
+  sharp too (4 steps), so E𝄫 is 8:7 and B𝄫 12:7 in both tunings and the
+  utonal scale has one spelling. Details and the full table:
   [53edo_note_numbers.txt](docs/53edo_note_numbers.txt); see John Fonville,
   "Ben Johnston's Extended Just Intonation: A Guide for Interpreters",
   *Perspectives of New Music* 29/2 (1991).
