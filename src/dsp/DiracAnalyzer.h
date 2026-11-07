@@ -75,6 +75,11 @@ class DiracAnalyzer {
   // and need not be fed. (Not true before the first analysis frame.)
   bool atRest() const { return at_rest_; }
 
+  // Directional energy below this is shown as no direction at all: about 80 dB below a full-scale tone, the
+  // spectrum's own range. The decay of the smoothed values never reaches exactly zero for long, so without
+  // a floor the auto-scaled display would keep blowing up the remnant.
+  static constexpr float kDisplayFloor = 1e-3f;
+
   const BandResult & getBandResult(int band) const { return bands_[static_cast<size_t>(band)]; }
 
   // The smoothed, splatted directional-energy grid (SS6) - kAzimuthBins
