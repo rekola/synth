@@ -215,7 +215,8 @@ if(NOT WIN32)
   if(Python3_Interpreter_FOUND)
     add_test(NAME cellui_pacing_harness
       COMMAND ${Python3_EXECUTABLE} -I ${CMAKE_CURRENT_SOURCE_DIR}/tools/pacing/run_assertions.py $<TARGET_FILE:cellui_pacing_probe>)
-    set_tests_properties(cellui_pacing_harness PROPERTIES TIMEOUT 400)
+    # Timing-based: parallel load on a busy machine would fail its checks.
+    set_tests_properties(cellui_pacing_harness PROPERTIES TIMEOUT 400 RUN_SERIAL TRUE)
   endif()
 endif()
 
