@@ -456,11 +456,11 @@ std::string TerminalSession::fenceBytes() {
     return "\x1b[?6n";
   }
   // The plain query's reply looks like F3 with modifiers when the cursor is on
-  // row 1: park it lower first.
+  // row 1: park it lower first, and put it back (position and pen) so the
+  // shown text cursor stays where the frame placed it.
   parser_.expectCursorReport();
   if (rows_ < 2) return "\x1b[6n";
-  encoder_.forgetCursor();
-  return "\x1b[" + std::to_string(rows_) + ";1H\x1b[6n";
+  return "\x1b" "7\x1b[" + std::to_string(rows_) + ";1H\x1b[6n\x1b" "8";
 }
 
 // One line a second, key=value, for measuring what a link carries (phase 0 of the link
