@@ -530,3 +530,22 @@ TEST(a_second_chord_joins_the_first_one_s_run) {
   controller.setNoteHeld(false);
   CHECK(song.document().journal().size() == journal + 1); // joined the run
 }
+
+TEST(undoing_every_change_since_the_save_leaves_the_song_unmodified) {
+  ChannelConfiguration config(44100, 1);
+  Controller controller(config);
+  CHECK(controller.openSong(std::string(TESTS_FIXTURES_DIR) + "/center_note.xml"));
+  CHECK(!controller.hasUnsavedChanges());
+  auto & song = controller.getSong();
+  song.setTempo(song.getTempo() + 10);
+  song.setTempo(song.getTempo() + 10);
+  CHECK(controller.hasUnsavedChanges());
+  CHECK(song.undo());
+  CHECK(controller.hasUnsavedChanges());
+  CHECK(song.undo());
+  CHECK(!controller.hasUnsavedChanges());
+  CHECK(song.redo());
+  CHECK(controller.hasUnsavedChanges());
+  CHECK(song.undo());
+  CHECK(!controller.hasUnsavedChanges());
+}

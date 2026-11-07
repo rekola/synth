@@ -58,6 +58,12 @@ std::vector<Op> UndoHistory::peekRedo(const Document & document) const {
   return entry ? Document::inverse(*entry) : std::vector<Op>();
 }
 
+uint64_t UndoHistory::stateToken(const Document & document) const {
+  if (chainIntact(document)) return next_;
+  auto newest = newestTracked(document);
+  return newest ? newest->sequence : 0;
+}
+
 bool UndoHistory::undo(Document & document) {
   if (document.inGroup()) return false;
   if (!chainIntact(document)) {
