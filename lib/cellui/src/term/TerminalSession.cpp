@@ -168,6 +168,7 @@ bool TerminalSession::start(SessionOptions & options, std::string * error) {
   link_thresholds_ = options.link_thresholds;
   link_opened_ = std::chrono::steady_clock::now();
   if (const char * path = std::getenv("SYNTH_LINK_STATS")) link_log_ = std::fopen(path, "a");
+  if (const char * path = std::getenv("SYNTH_PACER_LOG")) pacer_log_ = std::fopen(path, "a");
 
   // cbreak, plus what an Emacs-style key map needs: Ctrl-S/Q (flow
   // control), Ctrl-V/O (the line discipline's own) and, unless kept,
@@ -318,6 +319,8 @@ void TerminalSession::close() {
   g.wake_write = -1;
   if (link_log_) std::fclose(link_log_);
   link_log_ = nullptr;
+  if (pacer_log_) std::fclose(pacer_log_);
+  pacer_log_ = nullptr;
   ::close(wake_read_);
   ::close(wake_write_);
   wake_read_ = wake_write_ = -1;
@@ -463,6 +466,18 @@ std::string TerminalSession::fenceBytes() {
 // One line a second, key=value, for measuring what a link carries (phase 0 of the link
 // classes): the frames and bytes sent in the second (picture data, placement, the rest),
 // the pacer's bandwidth and RTT, and each picture size uploaded as WxH:count/bytes.
+// One line per acknowledged frame: when, its bytes, the terminal's response delay D, the estimate B, the
+// class, the bytes in flight, what the frame was good for (0 none, 1 app-limited, 2 saturated, 3 probe) and
+// its own sample.
+void TerminalSession::logPacerFrame(std::chrono::steady_clock::time_point at) {
+  if (pacer_log_start_ == std::chrono::steady_clock::time_point{}) pacer_log_start_ = at;
+  PacerStats s = pacerStats();
+  std::fprintf(pacer_log_, "t=%.3f S=%zu D=%.1fms Dmin=%.1fms B=%.0f class=%d in_flight=%zu grade=%d sample=%.0f\n",
+               std::chrono::duration<double>(at - pacer_log_start_).count(), s.last_payload, s.delay_typ_us / 1000.0, s.rtt_min_us / 1000.0, s.bandwidth,
+               static_cast<int>(link_.status().cls), s.bytes_in_flight, s.last_grade, s.last_sample);
+  std::fflush(pacer_log_);
+}
+
 void TerminalSession::logLinkStats(std::chrono::steady_clock::time_point now) {
   if (!link_log_) return;
   if (link_log_last_ == std::chrono::steady_clock::time_point{}) link_log_last_ = now;
@@ -719,8 +734,13 @@ std::vector<TermEvent> TerminalSession::pollTerm() {
       if (e.reply == ReplyKind::DEC_CURSOR_POSITION || e.reply == ReplyKind::CURSOR_POSITION) {
         // A fence's reply: the oldest frame in flight has been taken in.
         if (!pacing_) continue;
-        if (late_replies_ > 0) late_replies_--;
-        else pacer_.onAck(e.at);
+        if (late_replies_ > 0) {
+          late_replies_--;
+        } else {
+          size_t frames_before = pacerStats().frame_acks;
+          pacer_.onAck(e.at);
+          if (pacer_log_ && pacerStats().frame_acks != frames_before) logPacerFrame(e.at);
+        }
         continue;
       }
       if (e.reply == ReplyKind::KITTY_GRAPHICS) {

@@ -75,6 +75,9 @@ printUsage() {
       "  --reduced-motion       no easing or pulsing (also SYNTH_REDUCED_MOTION=1)\n"
       "  --link-class CLASS     auto, full, 30, 15, 5 or 1: take the link to the display to be\n"
       "                         this fast instead of measuring it\n"
+      "  --pacer-log FILE       append a line per frame the terminal has taken in to FILE:\n"
+      "                         time, bytes, the terminal's response delay, the bandwidth\n"
+      "                         estimate, link class, bytes in flight, grade, sample\n"
       "  --dither METHOD        nearest, ordered or floyd-steinberg: Sixel image dithering\n"
       "                         (default ordered)\n"
       "\n"
@@ -158,6 +161,13 @@ int main(int argc, char *argv[]) {
         fmt::print(stderr, "--link-class requires 'auto', 'full', '30', '15', '5' or '1'\n");
         exit(1);
       }
+      i++;
+    } else if (strcmp(argv[i], "--pacer-log") == 0) {
+      if (i + 1 >= argc) {
+        fmt::print(stderr, "--pacer-log requires a file name\n");
+        exit(1);
+      }
+      setenv("SYNTH_PACER_LOG", argv[i + 1], 1);
       i++;
     } else if (strcmp(argv[i], "--dither") == 0) {
       if (i + 1 >= argc || !cellui::term::Dither::byName(argv[i + 1], dither)) {

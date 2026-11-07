@@ -174,6 +174,9 @@ class TerminalSession : public Backend {
   int pointer_row_ = -1, pointer_col_ = -1;
   MouseCursor shown_cursor_ = MouseCursor::DEFAULT;
   void updateMouseCursor();
+  void logPacerFrame(std::chrono::steady_clock::time_point at);
+  std::FILE * pacer_log_ = nullptr;  // SYNTH_PACER_LOG: one line per acknowledged frame
+  std::chrono::steady_clock::time_point pacer_log_start_{};
   bool ended_ = false;
 
   // Output: everything goes through the queue, which never blocks. A frame is

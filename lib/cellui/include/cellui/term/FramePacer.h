@@ -52,6 +52,11 @@ struct PacerConfig {
   // The terminal's response delay D, the time from a lead fence to its reply, is kept as the minimum
   // over this long; it stands wherever a bare round trip would.
   us delay_window{5000000};
+  // The saturation and queueing tests use this share of the window's delays (0.5: the median) instead of
+  // the minimum: a terminal that answers on its own paint clock answers some lead fences at once, and
+  // against that best case any few small frames in flight look like a full pipe. The minimum still sizes
+  // the window of bytes in flight. (Set by the real VTE run: 0.2 ms minimum, tens of ms typical.)
+  double delay_quantile = 0.5;
   // A sample may lower the estimate (or a frame count as queueing) only if it is saturation-grade: the
   // bytes in flight when its frame was sent were at least this share of B*D, so the pipe was full and
   // the frame's time is the link's. A frame sent as a probe, with S/B at least the floor, is probe-grade.
@@ -90,11 +95,14 @@ struct PacerConfig {
 
 struct PacerStats {
   double bandwidth = 0;       // B, bytes per second; 0 until known
-  double rtt_min_us = 0;      // the terminal's response delay D (windowed minimum), 0 until known
+  double rtt_min_us = 0;      // the terminal's response delay D (minimum over the window), 0 until known
+  double delay_typ_us = 0;    // the same at the `delay_quantile` of the window: what a lead fence usually takes
   double last_sample = 0;     // the last frame's own-time sample, bytes per second; 0 if none was valid
+  size_t last_payload = 0;    // the bytes of the last acknowledged frame, its fences left out
   // What the last acknowledged frame was good for: 0 nothing (no sample), 1 app-limited (may raise
   // the estimate only), 2 saturation-grade, 3 probe-grade (either may lower it).
   int last_grade = 0;
+  size_t frame_acks = 0;      // frames (not fences) acknowledged so far
   double fps = 0;             // frames sent over the last second
   size_t bytes_in_flight = 0, frames_in_flight = 0;
   FrameBytes last_frame, totals;
@@ -194,9 +202,10 @@ class FramePacer {
   // The terminal's response delay: lead fence to reply, each with when it was read.
   std::deque<std::pair<TimePoint, double>> delays_;
   double delayUs() const;  // the minimum over the window, 0 until known
+  double typicalDelayUs() const;  // the `delay_quantile` of the window, 0 until known
   std::deque<Fence> in_flight_;
   struct Acked {
-    TimePoint ack;
+    TimePoint ack, lead_ack, started;
     double payload = 0;
     bool saturated = false;
   };
@@ -207,6 +216,7 @@ class FramePacer {
   };
   std::deque<Sample> samples_;
   std::optional<TimePoint> lead_ack_;  // when the lead fence of the frame now to be answered was
+  TimePoint lead_ack_kept_{};          // (the same, kept for the frame's record)
   size_t late_ = 0;
 
   std::optional<TimePoint> last_start_;    // when the last frame that sent anything started
@@ -219,6 +229,7 @@ class FramePacer {
   std::optional<TimePoint> last_end_started_;  // when that frame was started
   bool last_end_probing_ = false;
   double last_sample_ = 0;
+  size_t last_payload_ = 0;
   int last_grade_ = 0;
   size_t frame_acks_ = 0;
   int frames_since_probe_ = 0;
