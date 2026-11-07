@@ -44,6 +44,9 @@ class InfoLine : public UIElement {
     auto num_allocated_voices = info.getAllocatedVoiceCount();
     auto latency_ms = info.getRoundTripLatencyMs();
     auto is_playing = info.isPlaying();
+    // The tempo and time signature in force at the position: the playing
+    // tempo while the transport runs, else the arrangement's at the row.
+    auto tempo_text = fmt::format("♩{} {}", is_playing ? info.getTempo() : song.getArrangementTempoAt(new_position), song.getBarsAt(new_position).signature.toString());
     auto modified = getController().hasUnsavedChanges();
     // A file system question: asked again only when the buffer or its saved state changes.
     if (buffer_name != read_only_name_ || modified != current_modified_) {
@@ -54,7 +57,7 @@ class InfoLine : public UIElement {
     if (refresh || new_version != current_version_ || new_position != current_position_ ||
         num_voices != current_num_voices_ || num_allocated_voices != current_num_allocated_voices_ ||
         buffer_name != current_buffer_name_ || buffer_names != current_buffer_names_ ||
-        latency_ms != current_latency_ms_ || right_reserved_ != current_right_reserved_ || is_playing != current_is_playing_ || modified != current_modified_ || link_text_ != current_link_text_) {
+        latency_ms != current_latency_ms_ || right_reserved_ != current_right_reserved_ || is_playing != current_is_playing_ || tempo_text != current_tempo_text_ || modified != current_modified_ || link_text_ != current_link_text_) {
       auto [ rows, cols ] = getDim();
 
       // Controller::getBufferDisplayName()'s own text - basename-only,
@@ -76,7 +79,7 @@ class InfoLine : public UIElement {
       // The transport button (TransportButton) is laid over the blank cells after the name.
       button_col_ = static_cast<int>(Utf8::displayWidth(prefix));
       // The transport's musical position (Song::formatPosition()).
-      auto s = prefix + std::string(4, ' ') + fmt::format("{}{} voices:{}/{}", song.formatPosition(info.getAbsolutePosition()), latency, num_voices, num_allocated_voices);
+      auto s = prefix + std::string(4, ' ') + fmt::format("{} {}{} voices:{}/{}", song.formatPosition(info.getAbsolutePosition()), tempo_text, latency, num_voices, num_allocated_voices);
       while (s.size() < static_cast<size_t>(cols)) s += ' ';
 
       putstr(0, 0, s);
@@ -96,6 +99,7 @@ class InfoLine : public UIElement {
       current_num_allocated_voices_ = num_allocated_voices;
       current_latency_ms_ = latency_ms;
       current_is_playing_ = is_playing;
+      current_tempo_text_ = std::move(tempo_text);
       current_modified_ = modified;
       current_link_text_ = link_text_;
       current_right_reserved_ = right_reserved_;
@@ -120,6 +124,7 @@ private:
   int current_latency_ms_ = -1;
   // Stopping at the same row changes nothing else shown.
   bool current_is_playing_ = false, current_modified_ = false;
+  std::string current_tempo_text_;
   int button_col_ = 1;
   bool read_only_ = false;
   std::string read_only_name_;
