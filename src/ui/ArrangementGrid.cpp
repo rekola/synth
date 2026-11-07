@@ -66,6 +66,8 @@ ArrangementGrid::ArrangementGrid(Plane & parent) : UIElement(parent) {
     drag_candidate_.reset();
     if (auto cell = cellAt(e.row, e.col); cell && blockAt(cell->first, cell->second)) {
       drag_candidate_ = DragCandidate{cell->first, cell->second, e.y, e.x};
+    } else if (auto row = trackRowAt(e.row); row && e.col - getPosition().second < kNameWidth) {
+      drag_candidate_ = DragCandidate{*row, -1, e.y, e.x};
     }
     return cellui::Handled::yes;
   }));
@@ -88,8 +90,9 @@ ArrangementGrid::ArrangementGrid(Plane & parent) : UIElement(parent) {
     return dragOver(e) ? cellui::Handled::yes : cellui::Handled::no;
   }));
   connections_.push_back(on<cellui::DragLeave>([this](const cellui::DragLeave &, cellui::EventContext &) {
-    if (drop_preview_) drag_version_++;
+    if (drop_preview_ || track_drop_target_) drag_version_++;
     drop_preview_.reset();
+    track_drop_target_.reset();
     return cellui::Handled::yes;
   }));
   connections_.push_back(on<cellui::Drop>([this](const cellui::Drop & e, cellui::EventContext &) {
@@ -110,6 +113,8 @@ ArrangementGrid::ArrangementGrid(Plane & parent) : UIElement(parent) {
     ghost_.reset();
     drag_source_.reset();
     drop_preview_.reset();
+    track_drag_source_.reset();
+    track_drop_target_.reset();
     drag_candidate_.reset();
     drag_copy_ = false;
     drag_version_++;
@@ -215,6 +220,10 @@ void ArrangementGrid::startInstanceDrag(const cellui::MouseMove & e) {
   if (!drag_candidate_) return;
   auto candidate = *drag_candidate_;
   drag_candidate_.reset();
+  if (candidate.bar < 0) {
+    startTrackDrag(candidate, e);
+    return;
+  }
   auto block = blockAt(candidate.track_index, candidate.bar);
   if (!block) return;
   auto & song = getController().getSong();
@@ -246,7 +255,87 @@ void ArrangementGrid::startInstanceDrag(const cellui::MouseMove & e) {
   ghost_->moveTo(e.y, e.x);
 }
 
+std::optional<int> ArrangementGrid::trackRowAt(int screen_row) const {
+  auto num_tracks = static_cast<int>(getVisibleTrackIds(getController().getSong()).size());
+  auto [pos_y, pos_x] = getPosition();
+  auto [rows, cols] = getDim();
+  auto y = screen_row - pos_y;
+  if (y < kHeaderRows || y >= rows) return std::nullopt;
+  auto track = viewport_.rows.offset() + y - kHeaderRows;
+  if (track >= num_tracks) return std::nullopt;
+  return track;
+}
+
+std::string ArrangementGrid::trackLabel(int track_id) const {
+  auto & song = getController().getSong();
+  SongStructure structure(song);
+  auto label = "T" + to_string(structure.getBaselineInfo(track_id).color_ordinal_);
+  auto track = song.getMasterTrack().getChildByInternalId(track_id);
+  if (track && !track->getName().empty()) label += " " + track->getName();
+  return label;
+}
+
+// A track picked up by its name: a ghost of the name follows the pointer, and
+// its row shows dim.
+void ArrangementGrid::startTrackDrag(const DragCandidate & candidate, const cellui::MouseMove & e) {
+  auto track_ids = getVisibleTrackIds(getController().getSong());
+  if (candidate.track_index >= static_cast<int>(track_ids.size())) return;
+  auto track_id = track_ids[static_cast<size_t>(candidate.track_index)];
+  auto label = trackLabel(track_id);
+  SongStructure structure(getController().getSong());
+  Color color = structure.getBaselineInfo(track_id).getColor(getPlane().getStyles().tracks);
+  auto [pos_y, pos_x] = getPosition();
+  float grab_x = std::clamp(e.x - static_cast<float>(pos_x), 0.0f, static_cast<float>(kNameWidth) - 0.01f);
+  float grab_y = e.y - static_cast<float>(e.row);
+  if (postToRoot(cellui::StartDrag{this, cellui::DragPayload{"track", TrackDrag{track_id}}}) != cellui::Handled::yes) return;
+  track_drag_source_ = candidate.track_index;
+  drag_version_++;
+  ghost_ = std::make_unique<cellui::DragGhost>(getPlane(), 1, kNameWidth, grab_y, grab_x, [label, color](cellui::Plane & plane, int y, int x, bool) {
+    auto & st = plane.getStyles();
+    plane.setLift(st.theme.elevation.card);
+    plane.setFgColor(color);
+    plane.setBgColor(st.window_bg_color);
+    plane.putstr(y, x, "▌");
+    plane.setFgColor(st.window_fg_color);
+    plane.putstr(y, x + 1, cellui::utf8::padToWidth(cellui::utf8::truncateToWidth(label, kNameWidth - 2), kNameWidth - 1));
+  });
+  ghost_->moveTo(e.y, e.x);
+}
+
+// Any cell of a track's row takes the dragged track, if it is its sibling.
+bool ArrangementGrid::trackDragOver(const cellui::DragOver & e) {
+  auto * drag = e.payload.get<TrackDrag>();
+  auto & song = getController().getSong();
+  auto track_ids = getVisibleTrackIds(song);
+  auto row = trackRowAt(e.row);
+  bool accepted = drag && row && song.canMoveTrack(drag->track_id, track_ids[static_cast<size_t>(*row)]);
+  std::optional<int> target;
+  if (accepted && !(track_drag_source_ && *track_drag_source_ == *row)) target = row;
+  if (target != track_drop_target_) {
+    track_drop_target_ = target;
+    drag_version_++;
+  }
+  return accepted;
+}
+
+// The dragged track takes the place of the one under the pointer, and stays the current one.
+bool ArrangementGrid::trackDrop(const cellui::Drop & e) {
+  auto * drag = e.payload.get<TrackDrag>();
+  auto & song = getController().getSong();
+  auto track_ids = getVisibleTrackIds(song);
+  auto row = trackRowAt(e.row);
+  if (!drag || !row) return false;
+  auto onto = track_ids[static_cast<size_t>(*row)];
+  if (!song.canMoveTrack(drag->track_id, onto)) return false;
+  if (onto == drag->track_id) return true;
+  song.moveTrack(drag->track_id, onto);
+  song.setCurrentTrackId(drag->track_id);
+  getController().log("Moved track");
+  return true;
+}
+
 bool ArrangementGrid::dragOver(const cellui::DragOver & e) {
+  if (e.payload.get<TrackDrag>()) return trackDragOver(e);
   auto * drag = e.payload.get<InstanceDrag>();
   if (!drag) return false;
   auto cell = cellAt(e.row, e.col);
@@ -269,6 +358,7 @@ bool ArrangementGrid::dragOver(const cellui::DragOver & e) {
 // Moves the placement to the bar the grabbed point is over (Ctrl places
 // another and leaves the first).
 bool ArrangementGrid::drop(const cellui::Drop & e) {
+  if (e.payload.get<TrackDrag>()) return trackDrop(e);
   auto * drag = e.payload.get<InstanceDrag>();
   auto cell = cellAt(e.row, e.col);
   if (!drag || !cell) return false;
@@ -708,12 +798,22 @@ ArrangementGrid::render(const StyleProvider & styles, bool refresh, bool focused
 
     // The name, after a swatch in the track's color; the selected track's is
     // marked like a row of the pattern editor.
-    auto name_bg = selected ? styles.cursorRowTint(styles.window_bg_color) : styles.window_bg_color;
+    // A track in the air shows dim; the one it would take the place of is
+    // tinted, with an arrow to the side the track lands on.
+    bool lifted = track_drag_source_ && *track_drag_source_ == track_index;
+    bool drop_here = track_drop_target_ && *track_drop_target_ == track_index;
+    auto name_bg = drop_here  ? styles.window_bg_color.blend(0.5f, styles.cursor_tint_color)
+                   : selected ? styles.cursorRowTint(styles.window_bg_color)
+                              : styles.window_bg_color;
     setFgColor(color);
     setBgColor(name_bg);
     putstr(y, 0, "▌");
-    setFgColor(styles.window_fg_color);
+    setFgColor(lifted ? styles.window_border_color : styles.window_fg_color);
     putstr(y, 1, cellui::utf8::padToWidth(cellui::utf8::truncateToWidth(labels[track_id], kNameWidth - 2), kNameWidth - 1));
+    if (drop_here) {
+      setFgColor(styles.window_fg_color);
+      putstr(y, kNameWidth - 1, track_drag_source_ && track_index < *track_drag_source_ ? "^" : "v");
+    }
 
     // The active instance the previous bar showed for this track - lets the
     // loop below tell "still the same instance, one bar further into it"

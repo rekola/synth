@@ -85,8 +85,9 @@ ClipGrid::ClipGrid(Plane & parent) : UIElement(parent) {
   connections_.push_back(on<cellui::MouseUp>([this, handled](const cellui::MouseUp & e, cellui::EventContext &) { return handled(mouseUp(e)); }));
   connections_.push_back(on<cellui::DragOver>([this, handled](const cellui::DragOver & e, cellui::EventContext &) { return handled(dragOver(e)); }));
   connections_.push_back(on<cellui::DragLeave>([this](const cellui::DragLeave &, cellui::EventContext &) {
-    if (drop_target_) drag_version_++;
+    if (drop_target_ || track_drop_target_) drag_version_++;
     drop_target_.reset();
+    track_drop_target_.reset();
     return cellui::Handled::yes;
   }));
   connections_.push_back(on<cellui::Drop>([this, handled](const cellui::Drop & e, cellui::EventContext &) { return handled(drop(e)); }));
@@ -105,6 +106,8 @@ ClipGrid::ClipGrid(Plane & parent) : UIElement(parent) {
     ghost_.reset();
     drag_source_.reset();
     drop_target_.reset();
+    track_drag_source_.reset();
+    track_drop_target_.reset();
     drag_candidate_.reset();
     drag_copy_ = false;
     drag_version_++;
@@ -712,6 +715,10 @@ void ClipGrid::startClipDrag(const cellui::MouseMove & e) {
   if (!drag_candidate_) return;
   auto candidate = *drag_candidate_;
   drag_candidate_.reset();
+  if (candidate.clip_index < 0) {
+    startTrackDrag(candidate, e);
+    return;
+  }
   auto & song = getController().getSong();
   auto track_ids = song.getPlayableTrackIds();
   if (candidate.track_index >= static_cast<int>(track_ids.size())) return;
@@ -747,7 +754,84 @@ void ClipGrid::startClipDrag(const cellui::MouseMove & e) {
   ghost_->moveTo(e.y, e.x);
 }
 
+// The header's text: the track's number and its name, if it has one.
+std::string ClipGrid::trackLabel(int track_id) const {
+  auto & song = getController().getSong();
+  SongStructure structure(song);
+  auto leaf = dynamic_cast<const LeafTrack *>(song.getMasterTrack().getChildByInternalId(track_id));
+  auto label = "T" + std::to_string(structure.getBaselineInfo(track_id).color_ordinal_);
+  if (leaf && !leaf->getName().empty()) label += " " + leaf->getName();
+  return label;
+}
+
+// A track picked up by its header: a ghost of the header follows the pointer,
+// and the header it was lifted from shows dim.
+void ClipGrid::startTrackDrag(const DragCandidate & candidate, const cellui::MouseMove & e) {
+  auto track_ids = getController().getSong().getPlayableTrackIds();
+  if (candidate.track_index >= static_cast<int>(track_ids.size())) return;
+  auto track_id = track_ids[static_cast<size_t>(candidate.track_index)];
+  auto label = trackLabel(track_id);
+  auto & styles = getPlane().getStyles();
+  SongStructure structure(getController().getSong());
+  Color chip = styles.trackChipColor(structure.getBaselineInfo(track_id).color_ordinal_);
+  auto cell = contentCell(e.col - getPosition().second);
+  float grab_x = static_cast<float>(cell % (kColWidth + 1)) + (e.x - static_cast<float>(e.col));
+  float grab_y = e.y - static_cast<float>(e.row);
+  if (postToRoot(cellui::StartDrag{this, cellui::DragPayload{"track", TrackDrag{track_id}}}) != cellui::Handled::yes) return;
+  pressed_ = Pressed();
+  track_drag_source_ = candidate.track_index;
+  drag_version_++;
+  ghost_ = std::make_unique<cellui::DragGhost>(getPlane(), 1, kColWidth, grab_y, grab_x, [label, chip](cellui::Plane & plane, int y, int x, bool) {
+    auto & st = plane.getStyles();
+    const int chip_width = st.track_chips ? 1 : 0;
+    plane.setLift(st.theme.elevation.card);
+    plane.setFgColor(st.window_accent_fg_color);
+    plane.setBgColor(st.heading_bg_color);
+    plane.putstr(y, x, std::string(static_cast<size_t>(kColWidth), ' '));
+    plane.putText(y, x + chip_width, kColWidth - chip_width, label, cellui::TextStyle{cellui::TextFont::PROPORTIONAL, cellui::TextOverflow::ELLIPSIS});
+    if (chip_width > 0) {
+      plane.setFgColor(chip);
+      plane.putstr(y, x, "▌");
+    }
+  });
+  ghost_->moveTo(e.y, e.x);
+}
+
+// Any cell of a track's column takes the dragged track, if it is its sibling.
+bool ClipGrid::trackDragOver(const cellui::DragOver & e) {
+  auto * drag = e.payload.get<TrackDrag>();
+  auto & song = getController().getSong();
+  auto track_ids = song.getPlayableTrackIds();
+  auto hit = hitTest(e.row, e.col, static_cast<int>(track_ids.size()));
+  bool accepted = drag && hit.column >= 0 && hit.column < static_cast<int>(track_ids.size()) &&
+                  song.canMoveTrack(drag->track_id, track_ids[static_cast<size_t>(hit.column)]);
+  std::optional<int> target;
+  if (accepted && !(track_drag_source_ && *track_drag_source_ == hit.column)) target = hit.column;
+  if (target != track_drop_target_) {
+    track_drop_target_ = target;
+    drag_version_++;
+  }
+  return accepted;
+}
+
+// The dragged track takes the place of the one under the pointer, and stays the current one.
+bool ClipGrid::trackDrop(const cellui::Drop & e) {
+  auto * drag = e.payload.get<TrackDrag>();
+  auto & song = getController().getSong();
+  auto track_ids = song.getPlayableTrackIds();
+  auto hit = hitTest(e.row, e.col, static_cast<int>(track_ids.size()));
+  if (!drag || hit.column < 0 || hit.column >= static_cast<int>(track_ids.size())) return false;
+  auto onto = track_ids[static_cast<size_t>(hit.column)];
+  if (!song.canMoveTrack(drag->track_id, onto)) return false;
+  if (onto == drag->track_id) return true;
+  song.moveTrack(drag->track_id, onto);
+  song.setCurrentTrackId(drag->track_id);
+  getController().log("Moved track");
+  return true;
+}
+
 bool ClipGrid::dragOver(const cellui::DragOver & e) {
+  if (e.payload.get<TrackDrag>()) return trackDragOver(e);
   auto * drag = e.payload.get<ClipDrag>();
   if (!drag) return false;
   auto slot = clipSlotAt(e.row, e.col);
@@ -770,6 +854,7 @@ bool ClipGrid::dragOver(const cellui::DragOver & e) {
 // have taken: whatever is at the slot goes, and a moved clip's slot empties
 // the way a kill empties it.
 bool ClipGrid::drop(const cellui::Drop & e) {
+  if (e.payload.get<TrackDrag>()) return trackDrop(e);
   auto * drag = e.payload.get<ClipDrag>();
   auto slot = clipSlotAt(e.row, e.col);
   if (!drag || !slot) return false;
@@ -798,7 +883,11 @@ bool ClipGrid::mouseDown(const cellui::MouseDown & e) {
   // A press on a clip may turn into a drag.
   drag_candidate_.reset();
   if (taken) {
-    if (auto slot = clipSlotAt(e.row, e.col)) {
+    auto num_tracks = static_cast<int>(getController().getSong().getPlayableTrackIds().size());
+    auto hit = hitTest(e.row, e.col, num_tracks);
+    if (hit.column >= 0 && hit.column < num_tracks && hit.physical == -1) {
+      drag_candidate_ = DragCandidate{hit.column, -1, e.y, e.x};
+    } else if (auto slot = clipSlotAt(e.row, e.col)) {
       auto track_ids = getController().getSong().getPlayableTrackIds();
       auto clips = getController().getSong().getClips(track_ids[static_cast<size_t>(slot->first)]);
       if (slot->second < static_cast<int>(clips.size()) && !clips[static_cast<size_t>(slot->second)].isEmpty())
@@ -1144,9 +1233,19 @@ ClipGrid::render(const StyleProvider & styles, bool refresh, bool focused) {
                             : header_is_cursor ? styles.heading_bg_color.blend(focus_, styles.highlight_bg_color)
                                                : styles.heading_bg_color);
     header_plane.putstr(0, x, string(static_cast<size_t>(kColWidth), ' ')); // opaque header background first, across the whole column
-    auto prefix = "T" + std::to_string(structure.getBaselineInfo(track_id).color_ordinal_);
-    auto friendly_name = (leaf && !leaf->getName().empty()) ? " " + leaf->getName() : string();
-    header_plane.putText(0, x + chip_width, name_width, prefix + friendly_name, cellui::TextStyle{cellui::TextFont::PROPORTIONAL, cellui::TextOverflow::ELLIPSIS});
+    // The header of a track in the air shows dim; the one it would take the
+    // place of is tinted, with an arrow to the side the track lands on.
+    bool lifted = track_drag_source_ && *track_drag_source_ == track_index;
+    bool drop_here = track_drop_target_ && *track_drop_target_ == track_index;
+    if (drop_here) header_plane.setBgColor(styles.heading_bg_color.blend(0.5f, styles.cursor_tint_color));
+    if (drop_here) header_plane.putstr(0, x, string(static_cast<size_t>(kColWidth), ' '));
+    if (lifted) header_plane.setFgColor(styles.window_border_color);
+    header_plane.putText(0, x + chip_width, name_width, trackLabel(track_id), cellui::TextStyle{cellui::TextFont::PROPORTIONAL, cellui::TextOverflow::ELLIPSIS});
+    if (drop_here) {
+      header_plane.setFgColor(styles.window_fg_color);
+      bool before = track_drag_source_ && track_index < *track_drag_source_;
+      header_plane.putstr(0, before ? x : x + kColWidth - 1, before ? "<" : ">");
+    }
     if (chip_width > 0) {
       header_plane.setFgColor(styles.trackChipColor(structure.getBaselineInfo(track_id).color_ordinal_));
       header_plane.putstr(0, x, "▌");

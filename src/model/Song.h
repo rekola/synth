@@ -566,6 +566,15 @@ class Song : public SongObject {
   // (the object that was passed in, now shared and read-only).
   const Track & addTrack(std::unique_ptr<Track> track, int after_track_id = -1);
 
+  // Whether track `track_id` can be moved to the place of `onto_track_id`: both
+  // exist, are not the master, and have the same parent (a track stays in its
+  // group, or at the root).
+  bool canMoveTrack(int track_id, int onto_track_id) const;
+  // Moves a track to the place of another, as a list moves an element: the
+  // tracks between them shift one place the other way. One undo step. Returns
+  // false, doing nothing, where canMoveTrack() says no or the two are one.
+  bool moveTrack(int track_id, int onto_track_id);
+
   // Removes the track (root, or nested inside a <group>) whose internal id
   // is `id`. Returns false, doing nothing, if `id` doesn't resolve to any
   // track any more - callers should treat "already gone" the same as

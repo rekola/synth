@@ -137,6 +137,44 @@ TEST(a_track_added_with_children_keeps_them_and_a_sibling_lands_inside_a_group) 
   CHECK(compiled_group.getChildren()[1].get() == &sibling);
 }
 
+namespace {
+std::vector<int> playableIds(const Song & song) { return song.getPlayableTrackIds(); }
+} // namespace
+
+TEST(moving_a_track_to_the_place_of_another_shifts_the_ones_between) {
+  Song song;
+  auto a = song.addTrack(std::make_unique<InstrumentTrack>(0)).getInternalId();
+  auto b = song.addTrack(std::make_unique<InstrumentTrack>(0)).getInternalId();
+  auto c = song.addTrack(std::make_unique<InstrumentTrack>(0)).getInternalId();
+  CHECK(playableIds(song) == (std::vector<int>{a, b, c}));
+  CHECK(song.moveTrack(a, c)); // forward: it lands after c
+  CHECK(playableIds(song) == (std::vector<int>{b, c, a}));
+  CHECK(song.moveTrack(a, b)); // back: it lands before b
+  CHECK(playableIds(song) == (std::vector<int>{a, b, c}));
+  CHECK(song.undo());
+  CHECK(playableIds(song) == (std::vector<int>{b, c, a})); // one step each
+  CHECK(song.undo());
+  CHECK(playableIds(song) == (std::vector<int>{a, b, c}));
+}
+
+TEST(a_track_moves_only_among_its_siblings_and_never_the_master) {
+  Song song;
+  auto group = std::make_unique<Group>();
+  auto inner = group->addChild(std::make_unique<InstrumentTrack>(0)).getInternalId();
+  song.addTrack(std::move(group));
+  auto outer = song.addTrack(std::make_unique<InstrumentTrack>(0)).getInternalId();
+  auto master = song.getMasterTrack().getInternalId();
+  CHECK(!song.canMoveTrack(inner, outer)); // another parent
+  CHECK(!song.moveTrack(inner, outer));
+  CHECK(!song.moveTrack(outer, master));
+  CHECK(!song.moveTrack(master, outer));
+  CHECK(!song.moveTrack(outer, outer));
+  CHECK(!song.moveTrack(outer, 123456)); // no such track
+  auto sibling = song.addTrack(std::make_unique<InstrumentTrack>(0), inner).getInternalId();
+  CHECK(song.moveTrack(sibling, inner));
+  CHECK(song.getMasterTrack().getChildren()[0]->getChildren()[0]->getInternalId() == sibling);
+}
+
 TEST(instruments_and_the_default_kit_are_nodes_too) {
   Song song;
   song.addInstrument(std::make_unique<Oscillator>(WaveformType::SINE));

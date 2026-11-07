@@ -12,6 +12,7 @@
 #include <vector>
 
 #include <cellui/DragDrop.h>
+#include "TrackDrag.h"
 #include <cellui/Fade.h>
 #include <cellui/InputDispatcher.h>
 #include <cellui/InputEvents.h>
@@ -143,9 +144,16 @@ class ArrangementGrid : public UIElement {
     int grab_offset = 0; // the bar grabbed, counted from the block's first, within one pass
   };
   struct DragCandidate {
-    int track_index = 0, bar = 0;
+    int track_index = 0, bar = 0; // bar -1: the track's name
     float y = 0, x = 0;
   };
+  // A track picked up by its name: its row and the one it would take the place of.
+  std::optional<int> trackRowAt(int screen_row) const;
+  std::string trackLabel(int track_id) const;
+  void startTrackDrag(const DragCandidate & candidate, const cellui::MouseMove & e);
+  bool trackDragOver(const cellui::DragOver & e);
+  bool trackDrop(const cellui::Drop & e);
+  std::optional<int> track_drag_source_, track_drop_target_;
   // A run of bars on a track, by its index in getVisibleTrackIds().
   struct BarSpan {
     int track_index = 0, first_bar = 0, bars = 0;

@@ -525,6 +525,28 @@ Song::addTrack(std::unique_ptr<Track> track, int after_track_id) {
   return *shared;
 }
 
+bool Song::canMoveTrack(int track_id, int onto_track_id) const {
+  auto from = trackNode(track_id), onto = trackNode(onto_track_id);
+  if (from == doc::kNoNode || onto == doc::kNoNode || from == masterNode() || onto == masterNode()) return false;
+  auto a = doc_->get(from), b = doc_->get(onto);
+  return a && b && a->parent == b->parent && a->parent_slot == b->parent_slot;
+}
+
+bool Song::moveTrack(int track_id, int onto_track_id) {
+  if (track_id == onto_track_id || !canMoveTrack(track_id, onto_track_id)) return false;
+  Edit edit(*this, "move track");
+  auto from = trackNode(track_id), onto = trackNode(onto_track_id);
+  auto n = doc_->get(from);
+  auto parent = n->parent;
+  auto slot = n->parent_slot;
+  auto siblings = doc_->get(parent)->children(slot);
+  auto index_of = [&](doc::NodeId node) {
+    return static_cast<size_t>(std::find(siblings->begin(), siblings->end(), node) - siblings->begin());
+  };
+  doc_->moveChild(parent, slot, index_of(from), index_of(onto));
+  return true;
+}
+
 bool
 Song::removeTrack(int id) {
   Edit edit(*this, "remove track");

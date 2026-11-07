@@ -147,6 +147,13 @@ They act on the clip under the cursor.
   placements stay. Dropped on another track of the same kind, the clip goes
   there as its own copy. Ctrl places another and keeps the first placement.
   Escape puts it back.
+- **Reorder tracks:** press on a track's header in the clip grid, or its name
+  in the arrangement grid, and move: a copy of the header follows the pointer
+  and the one it would take the place of is marked with an arrow to the side
+  the track lands on. Release to move it there (one undo step; the tracks
+  between shift one place, and the track numbers, which follow position, with
+  them). A track moves only among those in its own group, or at the top
+  level. It stays the current track. Escape puts it back.
 
 ## Moving a paused playhead
 
