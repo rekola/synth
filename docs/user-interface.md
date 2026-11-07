@@ -131,14 +131,15 @@ They act on the clip under the cursor.
   button instead, which is not clip content and never reaches the clipboard.
 - A clip that is playing is not pulled out from under the playhead: its track
   stops at the next bar and the clip is removed then.
-- **Drag a clip (the window only):** press on a clip and move: the clip comes
+- **Drag a clip:** press on a clip and move: the clip comes
   off its slot and follows the pointer, and the slot it would land on shows
   it. Release to drop it there (a cut and a yank in one undo step, with
   the same rules: only onto a track of the same kind, and what is in the slot
   is replaced). Ctrl copies instead of moving (the slot stays filled while
-  it is held). Escape, or a release where it cannot land, puts it back. The
-  terminal has no drag.
-- **Drag a placed clip (the window only, Arrangement view):** press on a
+  it is held). Escape, or a release where it cannot land, puts it back. On a
+  terminal the clip moves by whole cells, and some terminals keep Ctrl with
+  the mouse for themselves; copy and yank (above) copy a clip there.
+- **Drag a placed clip (Arrangement view):** press on a
   block and move: the block lifts off its bars and follows the pointer as one
   pass of the clip (a looping clip will run on once placed, as it did), and
   the bars that pass would cover show it. Release to put it there; the bar under the

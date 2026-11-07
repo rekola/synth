@@ -1635,11 +1635,11 @@ TEST(a_scope_result_with_a_spectrum_is_drawn) {
 
 namespace {
 
-// A window: the pointer drags and Escape is a bare key.
-cellui::DisplayInfo dragDisplay(bool drag_drop = true) {
+// A window: the pointer drags and Escape is a bare key; with `escape_as_meta`, a terminal.
+cellui::DisplayInfo dragDisplay(bool drag_drop = true, bool escape_as_meta = false) {
   cellui::DisplayInfo display;
   display.drag_drop = drag_drop;
-  display.escape_as_meta = false;
+  display.escape_as_meta = escape_as_meta;
   display.precise_mouse = true;
   return display;
 }
@@ -1686,6 +1686,27 @@ TEST(terminal_ui_dragging_a_clip_moves_it_to_another_slot) {
   f.controller->getSong().undo();
   f.ui->step();
   CHECK(hasClip(f, 0, 0) && !hasClip(f, 1, 1));
+}
+
+// A terminal holds a bare Escape back in case an Alt key follows, but not from a drag.
+TEST(terminal_ui_a_bare_escape_cancels_a_drag_where_escape_is_meta) {
+  UIFixture f(repoSong("demo3.xml"), UI::View::LIVE, dragDisplay(true, true));
+  putNoteClip(f, 0, 0);
+  f.terminal.pushMouse(slotY(0), slotX(0), cellui::Key::Button1);
+  f.ui->step();
+  f.terminal.pushMotion(slotY(1), slotX(1));
+  f.ui->step();
+  f.press(Key::Escape);
+  f.terminal.pushMouse(slotY(1), slotX(1), cellui::Key::Button1, 0, cellui::Input::Kind::RELEASE);
+  f.ui->step();
+  CHECK(hasClip(f, 0, 0) && !hasClip(f, 1, 1));
+}
+
+TEST(terminal_ui_a_clip_drags_on_a_terminal) {
+  UIFixture f(repoSong("demo3.xml"), UI::View::LIVE, dragDisplay(true, true));
+  putNoteClip(f, 0, 0);
+  dragClip(f, 0, 0, 1, 1);
+  CHECK(!hasClip(f, 0, 0) && hasClip(f, 1, 1));
 }
 
 TEST(terminal_ui_a_clip_dropped_on_its_own_slot_stays) {

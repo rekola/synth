@@ -264,7 +264,7 @@ Controller-level and per-widget commands. Not migrated: `StatusLine`,
   drag sets the mark at the press cell and extends to the pointer. A drag is
   a `MouseMove` with the button held (`MouseMove::buttons`), sent to the
   widget that got the press; a `MouseDown` is always a fresh press.
-  **Dragging a clip** (window only, `cellui/DragDrop.h`): a press on a
+  **Dragging a clip** (`cellui/DragDrop.h`): a press on a
   populated clip slot is a candidate (its own slot is one too, and dropping there
   does nothing); once the pointer has moved
   (`dragStarted()`) `ClipGrid` posts `StartDrag` (refused where the display has

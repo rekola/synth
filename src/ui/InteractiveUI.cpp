@@ -439,6 +439,9 @@ InteractiveUI::InteractiveUI(cellui::Backend & backend)
     } else if (activeModal()) {
       dispatcher_.offer(escape);
       force_next_render_ = true;
+    } else if (dispatcher_.dragging()) {
+      dispatcher_.offer(escape);
+      force_next_render_ = true;
     } else if (active && active->wantsBareEscape()) {
       offerInput(escape);
     } else {
