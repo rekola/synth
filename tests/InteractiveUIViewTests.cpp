@@ -1977,3 +1977,65 @@ TEST(terminal_ui_clip_yank_into_a_song_in_another_tuning_converts_by_pitch) {
   auto note = clips[0].toClip().getLeafPattern().getNote(0, 0);
   CHECK(note.getValue() == 53 * 5 + 17); // E, 5:4 in 53-EDO
 }
+
+// --- Dragging a track by its header or name (to another's place) ---
+
+TEST(terminal_ui_dragging_a_track_header_in_the_clip_grid_reorders_the_tracks) {
+  UIFixture f(repoSong("demo3.xml"), UI::View::LIVE, dragDisplay());
+  auto & song = f.controller->getSong();
+  auto before = song.getPlayableTrackIds();
+  // The header row is screen row 1; press on the first track's, release over the third's.
+  f.terminal.pushMouse(1, slotX(0), cellui::Key::Button1);
+  f.ui->step();
+  f.terminal.pushMotion(1, slotX(2));
+  f.ui->step();
+  f.terminal.pushMouse(1, slotX(2), cellui::Key::Button1, 0, cellui::Input::Kind::RELEASE);
+  f.ui->step();
+  auto after = song.getPlayableTrackIds();
+  CHECK(after.size() == before.size());
+  CHECK(after[2] == before[0] && after[0] == before[1] && after[1] == before[2]);
+  CHECK(song.getCurrentTrackId() == before[0]); // the moved track stays the current one
+  song.undo();
+  f.ui->step();
+  CHECK(song.getPlayableTrackIds() == before);
+}
+
+TEST(terminal_ui_dragging_a_track_name_in_the_arrangement_grid_reorders_the_tracks) {
+  UIFixture f(repoSong("demo3.xml"), UI::View::ARRANGEMENT, dragDisplay());
+  auto & song = f.controller->getSong();
+  auto before = song.getPlayableTrackIds();
+  int from = trackRowOf(f, "T0"), to = trackRowOf(f, "T2");
+  CHECK(from > 0 && to > from);
+  f.terminal.pushMouse(from, 2, cellui::Key::Button1);
+  f.ui->step();
+  f.terminal.pushMotion(to, 2);
+  f.ui->step();
+  f.terminal.pushMouse(to, 2, cellui::Key::Button1, 0, cellui::Input::Kind::RELEASE);
+  f.ui->step();
+  auto after = song.getPlayableTrackIds();
+  CHECK(after[2] == before[0] && after[0] == before[1] && after[1] == before[2]);
+}
+
+TEST(terminal_ui_escape_or_a_display_without_drag_leaves_the_track_order) {
+  {
+    UIFixture f(repoSong("demo3.xml"), UI::View::LIVE, dragDisplay());
+    auto before = f.controller->getSong().getPlayableTrackIds();
+    f.terminal.pushMouse(1, slotX(0), cellui::Key::Button1);
+    f.ui->step();
+    f.terminal.pushMotion(1, slotX(2));
+    f.ui->step();
+    f.press(Key::Escape);
+    f.terminal.pushMouse(1, slotX(2), cellui::Key::Button1, 0, cellui::Input::Kind::RELEASE);
+    f.ui->step();
+    CHECK(f.controller->getSong().getPlayableTrackIds() == before);
+  }
+  UIFixture g(repoSong("demo3.xml"), UI::View::LIVE, dragDisplay(false));
+  auto before = g.controller->getSong().getPlayableTrackIds();
+  g.terminal.pushMouse(1, slotX(0), cellui::Key::Button1);
+  g.ui->step();
+  g.terminal.pushMotion(1, slotX(2));
+  g.ui->step();
+  g.terminal.pushMouse(1, slotX(2), cellui::Key::Button1, 0, cellui::Input::Kind::RELEASE);
+  g.ui->step();
+  CHECK(g.controller->getSong().getPlayableTrackIds() == before);
+}

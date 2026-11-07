@@ -7,6 +7,7 @@
 
 #include <cellui/Dial.h>
 #include <cellui/DragDrop.h>
+#include "TrackDrag.h"
 #include <cellui/Fade.h>
 #include <cellui/Viewport.h>
 #include <cellui/WheelAcceleration.h>
@@ -332,9 +333,15 @@ class ClipGrid : public UIElement {
     Clip clip;
   };
   struct DragCandidate {
-    int track_index = 0, clip_index = 0;
+    int track_index = 0, clip_index = 0; // clip_index -1: the track's header
     float y = 0, x = 0;
   };
+  // A track picked up by its header: its column and the one it would take the place of.
+  void startTrackDrag(const DragCandidate & candidate, const cellui::MouseMove & e);
+  bool trackDragOver(const cellui::DragOver & e);
+  bool trackDrop(const cellui::Drop & e);
+  std::string trackLabel(int track_id) const;
+  std::optional<int> track_drag_source_, track_drop_target_;
   static void putClipSlot(cellui::Plane & plane, int y, int x, const std::string & text, const std::string & label, int label_cols,
                           bool looping, bool edited, Color fg, Color bg);
   // The (track column, clip index) of the clip slot at a cell, on a real track.

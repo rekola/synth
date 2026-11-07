@@ -288,6 +288,12 @@ Controller-level and per-widget commands. Not migrated: `StatusLine`,
   another track of the same kind the clip goes there as an independent copy in
   the first free slot. Ctrl places another and keeps the first. The clip and
   its other placements stay.
+  **Dragging a track** (`TrackDrag.h`; the clip grid's header, the arrangement
+  grid's name): a candidate on a press there, a ghost of the header, the source
+  dim, and the target marked (tint and an arrow to the side it lands on); any
+  cell of a column or row is a target if `Song::canMoveTrack()` (siblings only);
+  a drop is `Song::moveTrack()` (the document's `moveChild`, one undo step) and
+  makes the moved track the current one, which the grids' cursors follow.
   `ClipCard.h` is how a clip looks on a grid wherever one shows (slot, block,
   ghost): a card lifted off the grid so the display lights and shadows it.
 - **Scopes**: the spectrum is a `cellui::LineChart` fed by
