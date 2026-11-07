@@ -161,6 +161,9 @@ class InteractiveUI : public UI {
   // handleVisualizationResultEvent()'s own comment on why this needs to
   // persist across events rather than being derived fresh each time.
   float dirac_running_max_ = 0.0f;
+  // The spectrum and the DirAC grid show their empty state; below the display floor they paint it once and
+  // then ask for no more frames until a value crosses the floor upward.
+  bool spectrum_blank_ = true, dirac_blank_ = true;
   // What the scopes last drew, and when anything last moved: a silent,
   // unchanged display needs no redraw (a pixel blit is the costly part).
   std::vector<float> last_fft_, last_loudness_;

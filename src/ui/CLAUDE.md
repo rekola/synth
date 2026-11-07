@@ -301,7 +301,9 @@ Controller-level and per-widget commands. Not migrated: `StatusLine`,
   80 dB range); it, the DirAC heatmap and the level meter sit side by side in Arrangement view's top band
   and in Live View's left column under the outline (only while the outline
   is shown and the screen is tall enough); off-screen scopes are not
-  updated. Cell or pixel versions are chosen once at startup
+  updated. Under the display floor (the spectrum below its 80 dB range, DirAC energy under
+  `DiracAnalyzer::kDisplayFloor`) a scope paints its empty state once and asks for no frames until a value
+  crosses the floor upward; a voice that never ends (a note held when the transport pauses) keeps them going. Cell or pixel versions are chosen once at startup
   (`cellui::chartsFor()`).
 - A fresh session opens in Live View on the clip grid
   (`UI::setInitialView()`, `--view`).

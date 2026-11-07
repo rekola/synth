@@ -1631,6 +1631,53 @@ TEST(a_scope_result_with_a_spectrum_is_drawn) {
   CHECK(f.text() != blank);
 }
 
+namespace {
+
+// A scope result: a spectrum and a DirAC grid, both scaled by `level` (0: nothing), with a little jitter.
+VisualizationResultEvent scopeResult(float level, int jitter) {
+  VisualizationResultEvent ev;
+  float db = level > 0.0f ? -6.0f + 20.0f * std::log10(level) : -100.0f;
+  ev.setFFT(std::vector<float>(512, db + 0.01f * static_cast<float>(jitter % 3)), 50.0f);
+  std::array<float, DiracAnalyzer::kGridSize> grid{};
+  grid[10] = 100.0f * level * (1.0f + 0.01f * static_cast<float>(jitter % 3));
+  ev.setDiracGrid(grid, std::array<float, DiracAnalyzer::kNumBands>{});
+  ev.setChannelLoudness({0.0f});
+  return ev;
+}
+
+} // namespace
+
+// Once the sound has died to nothing the scopes paint their empty state once and then ask for no frames,
+// whatever the analysers' remnants wobble by; a sound returning draws again.
+TEST(scopes_that_have_gone_silent_paint_once_and_then_ask_for_no_frames) {
+  UIFixture f("", UI::View::ARRANGEMENT);
+  for (int i = 0; i < 20; i++) {
+    f.ui->handleVisualizationResultEvent(scopeResult(1.0f, i));
+    f.ui->step();
+  }
+  auto loud = f.text();
+  // The decay ends far under the display floors: the empty state is painted.
+  f.ui->handleVisualizationResultEvent(scopeResult(1e-7f, 0));
+  f.ui->step();
+  CHECK(f.text() != loud);
+
+  // From here on, what asks for a frame is counted.
+  size_t asked = 0;
+  f.terminal.setFrameHandler([&](int64_t) { asked++; });
+  f.terminal.eventLoop().iterate(false); // what was asked for before is let go
+  asked = 0;
+  for (int i = 0; i < 100; i++) {
+    f.ui->handleVisualizationResultEvent(scopeResult(1e-7f * static_cast<float>(1 + i % 5), i));
+    f.terminal.eventLoop().iterate(false);
+  }
+  CHECK(asked == 0);
+
+  // A sound returning asks again.
+  f.ui->handleVisualizationResultEvent(scopeResult(1.0f, 0));
+  f.terminal.eventLoop().iterate(false);
+  CHECK(asked == 1);
+}
+
 // --- Dragging a clip in the clip grid (the window only) ---
 
 namespace {

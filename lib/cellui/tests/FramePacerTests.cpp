@@ -451,3 +451,22 @@ TEST(pacer_stats_give_the_rate_a_frame_makes_at_the_floor_between_frames) {
   send(p, 1600, 100);
   CHECK(std::fabs(p.stats(at(101)).floor_rate - 100000.0) < 1.0);  // 1600 bytes every 16 ms
 }
+
+TEST(pacer_a_terminal_answering_in_a_fraction_of_a_millisecond_keeps_its_estimate_while_the_app_is_limited) {
+  // D is 0.2 ms, so 0.75*B*D is a few hundred bytes. 5 kB frames, one at a time, each answered 40 ms late (the
+  // terminal painting on its own clock): that says nothing about the link, so B must not move.
+  PacerConfig cfg;
+  cfg.min_frame_interval = Ms(1);
+  FramePacer p(true, cfg);
+  send(p, 200000, 0);
+  ack(p, 1, 41);  // 5 MB/s at the start; the lead fence answered after 1 ms
+  double before = p.estimatedBytesPerSec();
+  for (int i = 0; i < 60; i++) {
+    int ms = 200 + 100 * i;
+    send(p, 5000, ms);
+    ack(p, ms + 0, ms + 40);  // lead fence at once (D ~ 0), the frame's fence 40 ms late
+  }
+  PacerStats s = p.stats(at(7000));
+  CHECK(p.estimatedBytesPerSec() >= before);
+  CHECK(s.backoffs == 0);
+}

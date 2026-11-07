@@ -1941,6 +1941,7 @@ InteractiveUI::blankScopes() {
   last_loudness_.clear();
   fft_pending_ = grid_pending_ = meter_pending_ = false;
   dirac_running_max_ = 0.0f;
+  spectrum_blank_ = dirac_blank_ = true;
 }
 
 bool InteractiveUI::drawPendingScopes() {
@@ -1997,6 +1998,7 @@ void InteractiveUI::handleVisualizationResultEvent(const VisualizationResultEven
       last_saturation_.clear();
       fft_pending_ = grid_pending_ = false;
       dirac_running_max_ = 0.0f;
+      spectrum_blank_ = dirac_blank_ = true;
       changed = true;
     }
     if (!profile_.meter && !meter_cleared_ && holdExpired(now - meter_off_since_)) {
@@ -2015,10 +2017,15 @@ void InteractiveUI::handleVisualizationResultEvent(const VisualizationResultEven
 
     if (profile_.scopes && !ev.getFFT().empty() && ev.getFFT() != last_fft_) {
       last_fft_ = ev.getFFT();
-      pending_fft_ = ev.getFFT();
-      pending_fft_hz_ = ev.getFFTBinHz();
-      fft_pending_ = true;
-      changed = true;
+      // Everything under the curve's range draws as an empty curve: painted once, then left alone.
+      bool silent = *std::max_element(last_fft_.begin(), last_fft_.end()) < -spectrum_curve::kRangeDb;
+      if (!silent || !spectrum_blank_) {
+        pending_fft_ = last_fft_;
+        pending_fft_hz_ = ev.getFFTBinHz();
+        fft_pending_ = true;
+        changed = true;
+      }
+      spectrum_blank_ = silent;
     }
 
     if (profile_.scopes && ev.hasDiracGrid()) {
@@ -2039,57 +2046,73 @@ void InteractiveUI::handleVisualizationResultEvent(const VisualizationResultEven
         if (displayed[i] > frame_max) frame_max = displayed[i];
       }
 
-      // Auto-scaling brightness reference, tracked across events rather
-      // than derived fresh each time: jumps up immediately on a new peak
-      // (so a loud transient doesn't clip the display), decays slowly
-      // otherwise (~2s time constant at this event's ~86Hz delivery
-      // rate) so a quiet passage
-      // doesn't suddenly wash the whole grid out to full brightness the
-      // instant a loud part ends.
-      if (frame_max > dirac_running_max_) dirac_running_max_ = frame_max;
-      else
-        dirac_running_max_ += (frame_max - dirac_running_max_) * 0.0058f;
+      // No direction to show: the empty grid, painted once and then left alone.
+      if (frame_max < DiracAnalyzer::kDisplayFloor) {
+        dirac_running_max_ = 0.0f;
+        if (!dirac_blank_) {
+          dirac_blank_ = true;
+          last_brightness_.clear();
+          last_saturation_.clear();
+          pending_brightness_.assign(DiracAnalyzer::kGridSize, 0.0f);
+          pending_saturation_.assign(DiracAnalyzer::kGridSize, 0.0f);
+          grid_pending_ = true;
+          changed = true;
+        }
+      } else {
+        dirac_blank_ = false;
+        // Auto-scaling brightness reference, tracked across events rather
+        // than derived fresh each time: jumps up immediately on a new peak
+        // (so a loud transient doesn't clip the display), decays slowly
+        // otherwise (~2s time constant at this event's ~86Hz delivery
+        // rate) so a quiet passage
+        // doesn't suddenly wash the whole grid out to full brightness the
+        // instant a loud part ends.
+        if (frame_max > dirac_running_max_)
+          dirac_running_max_ = frame_max;
+        else
+          dirac_running_max_ += (frame_max - dirac_running_max_) * 0.0058f;
 
-      // log1p applied to the *ratio* to dirac_running_max_ (not to the raw
-      // absolute displayed[i]/dirac_running_max_ values themselves) - taking
-      // log1p of an un-normalized absolute magnitude made the compression
-      // severity (and so the perceived fade time of a decaying cell) scale
-      // with how loud the audio was: log1pf(displayed)/log1pf(max) only
-      // approaches 0 once displayed drops below O(1) in absolute terms, so a
-      // louder passage (larger running_max, in arbitrary energy units) left
-      // a decayed cell sitting at a substantial fraction of full brightness
-      // long after its energy had genuinely fallen away - e.g. at 1% of
-      // peak it could still read ~35% bright. Normalizing to a ratio first
-      // ties the curve to *relative* loudness instead, so "decayed to 1% of
-      // peak" always maps to roughly the same low brightness regardless of
-      // the absolute scale - kRatioCompression trades off shadow detail
-      // against how quickly a decaying cell now visibly reads as "gone".
-      constexpr float kRatioCompression = 16.0f;
-      float log_max = log1pf(kRatioCompression);
-      std::vector<float> brightness(DiracAnalyzer::kGridSize), saturation(DiracAnalyzer::kGridSize);
-      for (size_t i = 0; i < DiracAnalyzer::kGridSize; i++) {
-        float ratio = dirac_running_max_ > 0.0f ? displayed[i] / dirac_running_max_ : 0.0f;
-        brightness[i] = log1pf(kRatioCompression * ratio) / log_max;
-        if (brightness[i] > 1.0f) brightness[i] = 1.0f;
-        saturation[i] = displayed[i] > 1e-12f ? grid[i] / displayed[i] : 0.0f;
-      }
-      // Compared at 1/512 and redrawn only when a cell has moved by 4 of those from what is shown (about
-      // two colour levels): the gain that follows a decaying level keeps nudging every cell otherwise.
-      auto quantize = [](const std::vector<float> & v) { std::vector<int> q(v.size()); for (size_t i = 0; i < v.size(); i++) q[i] = static_cast<int>(v[i] * 512.0f + 0.5f); return q; };
-      auto quantized_brightness = quantize(brightness), quantized_saturation = quantize(saturation);
-      auto moved = [](const std::vector<int> & a, const std::vector<int> & b) {
-        if (a.size() != b.size()) return true;
-        for (size_t i = 0; i < a.size(); i++)
-          if (std::abs(a[i] - b[i]) >= 4) return true;
-        return false;
-      };
-      if (moved(quantized_brightness, last_brightness_) || moved(quantized_saturation, last_saturation_)) {
-        last_brightness_ = std::move(quantized_brightness);
-	last_saturation_ = std::move(quantized_saturation);
-        pending_brightness_ = std::move(brightness);
-        pending_saturation_ = std::move(saturation);
-        grid_pending_ = true;
-        changed = true;
+        // log1p applied to the *ratio* to dirac_running_max_ (not to the raw
+        // absolute displayed[i]/dirac_running_max_ values themselves) - taking
+        // log1p of an un-normalized absolute magnitude made the compression
+        // severity (and so the perceived fade time of a decaying cell) scale
+        // with how loud the audio was: log1pf(displayed)/log1pf(max) only
+        // approaches 0 once displayed drops below O(1) in absolute terms, so a
+        // louder passage (larger running_max, in arbitrary energy units) left
+        // a decayed cell sitting at a substantial fraction of full brightness
+        // long after its energy had genuinely fallen away - e.g. at 1% of
+        // peak it could still read ~35% bright. Normalizing to a ratio first
+        // ties the curve to *relative* loudness instead, so "decayed to 1% of
+        // peak" always maps to roughly the same low brightness regardless of
+        // the absolute scale - kRatioCompression trades off shadow detail
+        // against how quickly a decaying cell now visibly reads as "gone".
+        constexpr float kRatioCompression = 16.0f;
+        float log_max = log1pf(kRatioCompression);
+        std::vector<float> brightness(DiracAnalyzer::kGridSize), saturation(DiracAnalyzer::kGridSize);
+        for (size_t i = 0; i < DiracAnalyzer::kGridSize; i++) {
+          float ratio = dirac_running_max_ > 0.0f ? displayed[i] / dirac_running_max_ : 0.0f;
+          brightness[i] = log1pf(kRatioCompression * ratio) / log_max;
+          if (brightness[i] > 1.0f) brightness[i] = 1.0f;
+          saturation[i] = displayed[i] > 1e-12f ? grid[i] / displayed[i] : 0.0f;
+        }
+        // Compared at 1/512 and redrawn only when a cell has moved by 4 of those from what is shown (about
+        // two colour levels): the gain that follows a decaying level keeps nudging every cell otherwise.
+        auto quantize = [](const std::vector<float> & v) { std::vector<int> q(v.size()); for (size_t i = 0; i < v.size(); i++) q[i] = static_cast<int>(v[i] * 512.0f + 0.5f); return q; };
+        auto quantized_brightness = quantize(brightness), quantized_saturation = quantize(saturation);
+        auto moved = [](const std::vector<int> & a, const std::vector<int> & b) {
+          if (a.size() != b.size()) return true;
+          for (size_t i = 0; i < a.size(); i++)
+            if (std::abs(a[i] - b[i]) >= 4) return true;
+          return false;
+        };
+        if (moved(quantized_brightness, last_brightness_) || moved(quantized_saturation, last_saturation_)) {
+          last_brightness_ = std::move(quantized_brightness);
+          last_saturation_ = std::move(quantized_saturation);
+          pending_brightness_ = std::move(brightness);
+          pending_saturation_ = std::move(saturation);
+          grid_pending_ = true;
+          changed = true;
+        }
       }
     }
   }
