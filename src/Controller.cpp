@@ -658,8 +658,18 @@ Controller::switchToBuffer(const string & name) {
       piano->setFrom("piano.acoustic.grand");
       piano->prepare(getInstrumentProvider());
       song->addInstrument(std::move(piano));
-      song->addTrack(make_unique<InstrumentTrack>(0));
-      song->addTrack(make_unique<PercussionTrack>());
+      // Spread across the stage so the starter song has some spatiality.
+      auto piano_track = make_unique<InstrumentTrack>(0);
+      piano_track->setAzimuth(-30);
+      piano_track->setDistance(2);
+      song->addTrack(std::move(piano_track));
+      auto drum_track = make_unique<PercussionTrack>();
+      drum_track->setAzimuth(30);
+      drum_track->setDistance(3);
+      song->addTrack(std::move(drum_track));
+      // A song never opened from a file is compiled without a provider, which
+      // leaves the drum kit unresolved; do it once here, as open() does.
+      song->compileTracks(&getInstrumentProvider());
       song->setContentPublished(true);
       last_saved_versions_[song_id] = song->getVersion();
       songs_[song_id] = std::move(song);
