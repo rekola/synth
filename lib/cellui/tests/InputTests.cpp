@@ -509,9 +509,20 @@ TEST(a_drag_ghost_between_cells_has_room_for_the_slivers_it_shifts_in) {
   Screen s;
   s.root.setFlatChildren(true);
   s.root.setSmoothScroll(true);
-  DragGhost ghost(s.root, 1, 4, 0.0f, 0.0f, [](Plane & plane, int y, int x, bool) { plane.putstr(y, x, "clip"); });
+  DragGhost ghost(s.root, 1, 4, 0.0f, 0.0f, [](Plane & plane, int y, int x, bool) {
+    plane.setLift(1.0f);
+    plane.putstr(y, x, "clip");
+  });
   ghost.moveTo(3.25f, 8.75f);  // the picture is to show from row 3.25 and column 8.75
   s.root.refresh();
+  // Its lighting is that of the raised cells alone, shifted with them.
+  auto areas = s.root.takeElevations();
+  CHECK(areas.size() == 1);
+  if (!areas.empty()) {
+    CHECK(areas[0].rows == 1 && areas[0].cols == 4);
+    CHECK_NEAR(areas[0].shift_row, 0.75, 0.001);
+    CHECK_NEAR(areas[0].shift_col, 0.25, 0.001);
+  }
   auto layers = s.root.takeBackdropLayers();
   const BackdropLayer * scrolled = nullptr;
   for (auto & layer : layers) {

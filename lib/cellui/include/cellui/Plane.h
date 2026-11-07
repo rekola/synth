@@ -70,6 +70,12 @@ class Plane {
   // Whether an elevated plane casts a shadow and edge shading of its own; one
   // laid over another at the same height (a list on a dialog) does not.
   virtual void setCastsShadow(bool) {}
+  // Whether an elevated plane's whole rectangle is an area above the base,
+  // with its shadow and edges (the default). Off, the height only orders the
+  // plane and lifts the cells it draws (Plane::setLift()): a plane that is
+  // larger than its picture or shifted by part of a cell, such as the drag
+  // ghost, would otherwise light and shadow its whole rectangle, unshifted.
+  virtual void setElevationArea(bool) {}
   // A plane of blank cells that only carries a backdrop (Scrim): nothing of
   // it is drawn again over a lower plane's shadow.
   virtual void setScrim(bool) {}

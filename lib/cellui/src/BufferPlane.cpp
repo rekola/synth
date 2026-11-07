@@ -208,7 +208,7 @@ void BufferPlane::refresh() {
     if (p.plane->mouse_cursor_ != MouseCursor::INHERIT) {
       top.mouse_cursors_.push_back(CursorArea{ r0, c0, r1 - r0, c1 - c0, p.plane->mouse_cursor_ });
     }
-    if (elevated) {
+    if (elevated && p.plane->elevation_area_) {
       top.elevations_.push_back(ElevatedArea{ r0, c0, r1 - r0, c1 - c0, p.elevation, p.plane->name_, top.layers_.size(), p.plane->casts_shadow_, 0.0, 0.0, p.plane->corner_radius_, corner_bg, p.plane->scrim_ });
     }
   }
