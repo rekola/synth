@@ -432,9 +432,9 @@ ArrangementGrid::render(const StyleProvider & styles, bool refresh, bool focused
   }
 
   // The header: the ruler (a bar number every fourth bar) and the locators,
-  // each followed by its name. Its panel colour keeps it apart from the menu
+  // each followed by its name. Its heading colour keeps it apart from the menu
   // bar above.
-  const auto header_bg = styles.window_accent_bg_color;
+  const auto header_bg = styles.heading_bg_color;
   setBgColor(header_bg);
   for (int y = 0; y < kHeaderRows; y++) putstr(y, 0, string(static_cast<size_t>(kNameWidth), ' '));
   bars_plane.setBgColor(header_bg);
