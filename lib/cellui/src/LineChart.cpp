@@ -22,13 +22,15 @@ LineChart::setValues(const std::vector<float> & values) {
 
   std::vector<float> knots(values.size());
   for (size_t i = 0; i < values.size(); i++) knots[i] = std::clamp(values[i], 0.0f, 1.0f);
-  // The curve passes through these points: if none has moved (to a fraction
-  // of a pixel), what is drawn would be identical.
-  std::vector<int> quantized(knots.size());
-  for (size_t i = 0; i < knots.size(); i++) quantized[i] = static_cast<int>(knots[i] * 512.0f + 0.5f);
+  // The curve passes through these points: if none has moved by a step the chart can draw (a pixel, or a
+  // dot of a glyph cell) from where it was drawn, what is drawn would be the same.
+  int cell_h = 0, cell_w = 0;
+  float levels = static_cast<float>(rows * (getPlane().cellPixelSize(cell_h, cell_w) && cell_h > 0 ? cell_h : 4));
   auto samples = sampleCount(cols);
-  if (quantized == last_values_ && rows == last_rows_ && cols == last_cols_ && samples == last_samples_) return false;
-  last_values_ = std::move(quantized);
+  bool same = knots.size() == last_knots_.size() && rows == last_rows_ && cols == last_cols_ && samples == last_samples_;
+  for (size_t i = 0; same && i < knots.size(); i++) same = std::fabs(knots[i] - last_knots_[i]) * levels < 1.0f;
+  if (same) return false;
+  last_knots_ = knots;
   last_rows_ = rows;
   last_cols_ = cols;
   last_samples_ = samples;
@@ -57,7 +59,7 @@ LineChart::splineSample(const std::vector<float> & knots, size_t count) {
 
 void LineChart::clear() {
   auto [rows, cols] = getDim();
-  last_values_.clear(); // what is drawn is no longer the last curve
+  last_knots_.clear(); // what is drawn is no longer the last curve
   if (rows <= 0 || cols <= 0) return;
   drawSamples(std::vector<float>(sampleCount(cols), 0.0f));
 }

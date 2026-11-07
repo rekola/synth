@@ -1020,22 +1020,25 @@ ClipGrid::render(const StyleProvider & styles, bool refresh, bool focused) {
   current_clip_states_ = std::move(clip_states);
   current_track_clips_ = std::move(track_clips);
 
-  // The meters, in 1/256ths of the meter (negative while clipping) - only
-  // a change a pixel meter could show redraws.
+  // The meters, in steps of what they can draw (negative while clipping) - only a change they
+  // could show redraws.
   auto & playback_info = getController().getPlaybackInfo();
   auto now = std::chrono::steady_clock::now();
   auto meter_dt = std::min(std::chrono::duration<float>(now - last_meter_update_).count(), 0.25f);
   last_meter_update_ = now;
   std::vector<int> meter_steps;
+  // As many steps as the meter has to draw them in: a picture's pixels, or eighths of a cell.
+  int cell_h = 0, cell_w = 0;
+  int meter_levels = kMeterRows * (getPlane().cellPixelSize(cell_h, cell_w) && cell_h > 0 ? cell_h : level_meter::kGlyphStepsPerRow);
   for (auto vc = 0; vc < drawn_cols && first_col_ + vc <= num_tracks; vc++) {
     auto track_id = columnTrackId(first_col_ + vc);
     auto & track_info = playback_info.getTrackInfo(track_id);
     auto & meter = meters_[track_id];
     meter.fraction = level_meter::fraction(meter.ballistics.update(track_info.getMeterValue(), meter_dt));
     meter.peak_fraction = meter.peak_hold.update(meter.fraction, meter_dt);
-    auto steps = static_cast<int>(meter.fraction * 256.0f + 0.5f);
+    auto steps = meter.level_steps.update(meter.fraction, meter_levels);
     meter_steps.push_back(track_info.isClipping() ? -1 - steps : steps);
-    meter_steps.push_back(static_cast<int>(meter.peak_fraction * 256.0f + 0.5f));
+    meter_steps.push_back(meter.peak_steps.update(meter.peak_fraction, meter_levels));
   }
   bool meters_changed = meter_steps != current_meter_steps_;
   current_meter_steps_ = std::move(meter_steps);

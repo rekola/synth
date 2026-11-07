@@ -1541,6 +1541,7 @@ PatternEditor::render(const StyleProvider & styles, bool refresh, bool focused) 
     force_full_redraw_ = false;
   }
 
+  bool meters_changed = updateMeters(info, track_ids);
   bool need_redraw = false;
   if (render_all) {
     current_scroll_ = new_scroll;
@@ -1570,15 +1571,15 @@ PatternEditor::render(const StyleProvider & styles, bool refresh, bool focused) 
   } else if (cursor_changed || row_edited) {
     renderRow(styles, heading_height, track_ids, track_info, score_playing_row - current_scroll_.row, true, sel_bounds, focused);
     need_redraw = true;
-  } else if (info.getVoiceCount() != current_voice_count_ || meters_showing_ || anyMeterLive(info, track_ids)) {
+  } else if (info.getVoiceCount() != current_voice_count_ || meters_changed) {
     // The per-track sparkline lives in the heading row and needs to keep
     // animating every block a voice is actually sounding - including a
     // manually-auditioned note or its note-off release tail, with the
     // sequencer stopped, not just while the transport is playing (the
     // other branches above only catch that case). current_voice_count_
     // covers the one extra redraw needed right as the last voice
-    // finishes, and meters_showing_ the ones after it while the smoothed
-    // level falls back, so the meter drops to silent instead of freezing.
+    // finishes, and a meter's own change (in steps it can draw) the ones after it while the
+    // smoothed level falls back, so the meter drops to silent instead of freezing.
     renderHeading(styles, track_ids, track_info, focused);
     need_redraw = true;
   }
@@ -1610,14 +1611,24 @@ PatternEditor::render(const StyleProvider & styles, bool refresh, bool focused) 
   return need_redraw;
 }
 
-// Whether any track's meter reads above silence: voices that are held but
-// silent have nothing to animate.
-bool
-PatternEditor::anyMeterLive(const PlaybackInfo & info, const std::vector<int> & track_ids) {
+// Smooths each track's meter and says whether any moved by a step the sparkline can draw (an eighth of
+// a cell, or a pixel): a sustained note's ripple of a fraction of that asks for no redraw.
+bool PatternEditor::updateMeters(const PlaybackInfo & info, const std::vector<int> & track_ids) {
+  int cell_h = 0, cell_w = 0;
+  int levels = getPlane().cellPixelSize(cell_h, cell_w) && cell_h > 0 ? cell_h : level_meter::kGlyphStepsPerRow;
+  bool changed = false;
+  auto now = std::chrono::steady_clock::now();
   for (auto track_id : track_ids) {
-    if (info.getTrackInfo(track_id).getMeterValue() > 1e-6f) return true;
+    auto & smoothing = meter_smoothing_[track_id];
+    auto dt = std::min(std::chrono::duration<float>(now - smoothing.last_update).count(), 0.25f);
+    smoothing.last_update = now;
+    auto fraction = level_meter::fraction(smoothing.ballistics.update(info.getTrackInfo(track_id).getMeterValue(), dt));
+    smoothing.fraction = fraction;
+    auto steps = smoothing.held.update(fraction, levels);
+    if (steps != smoothing.steps) changed = true;
+    smoothing.steps = steps;
   }
-  return false;
+  return changed;
 }
 
 void PatternEditor::handleMidiEvent(const MidiEvent & ev) {
@@ -2937,16 +2948,7 @@ PatternEditor::renderHeadingOnPlane(const StyleProvider & styles, const std::vec
     // with the row's own right edge), in whichever version the backend's
     // scopes draw. meter_fraction() gives a track's smoothed, dB-mapped
     // level as a fraction of the meter.
-    meters_showing_ = false;
-    auto meter_fraction = [&](int track_id, const TrackInfo & track_info) {
-      auto & smoothing = meter_smoothing_[track_id];
-      auto now = std::chrono::steady_clock::now();
-      auto dt = std::min(std::chrono::duration<float>(now - smoothing.last_update).count(), 0.25f);
-      smoothing.last_update = now;
-      auto fraction = level_meter::fraction(smoothing.ballistics.update(track_info.getMeterValue(), dt));
-      if (fraction > 0.0f) meters_showing_ = true;
-      return fraction;
-    };
+    auto meter_fraction = [&](int track_id, const TrackInfo &) { return meter_smoothing_[track_id].fraction; };
     auto draw_vu_meter = [&](int row, int col, float fraction, bool clipping, const Color & background, int track_id) {
       cellui::SparklineReading reading{fraction, 0.0f, clipping};
       cellui::SparklineLook look{background, styles.level_active_color};

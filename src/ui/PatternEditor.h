@@ -312,7 +312,7 @@ private:
  bool mouseUp(const cellui::MouseUp & e);
  bool wheel(const cellui::Wheel & e);
  std::vector<cellui::Connection> connections_;
- static bool anyMeterLive(const PlaybackInfo & info, const std::vector<int> & track_ids);
+ bool updateMeters(const PlaybackInfo & info, const std::vector<int> & track_ids);
 
  int current_score_playing_row = 0;
  int current_score_pattern = 0;
@@ -337,9 +337,11 @@ private:
  struct MeterSmoothing {
    level_meter::Ballistics ballistics;
    std::chrono::steady_clock::time_point last_update;
+   float fraction = 0.0f;      // what the heading draws
+   level_meter::StepHold held; // the same in what the sparkline can draw, with a dead band (updateMeters())
+   int steps = 0;
   };
   std::unordered_map<int, MeterSmoothing> meter_smoothing_;
-  bool meters_showing_ = false;
 
   int edit_step_size = 1;
   bool row_edited = false;

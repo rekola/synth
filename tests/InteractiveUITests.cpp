@@ -1,5 +1,6 @@
 #include "TestFramework.h"
 #include "../src/ui/PerformanceProfile.h"
+#include "../src/ui/LevelMeter.h"
 
 #include "InteractiveUIFixture.h"
 
@@ -424,4 +425,22 @@ TEST(frame_due_holds_back_only_what_nobody_asked_for) {
   CHECK(!frameDue(milliseconds(50), false, false, full, idle));
   CHECK(frameDue(milliseconds(101), false, false, full, idle));
   CHECK(frameDue(milliseconds(17), false, true, full, idle));
+}
+
+TEST(level_meter_steps_are_whole_steps_of_what_can_be_drawn) {
+  CHECK(level_meter::steps(0.0f, 48) == 0 && level_meter::steps(1.0f, 48) == 48);
+  CHECK(level_meter::steps(0.5f, 48) == 24);
+  // A ripple of a 256th of the meter is no step in 48 (or 96) levels, most of the time.
+  CHECK(level_meter::steps(0.680f, 48) == level_meter::steps(0.682f, 48));
+  CHECK(level_meter::steps(-1.0f, 48) == 0 && level_meter::steps(2.0f, 48) == 48);
+}
+
+TEST(level_meter_step_hold_keeps_a_step_through_a_ripple_and_follows_a_real_move) {
+  level_meter::StepHold hold;
+  CHECK(hold.update(0.5f, 48) == 24);
+  // A ripple of a third of a step either way around the boundary changes nothing.
+  for (int i = 0; i < 20; i++) CHECK(hold.update(i % 2 ? 0.5f + 0.3f / 48.0f : 0.5f - 0.3f / 48.0f, 48) == 24);
+  // A whole step away it moves; silence and full scale are reached exactly.
+  CHECK(hold.update(0.5f + 1.1f / 48.0f, 48) == 25);
+  CHECK(hold.update(0.0f, 48) == 0 && hold.update(1.0f, 48) == 48);
 }

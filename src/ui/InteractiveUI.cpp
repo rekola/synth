@@ -1891,16 +1891,21 @@ bool InteractiveUI::drawPendingScopes() {
     meter_pending_ = false;
     volume_meter_->show(last_meter_label_);
     drawn = true;
+    statCount("scope:meter");
   }
   if (fft_pending_) {
     fft_pending_ = false;
-    if (chart_->setValues(spectrum_curve::values(pending_fft_, pending_fft_hz_, chart_->suggestedPoints()))) drawn = true;
+    if (chart_->setValues(spectrum_curve::values(pending_fft_, pending_fft_hz_, chart_->suggestedPoints()))) {
+      drawn = true;
+      statCount("scope:spectrum");
+    }
   }
   if (grid_pending_) {
     grid_pending_ = false;
     heatmap_->setGrid(pending_brightness_, pending_saturation_);
     heatmap_->commit();
     drawn = true;
+    statCount("scope:heatmap");
   }
   return drawn;
 }
@@ -2010,11 +2015,18 @@ void InteractiveUI::handleVisualizationResultEvent(const VisualizationResultEven
         if (brightness[i] > 1.0f) brightness[i] = 1.0f;
         saturation[i] = displayed[i] > 1e-12f ? grid[i] / displayed[i] : 0.0f;
       }
-      // Compared at 1/512: a smaller step is no change in any pixel's colour.
+      // Compared at 1/512 and redrawn only when a cell has moved by 4 of those from what is shown (about
+      // two colour levels): the gain that follows a decaying level keeps nudging every cell otherwise.
       auto quantize = [](const std::vector<float> & v) { std::vector<int> q(v.size()); for (size_t i = 0; i < v.size(); i++) q[i] = static_cast<int>(v[i] * 512.0f + 0.5f); return q; };
       auto quantized_brightness = quantize(brightness), quantized_saturation = quantize(saturation);
-      if (quantized_brightness != last_brightness_ || quantized_saturation != last_saturation_) {
-	last_brightness_ = std::move(quantized_brightness);
+      auto moved = [](const std::vector<int> & a, const std::vector<int> & b) {
+        if (a.size() != b.size()) return true;
+        for (size_t i = 0; i < a.size(); i++)
+          if (std::abs(a[i] - b[i]) >= 4) return true;
+        return false;
+      };
+      if (moved(quantized_brightness, last_brightness_) || moved(quantized_saturation, last_saturation_)) {
+        last_brightness_ = std::move(quantized_brightness);
 	last_saturation_ = std::move(quantized_saturation);
         pending_brightness_ = std::move(brightness);
         pending_saturation_ = std::move(saturation);
