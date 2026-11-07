@@ -260,6 +260,7 @@ class ClipGrid : public UIElement {
     level_meter::PeakHold peak_hold;
     float fraction = 0.0f;
     float peak_fraction = 0.0f;
+    level_meter::StepHold level_steps, peak_steps; // what is drawn, with a dead band
   };
   std::unordered_map<int, MeterDisplay> meters_;
   const cellui::Charts * charts_ = nullptr;

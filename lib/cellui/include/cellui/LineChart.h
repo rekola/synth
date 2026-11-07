@@ -38,7 +38,7 @@ public:
 
 private:
   // What was last drawn: the values (to 1/512), and the size.
-  std::vector<int> last_values_;
+  std::vector<float> last_knots_;  // as last drawn
   int last_rows_ = 0, last_cols_ = 0;
   size_t last_samples_ = 0;
 };

@@ -16,6 +16,27 @@ inline float fraction(float linear) {
   return std::clamp((20.0f * std::log10(linear) - kFloorDb) / -kFloorDb, 0.0f, 1.0f);
 }
 
+// A fraction in whole steps of what a meter can draw: a cell of glyphs shows eighths, a picture its pixels. A
+// change smaller than that shows nothing, so it asks for no redraw.
+constexpr int kGlyphStepsPerRow = 8;
+inline int steps(float fraction, int levels) { return static_cast<int>(std::clamp(fraction, 0.0f, 1.0f) * static_cast<float>(levels) + 0.5f); }
+
+// The steps a meter shows, with a dead band: a level that ripples by less than a step around a step
+// boundary (a sustained note) keeps the step it last had, and changes only once it has moved a whole
+// step away. The error is under a step, which is a pixel or an eighth of a cell.
+class StepHold {
+ public:
+  int update(float fraction, int levels) {
+    float target = std::clamp(fraction, 0.0f, 1.0f) * static_cast<float>(levels);
+    bool at_end = target <= 0.0f || target >= static_cast<float>(levels);
+    if (at_end || std::fabs(target - static_cast<float>(held_)) >= 1.0f) held_ = static_cast<int>(target + 0.5f);
+    return held_;
+  }
+
+ private:
+  int held_ = 0;
+};
+
 // A displayed level's rise and fall, so a low note doesn't make the bar
 // jump between the peaks and zero crossings of successive short blocks.
 // Fed the linear RMS of each block; the smoothing is done on power (never
