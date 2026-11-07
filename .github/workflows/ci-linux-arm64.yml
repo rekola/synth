@@ -41,8 +41,11 @@ jobs:
       - name: Configure
         run: cmake -B build
 
+      # A bare -j is unlimited under make: hundreds of heavy C++ compiles at
+      # once exhaust the runner's memory and the runner is killed mid-build
+      # ("received a shutdown signal"). Cap at one job per core.
       - name: Build
-        run: cmake --build build -j
+        run: cmake --build build -j"$(nproc)"
 
       - name: Test
         run: ctest --test-dir build --output-on-failure
