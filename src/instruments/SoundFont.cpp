@@ -906,6 +906,8 @@ adjustPositionForPan(const SphericalPosition & position, const tsf_region * regi
 // adjustSendA(), the unrelated live-voice Send A push (VoiceState.h).
 static float
 combineRegionSendA(float send_a, const tsf_region * region) {
+  // A track send of zero is off: the region's own hint must not revive it.
+  if (send_a <= 0.0f) return 0.0f;
   return std::min(1.0f, send_a + (region ? region->reverbEffectsSend / 1000.0f : 0.0f));
 }
 
