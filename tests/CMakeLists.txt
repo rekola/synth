@@ -24,6 +24,7 @@ add_executable(synth_tests
 	JustIntonationTests.cpp
 	GamutTests.cpp
 	SeikilosTests.cpp
+	MesomedesTests.cpp
 	KeyboardNotesTests.cpp
 	SpatialPlacementTests.cpp
 	TuningCorrectionOpsTests.cpp

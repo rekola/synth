@@ -29,6 +29,9 @@ enum class Scale {
   // tuning with this pattern once that mapping is verified. Named for the
   // gamut so a 5-limit Mixolydian can join the duodene later.
   PYTHAGOREAN_MIXOLYDIAN,
+  // C D♭ E♭ F G A♭ B♭ of the Pythagorean gamut: the Phrygian rotation of its
+  // seven-note scale, the Babylonian nīd qablim.
+  NID_QABLIM,
 
   // Arabic
   RAST,
@@ -52,6 +55,8 @@ static inline std::string to_string(Scale scale) {
     return "diamond7";
   case Scale::PYTHAGOREAN_MIXOLYDIAN:
     return "pythagorean-mixolydian";
+  case Scale::NID_QABLIM:
+    return "nid-qablim";
   case Scale::RAST:
     return "rast";
   case Scale::BAYATI:
@@ -89,6 +94,8 @@ static inline std::string scaleLabel(Scale scale) {
       return "Diamond (7-limit)";
     case Scale::PYTHAGOREAN_MIXOLYDIAN:
       return "Pythagorean Mixolydian";
+    case Scale::NID_QABLIM:
+      return "Nīd qablim";
     case Scale::RAST:
       return "Rāst";
     case Scale::BAYATI:
@@ -116,6 +123,7 @@ static inline Scale scaleFromString(const std::string & text) {
   if (text == "utonal") return Scale::UTONAL;
   if (text == "diamond7") return Scale::DIAMOND7;
   if (text == "pythagorean-mixolydian") return Scale::PYTHAGOREAN_MIXOLYDIAN;
+  if (text == "nid-qablim") return Scale::NID_QABLIM;
   if (text == "rast") return Scale::RAST;
   if (text == "bayati") return Scale::BAYATI;
   if (text == "hijaz") return Scale::HIJAZ;
@@ -129,7 +137,7 @@ static inline Scale scaleFromString(const std::string & text) {
 
 // Every scale names its gamut, and selecting the scale selects the gamut: major
 // and minor the duodene, otonal and utonal the superparticular gamut, diamond7
-// the diamond, the Pythagorean modes the Pythagorean gamut. The maqamat and NONE
+// the diamond, the Pythagorean modes (Mixolydian and nīd qablim) the Pythagorean gamut. The maqamat and NONE
 // have none: they are tempered and get no tuning corrections. The scale itself
 // is a selection from its gamut. Otonal is the superparticular gamut's notes of
 // its side (or of both) through round kJustScaleRound:
@@ -139,12 +147,15 @@ static inline Scale scaleFromString(const std::string & text) {
 // E𝄫 E♭ F G A♭ B𝄫 B♭↓ B↓). The terms are Partch's, though his otonalities are
 // chords, not these scales. Diamond7 is all thirteen notes of the tonality
 // diamond. Pythagorean Mixolydian is seven notes of the Pythagorean gamut,
-// 3-limit and meant for 53-EDO only (scaleSupportsTuning()). Major and minor
+// 3-limit and meant for 53-EDO only (scaleSupportsTuning()), as is nīd qablim,
+// its Phrygian rotation. Major and minor
 // are seven of the duodene's twelve.
 constexpr int kJustScaleRound = 3;
 
 // C D E F G A B♭
 inline constexpr std::array<Ratio, 7> kPythagoreanMixolydianRatios = {Ratio{1, 1}, Ratio{9, 8}, Ratio{81, 64}, Ratio{4, 3}, Ratio{3, 2}, Ratio{27, 16}, Ratio{16, 9}};
+// C D♭ E♭ F G A♭ B♭
+inline constexpr std::array<Ratio, 7> kNidQablimRatios = {Ratio{1, 1}, Ratio{256, 243}, Ratio{32, 27}, Ratio{4, 3}, Ratio{3, 2}, Ratio{128, 81}, Ratio{16, 9}};
 // C D E F G A B
 inline constexpr std::array<Ratio, 7> kMajorRatios = {Ratio{1, 1}, Ratio{9, 8}, Ratio{5, 4}, Ratio{4, 3}, Ratio{3, 2}, Ratio{5, 3}, Ratio{15, 8}};
 // C D E♭ F G A♭ B♭
@@ -161,6 +172,7 @@ constexpr bool allInGamut(std::span<const Ratio> only, std::span<const GamutNote
   return true;
 }
 static_assert(allInGamut(kPythagoreanMixolydianRatios, gamut::kPythagorean));
+static_assert(allInGamut(kNidQablimRatios, gamut::kPythagorean));
 static_assert(allInGamut(kMajorRatios, gamut::kDuodene));
 static_assert(allInGamut(kMinorRatios, gamut::kDuodene));
 
@@ -182,7 +194,7 @@ struct JustScale {
 // gamut has 3-limit ratios no spelling reaches in 31-EDO (81/64 lies between
 // its steps 10 and 11), so its scale is for 53-EDO alone.
 static inline bool scaleSupportsTuning(Scale scale, Tuning tuning) {
-  return scale != Scale::PYTHAGOREAN_MIXOLYDIAN || tuning == Tuning::EDO53;
+  return (scale != Scale::PYTHAGOREAN_MIXOLYDIAN && scale != Scale::NID_QABLIM) || tuning == Tuning::EDO53;
 }
 
 static inline std::optional<JustScale> justScale(Scale scale) {
@@ -199,6 +211,8 @@ static inline std::optional<JustScale> justScale(Scale scale) {
       return JustScale{gamut::kDiamond7, std::nullopt, 0};
     case Scale::PYTHAGOREAN_MIXOLYDIAN:
       return JustScale{gamut::kPythagorean, std::nullopt, 0, kPythagoreanMixolydianRatios};
+    case Scale::NID_QABLIM:
+      return JustScale{gamut::kPythagorean, std::nullopt, 0, kNidQablimRatios};
     default:
       break;
   }
@@ -246,7 +260,8 @@ static inline std::vector<std::string_view> scaleDegreeNames(Scale scale) {
   case Scale::OTONAL:
   case Scale::UTONAL:
   case Scale::DIAMOND7:
-  case Scale::PYTHAGOREAN_MIXOLYDIAN: {
+  case Scale::PYTHAGOREAN_MIXOLYDIAN:
+  case Scale::NID_QABLIM: {
     std::vector<std::string_view> names;
     auto just = justScale(scale);
     if (!just) return names;
