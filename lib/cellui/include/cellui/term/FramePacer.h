@@ -37,30 +37,29 @@ struct PacerConfig {
   // `sample_cap` times the current estimate, and a lower window pulls the estimate down by `down_weight`
   // of the way.
   size_t sample_window = 8;
-  // A saturation-grade frame's sample is the bytes of it and up to this many saturation-grade frames
-  // before it, over the time since the reply to the frame before them: replies are read in batches, and
-  // one frame's own time is too noisy where the link is the limit.
+  // A saturation-grade frame's sample is the bytes of it and up to this many saturation-grade frames before
+  // it (the pipe never empty between them), over the time since the reply to the frame before them: one
+  // frame's own time is too noisy where replies are read in batches. (4: the sweep, saturated rows 1.00-1.02.)
   size_t sample_frames = 4;
   double sample_cap = 2.0;
   double down_weight = 0.125;
-  // Every frame is led by a fence of its own and followed by another, so the time from the reply to the
-  // first to the reply to the second is the terminal taking in that frame alone, whether or not frames
-  // go back to back. It makes a sample, S bytes over that time, only when it is at least `sample_floor`:
-  // below it the clock, the batching of replies and the terminal's own timing say more than the link.
-  // (Set by pacing checks 10 and 11: a busy terminal answering 5 to 40 ms late.)
+  // Every frame is led by a fence of its own and followed by another, so the time from the reply to the first to
+  // the reply to the second is the terminal taking in that frame alone. It makes a sample, S bytes over that
+  // time, only when it is at least this: below it the clock and the terminal's own timing say more than the link
+  // (it then only bounds the estimate from below). (10 ms: pacing checks 10 and 11, a terminal answering 5 to 40 ms late.)
   us sample_floor{10000};
-  // The terminal's response delay D, the time from a lead fence to its reply, is kept as the minimum
-  // over this long; it stands wherever a bare round trip would.
+  // The terminal's response delay D, the time from a lead fence to its reply, is kept over this long; it stands
+  // wherever a bare round trip would. (5 s: the unit test of a terminal slowing down and speeding up.)
   us delay_window{5000000};
-  // The saturation and queueing tests use this share of the window's delays (0.5: the median) instead of
-  // the minimum: a terminal that answers on its own paint clock answers some lead fences at once, and
-  // against that best case any few small frames in flight look like a full pipe. The minimum still sizes
-  // the window of bytes in flight. (Set by the real VTE run: 0.2 ms minimum, tens of ms typical.)
+  // The saturation and queueing tests use this share of the window's delays (0.5: the median), not the minimum: a
+  // terminal that paints on its own clock answers some lead fences at once, and against that best case a few small
+  // frames in flight look like a full pipe. The minimum still sizes the window of bytes in flight.
+  // (0.5: the real VTE run, 0.2 ms minimum and about 10 ms typical, with the minimum B fell to 4 % in 6 s.)
   double delay_quantile = 0.5;
-  // A sample may lower the estimate (or a frame count as queueing) only if it is saturation-grade: the
-  // bytes in flight when its frame was sent were at least this share of B*D, so the pipe was full and
-  // the frame's time is the link's. A frame sent as a probe, with S/B at least the floor, is probe-grade.
-  // An app-limited sample can only raise the estimate. (Pacing checks 10 and 11, and the unit tests.)
+  // A sample may lower the estimate (or a frame count as queueing) only if it is saturation-grade: the bytes in
+  // flight when its frame was sent were at least this share of B*D, so the pipe was full and the frame's time is
+  // the link's. A probe frame with S/B at least the floor is probe-grade. An app-limited sample can only raise the
+  // estimate. (0.75: as specified; pacing checks 10 and 11 and the unit tests hold it.)
   double saturation_fraction = 0.75;
   // Every `probe_every` frames one is sent `probe_gain` times faster than
   // the estimate, to find headroom. Probe frames are left out of the lag rule.
@@ -69,7 +68,7 @@ struct PacerConfig {
   // Back off by `backoff_factor` when a saturation-grade frame is queueing - its reply later than
   // D + S/B + max(`queue_slack_d` * D, `queue_slack_floor`) after it was sent - `delay_frames` in a row,
   // or when `lag_frames` consecutive saturation-grade acknowledgements are `lag_ratio` times further
-  // apart than the frames were sent.
+  // apart than the frames were sent. (The slack: pacing check 7 and the unit tests of delay inside it.)
   double backoff_factor = 0.8;
   double queue_slack_d = 2.0;
   us queue_slack_floor{20000};

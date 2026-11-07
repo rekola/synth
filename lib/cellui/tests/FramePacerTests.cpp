@@ -233,6 +233,27 @@ TEST(pacer_the_response_delay_follows_a_terminal_that_slows_down_and_speeds_up) 
   CHECK_NEAR(p.stats(at(ms + 100)).rtt_min_us, 5000.0, 1.0);
 }
 
+TEST(pacer_a_terminal_that_paints_on_its_own_clock_does_not_make_small_frames_look_like_a_full_pipe) {
+  // Lead fences answered at once or up to 17 ms late (a paint tick): the minimum is 0.3 ms and the pipe it
+  // implies a few hundred bytes, which two small frames in flight would fill. The median says what to expect.
+  PacerConfig cfg;
+  cfg.min_frame_interval = Ms(1);
+  FramePacer p(true, cfg);
+  startUp(p, 10000, 10, 10);  // 1 MB/s
+  double before = p.estimatedBytesPerSec();
+  for (int i = 0; i < 60; i++) {
+    int ms = 200 + 17 * i;
+    send(p, 400, ms);
+    send(p, 400, ms + 1);
+    int tick = (i % 3 == 0) ? 1 : 17;  // the lead fences' delays: some at once, mostly a tick
+    ack(p, ms + tick, ms + tick + 12);
+    ack(p, ms + tick + 13, ms + tick + 25);
+  }
+  PacerStats s = p.stats(at(2000));
+  CHECK(s.rtt_min_us < 3000 && s.delay_typ_us > 8000);
+  CHECK(p.estimatedBytesPerSec() >= before && s.backoffs == 0);
+}
+
 TEST(pacer_a_sample_that_would_lower_the_estimate_is_ignored_when_the_pipe_was_not_full) {
   // 40 ms response delay at 1 MB/s: the pipe holds 40 kB. A terminal answering a 3 kB frame 35 ms after
   // its lead fence looks like 86 kB/s, which says nothing about the link when nothing else was in flight.
