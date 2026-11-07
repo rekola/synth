@@ -137,8 +137,10 @@ class ArrangementGrid : public UIElement {
   // free slot. The clip itself, and so its other placements, stay.
   struct InstanceDrag {
     int track_id = 0, start_row = 0, clip_index = 0, track_type = -1;
-    int bars = 1;        // how many bars the block spans
-    int grab_offset = 0; // the bar grabbed, counted from the block's first
+    int first_bar = 0;   // where the block starts
+    int bars = 1;        // how many bars it spans as placed (a looping clip runs on to the next event or the end)
+    int pass_bars = 1;   // how many one pass of the clip takes: what is dragged and shown
+    int grab_offset = 0; // the bar grabbed, counted from the block's first, within one pass
   };
   struct DragCandidate {
     int track_index = 0, bar = 0;

@@ -139,8 +139,9 @@ They act on the clip under the cursor.
   it is held). Escape, or a release where it cannot land, puts it back. The
   terminal has no drag.
 - **Drag a placed clip (the window only, Arrangement view):** press on a
-  block and move: the block lifts off its bars and follows the pointer, and
-  the bars it would cover show it. Release to put it there; the bar under the
+  block and move: the block lifts off its bars and follows the pointer as one
+  pass of the clip (a looping clip will run on once placed, as it did), and
+  the bars that pass would cover show it. Release to put it there; the bar under the
   point you grabbed is where that point lands. The clip itself and its other
   placements stay. Dropped on another track of the same kind, the clip goes
   there as its own copy. Ctrl places another and keeps the first placement.

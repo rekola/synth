@@ -186,22 +186,31 @@ std::optional<ArrangementGrid::InstanceDrag> ArrangementGrid::blockAt(int track_
     auto other = resolve(b);
     return other.clip_index == here.clip_index && other.start_row == here.start_row;
   };
+  // A looping clip runs on past what is shown; the block ends with the bars.
+  auto playing_bar = bars.barIndex(getController().getPlaybackInfo().getAbsolutePosition());
+  auto bar_count = barCount(song, playing_bar);
   int first = bar, last = bar;
   while (same(first - 1)) first--;
-  while (last - first < 1024 && same(last + 1)) last++;
+  while (last + 1 < bar_count && same(last + 1)) last++;
   InstanceDrag drag;
   drag.track_id = track_id;
   drag.start_row = here.start_row;
   drag.clip_index = here.clip_index;
   auto track = song.getMasterTrack().getChildByInternalId(track_id);
   drag.track_type = track ? static_cast<int>(track->getType()) : -1;
+  drag.first_bar = first;
   drag.bars = last - first + 1;
-  drag.grab_offset = bar - first;
+  // What is dragged is one pass of the clip, whatever it will do once placed.
+  auto clips = song.getClips(track_id);
+  auto length = 1;
+  if (here.clip_index < static_cast<int>(clips.size())) length = std::max(1, clips[static_cast<size_t>(here.clip_index)].getLength());
+  drag.pass_bars = std::max(1, bars.barIndex(here.start_row + length - 1) - bars.barIndex(here.start_row) + 1);
+  drag.grab_offset = std::min(bar - first, drag.pass_bars - 1);
   return drag;
 }
 
-// The block under the press is lifted: its bars show empty and a ghost as
-// wide as it follows the pointer.
+// The block under the press is lifted: its bars show empty and a ghost one
+// pass of the clip wide follows the pointer.
 void ArrangementGrid::startInstanceDrag(const cellui::MouseMove & e) {
   if (!drag_candidate_) return;
   auto candidate = *drag_candidate_;
@@ -214,15 +223,15 @@ void ArrangementGrid::startInstanceDrag(const cellui::MouseMove & e) {
   Color track_color = structure.getBaselineInfo(block->track_id).getColor(styles.tracks);
   // Where in the block the pointer took hold of it, in bars.
   auto [pos_y, pos_x] = getPosition();
+  int bars = block->pass_bars, clip_index = block->clip_index;
   float grab_x = static_cast<float>(viewport_.cols.shown() + (e.x - static_cast<float>(pos_x) - kNameWidth)) -
                  static_cast<float>(candidate.bar - block->grab_offset);
+  grab_x = std::clamp(grab_x, 0.0f, static_cast<float>(bars) - 0.01f);
   float grab_y = e.y - static_cast<float>(e.row);
-  int bars = block->bars, clip_index = block->clip_index;
-  int first_bar = candidate.bar - block->grab_offset;
   // The grid hands the pointer to the session: its own press is over. A
   // display without drag and drop refuses, and the press stays a click.
   if (postToRoot(cellui::StartDrag{this, cellui::DragPayload{"instance", *block}}) != cellui::Handled::yes) return;
-  drag_source_ = BarSpan{candidate.track_index, first_bar, bars};
+  drag_source_ = BarSpan{candidate.track_index, block->first_bar, block->bars};
   drag_clip_index_ = clip_index;
   drag_copy_ = e.mods.ctrl;
   drag_version_++;
@@ -247,7 +256,7 @@ bool ArrangementGrid::dragOver(const cellui::DragOver & e) {
     auto track_ids = getVisibleTrackIds(getController().getSong());
     accepted = trackHoldsKind(getController().getSong(), track_ids[static_cast<size_t>(cell->first)], drag->track_type);
     auto first_bar = std::max(0, cell->second - drag->grab_offset);
-    if (accepted) preview = BarSpan{cell->first, first_bar, drag->bars};
+    if (accepted) preview = BarSpan{cell->first, first_bar, drag->pass_bars};
   }
   if ((preview.has_value() != drop_preview_.has_value()) ||
       (preview && (preview->track_index != drop_preview_->track_index || preview->first_bar != drop_preview_->first_bar))) {
