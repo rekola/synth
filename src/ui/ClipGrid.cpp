@@ -1,4 +1,5 @@
 #include "ClipGrid.h"
+#include "ClipCard.h"
 #include "LevelMeter.h"
 #include "ScenePatternSource.h"
 
@@ -696,8 +697,7 @@ std::optional<std::pair<int, int>> ClipGrid::clipSlotAt(int row, int col) const 
 // A clip only lands on a track of the kind it came from (note values mean
 // different things under different tunings, audio only fits audio).
 bool ClipGrid::canHold(int track_id, int track_type) const {
-  auto track = getController().getSong().getMasterTrack().getChildByInternalId(track_id);
-  return track && static_cast<int>(track->getType()) == track_type;
+  return trackHoldsKind(getController().getSong(), track_id, track_type);
 }
 
 // The clip under the press is picked up: a ghost follows the pointer and its
@@ -735,7 +735,7 @@ void ClipGrid::startClipDrag(const cellui::MouseMove & e) {
   drag_version_++;
   ghost_ = std::make_unique<cellui::DragGhost>(getPlane(), 1, kColWidth, grab_y, grab_x, [name, looping, track_color](cellui::Plane & plane, int y, int x, bool) {
     // The same wherever it is; the pointer says whether it can land.
-    plane.setLift(plane.getStyles().theme.elevation.card);
+    clip_card::lift(plane, plane.getStyles());
     putClipSlot(plane, y, x, " ▸ ", name, kColWidth - 3 - std::max(2, looping ? 2 : 0), looping, false, plane.getStyles().clip_text_color, track_color);
   });
   ghost_->moveTo(e.y, e.x);
@@ -1304,16 +1304,13 @@ ClipGrid::render(const StyleProvider & styles, bool refresh, bool focused) {
         }
         // A clip stands on the grid like a card. The cursor stands as high,
         // so no clip's shadow falls on it, but casts none of its own.
-        if (is_cursor_cell)
-          body_plane.setLift(styles.theme.elevation.card, false, false);
-        else
-          body_plane.setLift(styles.theme.elevation.card);
+        clip_card::lift(body_plane, styles, is_cursor_cell);
         putClipSlot(body_plane, y, x, text, clip_label, label_cols, previewed ? drag_looping_ : has_real_clip && clips[clip_row].isLooping(), is_edited_clip && !previewed, row_fg, row_bg);
         if (glyph) {
           body_plane.setFgColor(glyph_fg);
           body_plane.putstr(y, x + 1, glyph);
         }
-        body_plane.setLift(0);
+        clip_card::flat(body_plane);
         continue;
       }
 

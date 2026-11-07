@@ -1750,3 +1750,116 @@ TEST(terminal_ui_pattern_editor_colours_the_comma_arrows_of_a_note_name) {
   CHECK(seen_up >= 1);
   CHECK(seen_down >= 1);
 }
+
+// --- Dragging a placed clip in the arrangement grid (the window only) ---
+
+namespace {
+
+// Track rows start at screen row 3 and bars at column 10.
+int arrangementX(int bar) { return 10 + bar; }
+
+int trackRowOf(UIFixture & f, const std::string & label) {
+  for (int y = 2; y < 10; y++) {
+    if (f.line(static_cast<size_t>(y)).find("▌" + label) != std::string::npos) return y;
+  }
+  return -1;
+}
+
+// The rows of the clip placements on the column's track.
+std::vector<int> placedRows(UIFixture & f, int column) {
+  auto & song = f.controller->getSong();
+  std::vector<int> rows;
+  for (auto & [row, clip] : song.getArrangement().getInstancesForTrack(song.getPlayableTrackIds()[static_cast<size_t>(column)])) {
+    if (clip != "OFF") rows.push_back(static_cast<int>(row));
+  }
+  return rows;
+}
+
+int barRow(UIFixture & f, int bar) { return f.controller->getSong().getArrangementBars().barStartRow(bar); }
+
+// A clip with a note in slot 0 of the column's track, placed at the first bar.
+void placeNoteClip(UIFixture & f, int column) {
+  putNoteClip(f, column, 0);
+  auto & song = f.controller->getSong();
+  Song::Edit edit(song, "place");
+  placeClipInstance(song, song.getPlayableTrackIds()[static_cast<size_t>(column)], 0, 0);
+}
+
+void dragBlock(UIFixture & f, int from_y, int from_bar, int to_y, int to_bar, unsigned release_mods = 0) {
+  f.terminal.pushMouse(from_y, arrangementX(from_bar), cellui::Key::Button1);
+  f.ui->step();
+  f.terminal.pushMotion(to_y, arrangementX(to_bar));
+  f.ui->step();
+  f.terminal.pushMouse(to_y, arrangementX(to_bar), cellui::Key::Button1, release_mods, cellui::Input::Kind::RELEASE);
+  f.ui->step();
+}
+
+} // namespace
+
+TEST(terminal_ui_dragging_a_placed_clip_moves_it_to_another_bar) {
+  UIFixture f(repoSong("demo3.xml"), UI::View::ARRANGEMENT, dragDisplay());
+  placeNoteClip(f, 0);
+  f.ui->step();
+  int y = trackRowOf(f, "T0");
+  CHECK(y > 0);
+  CHECK(placedRows(f, 0) == std::vector<int>{0});
+  dragBlock(f, y, 0, y, 3);
+  CHECK(placedRows(f, 0) == std::vector<int>{barRow(f, 3)});
+  f.controller->getSong().undo();
+  f.ui->step();
+  CHECK(placedRows(f, 0) == std::vector<int>{0});
+}
+
+TEST(terminal_ui_dragging_a_placed_clip_to_another_track_copies_the_clip_there) {
+  UIFixture f(repoSong("demo3.xml"), UI::View::ARRANGEMENT, dragDisplay());
+  placeNoteClip(f, 0);
+  f.ui->step();
+  int from = trackRowOf(f, "T0"), to = trackRowOf(f, "T1");
+  dragBlock(f, from, 0, to, 2);
+  CHECK(placedRows(f, 0).empty());
+  CHECK(placedRows(f, 1) == std::vector<int>{barRow(f, 2)});
+  CHECK(hasClip(f, 0, 0) && hasClip(f, 1, 0)); // the clip stays, and the other track has its own
+}
+
+TEST(terminal_ui_dragging_a_placed_clip_with_ctrl_keeps_the_first_placement) {
+  UIFixture f(repoSong("demo3.xml"), UI::View::ARRANGEMENT, dragDisplay());
+  placeNoteClip(f, 0);
+  f.ui->step();
+  int y = trackRowOf(f, "T0");
+  dragBlock(f, y, 0, y, 4, kModCtrl);
+  CHECK(placedRows(f, 0) == (std::vector<int>{0, barRow(f, 4)}));
+}
+
+TEST(terminal_ui_a_placed_clip_does_not_drop_on_another_kind_of_track) {
+  UIFixture f(repoSong("demo3.xml"), UI::View::ARRANGEMENT, dragDisplay());
+  placeNoteClip(f, 3);
+  for (int i = 0; i < 4; i++) f.press(Key::Down); // the cursor, and so the view, reaches the percussion track
+  int from = trackRowOf(f, "T3"), to = trackRowOf(f, "T4");
+  CHECK(from > 0 && to > 0);
+  dragBlock(f, from, 0, to, 2);
+  CHECK(placedRows(f, 3) == std::vector<int>{0} && placedRows(f, 4).empty());
+}
+
+TEST(terminal_ui_escape_puts_a_dragged_placement_back) {
+  UIFixture f(repoSong("demo3.xml"), UI::View::ARRANGEMENT, dragDisplay());
+  placeNoteClip(f, 0);
+  f.ui->step();
+  int y = trackRowOf(f, "T0");
+  f.terminal.pushMouse(y, arrangementX(0), cellui::Key::Button1);
+  f.ui->step();
+  f.terminal.pushMotion(y, arrangementX(3));
+  f.ui->step();
+  f.press(Key::Escape);
+  f.terminal.pushMouse(y, arrangementX(3), cellui::Key::Button1, 0, cellui::Input::Kind::RELEASE);
+  f.ui->step();
+  CHECK(placedRows(f, 0) == std::vector<int>{0});
+}
+
+TEST(terminal_ui_a_display_without_drag_and_drop_does_not_drag_placements) {
+  UIFixture f(repoSong("demo3.xml"), UI::View::ARRANGEMENT, dragDisplay(false));
+  placeNoteClip(f, 0);
+  f.ui->step();
+  int y = trackRowOf(f, "T0");
+  dragBlock(f, y, 0, y, 3);
+  CHECK(placedRows(f, 0) == std::vector<int>{0});
+}

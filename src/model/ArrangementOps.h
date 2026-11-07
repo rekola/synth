@@ -134,6 +134,11 @@ SlotDelete deleteClipOrStopButton(Song & song, int track_id, int clip_index, std
 // the source; those of an overwritten clip are removed.
 int duplicateClip(Song & song, int track_id, int from_index);
 
+// Whether `track_id` is a track of the kind `kind` (a `TrackType`): a clip only
+// goes to a track of the kind it came from, since note values mean different
+// things under different tunings and audio only fits audio.
+bool trackHoldsKind(const Song & song, int track_id, int kind);
+
 // Places an independent copy of `clip` (a fresh id, retargeted to
 // `track_id`) at `clip_index`, overwriting whatever is there, and returns
 // that slot, or -1 when the clip is empty or the index negative.
