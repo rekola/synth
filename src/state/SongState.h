@@ -142,16 +142,18 @@ class SongState : public TrackState {
   // processed, not just one - a row can carry more than one
   // concurrently-recordable command (Pattern::setCommand(row,
   // command_column, Command)'s own comment).
-  // `breaks_only` applies nothing but a pattern break - for a track
+  // `breaks_only` applies nothing but a pattern break or a stop - for a track
   // Live View has taken over, whose arrangement automation doesn't
   // apply while the song's flow still does.
   // `edo_steps` is the song tuning's steps per octave, the unit of 0Uxx/0Dxx.
   void applyRowCommands(const Pattern & pattern, int pattern_row, int track_id, int frame_offset, bool breaks_only = false, int edo_steps = 0) {
     for (auto & command : pattern.getCommandsAt(pattern_row)) {
 	if (!command.isDefined()) continue;
-	if (breaks_only && !command.isPatternBreak()) continue;
+        if (breaks_only && !command.isPatternBreak() && !command.isSongStop()) continue;
         if (command.isTempoSet()) {
-          continue; // applied before the row's other commands (rowTempo())
+          // A tempo is applied before the row's other commands (rowTempo()).
+          if (command.isSongStop()) pending_stop_ = true;
+          continue;
         } else if (command.isPatternBreak()) {
           pending_break_ = true;
           pending_break_row_ = command.getBreakRow();
@@ -725,7 +727,16 @@ class SongState : public TrackState {
           } else {
 	    movePosition(1);
 	  }
-	} else {
+          // ZT00: the transport stops once the row has played, on the row
+          // after it, so play carries on from there. Only a pause, like the
+          // transport toggle.
+          if (pending_stop_) {
+            pending_stop_ = false;
+            stop_count_++;
+            setIsPlaying(false);
+            break;
+          }
+        } else {
 	  // The next row boundary doesn't fall within this block - advance by
 	  // however many samples are actually left in it (frames - i), not by
 	  // a full `frames` again. Reusing `frames` here double-counted the
@@ -866,8 +877,11 @@ class SongState : public TrackState {
 #endif
   
   bool isPlaying() const { return is_playing_; }
+  // How many times a ZT00 has stopped the transport.
+  int getStopCount() const { return stop_count_; }
   void setIsPlaying(bool b) {
     if (is_playing_ && !b) render_context_.noteTransportJump();
+    pending_stop_ = false;
     last_glide_codes_.clear();
     last_slide_codes_.clear();
     is_playing_ = b;
@@ -1365,6 +1379,8 @@ private:
   PerformanceAudio master_audio_{0x6d617374u};
   float master_duck_ = 1.0f, master_duck_target_ = 1.0f;
   bool pending_break_ = false; // ZBxx seen on the row currently completing
+  bool pending_stop_ = false;  // ZT00 seen on the row currently completing
+  int stop_count_ = 0;         // how many times ZT00 has stopped the transport
   int pending_break_row_ = 0;
   RenderContext render_context_;
   SendBusProcessor send_bus_;
