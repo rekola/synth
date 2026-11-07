@@ -200,6 +200,11 @@ deleteClipOrStopButton(Song & song, int track_id, int clip_index, string * delet
   return SlotDelete::CLIP;
 }
 
+bool trackHoldsKind(const Song & song, int track_id, int kind) {
+  auto track = song.getMasterTrack().getChildByInternalId(track_id);
+  return track && static_cast<int>(track->getType()) == kind;
+}
+
 int placeClipCopy(Song & song, int track_id, int clip_index, Clip clip) {
   if (clip_index < 0 || clip.isEmpty()) return -1;
   clip.setLeafTrackId(track_id);

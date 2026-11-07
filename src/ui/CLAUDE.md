@@ -269,11 +269,22 @@ Controller-level and per-widget commands. Not migrated: `StatusLine`,
   (`dragStarted()`) `ClipGrid` posts `StartDrag` (refused where the display has
   no drag and drop, and the press stays a click) and holds a `DragGhost`
   drawn by the same `putClipSlot()` as the grid's slots, its own slot showing
-  empty meanwhile. As the target it accepts a clip slot of a track `canHold()`s
-  the clip's kind (the rule of `yank`), marks it (`drop_target_bg_color`), and
-  a `Drop` is `placeClipCopy()` plus `ClipPlayer::deleteClip()` of the source
-  (so a playing clip stops first, as for a cut) in one edit; Ctrl keeps the
-  source.
+  empty meanwhile (while Ctrl is held, the drop copies and it stays). As the
+  target it accepts a clip slot of a track that `trackHoldsKind()` the clip's
+  kind (the rule of `yank`), shows the clip in it at half strength, and a
+  `Drop` is `placeClipCopy()` plus `ClipPlayer::deleteClip()` of the source (so
+  a playing clip stops first, as for a cut) in one edit.
+  **Dragging a placed clip** (`ArrangementGrid`, same session): a press on a
+  block is the candidate, the block is found with `resolveInstanceForBar()` as
+  the bars it spans; the ghost is as wide as the block in bars and keeps the
+  bar grabbed under the pointer; the bars it would cover show it at half
+  strength. A drop moves the placement (`removeInstanceLeavingSilence()` then
+  `placeClipInstance()`, one edit) to the bar under the grabbed point; onto
+  another track of the same kind the clip goes there as an independent copy in
+  the first free slot. Ctrl places another and keeps the first. The clip and
+  its other placements stay.
+  `ClipCard.h` is how a clip looks on a grid wherever one shows (slot, block,
+  ghost): a card lifted off the grid so the display lights and shadows it.
 - **Scopes**: the spectrum is a `cellui::LineChart` fed by
   `spectrum_curve::values()` (`ui/SpectrumCurve.h`: dBFS bins on a log axis,
   80 dB range); it, the DirAC heatmap and the level meter sit side by side in Arrangement view's top band

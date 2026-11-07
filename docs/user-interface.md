@@ -132,11 +132,19 @@ They act on the clip under the cursor.
 - A clip that is playing is not pulled out from under the playhead: its track
   stops at the next bar and the clip is removed then.
 - **Drag a clip (the window only):** press on a clip and move: the clip comes
-  off its slot and follows the pointer, and the slot it would land on is
-  marked. Release to drop it there (a cut and a yank in one undo step, with
+  off its slot and follows the pointer, and the slot it would land on shows
+  it. Release to drop it there (a cut and a yank in one undo step, with
   the same rules: only onto a track of the same kind, and what is in the slot
-  is replaced). Ctrl at the release copies instead of moving. Escape, or a
-  release where it cannot land, puts it back. The terminal has no drag.
+  is replaced). Ctrl copies instead of moving (the slot stays filled while
+  it is held). Escape, or a release where it cannot land, puts it back. The
+  terminal has no drag.
+- **Drag a placed clip (the window only, Arrangement view):** press on a
+  block and move: the block lifts off its bars and follows the pointer, and
+  the bars it would cover show it. Release to put it there; the bar under the
+  point you grabbed is where that point lands. The clip itself and its other
+  placements stay. Dropped on another track of the same kind, the clip goes
+  there as its own copy. Ctrl places another and keeps the first placement.
+  Escape puts it back.
 
 ## Moving a paused playhead
 

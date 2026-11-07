@@ -6,10 +6,12 @@
 #include <chrono>
 #include <functional>
 #include <memory>
+#include <optional>
 #include <tuple>
 #include <unordered_map>
 #include <vector>
 
+#include <cellui/DragDrop.h>
 #include <cellui/Fade.h>
 #include <cellui/InputDispatcher.h>
 #include <cellui/InputEvents.h>
@@ -41,8 +43,9 @@ class Song;
 // background has anything there at all - "*" for a real sounding note, "."
 // for a bar that's only non-empty from note-offs/commands.
 //
-// No per-cell copy/paste - placing/moving clip content is copy-to-clip's
-// own job, from PatternEditor; this widget is placement/overview only,
+// No per-cell copy/paste - placing clip content is copy-to-clip's own job,
+// from PatternEditor (a placement is moved by dragging it, in the window);
+// this widget is placement/overview only,
 // and an instantiated clip can only be edited by going to one of its own
 // (live-linked) instances in PatternEditor, never here directly. No
 // track-ordinal header either.
@@ -124,6 +127,41 @@ class ArrangementGrid : public UIElement {
  private:
   bool page_scroll_ = false;
   bool pick(int screen_row, int screen_col);
+
+  // --- Dragging a placed clip (window only, cellui/DragDrop.h). A press on a
+  // block is a candidate; moving on with the button held lifts the block: its
+  // bars show empty, a ghost follows the pointer, and the bars it would
+  // cover show it at half strength. A drop moves the placement to the bar
+  // under the grabbed point (Ctrl keeps the old one). Onto another track of
+  // the same kind the clip goes as an independent copy in that track's first
+  // free slot. The clip itself, and so its other placements, stay.
+  struct InstanceDrag {
+    int track_id = 0, start_row = 0, clip_index = 0, track_type = -1;
+    int bars = 1;        // how many bars the block spans
+    int grab_offset = 0; // the bar grabbed, counted from the block's first
+  };
+  struct DragCandidate {
+    int track_index = 0, bar = 0;
+    float y = 0, x = 0;
+  };
+  // A run of bars on a track, by its index in getVisibleTrackIds().
+  struct BarSpan {
+    int track_index = 0, first_bar = 0, bars = 0;
+    bool contains(int track, int bar) const { return track == track_index && bar >= first_bar && bar < first_bar + bars; }
+  };
+  // The (track index, bar) at a cell of the bars.
+  std::optional<std::pair<int, int>> cellAt(int screen_row, int screen_col) const;
+  // The block with a clip at (track_index, bar), as a drag payload.
+  std::optional<InstanceDrag> blockAt(int track_index, int bar) const;
+  void startInstanceDrag(const cellui::MouseMove & e);
+  bool dragOver(const cellui::DragOver & e);
+  bool drop(const cellui::Drop & e);
+  std::optional<DragCandidate> drag_candidate_;
+  std::optional<BarSpan> drag_source_, drop_preview_;
+  int drag_clip_index_ = 0;
+  bool drag_copy_ = false;
+  std::unique_ptr<cellui::DragGhost> ghost_;
+  unsigned drag_version_ = 0, current_drag_version_ = 0;
   std::vector<cellui::Connection> connections_;
   // How many bar rows there are to show: the arrangement's own bars plus
   // one empty one past its end to place into, reaching the cursor and the

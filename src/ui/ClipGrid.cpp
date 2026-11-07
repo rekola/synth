@@ -1,4 +1,5 @@
 #include "ClipGrid.h"
+#include "ClipCard.h"
 #include "LevelMeter.h"
 #include "ScenePatternSource.h"
 
@@ -93,6 +94,10 @@ ClipGrid::ClipGrid(Plane & parent) : UIElement(parent) {
       ghost_->setAccepted(e.accepted);
       ghost_->moveTo(e.y, e.x);
     }
+    if (drag_copy_ != e.mods.ctrl) {
+      drag_copy_ = e.mods.ctrl;
+      drag_version_++;
+    }
     return cellui::Handled::yes;
   }));
   connections_.push_back(on<cellui::DragEnd>([this](const cellui::DragEnd &, cellui::EventContext &) {
@@ -100,6 +105,7 @@ ClipGrid::ClipGrid(Plane & parent) : UIElement(parent) {
     drag_source_.reset();
     drop_target_.reset();
     drag_candidate_.reset();
+    drag_copy_ = false;
     drag_version_++;
     return cellui::Handled::yes;
   }));
@@ -691,8 +697,7 @@ std::optional<std::pair<int, int>> ClipGrid::clipSlotAt(int row, int col) const 
 // A clip only lands on a track of the kind it came from (note values mean
 // different things under different tunings, audio only fits audio).
 bool ClipGrid::canHold(int track_id, int track_type) const {
-  auto track = getController().getSong().getMasterTrack().getChildByInternalId(track_id);
-  return track && static_cast<int>(track->getType()) == track_type;
+  return trackHoldsKind(getController().getSong(), track_id, track_type);
 }
 
 // The clip under the press is picked up: a ghost follows the pointer and its
@@ -724,10 +729,13 @@ void ClipGrid::startClipDrag(const cellui::MouseMove & e) {
   if (postToRoot(cellui::StartDrag{this, cellui::DragPayload{"clip", std::move(drag)}}) != cellui::Handled::yes) return;
   pressed_ = Pressed();
   drag_source_ = std::make_pair(candidate.track_index, candidate.clip_index);
+  drag_label_ = name;
+  drag_looping_ = looping;
+  drag_copy_ = e.mods.ctrl;
   drag_version_++;
   ghost_ = std::make_unique<cellui::DragGhost>(getPlane(), 1, kColWidth, grab_y, grab_x, [name, looping, track_color](cellui::Plane & plane, int y, int x, bool) {
     // The same wherever it is; the pointer says whether it can land.
-    plane.setLift(plane.getStyles().theme.elevation.card);
+    clip_card::lift(plane, plane.getStyles());
     putClipSlot(plane, y, x, " ▸ ", name, kColWidth - 3 - std::max(2, looping ? 2 : 0), looping, false, plane.getStyles().clip_text_color, track_color);
   });
   ghost_->moveTo(e.y, e.x);
@@ -1194,7 +1202,7 @@ ClipGrid::render(const StyleProvider & styles, bool refresh, bool focused) {
         // as the plain "nothing here" stop icon below, same as a row
         // genuinely past the list's own end.
         bool has_real_clip = clip_row < clips.size() && !clips[clip_row].isEmpty() &&
-                             !(drag_source_ && *drag_source_ == std::make_pair(track_index, static_cast<int>(clip_row))); // its clip is in the air
+                             !(drag_source_ && !drag_copy_ && *drag_source_ == std::make_pair(track_index, static_cast<int>(clip_row))); // its clip is in the air
         if (has_real_clip) {
           auto clip = clips[clip_row];
           // The number as the pattern editor counts clips, then the name if it has one.
@@ -1285,22 +1293,24 @@ ClipGrid::render(const StyleProvider & styles, bool refresh, bool focused) {
           row_fg = styles.highlight_fg_color;
           row_bg = styles.row_pressed_bg_color;
         }
-        if (drop_target_ && *drop_target_ == std::make_pair(track_index, static_cast<int>(clip_row))) {
-          row_fg = styles.highlight_fg_color;
-          row_bg = styles.drop_target_bg_color;
+        // The slot a dragged clip would land on shows it, half strength.
+        bool previewed = drop_target_ && *drop_target_ == std::make_pair(track_index, static_cast<int>(clip_row));
+        if (previewed) {
+          row_fg = styles.clip_text_color;
+          row_bg = structure.getBaselineInfo(track_id).getColor(styles.tracks).blend(0.5f, styles.grid_bg_color);
+          text = " ▸ ";
+          clip_label = drag_label_;
+          label_cols = kColWidth - 3 - std::max(2, drag_looping_ ? 2 : 0);
         }
         // A clip stands on the grid like a card. The cursor stands as high,
         // so no clip's shadow falls on it, but casts none of its own.
-        if (is_cursor_cell)
-          body_plane.setLift(styles.theme.elevation.card, false, false);
-        else
-          body_plane.setLift(styles.theme.elevation.card);
-        putClipSlot(body_plane, y, x, text, clip_label, label_cols, has_real_clip && clips[clip_row].isLooping(), is_edited_clip, row_fg, row_bg);
+        clip_card::lift(body_plane, styles, is_cursor_cell);
+        putClipSlot(body_plane, y, x, text, clip_label, label_cols, previewed ? drag_looping_ : has_real_clip && clips[clip_row].isLooping(), is_edited_clip && !previewed, row_fg, row_bg);
         if (glyph) {
           body_plane.setFgColor(glyph_fg);
           body_plane.putstr(y, x + 1, glyph);
         }
-        body_plane.setLift(0);
+        clip_card::flat(body_plane);
         continue;
       }
 

@@ -2,6 +2,7 @@
 #include <cellui/InputDispatcher.h>
 
 #include "../playback/InputEvent.h"
+#include "ClipCard.h"
 #include "StyleProvider.h"
 #include "../Controller.h"
 #include "../model/Song.h"
@@ -60,15 +61,59 @@ ArrangementGrid::ArrangementGrid(Plane & parent) : UIElement(parent) {
     return keyDown(e) ? cellui::Handled::yes : cellui::Handled::no;
   }));
   connections_.push_back(on<cellui::MouseDown>([this](const cellui::MouseDown & e, cellui::EventContext &) {
-    return e.button == 1 && pick(e.row, e.col) ? cellui::Handled::yes : cellui::Handled::no;
+    if (e.button != 1 || !pick(e.row, e.col)) return cellui::Handled::no;
+    // A press on a block may turn into a drag.
+    drag_candidate_.reset();
+    if (auto cell = cellAt(e.row, e.col); cell && blockAt(cell->first, cell->second)) {
+      drag_candidate_ = DragCandidate{cell->first, cell->second, e.y, e.x};
+    }
+    return cellui::Handled::yes;
   }));
-  // A drag with the button held picks the cell under the pointer too.
+  // A drag with the button held picks the cell under the pointer too, unless
+  // it lifts a block.
   connections_.push_back(on<cellui::MouseMove>([this](const cellui::MouseMove & e, cellui::EventContext &) {
-    return (e.buttons & 1) && pick(e.row, e.col) ? cellui::Handled::yes : cellui::Handled::no;
+    if (!(e.buttons & 1)) return cellui::Handled::no;
+    if (drag_candidate_ && cellui::dragStarted(drag_candidate_->y, drag_candidate_->x, e.y, e.x)) {
+      startInstanceDrag(e);
+      if (ghost_) return cellui::Handled::yes;
+    }
+    return pick(e.row, e.col) ? cellui::Handled::yes : cellui::Handled::no;
   }));
   // The release ends the click; nothing else to do with it.
-  connections_.push_back(on<cellui::MouseUp>([](const cellui::MouseUp & e, cellui::EventContext &) {
+  connections_.push_back(on<cellui::MouseUp>([this](const cellui::MouseUp & e, cellui::EventContext &) {
+    drag_candidate_.reset();
     return e.button == 1 ? cellui::Handled::yes : cellui::Handled::no;
+  }));
+  connections_.push_back(on<cellui::DragOver>([this](const cellui::DragOver & e, cellui::EventContext &) {
+    return dragOver(e) ? cellui::Handled::yes : cellui::Handled::no;
+  }));
+  connections_.push_back(on<cellui::DragLeave>([this](const cellui::DragLeave &, cellui::EventContext &) {
+    if (drop_preview_) drag_version_++;
+    drop_preview_.reset();
+    return cellui::Handled::yes;
+  }));
+  connections_.push_back(on<cellui::Drop>([this](const cellui::Drop & e, cellui::EventContext &) {
+    return drop(e) ? cellui::Handled::yes : cellui::Handled::no;
+  }));
+  connections_.push_back(on<cellui::DragMove>([this](const cellui::DragMove & e, cellui::EventContext &) {
+    if (ghost_) {
+      ghost_->setAccepted(e.accepted);
+      ghost_->moveTo(e.y, e.x);
+    }
+    if (drag_copy_ != e.mods.ctrl) {
+      drag_copy_ = e.mods.ctrl;
+      drag_version_++;
+    }
+    return cellui::Handled::yes;
+  }));
+  connections_.push_back(on<cellui::DragEnd>([this](const cellui::DragEnd &, cellui::EventContext &) {
+    ghost_.reset();
+    drag_source_.reset();
+    drop_preview_.reset();
+    drag_candidate_.reset();
+    drag_copy_ = false;
+    drag_version_++;
+    return cellui::Handled::yes;
   }));
   // The wheel scrolls the view along the bars (Shift: tracks), not the
   // cursor, and detaches it from the cursor/playhead until the cursor next moves.
@@ -104,6 +149,145 @@ bool ArrangementGrid::pick(int screen_row, int screen_col) {
     cursor_bar_ = bar;
   }
   viewport_.attach();
+  return true;
+}
+
+std::optional<std::pair<int, int>> ArrangementGrid::cellAt(int screen_row, int screen_col) const {
+  auto & song = getController().getSong();
+  auto num_tracks = static_cast<int>(getVisibleTrackIds(song).size());
+  auto [pos_y, pos_x] = getPosition();
+  auto [rows, cols] = getDim();
+  auto y = screen_row - pos_y, x = screen_col - pos_x;
+  if (y < kHeaderRows || y >= rows || x < kNameWidth || x >= cols) return std::nullopt;
+  auto track = viewport_.rows.offset() + y - kHeaderRows;
+  if (track >= num_tracks) return std::nullopt;
+  auto playing_bar = song.getArrangementBars().barIndex(getController().getPlaybackInfo().getAbsolutePosition());
+  auto bar = viewport_.cols.indexAt(x - kNameWidth);
+  if (bar < 0 || bar >= barCount(song, playing_bar)) return std::nullopt;
+  return std::make_pair(track, bar);
+}
+
+// The block a bar belongs to, as grabbed at that bar: where it starts, which
+// clip it places and how many bars it spans.
+std::optional<ArrangementGrid::InstanceDrag> ArrangementGrid::blockAt(int track_index, int bar) const {
+  auto & song = getController().getSong();
+  auto track_ids = getVisibleTrackIds(song);
+  if (track_index < 0 || track_index >= static_cast<int>(track_ids.size())) return std::nullopt;
+  auto track_id = track_ids[static_cast<size_t>(track_index)];
+  auto bars = song.getArrangementBars();
+  auto resolve = [&](int b) {
+    auto row = bars.barStartRow(b);
+    return resolveInstanceForBar(song, track_id, row, bars.nextBarStart(row) - row);
+  };
+  auto here = resolve(bar);
+  if (here.clip_index < 0) return std::nullopt;
+  auto same = [&](int b) {
+    if (b < 0) return false;
+    auto other = resolve(b);
+    return other.clip_index == here.clip_index && other.start_row == here.start_row;
+  };
+  int first = bar, last = bar;
+  while (same(first - 1)) first--;
+  while (last - first < 1024 && same(last + 1)) last++;
+  InstanceDrag drag;
+  drag.track_id = track_id;
+  drag.start_row = here.start_row;
+  drag.clip_index = here.clip_index;
+  auto track = song.getMasterTrack().getChildByInternalId(track_id);
+  drag.track_type = track ? static_cast<int>(track->getType()) : -1;
+  drag.bars = last - first + 1;
+  drag.grab_offset = bar - first;
+  return drag;
+}
+
+// The block under the press is lifted: its bars show empty and a ghost as
+// wide as it follows the pointer.
+void ArrangementGrid::startInstanceDrag(const cellui::MouseMove & e) {
+  if (!drag_candidate_) return;
+  auto candidate = *drag_candidate_;
+  drag_candidate_.reset();
+  auto block = blockAt(candidate.track_index, candidate.bar);
+  if (!block) return;
+  auto & song = getController().getSong();
+  SongStructure structure(song);
+  auto & styles = getPlane().getStyles();
+  Color track_color = structure.getBaselineInfo(block->track_id).getColor(styles.tracks);
+  // Where in the block the pointer took hold of it, in bars.
+  auto [pos_y, pos_x] = getPosition();
+  float grab_x = static_cast<float>(viewport_.cols.shown() + (e.x - static_cast<float>(pos_x) - kNameWidth)) -
+                 static_cast<float>(candidate.bar - block->grab_offset);
+  float grab_y = e.y - static_cast<float>(e.row);
+  int bars = block->bars, clip_index = block->clip_index;
+  int first_bar = candidate.bar - block->grab_offset;
+  // The grid hands the pointer to the session: its own press is over. A
+  // display without drag and drop refuses, and the press stays a click.
+  if (postToRoot(cellui::StartDrag{this, cellui::DragPayload{"instance", *block}}) != cellui::Handled::yes) return;
+  drag_source_ = BarSpan{candidate.track_index, first_bar, bars};
+  drag_clip_index_ = clip_index;
+  drag_copy_ = e.mods.ctrl;
+  drag_version_++;
+  ghost_ = std::make_unique<cellui::DragGhost>(getPlane(), 1, bars, grab_y, grab_x, [bars, clip_index, track_color](cellui::Plane & plane, int y, int x, bool) {
+    auto & st = plane.getStyles();
+    plane.setFgColor(st.clip_text_color);
+    plane.setBgColor(track_color);
+    clip_card::lift(plane, st);
+    plane.putstr(y, x, std::string(static_cast<size_t>(bars), ' '));
+    plane.putstr(y, x, fmt::format("{:x}", clip_index % 16));
+  });
+  ghost_->moveTo(e.y, e.x);
+}
+
+bool ArrangementGrid::dragOver(const cellui::DragOver & e) {
+  auto * drag = e.payload.get<InstanceDrag>();
+  if (!drag) return false;
+  auto cell = cellAt(e.row, e.col);
+  std::optional<BarSpan> preview;
+  bool accepted = false;
+  if (cell) {
+    auto track_ids = getVisibleTrackIds(getController().getSong());
+    accepted = trackHoldsKind(getController().getSong(), track_ids[static_cast<size_t>(cell->first)], drag->track_type);
+    auto first_bar = std::max(0, cell->second - drag->grab_offset);
+    if (accepted) preview = BarSpan{cell->first, first_bar, drag->bars};
+  }
+  if ((preview.has_value() != drop_preview_.has_value()) ||
+      (preview && (preview->track_index != drop_preview_->track_index || preview->first_bar != drop_preview_->first_bar))) {
+    drop_preview_ = preview;
+    drag_version_++;
+  }
+  return accepted;
+}
+
+// Moves the placement to the bar the grabbed point is over (Ctrl places
+// another and leaves the first).
+bool ArrangementGrid::drop(const cellui::Drop & e) {
+  auto * drag = e.payload.get<InstanceDrag>();
+  auto cell = cellAt(e.row, e.col);
+  if (!drag || !cell) return false;
+  auto & song = getController().getSong();
+  auto track_ids = getVisibleTrackIds(song);
+  auto target_track = track_ids[static_cast<size_t>(cell->first)];
+  if (!trackHoldsKind(song, target_track, drag->track_type)) return false;
+  auto bars = song.getArrangementBars();
+  auto new_bar = std::max(0, cell->second - drag->grab_offset);
+  auto new_row = bars.barStartRow(new_bar);
+  bool copy = e.mods.ctrl;
+  if (!copy && target_track == drag->track_id && new_row == drag->start_row) return true;
+  Song::Edit edit(song, copy ? "copy clip placement" : "move clip placement");
+  int clip_index = drag->clip_index;
+  if (target_track != drag->track_id) {
+    // An independent copy of the clip, in the first free slot of the other track.
+    auto from = song.getClips(drag->track_id);
+    if (clip_index >= static_cast<int>(from.size()) || from[static_cast<size_t>(clip_index)].isEmpty()) return false;
+    auto copy_of_clip = from[static_cast<size_t>(clip_index)].toClip();
+    auto to = song.getClips(target_track);
+    int slot = 0;
+    while (slot < static_cast<int>(to.size()) && !to[static_cast<size_t>(slot)].isEmpty()) slot++;
+    clip_index = placeClipCopy(song, target_track, slot, copy_of_clip);
+    if (clip_index < 0) return false;
+  }
+  if (!copy) removeInstanceLeavingSilence(song, drag->track_id, drag->start_row);
+  placeClipInstance(song, target_track, new_row, clip_index);
+  getController().log(copy ? "Copied clip placement" : "Moved clip placement");
   return true;
 }
 
@@ -379,7 +563,7 @@ ArrangementGrid::render(const StyleProvider & styles, bool refresh, bool focused
       cursor_track_index_ == current_cursor_track_index_ &&
       viewport_.cols.shown() == current_shown_col_ && viewport_.rows.offset() == current_scroll_row_ &&
       focused == current_focused_ && !focus_fading && selected_track_id == current_selected_track_id_ &&
-      shown_ == current_shown_) {
+      shown_ == current_shown_ && drag_version_ == current_drag_version_) {
     return false;
   }
   current_song_version_ = new_version;
@@ -393,6 +577,7 @@ ArrangementGrid::render(const StyleProvider & styles, bool refresh, bool focused
   current_selected_track_id_ = selected_track_id;
   current_focused_ = focused;
   current_shown_ = shown_;
+  current_drag_version_ = drag_version_;
 
   Plane & bars_plane = *bars_plane_;
   setFgColor(styles.window_fg_color);
@@ -545,6 +730,8 @@ ArrangementGrid::render(const StyleProvider & styles, bool refresh, bool focused
       // bar's plain per-row sample at all (see resolveInstanceForBar()'s
       // own comment).
       auto active = resolveInstanceForBar(song, track_id, raw_row, rows_per_bar);
+      // The block in the air leaves its bars empty (a copy leaves them).
+      if (drag_source_ && !drag_copy_ && drag_source_->contains(track_index, bar)) active = ActiveInstance{Arrangement::kNoInstance, 0};
       if (active.clip_index >= 0) {
         bg = color;
         fg = styles.clip_text_color;
@@ -574,6 +761,13 @@ ArrangementGrid::render(const StyleProvider & styles, bool refresh, bool focused
       }
       prev_clip_index = active.clip_index;
       prev_start_row = active.start_row;
+      // Where the dragged block would land shows it, half strength.
+      bool previewed = drop_preview_ && drop_preview_->contains(track_index, bar);
+      if (previewed) {
+        bg = color.blend(0.5f, styles.window_bg_color);
+        fg = styles.clip_text_color;
+        glyph = bar == drop_preview_->first_bar ? fmt::format("{:x}", drag_clip_index_ % 16) : " ";
+      }
 
       if (bar == playing_bar && !smooth_playhead) bg = styles.cursorRowTint(bg);
 
@@ -605,7 +799,11 @@ ArrangementGrid::render(const StyleProvider & styles, bool refresh, bool focused
 
       bars_plane.setFgColor(fg);
       bars_plane.setBgColor(bg);
+      // A placed clip stands on the grid as in the clip grid, the cursor's as high.
+      bool card = active.clip_index >= 0 || previewed;
+      if (card) clip_card::lift(bars_plane, styles, styles.window_focused && bar == cursor_bar_ && track_index == cursor_track_index_);
       bars_plane.putstr(y, vc, glyph);
+      if (card) clip_card::flat(bars_plane);
     }
   }
 
