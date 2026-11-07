@@ -1327,7 +1327,10 @@ PatternEditor::render(const StyleProvider & styles, bool refresh, bool focused) 
     if (isLiveMode()) {
       // The view following a playhead doesn't carry the stopped tracks along.
       if (scene_source_->cursorLocked()) scene_source_->holdStoppedTracks(source_->rowsBetween({ view_block_, current_scroll_.row }, top));
-      if (scene_source_->keepTrackLinesVisible(top, visible, margin, page_scroll_)) force_full_redraw_ = true;
+      // Only the cursor's own row is exempt from the margin when pointed at: a
+      // playhead's line keeps it, or a click would park every one at the edge.
+      auto line_margin = std::min(kScrollMargin, (visible - 1) / 2);
+      if (scene_source_->keepTrackLinesVisible(top, visible, line_margin, page_scroll_)) force_full_redraw_ = true;
     }
     view_block_ = top.block;
     new_row = top.row;
@@ -1448,7 +1451,7 @@ PatternEditor::render(const StyleProvider & styles, bool refresh, bool focused) 
         // down the screen until it reaches the margin, then holds still while
         // the column scrolls under it.
         int visible = std::max(rows - heading_height, 1);
-        int margin = pointer_scroll_ ? 0 : std::min(kScrollMargin, (visible - 1) / 2);
+        int margin = std::min(kScrollMargin, (visible - 1) / 2);
         bool pinned = source_->rowsBetween(RowAddress{view_block_, new_row}, source_->trackCursor(id)) >= visible - 1 - margin;
         column.offset = pinned ? playPhase(info) : 0.0;
         column.band_phase = pinned ? 0.0 : playPhase(info);
