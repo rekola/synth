@@ -4,6 +4,7 @@
 #include "../src/model/Gamut.h"
 #include "../src/model/JustIntonation.h"
 #include "../src/model/Note.h"
+#include "../src/model/PercussionTrack.h"
 #include "../src/model/Scale.h"
 #include "../src/model/Song.h"
 
@@ -33,13 +34,13 @@ TEST(the_mixolydian_scale_is_c_d_e_f_g_a_b_flat_of_the_pythagorean_gamut) {
   }
 }
 
-TEST(seikilos_plays_only_scale_notes_each_tuned_to_its_3_limit_ratio_in_96_rows) {
+TEST(seikilos_plays_only_scale_notes_each_tuned_to_its_3_limit_ratio_in_144_rows) {
   InstrumentProvider provider;
   Song song;
   CHECK(song.open(std::string(TESTS_SONGS_DIR) + "/seikilos.xml", provider));
   CHECK(song.getTuning() == Tuning::EDO53);
   CHECK(song.getScale() == Scale::PYTHAGOREAN_MIXOLYDIAN);
-  CHECK(song.getArrangementLength() == 96);
+  CHECK(song.getArrangementLength() == 144); // a 24-row intro, 96 rows of song, a 24-row outro
 
   const int key = song.getKey();
   CHECK(key == Note::stringToKey(Tuning::EDO53, "C-4"));
@@ -51,7 +52,9 @@ TEST(seikilos_plays_only_scale_notes_each_tuned_to_its_3_limit_ratio_in_96_rows)
   int notes = 0;
   auto arrangement = song.getArrangement();
   for (auto & [track_id, pattern] : arrangement.getPatternsByTrack()) {
-    for (int row = 0; row < 96; row++) {
+    auto * track = song.getMasterTrack().getChildByInternalId(track_id);
+    if (!track || dynamic_cast<const PercussionTrack *>(track)) continue; // drum hits are not pitches
+    for (int row = 0; row < song.getArrangementLength(); row++) {
       for (auto & note : arrangement.getNotes(row, track_id)) {
         if (!note.isDefined() || note.isOff()) continue;
         notes++;
@@ -67,8 +70,8 @@ TEST(seikilos_plays_only_scale_notes_each_tuned_to_its_3_limit_ratio_in_96_rows)
       }
     }
   }
-  // 8 bars: 3 + 4 + 5 + 4 + 6 + 4 + 6 + 5 melody notes, twice, plus 4 x 2 drone notes.
-  CHECK(notes == 37 * 2 + 8);
+  // Per track: lyre 52 (intro run and chord, 37 melody notes, outro), octave lyre 40, lyre drone 14, two aulos 37 each, reed drone 1.
+  CHECK(notes == 52 + 40 + 14 + 37 * 2 + 1);
 }
 
 TEST(song_notes_load_save_and_reload) {

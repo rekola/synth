@@ -174,7 +174,7 @@ shuffle, erode, shatter, gate, crush, duck, a send throw, orbit): it
 lasts while the pad is held and never changes the song. See
 launchpad.md.
 
-**Pythagorean gamut and Pythagorean Mixolydian**
+**Pythagorean gamut, Pythagorean Mixolydian and nīd qablim**
 The Pythagorean gamut is thirteen notes of the chain of fifths, six below
 the tonic and six above, octave-reduced (all 3-limit). Pythagorean Mixolydian
 selects C D E F G A B♭ from it: 1/1 9/8 81/64 4/3 3/2 27/16 16/9. A scale's
@@ -183,7 +183,9 @@ gamut is for 53-EDO only: its fifth is almost exact and its spellings write
 the Pythagorean E, A and B♭ as E↑, A↑ and B♭↓. 31-EDO cannot tune it under
 any spelling (81/64 lies between its steps 10 and 11), and 12 and 19-EDO
 approximate it as they do every just ratio. The scale will take the
-Babylonian tuning's name once that mapping is verified.
+Babylonian tuning's name once that mapping is verified. Nīd qablim is its
+Phrygian rotation, C D♭ E♭ F G A♭ B♭ = 1/1 256/243 32/27 4/3 3/2 128/81 16/9
+(spelled C♯↑ E♭↓ A♭↓ B♭↓ in the gamut), also 53-EDO only.
 
 **Rhythm**
 A pre-written drum pattern in the Library, such as Waltz, Funk or Bossa

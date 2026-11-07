@@ -217,7 +217,7 @@ nothing else:
 | major, minor | duodene (Ellis's 12 notes: 1/1 16/15 9/8 6/5 5/4 4/3 45/32 3/2 8/5 5/3 9/5 15/8) |
 | otonal, utonal | superparticular |
 | diamond7 | Partch's 7-limit diamond |
-| Pythagorean Mixolydian | Pythagorean (53-EDO only) |
+| Pythagorean Mixolydian, Nīd qablim | Pythagorean (53-EDO only) |
 | none, the maqamat | no gamut: tempered, no corrections |
 
 Each key, a step above the song's key, gets the gamut note whose nearest step
