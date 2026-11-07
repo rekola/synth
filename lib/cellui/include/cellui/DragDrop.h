@@ -98,6 +98,8 @@ class DragGhost {
     plane_ = parent.createChild();
     plane_->makeTransparent();
     plane_->setElevation(parent.getStyles().theme.elevation.modal);
+    // The picture's own raised cells are the lighting, shifted with it.
+    plane_->setElevationArea(false);
     // The plane clips what it shows to itself, and a shifted picture moves
     // up and left, so the margin is where its top and left slivers show.
     plane_->resize(rows + 1, cols + 1);

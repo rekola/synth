@@ -77,7 +77,9 @@ carries the app's object as an opaque `getAppContext()`.
   release over an accepting widget posts `Drop` to it. The move that started the
   session is its first move (the target hears `DragOver` for it). Escape cancels, and
   the rest of that gesture goes to nobody. `DragGhost` is the plane that
-  follows the pointer (modal elevation, the grabbed point kept under the
+  follows the pointer (modal elevation but no elevated area of its own,
+  `setElevationArea(false)`: its raised cells are the lighting and shadow,
+  shifted with it; the grabbed point kept under the
   pointer, to the pixel where the display scrolls smoothly, through a
   one-cell margin above and left of the picture, where the slivers of a shifted
   picture show, since a plane clips to itself; the pointer shows
