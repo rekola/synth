@@ -122,6 +122,8 @@ float bayer8(int x, int y) {
 constexpr float kOrderedAmplitude = 12.0f;
 // A pixel off its nearest register by no more than this in any channel is not dithered.
 constexpr int kDitherAbove = 5;
+// On the Sixel grid, a pixel differing from its grid colour by no more than this (whole 8-bit levels) is not dithered.
+constexpr int kGridTolerance = 0;
 // A picture of this many pixels or fewer is sent in whichever is smaller of its palette PNG and its pixels.
 constexpr size_t kSmallPicturePixels = 16384;
 // A changed Sixel picture is considered for sending in pieces only when the pieces cover less than this
@@ -220,6 +222,13 @@ int paletteNearest(const SixelPalette & palette, int r, int g, int b) {
 // dither's offset of one grid step if `dither` is given, so a smooth gradient is not banded by the
 // terminal's 101 levels. x and y are the pixel's place in the piece the dither's origin belongs to.
 void gridColour(uint32_t p, const Dither * dither, int x, int y, int & r, int & g, int & b) {
+  // A colour within half a level of the grid's is not dithered: its error cannot be seen, and a flat area
+  // of such a colour stays one register.
+  int pr = onSixelGrid(Image::red(p)), pg = onSixelGrid(Image::green(p)), pb = onSixelGrid(Image::blue(p));
+  if (std::max({std::abs(pr - Image::red(p)), std::abs(pg - Image::green(p)), std::abs(pb - Image::blue(p))}) <= kGridTolerance) {
+    r = pr, g = pg, b = pb;
+    return;
+  }
   float offset = dither ? (bayer8(dither->origin_x + x, dither->origin_y + y) - 0.5f) * (255.0f / 100.0f) : 0.0f;
   auto snap = [&](int v) { return onSixelGrid(std::clamp(static_cast<int>(std::lround(static_cast<float>(v) + offset)), 0, 255)); };
   r = snap(Image::red(p)), g = snap(Image::green(p)), b = snap(Image::blue(p));
@@ -232,7 +241,9 @@ SixelPalette makeSixelPalette(const Image & image, int x0, int y0, int width, in
   // A picture with more colours than registers is a gradient (a blurred backdrop): it is dithered, where a
   // flat one (text, a chart) stays as it is.
   bool gradient = false;
-  if (grid && dither && dither->method != Dither::Method::NEAREST) {
+  if (grid && dither && dither->method != Dither::Method::NEAREST && dither->gradient) {
+    gradient = true;
+  } else if (grid && dither && dither->method != Dither::Method::NEAREST) {
     std::unordered_set<uint32_t> distinct;
     for (int y = 0; y < height && !gradient; y++) {
       for (int x = 0; x < width && !gradient; x++) {
@@ -935,6 +946,7 @@ std::string ImageEncoder::sixel(const CellBuffer & frame, const ImagePlacement &
     palette_dither.method = quality_ == PictureQuality::FULL || p.image->stretched() ? profile_.dither : Dither::Method::NEAREST;
     palette_dither.origin_x = p.col * cw + x;
     palette_dither.origin_y = p.row * ch + y;
+    palette_dither.gradient = p.image->stretched();
     SixelPalette palette = makeSixelPalette(img, x, y, w, h, all, registers, true, &palette_dither);
     // The cells to send are a row of them at a time, from the first that changed to the last: each Sixel
     // carries the definitions of its registers, which cost more than the cells between two changes.
