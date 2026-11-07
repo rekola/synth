@@ -78,7 +78,9 @@ carries the app's object as an opaque `getAppContext()`.
   session is its first move (the target hears `DragOver` for it). Escape cancels, and
   the rest of that gesture goes to nobody. `DragGhost` is the plane that
   follows the pointer (modal elevation, the grabbed point kept under the
-  pointer, to the pixel where the display scrolls smoothly; the pointer shows
+  pointer, to the pixel where the display scrolls smoothly, through a
+  one-cell margin above and left of the picture, where the slivers of a shifted
+  picture show, since a plane clips to itself; the pointer shows
   `MouseCursor::GRABBING` or `NOT_ALLOWED` over it); the source makes it on
   `StartDrag` and drops it on `DragEnd`.
 - `ThreadPosts.h`: `ThreadInbox` lets other threads post events to the root,

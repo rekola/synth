@@ -88,7 +88,9 @@ inline bool dragStarted(float press_y, float press_x, float y, float x) {
 // goes with the object. `parent` is the root plane (planes are flat).
 class DragGhost {
  public:
-  using Draw = std::function<void(Plane & plane, bool accepted)>;
+  // Draws the ghost's `rows` by `cols` cells with their top left corner at
+  // (y, x) of the plane (a margin of one cell lies above and left of it).
+  using Draw = std::function<void(Plane & plane, int y, int x, bool accepted)>;
 
   // grab_y/grab_x: where in the ghost (cells) the pointer took hold of it.
   DragGhost(Plane & parent, int rows, int cols, float grab_y, float grab_x, Draw draw)
@@ -96,7 +98,9 @@ class DragGhost {
     plane_ = parent.createChild();
     plane_->makeTransparent();
     plane_->setElevation(parent.getStyles().theme.elevation.modal);
-    plane_->resize(rows, cols);
+    // The plane clips what it shows to itself, and a shifted picture moves
+    // up and left, so the margin is where its top and left slivers show.
+    plane_->resize(rows + 1, cols + 1);
     paint();
     plane_->moveToTop();
   }
@@ -104,10 +108,13 @@ class DragGhost {
   // The pointer is at (y, x), in cells.
   void moveTo(float y, float x) {
     float top = y - grab_y_, left = x - grab_x_;
-    int row = static_cast<int>(std::ceil(top)), col = static_cast<int>(std::ceil(left));
-    // Shifted up and left by what the whole cell goes past.
-    plane_->setScrollOffset(static_cast<double>(row) - top, static_cast<double>(col) - left);
-    plane_->move(row, col);
+    // Where the cells are drawn, a whole cell, shifted up and left by what is
+    // left over; a display that cannot shift puts it at the nearest cell.
+    bool smooth = plane_->smoothScroll();
+    auto cell = [smooth](float at) { return static_cast<int>(smooth ? std::ceil(at) : std::round(at)); };
+    int row = cell(top), col = cell(left);
+    plane_->setScrollOffset(smooth ? static_cast<double>(row) - top : 0.0, smooth ? static_cast<double>(col) - left : 0.0);
+    plane_->move(row - 1, col - 1);
     plane_->moveToTop();
   }
 
@@ -120,7 +127,7 @@ class DragGhost {
  private:
   void paint() {
     plane_->erase();
-    draw_(*plane_, accepted_);
+    draw_(*plane_, 1, 1, accepted_);
     plane_->setMouseCursor(accepted_ ? MouseCursor::GRABBING : MouseCursor::NOT_ALLOWED);
   }
 
