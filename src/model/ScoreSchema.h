@@ -57,6 +57,23 @@ inline constexpr const char * kArrangementSlot = "arrangement";
 inline constexpr const char * kArrangementPatternsSlot = "patterns";
 inline constexpr const char * kArrangementInstancesSlot = "instances";
 inline constexpr const char * kArrangementBackgroundsSlot = "backgrounds";
+inline constexpr const char * kArrangementLocatorsSlot = "locators";
+inline constexpr const char * kArrangementTemposSlot = "tempos";
+inline constexpr const char * kArrangementSignaturesSlot = "signatures";
+
+// type "tempo", sorted by row: from this row on the tempo is `bpm` (one per row).
+inline const doc::Prop<int> kTempoRow{"row", 0};
+inline const doc::Prop<int> kTempoBpm{"bpm", 0};
+
+// type "signature", sorted by row: from this row on bars are counted in this
+// time signature, from this row.
+inline const doc::Prop<int> kSignatureRow{"row", 0};
+inline const doc::Prop<int> kSignatureNumerator{"numerator", 0};
+inline const doc::Prop<int> kSignatureDenominator{"denominator", 0};
+
+// type "locator", sorted by row: a named moment of the song.
+inline const doc::Prop<int> kLocatorRow{"row", 0};
+inline const doc::Prop<std::string> kLocatorText{"text", ""};
 
 // type "instance", sorted by (track, row): the clip that starts at a row of a
 // track, or an explicit stop. The clip is named by its id ("OFF" = a stop).

@@ -205,6 +205,17 @@ A row of the clip grid: the clips at one position across every track's clip
 list, launched together. It has no object of its own beyond an optional
 name, tempo and time signature stored by position. See scenes.md.
 
+**Tempo change and signature change**
+Arrangement objects, like a clip instance: from their row on, the tempo
+(bpm) or the time signature (bars counted from that row) is the change's, until
+the next. The song's own tempo and signature hold before the first. A
+live recording writes them when a launched scene has either. See
+time_signatures.md.
+
+**Locator**
+A named marker at an absolute row of the arrangement, shown in the pattern
+editor and the arrangement grid's header. It is an arrangement object too.
+
 **Song notes**
 Free text saved with a song as its `<notes>` element: where the music comes
 from, what was chosen in realising it. It has no effect on playback.

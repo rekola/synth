@@ -26,6 +26,14 @@ int quantizedBarRow(const BarGrid & bars, int raw_row) {
   return bars.roundUpToBar(raw_row);
 }
 
+int quantizedBarRow(const ArrangementBars & bars, int raw_row) {
+  return bars.roundUpToBar(raw_row);
+}
+
+int previousBarRow(const ArrangementBars & bars, int raw_row) {
+  return bars.barStart(raw_row);
+}
+
 int previousBarRow(const BarGrid & bars, int raw_row) {
   return bars.barStart(raw_row);
 }

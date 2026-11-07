@@ -57,9 +57,9 @@ TEST(running_bars_override_the_songs_from_their_origin) {
 
 TEST(the_songs_time_signature_drives_the_arrangement_bars) {
   Song song;
-  CHECK(song.getTimeSignature() == (TimeSignature{4, 4}) && song.getArrangementBars().barRows() == 16);
+  CHECK(song.getTimeSignature() == (TimeSignature{4, 4}) && song.getArrangementBars().barRows(0) == 16);
   song.setTimeSignature({3, 4});
-  CHECK(song.getArrangementBars().barRows() == 12 && song.isBarStart(12));
+  CHECK(song.getArrangementBars().barRows(0) == 12 && song.isBarStart(12));
   song.setTimeSignature({5, 3}); // not a note value a row divides: ignored
   CHECK(song.getTimeSignature() == (TimeSignature{3, 4}));
 }

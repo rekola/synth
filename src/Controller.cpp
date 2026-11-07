@@ -862,7 +862,9 @@ void Controller::mirrorSceneChange(const string & buffer_name, const PlaybackInf
   auto song = getSongByName(buffer_name);
   if (!song) return;
   song->setRunningBars(info.getRunningBars());
-  if (info.getSceneTempo() > 0 && info.getSceneTempo() != song->getTempo()) {
+  // Recording an arrangement, the scene's tempo is a tempo change in the
+  // arrangement (ClipPlayer::recordSceneChange()), not the song's starting tempo.
+  if (info.getSceneTempo() > 0 && info.getSceneTempo() != song->getTempo() && !note_capture_armed_) {
     Song::Edit edit(*song, "scene tempo", Song::Edit::Kind::STRUCTURE, Song::Edit::Origin::SYNC);
     song->setTempo(static_cast<short>(info.getSceneTempo()));
     if (buffer_name == active_buffer_name_) log("Tempo " + to_string(song->getTempo()));
@@ -1257,7 +1259,7 @@ Controller::ensureNoteRecordingClip(std::unordered_map<int, std::string> & clip_
   // clip gets created for it, and the clip can't start later than that
   // note's own row.
   row = previousBarRow(song->getArrangementBars(), row);
-  auto rows_per_bar = song->getArrangementBars().barRows();
+  auto rows_per_bar = song->getArrangementBars().barRows(row);
   auto active = resolveInstanceAt(*song, track_id, row);
   if (active.clip_index >= 0) return; // a real clip is already active here - write into it, same as ordinary editing
 
@@ -1295,7 +1297,7 @@ Controller::extendRecordingClipsIfNeeded(std::unordered_map<int, std::string> & 
   auto song = getCurrentSong();
   if (!song) return;
   auto arrangement = song->getArrangement();
-  auto rows_per_bar = song->getArrangementBars().barRows();
+  auto rows_per_bar = song->getArrangementBars().barRows(info.getAbsolutePosition());
 
   for (auto & [ track_id, clip_id ] : clip_ids) {
     // Only while this track actually has a note held right now - see this
@@ -1552,7 +1554,7 @@ Controller::extendRecordingSampleClipIfNeeded() {
   // Same growth-loop shape as extendRecordingClipsIfNeeded() above - grows
   // a full bar at a time until at least one bar of headroom remains ahead
   // of the current row.
-  auto rows_per_bar = song->getArrangementBars().barRows();
+  auto rows_per_bar = song->getArrangementBars().barRows(info.getAbsolutePosition());
   Song::Edit edit(*song, "extend sample take clip");
   bool grew = false;
   auto window_last_row = recording_start_row_ + std::max(1, clip.getLength()) - 1;

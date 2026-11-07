@@ -41,6 +41,10 @@ TEST(mesomedes_plays_scale_notes_tuned_to_their_ratios_in_120_rows) {
   CHECK(song.getTuning() == Tuning::EDO53);
   CHECK(song.getScale() == Scale::NID_QABLIM);
   CHECK(song.getArrangementLength() == kIntroRows + kSongRows + kOutroRows);
+  // Bar 13 is one 12/8 bar, between the 2/4 of the rest.
+  auto bars = song.getArrangementBars();
+  CHECK(bars.barRows(kIntroRows) == 8 && bars.barRows(kIntroRows + 96) == 24 && bars.barRows(kIntroRows + kSongRows) == 8);
+  CHECK(bars.barIndex(kIntroRows + kSongRows) == 2 + 13 && bars.barIndex(kIntroRows + kSongRows + kOutroRows) == 2 + 13 + 2);
 
   const int key = song.getKey();
   CHECK(key == Note::stringToKey(Tuning::EDO53, "C-4"));

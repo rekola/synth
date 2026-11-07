@@ -46,11 +46,9 @@
       </pattern>
     </clip>
   </clips>
-  <locators>
+  <arrangement>
     <locator row="0">Intro</locator>
     <locator row="64">Fill</locator>
-  </locators>
-  <arrangement>
     <instance track="drums" row="0" clip="verse"/>
     <instance track="drums" row="64" clip="fill"/>
     <instance track="drums" row="128"/>

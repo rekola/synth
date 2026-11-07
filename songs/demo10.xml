@@ -6,7 +6,7 @@
   <tracks>
     <track id="0" azimuth="30" distance="0" elevation="50" volume="0.5" instrument="i1"/>
   </tracks>
-  <locators>
+  <arrangement>
     <locator row="0">Otonal Scale Test</locator>
     <locator row="14">D♯ something ()</locator>
     <locator row="20">Fsus4</locator>
@@ -15,8 +15,6 @@
     <locator row="68">E𝄫 something</locator>
     <locator row="72">F Major</locator>
     <locator row="128">Major Scale test</locator>
-  </locators>
-  <arrangement>
     <!--
         <note track="0" row="2" velocity="40" value="D𝄫4" uncertain="1" />
         <note track="0" row="4" velocity="40" value="C♯4" uncertain="1" />

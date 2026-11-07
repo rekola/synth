@@ -12,7 +12,7 @@
     <track id="0" instrument="i1" azimuth="30" distance="0" elevation="50" volume="1.0" preset="subtle" />
   </tracks>
   
-  <locators>
+  <arrangement>
     <locator row="0">Major</locator>
     <locator row="64">C minor</locator>
     <locator row="68">E𝄫</locator>
@@ -53,8 +53,6 @@
     <locator row="364">G narrow minor</locator>
     <locator row="384">C major harmonic seventh</locator>
     <locator row="388">C major harmonic seventh</locator>
-  </locators>
-  <arrangement>
     <pattern track="0">
       <note row="0" velocity="40">C-4</note>
       <note row="2" velocity="40">E𝄫4</note>

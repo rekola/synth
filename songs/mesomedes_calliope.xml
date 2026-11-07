@@ -32,8 +32,8 @@ The manuscript gives pitch and rhythm. Our realisation choices: the tempo
 (quarter = 80), the instruments, the intro and outro, and the reading of the
 note in bar 4. West has a g-sharp there, here E-up (81/64, the Pythagorean
 major third), the one note outside the scale; Winnington-Ingram reads g, here
-E-flat. The song is bars 1-12 in 2/4 and bar 13 in 12/8; a song has one time
-signature, so it is set in 2/4 and bar 13 is three of its bars. The
+E-flat. The song is bars 1-12 in 2/4 and bar 13 in 12/8; the 12/8 bar
+is a time signature change in the arrangement, back to 2/4 for the outro. The
 melismas (bar 4 E-up to C, bar 12 E-flat to F, bar 13 G to E-flat) are single
 syllables, so the singer takes no breath inside them. The lyre plays the
 melody, once an octave lower, and a drone on C and G at the start of each of
@@ -54,6 +54,8 @@ C D-flat E-flat F G A-flat B-flat = 1/1 256/243 32/27 4/3 3/2 128/81 16/9. In
 53-EDO's notation the gamut spells these C-sharp-up, E-flat-down, A-flat-down
 and B-flat-down.</notes>
     <arrangement>
+        <signature row="112" timeSignature="12/8"/>
+        <signature row="136" timeSignature="2/4"/>
         <pattern track="kymbala">
             <note row="16" velocity="40">TRM</note>
             <note row="64" velocity="36">TRM</note>

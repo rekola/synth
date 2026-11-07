@@ -8,10 +8,8 @@
     <track id="0" instrument="i1" sendA="-9.1186" />
   </tracks>
   
-  <locators>
-    <locator row="48">B𝄫3 narrow major</locator>
-  </locators>
   <arrangement>
+    <locator row="48">B𝄫3 narrow major</locator>
     <pattern track="0">
       <note row="0" column="0" velocity="40">C-3 G-3 C-4</note>
       <note row="2" column="2" velocity="40" value="Eb4" />

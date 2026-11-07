@@ -124,7 +124,7 @@ bool ArrangementPatternSource::startsBar(int, int row) const {
 bool ArrangementPatternSource::startsBeat(int, int row) const {
   if (row < 0) return false;
   auto bars = song().getArrangementBars();
-  return bars.rowInBar(row) % bars.beatRows() == 0;
+  return bars.rowInBar(row) % bars.beatRows(row) == 0;
 }
 
 double ArrangementPatternSource::trackScrollRate(int) const {

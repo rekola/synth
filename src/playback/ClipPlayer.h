@@ -53,6 +53,10 @@ class ClipPlayer {
   // next bar, along with the scene's own tempo if it has one
   // (Song::getSceneTempo()).
   void launchScene(int clip_index, const std::vector<int> & track_ids);
+  // With Record Arm on, a launched scene's tempo and time signature are
+  // written into the arrangement at the bar its clips are placed on, when
+  // they differ from what the arrangement has there.
+  void recordSceneChange(int clip_index);
   // Stop Clip for one track: silences it from the next bar, taking it over
   // from the arrangement if it wasn't already; a queued stop of its take
   // while recording; a stop instance in the arrangement with Record Arm

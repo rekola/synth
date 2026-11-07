@@ -11,7 +11,9 @@
 
   Render with:
     ./build/synth --render demo.wav songs/oscillator_demo.xml
-  and scrub/listen against the <locators> below, or open it in the UI and
+  and scrub/listen against the
+  <arrangement>
+ below, or open it in the UI and
   use the arrangement overview's locator column (each marks ›).
 -->
 <song temperament="31edo" tempo="90" timeSignature="1/4" volume="1.0">
@@ -205,9 +207,6 @@
     <locator row="216">PadSynth "Phased Choir" (choir-pad4 + phaser) - single note</locator>
     <locator row="224">PadSynth "Church Organ" (organ-pipe) - single note</locator>
     <locator row="232">PadSynth "Synth Brass" (brass.synth) - single note</locator>
-  </locators>
-
-  <arrangement>
     <!-- PadSynth keyboard (rows 0-31) -->
     <pattern track="0">
       <note row="0" value="C-4"/>

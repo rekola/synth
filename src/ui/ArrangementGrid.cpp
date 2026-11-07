@@ -653,11 +653,19 @@ ArrangementGrid::render(const StyleProvider & styles, bool refresh, bool focused
   // places wide characters, so nothing here counts characters as columns. A
   // locator that begins left of the view drops the columns that are out of it.
   int playing_col = smooth_playhead ? -1 : playing_bar - first_bar;
+  // The tempo and time signature changes are written the same way, at their bar.
+  map<int, string> header_by_bar;
+  auto add_header = [&](int row, const string & text) {
+    auto & slot = header_by_bar[bars.barIndex(row)];
+    slot += (slot.empty() ? "" : " ") + text;
+  };
+  for (auto & [locator_row, name] : locators) add_header(locator_row, "›" + name);
+  for (auto & [change_row, bpm] : song.getTempoChanges()) add_header(change_row, "♩" + to_string(bpm));
+  for (auto & [change_row, signature] : song.getSignatureChanges()) add_header(change_row, signature.toString());
   vector<pair<int, string>> locator_texts;
-  for (auto & [locator_row, name] : locators) {
-    auto locator_bar = bars.barIndex(locator_row);
+  for (auto & [locator_bar, text] : header_by_bar) {
     if (locator_bar >= first_bar + drawn_cols) break;
-    locator_texts.emplace_back(locator_bar - first_bar, "›" + name);
+    locator_texts.emplace_back(locator_bar - first_bar, text);
   }
   for (size_t i = 0; i < locator_texts.size(); i++) {
     auto [start, text] = locator_texts[i];

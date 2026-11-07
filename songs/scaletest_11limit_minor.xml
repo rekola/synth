@@ -8,7 +8,7 @@
     <track id="0" instrument="i1" azimuth="30" distance="0" elevation="50" volume="1.0" preset="subtle"/>
   </tracks>
   
-  <locators>
+  <arrangement>
     <locator row="0">C narrow major</locator>
     <locator row="4">Cx narrow minor aug</locator>
     <locator row="8">D# narrow minor aug</locator>
@@ -19,8 +19,6 @@
     <locator row="28">A minor</locator>
     <locator row="32">A# narrow minor</locator>
     <locator row="36">B narrow major</locator>
-  </locators>
-  <arrangement>
     <pattern track="0">
       <note row="0" velocity="40">C-4 D#4 F-4</note>
       <note row="4" velocity="40">Cx4 E-4 G-4</note>

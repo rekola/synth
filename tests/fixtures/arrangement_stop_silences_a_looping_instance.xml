@@ -15,10 +15,8 @@
       </pattern>
     </clip>
   </clips>
-  <locators>
-    <locator row="31">end</locator>
-  </locators>
   <arrangement>
+    <locator row="31">end</locator>
     <instance track="0" row="0" clip="c0"/>
     <instance track="0" row="8"/>
   </arrangement>

@@ -216,11 +216,9 @@
         </pattern>
       </clip>
     </clips>
-    <locators>
+    <arrangement>
         <locator row="0">C Minor</locator>
         <locator row="128">C Minor</locator>
-    </locators>
-    <arrangement>
         <instance track="chords" row="0" clip="chords-a"/>
         <instance track="chords" row="128" clip="chords-b"/>
         <instance track="chords" row="256"/>

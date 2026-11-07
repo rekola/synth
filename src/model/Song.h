@@ -150,7 +150,21 @@ class Song : public SongObject {
   // Song::Edit.
   TimeSignature getTimeSignature() const { return { read(songschema::kTimeNumerator), read(songschema::kTimeDenominator) }; }
   void setTimeSignature(TimeSignature signature);
-  BarGrid getArrangementBars() const { return {getTimeSignature(), 0}; }
+  // The arrangement's bars: the song's signature from row 0, then its
+  // signature changes (below), which each count bars from their row.
+  ArrangementBars getArrangementBars() const { return {getTimeSignature(), getArrangement().getSignatureChanges()}; }
+
+  // Tempo and signature changes stored in the arrangement, by absolute row.
+  // From a change's row on the tempo/bars are the change's, until the next;
+  // before the first the song's own values apply. A bpm of 0 or an unset
+  // signature removes the change at that row. Callers sit in a Song::Edit.
+  std::map<int, int> getTempoChanges() const { return getArrangement().getTempoChanges(); }
+  std::map<int, TimeSignature> getSignatureChanges() const { return getArrangement().getSignatureChanges(); }
+  // The tempo at `row` of the arrangement: the last change at or before it,
+  // else the song's (a ZTxx command is not looked at).
+  int getArrangementTempoAt(int row) const;
+  void setTempoChange(int row, int bpm);
+  void setSignatureChange(int row, TimeSignature signature);
 
   // The signature a launched scene set, counted from the bar it launched
   // on (saved as transportTimeSignature/transportBarOrigin). The audio
@@ -169,7 +183,7 @@ class Song : public SongObject {
   }
 
   // The bars in force at `row`, as the UI thread knows them.
-  BarGrid getBarsAt(int row) const { return barsAt(getTimeSignature(), getRunningBars(), row); }
+  BarGrid getBarsAt(int row) const { return barsAt(getArrangementBars(), getRunningBars(), row); }
   int barStartAtOrBefore(int row) const { return getBarsAt(row).barStart(row); }
   int rowInBar(int row) const { return getBarsAt(row).rowInBar(row); }
   bool isBarStart(int row) const { return rowInBar(row) == 0; }
@@ -190,7 +204,7 @@ class Song : public SongObject {
   // Locators: named moments of the whole song ("chorus starts here", a
   // chord's name) rather than of any one track's content, keyed by
   // absolute row - shown in the pattern editor's locator column
-  // (<locators><locator row="N">name</locator>).
+  // (<arrangement><locator row="N">name</locator>).
   const std::string & getLocator(int row) const;
   // An empty name removes the locator.
   void setLocator(int row, std::string name);
@@ -598,21 +612,20 @@ class Song : public SongObject {
   std::vector<int> getPlayableTrackIds() const;
 
 private:
-  // The song-level state lives in the document, on the root node (scalars)
-  // and its scenes/locators slots; these accessors are the typed view of it.
-  // A write opens its own Edit, which joins the caller's if there is one.
-  template <typename T>
-  T read(const doc::Prop<T> & prop) const { return doc::get(*doc_, doc_->root(), prop); }
-  template <typename T>
-  void write(const char * label, const doc::Prop<T> & prop, T value) {
-    Edit edit(*this, label);
-    doc::set(*doc_, doc_->root(), prop, value);
+ // The song-level state lives in the document, on the root node (scalars)
+ // and its scenes slot; these accessors are the typed view of it.
+ // A write opens its own Edit, which joins the caller's if there is one.
+ template <typename T>
+ T read(const doc::Prop<T> & prop) const { return doc::get(*doc_, doc_->root(), prop); }
+ template <typename T>
+ void write(const char * label, const doc::Prop<T> & prop, T value) {
+   Edit edit(*this, label);
+   doc::set(*doc_, doc_->root(), prop, value);
   }
   int sceneCount() const;
   void clearScenes();
   doc::NodeId sceneNode(int scene) const;
-  doc::NodeId ensureSceneNode(int scene);  // kNoNode for a negative scene
-  size_t locatorIndex(int row) const;      // first locator at or after `row`
+  doc::NodeId ensureSceneNode(int scene); // kNoNode for a negative scene
   mutable std::unique_ptr<doc::Document> doc_ = std::make_unique<doc::Document>();
   // The audio behind the score's "sample" nodes. A pointer so views can keep
   // theirs when the Song moves.

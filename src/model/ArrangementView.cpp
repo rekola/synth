@@ -52,6 +52,110 @@ ArrangementView::instanceIndex(int track_id, int row) const {
   return lo;
 }
 
+size_t
+ArrangementView::locatorIndex(int row) const {
+  auto & list = ids(kArrangementLocatorsSlot);
+  size_t lo = 0, hi = list.size();
+  while (lo < hi) {
+    auto mid = (lo + hi) / 2;
+    if (doc::get(*context_.document, list[mid], kLocatorRow) < row)
+      lo = mid + 1;
+    else
+      hi = mid;
+  }
+  return lo;
+}
+
+const std::string &
+ArrangementView::getLocator(int row) const {
+  static const std::string none;
+  auto index = locatorIndex(row);
+  auto & list = ids(kArrangementLocatorsSlot);
+  if (index >= list.size() || doc::get(*context_.document, list[index], kLocatorRow) != row) return none;
+  return doc::getRef(*context_.document, list[index], kLocatorText);
+}
+
+void ArrangementView::setLocator(int row, const std::string & name) {
+  auto index = locatorIndex(row);
+  auto & list = ids(kArrangementLocatorsSlot);
+  bool exists = index < list.size() && doc::get(*context_.document, list[index], kLocatorRow) == row;
+  if (name.empty()) {
+    if (exists) context_.document->removeChild(node_, kArrangementLocatorsSlot, index);
+  } else if (exists) {
+    doc::set(*context_.document, list[index], kLocatorText, name);
+  } else {
+    auto node = context_.document->create("locator", {{kLocatorRow.key, doc::toValue(row)}, {kLocatorText.key, doc::toValue(name)}});
+    context_.document->insertChild(node_, kArrangementLocatorsSlot, index, node);
+  }
+}
+
+std::map<int, std::string>
+ArrangementView::getLocators() const {
+  std::map<int, std::string> out;
+  for (auto node : ids(kArrangementLocatorsSlot)) out[doc::get(*context_.document, node, kLocatorRow)] = doc::get(*context_.document, node, kLocatorText);
+  return out;
+}
+
+void ArrangementView::setTempoChange(int row, int bpm) {
+  auto & list = ids(kArrangementTemposSlot);
+  size_t lo = 0, hi = list.size();
+  while (lo < hi) {
+    auto mid = (lo + hi) / 2;
+    if (doc::get(*context_.document, list[mid], kTempoRow) < row)
+      lo = mid + 1;
+    else
+      hi = mid;
+  }
+  bool exists = lo < list.size() && doc::get(*context_.document, list[lo], kTempoRow) == row;
+  if (bpm <= 0) {
+    if (exists) context_.document->removeChild(node_, kArrangementTemposSlot, lo);
+  } else if (exists) {
+    doc::set(*context_.document, list[lo], kTempoBpm, bpm);
+  } else {
+    context_.document->insertChild(node_, kArrangementTemposSlot, lo, context_.document->create("tempo", {{kTempoRow.key, doc::toValue(row)}, {kTempoBpm.key, doc::toValue(bpm)}}));
+  }
+}
+
+void ArrangementView::setSignatureChange(int row, TimeSignature signature) {
+  auto & list = ids(kArrangementSignaturesSlot);
+  size_t lo = 0, hi = list.size();
+  while (lo < hi) {
+    auto mid = (lo + hi) / 2;
+    if (doc::get(*context_.document, list[mid], kSignatureRow) < row)
+      lo = mid + 1;
+    else
+      hi = mid;
+  }
+  bool exists = lo < list.size() && doc::get(*context_.document, list[lo], kSignatureRow) == row;
+  if (!signature.isSet()) {
+    if (exists) context_.document->removeChild(node_, kArrangementSignaturesSlot, lo);
+  } else if (exists) {
+    doc::set(*context_.document, list[lo], kSignatureNumerator, signature.numerator);
+    doc::set(*context_.document, list[lo], kSignatureDenominator, signature.denominator);
+  } else {
+    context_.document->insertChild(node_, kArrangementSignaturesSlot, lo,
+                                   context_.document->create("signature", {{kSignatureRow.key, doc::toValue(row)},
+                                                                           {kSignatureNumerator.key, doc::toValue(signature.numerator)},
+                                                                           {kSignatureDenominator.key, doc::toValue(signature.denominator)}}));
+  }
+}
+
+std::map<int, int>
+ArrangementView::getTempoChanges() const {
+  std::map<int, int> out;
+  for (auto node : ids(kArrangementTemposSlot)) out[doc::get(*context_.document, node, kTempoRow)] = doc::get(*context_.document, node, kTempoBpm);
+  return out;
+}
+
+std::map<int, TimeSignature>
+ArrangementView::getSignatureChanges() const {
+  std::map<int, TimeSignature> out;
+  for (auto node : ids(kArrangementSignaturesSlot)) {
+    out[doc::get(*context_.document, node, kSignatureRow)] = {doc::get(*context_.document, node, kSignatureNumerator), doc::get(*context_.document, node, kSignatureDenominator)};
+  }
+  return out;
+}
+
 PatternView
 ArrangementView::findPattern(int track_id) const {
   auto index = patternIndex(track_id);
@@ -227,6 +331,8 @@ ArrangementView::toArrangement() const {
   for (auto & [ track_id, instances ] : getInstancesByTrack()) {
     for (auto & [ row, clip_id ] : instances) out.setInstance(track_id, row, clip_id);
   }
+  for (auto & [row, bpm] : getTempoChanges()) out.setTempoChange(row, bpm);
+  for (auto & [row, signature] : getSignatureChanges()) out.setSignatureChange(row, signature);
   for (auto & [ track_id, content ] : getSampleBackgroundsByTrack()) out.getOrCreateSampleBackgroundContent(track_id) = content;
   return out;
 }

@@ -253,6 +253,9 @@ static vector<MenuSectionSpec> menuSpec(vector<MenuItemSpec> buffer_items) {
                         {"Set Scale...", "", "set-song-scale"},
                         {"Set Tuning System...", "", "set-song-tuning"},
                         {"Set Time Signature...", "", "set-time-signature"},
+                        {"Set Signature Change...", "", "set-signature-change"},
+                        {"Set Tempo Change...", "", "set-tempo-change"},
+                        {"Clear Changes", "", "clear-arrangement-changes"},
                         {nullptr, nullptr, nullptr},
                         {"Set Bus Effect A...", "", "set-bus-effect-a"},
                         {"Set Bus Effect B...", "", "set-bus-effect-b"},
@@ -986,6 +989,58 @@ InteractiveUI::initializeWidgets() {
       Song::Edit edit(song, "set time signature");
       song.setTimeSignature(*signature);
       setStatus("Time signature " + signature->toString()); }, getController().getSong().getTimeSignature().toString());
+  });
+
+  // A time signature or tempo change in the arrangement, at the bar under
+  // the arrangement grid's cursor (Arrangement view). Prefilled with what is
+  // in force there; clear-arrangement-changes removes both at that bar.
+  commands_.define("set-signature-change", [this]() {
+    if (getView() != View::ARRANGEMENT) {
+      setStatus("Time signature changes are set in Arrangement view");
+      return;
+    }
+    auto & song = getController().getSong();
+    auto row = arrangement_grid_->getCursorRow(song);
+    status_line_->showPrompt("Time signature from this bar (n/d): ", [this, row](const std::string & typed) {
+      if (typed.empty()) return;
+      auto signature = TimeSignature::parse(typed);
+      if (!signature || !signature->isSet()) { setStatus("Not a time signature: " + typed); return; }
+      auto & edited = getController().getSong();
+      Song::Edit edit(edited, "set time signature change");
+      edited.setSignatureChange(row, *signature);
+      setStatus("Time signature " + signature->toString() + " from bar " + std::to_string(edited.getArrangementBars().barIndex(row) + 1)); }, song.getArrangementBars().gridAt(row).signature.toString());
+  });
+  commands_.define("set-tempo-change", [this]() {
+    if (getView() != View::ARRANGEMENT) {
+      setStatus("Tempo changes are set in Arrangement view");
+      return;
+    }
+    auto & song = getController().getSong();
+    auto row = arrangement_grid_->getCursorRow(song);
+    status_line_->showPrompt("Tempo from this bar (BPM): ", [this, row](const std::string & typed) {
+      if (typed.empty()) return;
+      int bpm = 0;
+      for (auto c : typed) {
+        if (c < '0' || c > '9' || bpm > 1000) { bpm = 0; break; }
+        bpm = bpm * 10 + (c - '0');
+      }
+      if (bpm < 20 || bpm > 300) { setStatus("Not a tempo (20-300): " + typed); return; }
+      auto & edited = getController().getSong();
+      Song::Edit edit(edited, "set tempo change");
+      edited.setTempoChange(row, bpm);
+      setStatus("Tempo " + std::to_string(bpm) + " from bar " + std::to_string(edited.getArrangementBars().barIndex(row) + 1)); }, std::to_string(song.getArrangementTempoAt(row)));
+  });
+  commands_.define("clear-arrangement-changes", [this]() {
+    if (getView() != View::ARRANGEMENT) {
+      setStatus("Changes are cleared in Arrangement view");
+      return;
+    }
+    auto & song = getController().getSong();
+    auto row = arrangement_grid_->getCursorRow(song);
+    Song::Edit edit(song, "clear tempo and time signature changes");
+    song.setTempoChange(row, 0);
+    song.setSignatureChange(row, {});
+    setStatus("Cleared the tempo and time signature change at this bar");
   });
 
   // C-x C-x (exchange-point-and-mark) is a PatternEditor-owned command (the

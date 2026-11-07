@@ -40,7 +40,7 @@
     <track id="5" name="Harpsichord" instrument="i6"/>
     <track id="6" name="Ideal bar" instrument="i7"/>
   </tracks>
-  <locators>
+  <arrangement>
     <locator row="0">Piano</locator>
     <locator row="64">Plain string</locator>
     <locator row="128">Nylon guitar</locator>
@@ -48,8 +48,6 @@
     <locator row="256">Harp</locator>
     <locator row="320">Harpsichord</locator>
     <locator row="384">Ideal bar</locator>
-  </locators>
-  <arrangement>
     <pattern track="0">
       <note row="0" value="C-4"/>
       <note row="3" value="D-4"/>

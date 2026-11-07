@@ -46,7 +46,7 @@ Nothing is written for 4/4.
 
 `set-time-signature` (also in the Song menu as *Set Time Signature...*) asks
 for it; the prompt is filled with the current one, so Enter alone changes
-nothing. The arrangement counts its bars in it from row 0: the arrangement
+nothing. The arrangement counts its bars in it from row 0 (until a change, below): the arrangement
 grid (one row per bar), the bar and beat accents in Arrangement view, where
 clips and stops are placed, how an arrangement recording is rounded to bars,
 copy-to-clip rounding in Arrangement view, and the arrangement's length. The
@@ -55,6 +55,28 @@ info line shows the signature in force next to the tempo.
 Changing it moves no content: arrangement content is positioned by absolute
 row, so only how rows are grouped into bars changes, never when anything
 sounds.
+
+### Changes in the arrangement
+
+The song's signature holds from row 0 until the first **signature change**:
+an object of the arrangement (like a clip instance) that says that from its
+row on, bars are counted in a new signature, from that row.
+
+```xml
+<arrangement>
+  <signature row="112" timeSignature="12/8"/>
+  <signature row="136" timeSignature="2/4"/>
+```
+
+Bars are numbered straight across the changes (`ArrangementBars`,
+`Song::getArrangementBars()`), so a 12/8 bar in a 2/4 song is one bar, number
+13. A change belongs on a bar start of the bars before it; one that is not cuts
+the bar before it short. The arrangement grid writes each change in its header
+at its bar (`3/4`, next to the locators and tempo changes `♩90`).
+In Arrangement view, `set-signature-change` sets one at the bar under the
+cursor, `set-tempo-change` does the same for the tempo and
+`clear-arrangement-changes` removes both there (Song menu). Recording a live
+show writes them (scenes.md section 3).
 
 ## 3. The running signature
 
@@ -67,7 +89,13 @@ By default that is the song's. Launching a scene that has a time signature
 sets the **running signature**: the transport counts bars of that signature
 from the launch bar (its *origin* row) onward. Rows before the origin keep
 the song's bars, so the launch bar itself is a bar start of both. The song's
-own signature is untouched, so a scene never re-bars the arrangement.
+own signature and its changes are untouched, so a scene never re-bars the
+arrangement; recording a live show with Record Arm on writes the scene's
+signature into the arrangement as a change.
+
+The arrangement's signature changes (above) apply under it: while a scene's
+running signature is active it counts the bars; Back to Arrangement returns
+to the arrangement's at that row.
 
 The running signature ends when:
 - another scene with a time signature launches, which replaces it; or
@@ -89,7 +117,7 @@ shown and edited in the running signature, which is also what it plays in.
 
 ## 4. Which bars each part uses
 
-| The song's bars | The running bars (else the song's) |
+| The arrangement's bars (the song's with its changes) | The running bars (else the arrangement's) |
 |---|---|
 | Arrangement grid and its bar numbers | Applying queued launches and stops on the bar |
 | Arrangement-view row accents | Pattern break (ZBxx) |
