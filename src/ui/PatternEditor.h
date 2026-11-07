@@ -552,6 +552,9 @@ private:
   // (scrollView()/scrollViewTracks()); the next cursor move reattaches it.
   int view_block_ = 0;
   bool view_detached_ = false;
+  // Tracks scrolled sideways by hand; survives the playhead reattaching the
+  // rows (Live View), ends when the cursor moves to another cell.
+  bool tracks_detached_ = false;
   // Scroll the view (not the cursor) by rows, or by whole tracks sideways.
   static constexpr int kWheelRows = 3; // rows one wheel notch scrolls, before acceleration
   cellui::WheelAcceleration wheel_acceleration_;
