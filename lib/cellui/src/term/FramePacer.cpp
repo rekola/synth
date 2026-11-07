@@ -203,7 +203,7 @@ void FramePacer::onAck(TimePoint t_ack) {
     double d_us = typicalDelayUs();
     // Saturation-grade: the pipe was full when it was sent, so the frame's time is the link's. Probe-grade:
     // sent faster than the estimate, and big enough that its time at the estimate is above the floor.
-    double floor_bytes = std::min(static_cast<double>(config_.grade_floor_bytes), bandwidth_ * floor_s);
+    double floor_bytes = std::min(static_cast<double>(config_.grade_floor_bytes), config_.saturation_fraction * bandwidth_ * floor_s);
     double grade_bytes = std::max(config_.saturation_fraction * bandwidth_ * d_us * 1e-6, floor_bytes);
     bool saturated = d_us > 0 && static_cast<double>(f.in_flight_at_send) >= grade_bytes;
     bool probe_grade = f.probing && payload / bandwidth_ >= floor_s;

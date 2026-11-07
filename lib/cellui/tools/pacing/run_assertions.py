@@ -179,7 +179,8 @@ def t8(probe):
     seen = []
     ok = True
     for img, bw, want in cases:
-        res, log = run(probe, Link(bandwidth=bw, up_ms=5, down_ms=5), ["--mode", "churn", "--seconds", "13", "--img", img])
+        # The slowest link is classed last (frames of a kilobyte, a class change needs seconds of a bound link).
+        res, log = run(probe, Link(bandwidth=bw, up_ms=5, down_ms=5), ["--mode", "churn", "--seconds", "20" if bw < 50e3 else "13", "--img", img])
         link = log.get("link", {})
         got, changes = int(link.get("class", -1)), int(link.get("changes", 99))
         ok = ok and got == want and changes <= 1

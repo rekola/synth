@@ -63,7 +63,8 @@ struct PacerConfig {
   double saturation_fraction = 0.75;
   // Whatever B*D says, fewer bytes in flight than this is never a full pipe: on a terminal that answers in
   // 0.2 ms, 0.75*B*D is a few hundred bytes, and every small frame would count as saturation-grade. On a slow
-  // link the whole window is smaller than this, so the floor is also at most `sample_floor` of data at B.
+  // link the whole window is smaller than this, so the floor is also at most `saturation_fraction` of `sample_floor` of data at B
+  // (it never exceeds what a response delay of `sample_floor` would ask).
   size_t grade_floor_bytes = 64 * 1024;
   // Every `probe_every` frames one is sent `probe_gain` times faster than
   // the estimate, to find headroom. Probe frames are left out of the lag rule.
