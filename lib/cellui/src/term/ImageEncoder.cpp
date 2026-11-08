@@ -133,6 +133,46 @@ constexpr size_t kPartialBelowPercent = 80;
 
 int percent(int v) { return static_cast<int>(std::lround(v * 100.0 / 255.0)); }
 
+// The terminal's own default 256-colour palette beyond the 16 base colours (the 6x6x6 cube and 24 greys:
+// entries 16 to 255), as a fixed palette: register n is entry n + 16. A picture drawn in it carries no
+// palette of its own to compute, and a smooth dark gradient maps to long runs of a few greys.
+constexpr int kXtermCube[6] = {0, 95, 135, 175, 215, 255};
+constexpr int kXtermRegisters = 240;
+
+uint32_t xtermColour(int reg) {
+  int index = reg + 16, r, g, b;
+  if (index >= 232) {
+    r = g = b = 8 + 10 * (index - 232);
+  } else {
+    int i = index - 16;
+    r = kXtermCube[i / 36];
+    g = kXtermCube[(i / 6) % 6];
+    b = kXtermCube[i % 6];
+  }
+  return (static_cast<uint32_t>(r) << 16) | (static_cast<uint32_t>(g) << 8) | static_cast<uint32_t>(b);
+}
+
+// Of the two entries around `v` on a ramp, the upper one when v lies above `threshold` of the way between.
+int xtermLevel(int v, const int * levels, int count, float threshold) {
+  int i = 0;
+  while (i + 2 < count && v >= levels[i + 1]) i++;
+  float span = static_cast<float>(levels[i + 1] - levels[i]);
+  float frac = std::clamp(static_cast<float>(v - levels[i]) / span, 0.0f, 1.0f);
+  return frac > threshold ? i + 1 : i;
+}
+
+// A pixel's register in the fixed palette by ordered dithering: each channel between its two cube levels,
+// a grey on the grey ramp (the cube's black and white at its ends).
+int xtermRegister(int r, int g, int b, float threshold) {
+  int hi = std::max({r, g, b}), lo = std::min({r, g, b});
+  if (hi - lo < 12) {
+    static const int kGreys[26] = {0, 8, 18, 28, 38, 48, 58, 68, 78, 88, 98, 108, 118, 128, 138, 148, 158, 168, 178, 188, 198, 208, 218, 228, 238, 255};
+    int k = xtermLevel((r + g + b) / 3, kGreys, 26, threshold);
+    return (k == 0 ? 16 : k == 25 ? 231 : 232 + (k - 1)) - 16;
+  }
+  return 36 * xtermLevel(r, kXtermCube, 6, threshold) + 6 * xtermLevel(g, kXtermCube, 6, threshold) + xtermLevel(b, kXtermCube, 6, threshold);
+}
+
 // The 8-bit level a Sixel colour definition (percent) makes of `v`: the level the terminal shows.
 int onSixelGrid(int v) { return static_cast<int>(std::lround(percent(v) * 255.0 / 100.0)); }
 
@@ -160,6 +200,7 @@ ImageEncoder::Profile ImageEncoder::Profile::from(const Capabilities & caps) {
   p.cell_px_width = caps.display.cell_px_width;
   p.sixel_setup = caps.sixel_setup;
   if (caps.sixel_registers > 0) p.sixel_registers = std::min(caps.sixel_registers, 128);
+  p.sixel_registers_total = caps.sixel_registers;
   return p;
 }
 
@@ -200,6 +241,7 @@ struct SixelPalette {
   bool exact = false;         // every pixel's colour is a register: nothing to dither
   bool grid = false;          // colours are first put on the 101 levels a Sixel colour definition has
   bool grid_dither = false;   // and a gradient (more colours than registers) is dithered between those levels
+  bool fixed = false;         // the terminal's default palette (kXtermRegisters registers), not made from the picture
   std::unordered_map<uint32_t, int> index;  // (exact) colour -> register
 };
 
@@ -351,6 +393,13 @@ SixelPalette makeSixelPalette(const Image & image, int x0, int y0, int width, in
   return palette;
 }
 
+SixelPalette xtermPalette() {
+  SixelPalette palette;
+  palette.fixed = true;
+  for (int reg = 0; reg < kXtermRegisters; reg++) palette.rgb.push_back(xtermColour(reg));
+  return palette;
+}
+
 // The pixels as Sixel in the colours of `palette`: covered pixels (`keep` false, one entry per pixel)
 // are left transparent. A palette that holds the picture's colours exactly draws them as they are;
 // otherwise each pixel goes to the nearest register, after the dither's offset or with its error
@@ -366,6 +415,21 @@ std::vector<int> mapToRegisters(const SixelPalette & palette, const Image & imag
   std::vector<int> regs(static_cast<size_t>(width) * static_cast<size_t>(height), -1);
   transparent = transparent || height % 6 != 0;
   auto left_out = [&](size_t i, uint32_t p) { return !keep[i] || Image::alpha(p) < 192; };
+  if (palette.fixed) {
+    for (int y = 0; y < height; y++) {
+      for (int x = 0; x < width; x++) {
+        size_t i = static_cast<size_t>(y) * static_cast<size_t>(width) + static_cast<size_t>(x);
+        uint32_t p = pixel(x, y);
+        if (left_out(i, p)) {
+          transparent = true;
+          continue;
+        }
+        float threshold = dither.method == Dither::Method::ORDERED ? bayer8(dither.origin_x + x, dither.origin_y + y) : 0.5f;
+        regs[i] = xtermRegister(Image::red(p), Image::green(p), Image::blue(p), threshold);
+      }
+    }
+    return regs;
+  }
   std::unordered_map<uint32_t, int> cache;  // (offset) colour -> nearest register
   auto nearest = [&](int r, int g, int b) {
     uint32_t key = (static_cast<uint32_t>(r) << 16) | (static_cast<uint32_t>(g) << 8) | static_cast<uint32_t>(b);
@@ -947,7 +1011,10 @@ std::string ImageEncoder::sixel(const CellBuffer & frame, const ImagePlacement &
     palette_dither.origin_x = p.col * cw + x;
     palette_dither.origin_y = p.row * ch + y;
     palette_dither.gradient = p.image->stretched();
-    SixelPalette palette = makeSixelPalette(img, x, y, w, h, all, registers, true, &palette_dither);
+    // A blurred backdrop (stretched over its cells) at full quality goes out in the terminal's default
+    // palette where it has the registers for it: quicker than one made from the picture, in duller colours.
+    bool fixed = p.image->stretched() && quality_ == PictureQuality::FULL && profile_.sixel_registers_total >= kXtermRegisters;
+    SixelPalette palette = fixed ? xtermPalette() : makeSixelPalette(img, x, y, w, h, all, registers, true, &palette_dither);
     // The cells to send are a row of them at a time, from the first that changed to the last: each Sixel
     // carries the definitions of its registers, which cost more than the cells between two changes.
     std::vector<std::pair<int, int>> spans(static_cast<size_t>(r.rows), {r.cols, -1});

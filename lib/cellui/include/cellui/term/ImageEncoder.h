@@ -70,6 +70,8 @@ class ImageEncoder {
     // The colour registers one Sixel image may use (the terminal's count, at most 128: more only cost
     // bytes and passes).
     int sixel_registers = 128;
+    // The terminal's own register count, which decides whether its default palette can be used.
+    int sixel_registers_total = 256;
     Dither::Method dither = Dither::Method::ORDERED;
     static Profile from(const Capabilities & caps);
   };
