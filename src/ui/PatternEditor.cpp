@@ -1586,6 +1586,27 @@ PatternEditor::render(const StyleProvider & styles, bool refresh, bool focused) 
     need_redraw = true;
   }
 
+  // A note that has just started fades out frame by frame: redraw the rows around each
+  // playhead that can still hold a lit one.
+  if (!render_all && info.isPlaying()) {
+    double row_seconds = info.getRowSeconds();
+    int lit_rows = row_seconds > 0.0 ? std::clamp(static_cast<int>(std::ceil(StyleProvider::kNoteFlashSeconds / row_seconds)), 1, 8) : 1;
+    std::vector<int> lines;
+    for (int id : track_ids) {
+      if (isLiveMode() ? !source_->trackHasPlayhead(id) : !source_->cursorFollowsTransport()) continue;
+      int line = source_->rowsBetween(RowAddress{view_block_, current_scroll_.row}, source_->trackCursor(id));
+      for (int back = 0; back <= lit_rows; back++) lines.push_back(line - back);
+    }
+    std::sort(lines.begin(), lines.end());
+    lines.erase(std::unique(lines.begin(), lines.end()), lines.end());
+    for (int line : lines) {
+      if (line < 0 || line >= rows - heading_height + (rowsShifted() ? 1 : 0)) continue;
+      auto address = source_->normalize(view_block_, line + draw_row0_);
+      renderRow(styles, heading_height, track_ids, track_info, line, address.block == score_pattern && address.row == score_playing_row, sel_bounds, focused);
+      need_redraw = true;
+    }
+  }
+
   updateCursorBands(styles, track_ids, heading_height, rows, RowAddress{view_block_, new_row}, focused);
   if (bands_changed_) need_redraw = true;
 
@@ -3395,6 +3416,17 @@ PatternEditor::renderRow(const StyleProvider & styles, int heading_height, const
   };
   auto clip_digit = [&](int clip_index) { return string(kSuperscriptHexDigits[clip_index % 16]); };
 
+  // How lit a note is by its attack (0 to 1): from when the track's playhead reached it,
+  // its delay included, until kNoteFlashSeconds later. Not for a track that isn't playing.
+  const auto & play_info = getController().getPlaybackInfo();
+  auto noteFlashOf = [&](int track_id, const Note & note) -> float {
+    if (!playing_now || (isLiveMode() ? !source_->trackHasPlayhead(track_id) : !source_->cursorFollowsTransport())) return 0.0f;
+    double row_seconds = play_info.getRowSeconds();
+    if (row_seconds <= 0.0) return 0.0f;
+    double rows_since = source_->rowsBetween(address, source_->trackCursor(track_id)) + playPhase(play_info) - note.getDelay() / 256.0;
+    return StyleProvider::noteFlash(rows_since * row_seconds, styles.reduced_motion);
+  };
+
   // One pattern row's slice of a sample clip's waveform, drawn by the
   // display's scopes across `width` cells from start_col: each time slice of
   // the row (WaveformPeaks, cellui::kWaveformSlices to a row) is a bar
@@ -3915,7 +3947,14 @@ PatternEditor::renderRow(const StyleProvider & styles, int heading_height, const
 	  cell_fg = cell_is_selected ? cur_fg : tintForPlayhead(fg);
 	  cell_bg = cell_is_selected ? cur_bg : tintForPlayhead(bg);
 	  if (!note.isDefined()) cell_fg = cell_fg.blend(0.5f, cell_bg);
-	  setFgColor(cell_fg);
+          // A note that has just started is lit past white; the display decides how that looks.
+          if (!cell_is_selected && track_dim <= 0.0f && note.isDefined() && !note.isOff()) {
+            if (float flash = noteFlashOf(track_id, note); flash > 0.0f) {
+              cell_fg = cell_fg * (1.0f + (StyleProvider::kNoteFlashGain - 1.0f) * flash);
+              cell_bg = cell_bg.mix(track_info.getColor(styles.tracks) * StyleProvider::kNoteFlashGain, StyleProvider::kNoteFlashBgMix * flash);
+            }
+          }
+          setFgColor(cell_fg);
 	  setBgColor(cell_bg);
 	  auto s = note.toString(tuning);
 	  while (s.size() < 3) s += ' ';

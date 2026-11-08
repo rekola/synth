@@ -43,6 +43,11 @@ class PlaybackInfo {
   // Zero while paused: the position inside a row is only meaningful while rows advance.
   int getCurrentDelay() const { return is_playing_ && sample_interval_ > 0 ? 256 * sample_pos_ / sample_interval_ : 0; }
 
+  // How long a row lasts at the current tempo, in seconds (0 until known).
+  double getRowSeconds() const {
+    return sample_interval_ > 0 && outSampleRate_ > 0 ? static_cast<double>(sample_interval_) / outSampleRate_ : 0.0;
+  }
+
   // The round-trip latency of live input - the playback queue plus the
   // capture queue, plus whatever monitored input is waiting - while
   // capture runs (recording, threshold-armed or monitoring), else -1.

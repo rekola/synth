@@ -1,6 +1,7 @@
 #include "TestFramework.h"
 
 #include <cellui/Color.h>
+#include <cellui/StyleProvider.h>
 
 #include <clocale>
 #include <set>
@@ -190,4 +191,16 @@ TEST(color_parsing_ignores_the_locale_decimal_separator) {
   if (!comma) return;  // no such locale installed here
   CHECK(parsed == Color::fromOklch(0.75f, 0.15f, 60.0f));
   CHECK(percent == Color::fromOklch(0.75f, 0.15f, 60.0f));
+}
+
+TEST(note_flash_is_full_at_the_attack_and_gone_after_its_time) {
+  CHECK_NEAR(cellui::StyleProvider::noteFlash(0.0, false), 1.0f, 1e-6f);
+  CHECK(cellui::StyleProvider::noteFlash(0.05, false) > cellui::StyleProvider::noteFlash(0.15, false));
+  CHECK(cellui::StyleProvider::noteFlash(-0.01, false) == 0.0f); // not started yet
+  CHECK(cellui::StyleProvider::noteFlash(cellui::StyleProvider::kNoteFlashSeconds, false) == 0.0f);
+}
+
+TEST(note_flash_without_motion_is_a_step) {
+  CHECK(cellui::StyleProvider::noteFlash(0.01, true) == 1.0f);
+  CHECK(cellui::StyleProvider::noteFlash(cellui::StyleProvider::kNoteFlashSeconds * 0.75, true) == 0.0f);
 }
