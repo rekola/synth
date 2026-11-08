@@ -206,7 +206,7 @@ std::string encodeSixelLegacy(const Image & image, int x0, int y0, int width, in
         transparent = true;
         continue;
       }
-      regs[i] = cubeLevelsN() ? cubeRegister(Image::red(p), Image::green(p), Image::blue(p), bayer8(origin_x + x, origin_y + y))
+      regs[i] = cubeLevelsN() ? cubeRegister(Image::red(p), Image::green(p), Image::blue(p), std::getenv("CELLUI_SIXEL_NODITHER") ? 0.5f : bayer8(origin_x + x, origin_y + y))
                               : legacyIndex(Image::red(p), Image::green(p), Image::blue(p), bayer8(origin_x + x, origin_y + y)) - 16;
       used.insert(regs[i]);
     }
