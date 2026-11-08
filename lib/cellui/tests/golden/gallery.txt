@@ -22,7 +22,7 @@ Wide colours and their clip
  srgb green              #00ff00  Y 0.72
  display-p3 green        #00f74f  Y 0.69
  rec2020 green           #00ed7e  Y 0.68
- red LED, 6x             #ff5d5a  Y 1.86
+ red LED, 6x             #ffeeee  Y 1.86
  white, 3x               #ffffff  Y 3.00
 
 Level meter ramp

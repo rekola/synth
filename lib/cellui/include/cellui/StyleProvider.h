@@ -119,6 +119,30 @@ class StyleProvider {
   bool window_focused = true;
   Color cursor_row_tint_color;
   static constexpr float kRowTintAlpha = 0.35f;
+  // A note that has just started is lit past white (linear light, 1 = SDR white);
+  // each display decides what that looks like, and the light falls back to
+  // normal over kNoteFlashSeconds.
+  static constexpr float kNoteFlashGain = 2.5f;
+  static constexpr float kNoteFlashSeconds = 0.7f;
+  // The least a lit colour peaks at (its brightest channel), so a dim colour lights up as much as a bright one.
+  static constexpr float kNoteFlashPeak = 2.0f;
+  // 1 at the moment of the attack, falling to 0 after kNoteFlashSeconds; a reduced-motion
+  // display gets the first half at full strength and then nothing.
+  static float noteFlash(double age_seconds, bool reduced_motion) {
+    if (age_seconds < 0.0 || age_seconds >= kNoteFlashSeconds) return 0.0f;
+    float left = 1.0f - static_cast<float>(age_seconds / kNoteFlashSeconds);
+    return reduced_motion ? (left > 0.5f ? 1.0f : 0.0f) : left;
+  }
+  // How much of a full flash a note of this velocity (0 to 127) gets: half, up to all.
+  static float velocityFlash(int velocity) { return 0.5f + 0.5f * static_cast<float>(std::clamp(velocity, 0, 127)) / 127.0f; }
+  // `c` lit by `flash` (0 to 1): its brightest channel taken from where it is toward
+  // the larger of kNoteFlashGain times that and kNoteFlashPeak.
+  static Color lit(const Color & c, float flash) {
+    float peak = std::max({ c.r(), c.g(), c.b() });
+    if (!(flash > 0.0f) || !(peak > 0.0f)) return c;
+    float scale = std::min(std::max(kNoteFlashGain, kNoteFlashPeak / peak), 8.0f);
+    return c * (1.0f + (scale - 1.0f) * flash);
+  }
   Color cursorRowTint(Color base) const { return base.blend(kRowTintAlpha, cursor_row_tint_color); }
 
   Color window_border_color;

@@ -57,7 +57,7 @@ class PatternEditor : public UIElement {
   // toggle-playing, C-x C-c/quit, ...) steal a keystroke meant for it.
   bool isReaderActive() const { return inline_editor_.isOpen(); }
   // The focus level is still easing: the loop keeps drawing frames.
-  bool isAnimating() const { return fades_.active() || focus_fade_drawn_ || rowsShifted(); }
+  bool isAnimating() const { return fades_.active() || focus_fade_drawn_ || rowsShifted() || flash_decaying_; }
 
   // Aborts the locator/track-name editor without committing anything -
   // used by StatusLine so opening M-x takes focus away from it rather than
@@ -543,6 +543,18 @@ private:
   // don't see (the source switching, per-track playheads moving).
   bool force_full_redraw_ = false;
   std::unordered_map<int, ScenePatternSource::Playhead> live_playheads_;
+  // The note flash goes on fading while the transport is stopped, from the playheads
+  // as they were when it stopped (a moved cursor doesn't change them).
+  struct StoppedPlayhead {
+    RowAddress at;
+    double phase;
+  };
+  std::unordered_map<int, StoppedPlayhead> last_playheads_;
+  double flash_row_seconds_ = 0.0;
+  std::optional<std::chrono::steady_clock::time_point> stopped_since_;
+  double stopped_seconds_ = 0.0;
+  bool was_playing_ = false;
+  bool flash_decaying_ = false;
   bool fading_drawn_ = false;
   float focus_ = 0.0f;
   cellui::Fades fades_;

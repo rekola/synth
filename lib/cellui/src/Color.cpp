@@ -1,6 +1,7 @@
 #include <cellui/Color.h>
 
 #include <cellui/NumberParse.h>
+#include <cellui/ToneMap.h>
 
 #include <algorithm>
 #include <cctype>
@@ -326,12 +327,8 @@ std::array<uint8_t, 3> Color::toSrgb8() const {
   apply(t.m2020to709, c, v);
   if (std::fmin(v[0], std::fmin(v[1], v[2])) < 0.0f) reduceChroma(v, nullptr);
   float mx = std::fmax(v[0], std::fmax(v[1], v[2]));
-  if (mx > 1.0f) {
-    float k = 1.0f / mx;
-    v[0] *= k;
-    v[1] *= k;
-    v[2] *= k;
-  }
+  // Light past what the display can show washes toward white (a path to white).
+  if (mx > 1.0f) neutralToneMap(v);
   return {linearToSrgb8(v[0]), linearToSrgb8(v[1]), linearToSrgb8(v[2])};
 }
 

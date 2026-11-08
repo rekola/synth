@@ -1,6 +1,8 @@
 #include "TestFramework.h"
 
 #include <cellui/Color.h>
+#include <cellui/StyleProvider.h>
+#include <cellui/ToneMap.h>
 
 #include <clocale>
 #include <set>
@@ -117,13 +119,17 @@ TEST(color_notation) {
   CHECK(Color("oklch(0.5)") == Color(0, 0, 0));
 }
 
-TEST(color_gain_lights_and_the_sink_keeps_the_hue) {
+TEST(color_gain_lights_and_the_sink_washes_it_toward_white) {
   Color red(200, 30, 30);
   Color lit = red * 6.0f;
   CHECK_NEAR(lit.luminance(), red.luminance() * 6.0f, 1e-4f);
   auto v = lit.toSrgb8();
+  // Still red, but whiter the more it is lit past white.
   CHECK(v[0] == 255);
-  CHECK(v[1] < 100 && v[2] < 100);
+  CHECK(v[1] < v[0] && v[2] < v[0]);
+  auto mild = (red * 2.0f).toSrgb8();
+  CHECK(mild[1] < v[1] && mild[2] < v[2]);
+  CHECK(v[1] > 100);
   CHECK(srgb8(red * 1.0f, 200, 30, 30));
   CHECK(srgb8(red * 0.0f, 0, 0, 0));
   CHECK(srgb8(red * -2.0f, 0, 0, 0));
@@ -190,4 +196,59 @@ TEST(color_parsing_ignores_the_locale_decimal_separator) {
   if (!comma) return;  // no such locale installed here
   CHECK(parsed == Color::fromOklch(0.75f, 0.15f, 60.0f));
   CHECK(percent == Color::fromOklch(0.75f, 0.15f, 60.0f));
+}
+
+TEST(note_flash_is_full_at_the_attack_and_gone_after_its_time) {
+  CHECK_NEAR(cellui::StyleProvider::noteFlash(0.0, false), 1.0f, 1e-6f);
+  CHECK(cellui::StyleProvider::noteFlash(0.05, false) > cellui::StyleProvider::noteFlash(0.15, false));
+  CHECK(cellui::StyleProvider::noteFlash(-0.01, false) == 0.0f); // not started yet
+  CHECK(cellui::StyleProvider::noteFlash(cellui::StyleProvider::kNoteFlashSeconds, false) == 0.0f);
+}
+
+TEST(note_flash_without_motion_is_a_step) {
+  CHECK(cellui::StyleProvider::noteFlash(0.01, true) == 1.0f);
+  CHECK(cellui::StyleProvider::noteFlash(cellui::StyleProvider::kNoteFlashSeconds * 0.75, true) == 0.0f);
+}
+
+TEST(note_flash_lights_a_dim_colour_as_far_as_a_bright_one) {
+  Color dim = Color::linear(0.1f, 0.3f, 0.1f), bright = Color::linear(0.9f, 0.9f, 0.9f);
+  auto peak = [](const Color & c) { return std::max({ c.r(), c.g(), c.b() }); };
+  CHECK(peak(StyleProvider::lit(dim, 1.0f)) >= StyleProvider::kNoteFlashPeak - 1e-4f);
+  CHECK(peak(StyleProvider::lit(bright, 1.0f)) >= StyleProvider::kNoteFlashGain * peak(bright) - 1e-4f);
+  CHECK(StyleProvider::lit(dim, 0.0f) == dim);
+}
+
+TEST(tone_map_leaves_what_the_display_can_show_alone) {
+  float rgb[3] = { 0.2f, 0.9f, 1.0f };
+  neutralToneMap(rgb);
+  CHECK(rgb[0] == 0.2f && rgb[1] == 0.9f && rgb[2] == 1.0f);
+}
+
+TEST(tone_map_washes_a_bright_colour_toward_white_the_more_it_is_lit) {
+  auto whiteness = [](float gain) {
+    float rgb[3] = { 0.1f * gain, 0.9f * gain, 0.2f * gain };
+    neutralToneMap(rgb);
+    CHECK(rgb[1] <= 1.0f + 1e-6f && rgb[1] >= rgb[0] && rgb[1] >= rgb[2]);
+    return rgb[0];  // the weakest channel rising is the colour paling
+  };
+  CHECK(whiteness(1.5f) < whiteness(3.0f));
+  CHECK(whiteness(3.0f) < whiteness(10.0f));
+}
+
+TEST(tone_map_with_the_khronos_parameters_is_khronos_neutral) {
+  // Neutral compresses from 0.76 and drifts at 0.15: a grey of 1 comes out at 0.88,
+  // and one of 0.5 (under the start) is untouched.
+  float grey[3] = { 1.0f, 1.0f, 1.0f };
+  neutralToneMap(grey, 0.76f, 0.15f);
+  CHECK_NEAR(grey[0], 0.88f, 1e-5f);
+  float dim[3] = { 0.5f, 0.3f, 0.1f };
+  neutralToneMap(dim, 0.76f, 0.15f);
+  CHECK(dim[0] == 0.5f && dim[1] == 0.3f && dim[2] == 0.1f);
+}
+
+TEST(note_flash_is_stronger_for_a_louder_note) {
+  CHECK_NEAR(StyleProvider::velocityFlash(127), 1.0f, 1e-6f);
+  CHECK_NEAR(StyleProvider::velocityFlash(0), 0.5f, 1e-6f);
+  CHECK(StyleProvider::velocityFlash(0x28) < StyleProvider::velocityFlash(0x60));
+  CHECK_NEAR(StyleProvider::velocityFlash(500), 1.0f, 1e-6f);
 }

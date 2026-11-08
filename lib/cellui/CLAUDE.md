@@ -16,7 +16,10 @@ carries the app's object as an opaque `getAppContext()`.
 - `Color`: linear Rec.2020 light as floats, 1.0 = SDR white, never negative,
   above 1 is HDR. Built from `#rgb`/`#rrggbb`, `oklch()`,
   `color(srgb|srgb-linear|display-p3|rec2020 ...)`, HSL or linear values; an
-  sRGB-only backend takes `toSrgb8()` (gamut-mapped, range-scaled). `mix()`
+  sRGB-only backend takes `toSrgb8()` (gamut-mapped; light past white is scaled to
+  fit and washes toward white the more there is, `ToneMap.h`'s `neutralToneMap()`:
+  Khronos PBR Neutral's compression and desaturation, started at 1 so display
+  white stays white). `mix()`
   is in linear light (the compositor, `bg_blend`, backdrops); `blend()` is a
   widget's tween in encoded sRGB, where the theme was tuned.
 - `NumberParse.h`: `parseFloat()` is `std::from_chars` on every platform,
@@ -273,8 +276,14 @@ itself. Shadows: two GSK outset shadows (a key light from the upper left,
 offset down by half the height, and a faint ambient one) around every
 `FrameInfo::elevations` area no later backdrop covers, then height by height
 the cells of every area as high or higher again over them, plus a light top
-and dark bottom edge per area. Not done yet: per-plane render nodes, input
-methods, HiDPI, native dialogs and menus.
+and dark bottom edge per area. Glow: a glyph whose foreground is lit past white
+(a `Color` channel above 1, from 0.6 above it at full strength) gets a glow, drawn
+over the backgrounds and under the text as the glyph again under a tight and a
+wide GSK blur, each laid twice, at 0.6 of full strength. A background never glows. A band with no such
+glyph keeps no glow node, and the glow's cache print holds the strengths, since
+the cells' own prints are of the colours scaled to white. An app only says how
+bright; this window decides that bright means light around it. Not done yet:
+per-plane render nodes, input methods, HiDPI, native dialogs and menus.
 
 ## Win32 window backend (`cellui/win32/`)
 

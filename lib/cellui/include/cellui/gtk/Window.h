@@ -23,6 +23,7 @@ struct FrameStats {
   double draw_ms_total = 0, draw_ms_max = 0;      // the whole snapshot
   double raster_ms_total = 0, raster_ms_max = 0;  // the cells rasterized into pixels
   size_t shadows = 0;  // the last frame's, under raised planes
+  size_t glows = 0;  // the last frame's bands with cells lit past white
 };
 
 // The GTK 4 backend: a GtkWindow with one custom widget that shows the
