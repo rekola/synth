@@ -2,6 +2,7 @@
 
 #include <cellui/Color.h>
 #include <cellui/StyleProvider.h>
+#include <cellui/ToneMap.h>
 
 #include <clocale>
 #include <set>
@@ -215,4 +216,32 @@ TEST(note_flash_lights_a_dim_colour_as_far_as_a_bright_one) {
   CHECK(peak(StyleProvider::lit(dim, 1.0f)) >= StyleProvider::kNoteFlashPeak - 1e-4f);
   CHECK(peak(StyleProvider::lit(bright, 1.0f)) >= StyleProvider::kNoteFlashGain * peak(bright) - 1e-4f);
   CHECK(StyleProvider::lit(dim, 0.0f) == dim);
+}
+
+TEST(tone_map_leaves_what_the_display_can_show_alone) {
+  float rgb[3] = { 0.2f, 0.9f, 1.0f };
+  neutralToneMap(rgb);
+  CHECK(rgb[0] == 0.2f && rgb[1] == 0.9f && rgb[2] == 1.0f);
+}
+
+TEST(tone_map_washes_a_bright_colour_toward_white_the_more_it_is_lit) {
+  auto whiteness = [](float gain) {
+    float rgb[3] = { 0.1f * gain, 0.9f * gain, 0.2f * gain };
+    neutralToneMap(rgb);
+    CHECK(rgb[1] <= 1.0f + 1e-6f && rgb[1] >= rgb[0] && rgb[1] >= rgb[2]);
+    return rgb[0];  // the weakest channel rising is the colour paling
+  };
+  CHECK(whiteness(1.5f) < whiteness(3.0f));
+  CHECK(whiteness(3.0f) < whiteness(10.0f));
+}
+
+TEST(tone_map_with_the_khronos_parameters_is_khronos_neutral) {
+  // Neutral compresses from 0.76 and drifts at 0.15: a grey of 1 comes out at 0.88,
+  // and one of 0.5 (under the start) is untouched.
+  float grey[3] = { 1.0f, 1.0f, 1.0f };
+  neutralToneMap(grey, 0.76f, 0.15f);
+  CHECK_NEAR(grey[0], 0.88f, 1e-5f);
+  float dim[3] = { 0.5f, 0.3f, 0.1f };
+  neutralToneMap(dim, 0.76f, 0.15f);
+  CHECK(dim[0] == 0.5f && dim[1] == 0.3f && dim[2] == 0.1f);
 }

@@ -529,6 +529,8 @@ bool hasText(const CellBuffer::Cell & cell) {
 // background. Nothing else decides what glows - an app only says how bright,
 // and this window shows that as light.
 constexpr float kGlowFullExcess = 0.6f;
+// How much of its strength a glow is drawn with.
+constexpr double kGlowStrength = 0.6;
 int glowLevel(const Color & c) {
   float excess = std::max({ c.r(), c.g(), c.b() }) - 1.0f;
   if (!(excess > 0.0f)) return 0;
@@ -667,7 +669,7 @@ GskRenderNode * Window::Impl::glowNode(const CellBuffer & cells, int r0, int r1)
       if (GskRenderNode * glyph = glyphNode(cell, fg)) {
         gtk_snapshot_save(snap);
         gtk_snapshot_translate(snap, &at);
-        gtk_snapshot_push_opacity(snap, static_cast<double>(level) / 16.0);
+        gtk_snapshot_push_opacity(snap, kGlowStrength * static_cast<double>(level) / 16.0);
         gtk_snapshot_append_node(snap, glyph);
         gtk_snapshot_pop(snap);
         gtk_snapshot_restore(snap);

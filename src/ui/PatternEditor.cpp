@@ -4000,7 +4000,8 @@ PatternEditor::renderRow(const StyleProvider & styles, int heading_height, const
 	  cell_bg = cell_is_selected ? cur_bg : tintForPlayhead(bg);
 	  if (!note.isDefined()) cell_fg = cell_fg.blend(0.5f, cell_bg);
           // A note that has just started is lit past white.
-          if (!cell_is_selected && track_dim <= 0.0f && note.isDefined() && !note.isOff()) cell_fg = StyleProvider::lit(cell_fg, noteFlashOf(track_id, note.getDelay()));
+          float note_flash = !cell_is_selected && track_dim <= 0.0f && note.isDefined() && !note.isOff() ? noteFlashOf(track_id, note.getDelay()) : 0.0f;
+          cell_fg = StyleProvider::lit(cell_fg, note_flash);
           setFgColor(cell_fg);
 	  setBgColor(cell_bg);
 	  auto s = note.toString(tuning);
@@ -4022,8 +4023,8 @@ PatternEditor::renderRow(const StyleProvider & styles, int heading_height, const
 	    if (auto hue = comma_hue(piece); hue && !cell_is_selected) {
 	      Color c = tintForPlayhead(dim_fixed_color(*hue));
 	      if (!note.isDefined()) c = c.blend(0.5f, cell_bg);
-	      setFgColor(c);
-	    } else {
+              setFgColor(StyleProvider::lit(c, note_flash));
+            } else {
 	      setFgColor(cell_fg);
 	    }
 	    putstr(display_row, x, piece);
