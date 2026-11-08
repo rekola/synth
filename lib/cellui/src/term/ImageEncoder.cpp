@@ -133,6 +133,99 @@ constexpr size_t kPartialBelowPercent = 80;
 
 int percent(int v) { return static_cast<int>(std::lround(v * 100.0 / 255.0)); }
 
+// EXPERIMENT (CELLUI_SIXEL_LEGACY): the first Sixel encoder, a fixed 256-colour palette (the xterm cube and
+// greys), ordered dither, one Sixel for the bounding rectangle of what is visible.
+constexpr int kLegacyCube[6] = {0, 95, 135, 175, 215, 255};
+
+void legacyPaletteRgb(int index, int & r, int & g, int & b) {
+  if (index >= 232) {
+    r = g = b = 8 + 10 * (index - 232);
+  } else {
+    int i = index - 16;
+    r = kLegacyCube[i / 36];
+    g = kLegacyCube[(i / 6) % 6];
+    b = kLegacyCube[i % 6];
+  }
+}
+
+int legacyLevel(int v, const int * levels, int count, float threshold) {
+  int i = 0;
+  while (i + 2 < count && v >= levels[i + 1]) i++;
+  float span = static_cast<float>(levels[i + 1] - levels[i]);
+  float frac = std::clamp(static_cast<float>(v - levels[i]) / span, 0.0f, 1.0f);
+  return frac > threshold ? i + 1 : i;
+}
+
+int legacyIndex(int r, int g, int b, float threshold) {
+  int hi = std::max({r, g, b}), lo = std::min({r, g, b});
+  if (hi - lo < 12) {
+    static const int kGreys[26] = {0, 8, 18, 28, 38, 48, 58, 68, 78, 88, 98, 108, 118, 128, 138, 148, 158, 168, 178, 188, 198, 208, 218, 228, 238, 255};
+    int k = legacyLevel((r + g + b) / 3, kGreys, 26, threshold);
+    return k == 0 ? 16 : k == 25 ? 231 : 232 + (k - 1);
+  }
+  return 16 + 36 * legacyLevel(r, kLegacyCube, 6, threshold) + 6 * legacyLevel(g, kLegacyCube, 6, threshold) + legacyLevel(b, kLegacyCube, 6, threshold);
+}
+
+std::string encodeSixelLegacy(const Image & image, int x0, int y0, int width, int height, const std::vector<bool> & keep, int origin_x, int origin_y) {
+  size_t n = static_cast<size_t>(width) * static_cast<size_t>(height);
+  std::vector<int> regs(n, -1);
+  std::set<int> used;
+  bool transparent = height % 6 != 0;
+  for (int y = 0; y < height; y++) {
+    for (int x = 0; x < width; x++) {
+      size_t i = static_cast<size_t>(y) * static_cast<size_t>(width) + static_cast<size_t>(x);
+      uint32_t p = image.pixels[static_cast<size_t>(y0 + y) * static_cast<size_t>(image.width) + static_cast<size_t>(x0 + x)];
+      if (!keep[i] || Image::alpha(p) < 192) {
+        transparent = true;
+        continue;
+      }
+      regs[i] = legacyIndex(Image::red(p), Image::green(p), Image::blue(p), bayer8(origin_x + x, origin_y + y)) - 16;
+      used.insert(regs[i]);
+    }
+  }
+  std::string out = "\x1bP0;" + std::string(transparent ? "1" : "0") + ";0q\"1;1;" + std::to_string(width) + ";" + std::to_string(height);
+  for (int reg : used) {
+    int r, g, b;
+    legacyPaletteRgb(reg + 16, r, g, b);
+    out += "#" + std::to_string(reg) + ";2;" + std::to_string(percent(r)) + ";" + std::to_string(percent(g)) + ";" + std::to_string(percent(b));
+  }
+  std::vector<int> bits(static_cast<size_t>(width));
+  for (int band = 0; band < height; band += 6) {
+    std::set<int> in_band;
+    for (int y = band; y < std::min(band + 6, height); y++) {
+      for (int x = 0; x < width; x++) {
+        int reg = regs[static_cast<size_t>(y) * static_cast<size_t>(width) + static_cast<size_t>(x)];
+        if (reg >= 0) in_band.insert(reg);
+      }
+    }
+    bool first = true;
+    for (int reg : in_band) {
+      std::fill(bits.begin(), bits.end(), 0);
+      for (int y = band; y < std::min(band + 6, height); y++) {
+        for (int x = 0; x < width; x++) {
+          if (regs[static_cast<size_t>(y) * static_cast<size_t>(width) + static_cast<size_t>(x)] == reg) bits[static_cast<size_t>(x)] |= 1 << (y - band);
+        }
+      }
+      int last = width - 1;
+      while (last >= 0 && bits[static_cast<size_t>(last)] == 0) last--;
+      if (!first) out += '$';
+      first = false;
+      out += "#" + std::to_string(reg);
+      for (int x = 0; x <= last;) {
+        int run = 1;
+        while (x + run <= last && bits[static_cast<size_t>(x + run)] == bits[static_cast<size_t>(x)]) run++;
+        char c = static_cast<char>(0x3f + bits[static_cast<size_t>(x)]);
+        if (run > 2) out += "!" + std::to_string(run) + c;
+        else out.append(static_cast<size_t>(run), c);
+        x += run;
+      }
+    }
+    out += '-';
+  }
+  out += "\x1b\\";
+  return out;
+}
+
 // The 8-bit level a Sixel colour definition (percent) makes of `v`: the level the terminal shows.
 int onSixelGrid(int v) { return static_cast<int>(std::lround(percent(v) * 255.0 / 100.0)); }
 
@@ -892,6 +985,29 @@ std::string ImageEncoder::sixel(const CellBuffer & frame, const ImagePlacement &
     sixel_ready_ = true;
   }
   sizes_.placement += out.size();
+  if (std::getenv("CELLUI_SIXEL_LEGACY")) {
+    int r0 = rects[0].row, c0 = rects[0].col, r1 = r0, c1 = c0;
+    for (const Rect & r : rects) {
+      r0 = std::min(r0, r.row);
+      c0 = std::min(c0, r.col);
+      r1 = std::max(r1, r.row + r.rows);
+      c1 = std::max(c1, r.col + r.cols);
+    }
+    int x = (c0 - p.col) * cw, y = (r0 - p.row) * ch;
+    int w = std::min((c1 - c0) * cw, img.width - x), h = std::min((r1 - r0) * ch, img.height - y);
+    if (w <= 0 || h <= 0) return "";
+    std::vector<bool> keep(static_cast<size_t>(w) * static_cast<size_t>(h), false);
+    for (const Rect & r : rects) {
+      for (int py = (r.row - r0) * ch; py < std::min((r.row - r0 + r.rows) * ch, h); py++) {
+        for (int px = (r.col - c0) * cw; px < std::min((r.col - c0 + r.cols) * cw, w); px++) keep[static_cast<size_t>(py) * static_cast<size_t>(w) + static_cast<size_t>(px)] = true;
+      }
+    }
+    std::string legacy = out + cup(r0, c0);
+    size_t before = legacy.size();
+    legacy += encodeSixelLegacy(img, x, y, w, h, keep, p.col * cw + x, p.row * ch + y);
+    sizes_.upload += legacy.size() - before;
+    return legacy;
+  }
   struct Piece {
     std::string bytes;
     size_t position = 0, picture = 0;  // of `bytes`, the cursor positions and the Sixel data
