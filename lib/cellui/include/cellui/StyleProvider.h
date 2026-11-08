@@ -4,6 +4,7 @@
 #include <cellui/Theme.h>
 
 #include <algorithm>
+#include <cmath>
 #include <iterator>
 #include <utility>
 

@@ -5,6 +5,7 @@
 #include <cellui/StyleProvider.h>
 
 #include <algorithm>
+#include <cmath>
 
 // cellui's generic colours plus the tracker's own (SynthPalette). Every plane
 // of the app is made with one of these, so a widget that needs a tracker role
@@ -77,6 +78,17 @@ class StyleProvider : public cellui::StyleProvider {
   }
   // How much of a full flash a note of this velocity (0 to 127) gets: half, up to all.
   static float velocityFlash(int velocity) { return 0.5f + 0.5f * static_cast<float>(std::clamp(velocity, 0, 127)) / 127.0f; }
+  // The weight a note is drawn in while its attack `flash` (0 to 1, before velocity scales
+  // it: every note gets the same weight) lights it: from normal up through 500, 600 and
+  // 700 to 800 in whole steps of 100, so it never animates between weights that look the
+  // same. It is back to normal once the flash is down to kNoteFlashWeightFrom, while the
+  // light still shows, so the weight is not seen to drop on a faint one. A display with
+  // only normal and bold draws 600 and up bold.
+  static constexpr float kNoteFlashWeightFrom = 0.3f;
+  static int flashWeight(float flash) {
+    float t = std::clamp((flash - kNoteFlashWeightFrom) / (1.0f - kNoteFlashWeightFrom), 0.0f, 1.0f);
+    return 400 + 100 * static_cast<int>(std::lround(t * 4.0f));
+  }
   // `c` lit by `flash` (0 to 1): its brightest channel taken from where it is toward
   // the larger of kNoteFlashGain times that and kNoteFlashPeak.
   static Color lit(const Color & c, float flash) {
