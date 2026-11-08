@@ -49,7 +49,7 @@ bool sameColor(const std::optional<Color> & a, const std::optional<Color> & b) {
 
 // A terminal has no light to spare, and bold is how it makes a colour brighter, so a foreground
 // the app lit past white (by this much, in linear light) is written bold.
-constexpr float kLitBold = 1.4f;
+constexpr float kLitBold = 1.05f;
 bool boldCell(const CellBuffer::Cell & c) {
   return c.bold() || (c.fg && std::max({ c.fg->r(), c.fg->g(), c.fg->b() }) > kLitBold);
 }
