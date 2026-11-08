@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<song key="C" scale="nid-qablim" temperament="53edo" tempo="80" timeSignature="2/4">
+<song key="C" scale="nidqablim" temperament="53edo" tempo="80" timeSignature="2/4">
     <instruments from="kit">
         <instrument id="i1" from="string.plucked.harp"/>
         <instrument id="i2" from="string.plucked.harp" detune="4"/>
@@ -39,7 +39,7 @@ anabole runs up all seven strings and settles on the frame; the outro runs
 down them, the first kithara echoes the final cadence, and the tempo broadens
 from 80 to 64 (tempo changes in the arrangement).
 
-The scale is nid qablim, the Phrygian mode on C of the Pythagorean gamut:
+The scale is nīd qablim, the Phrygian mode on C of the Pythagorean gamut:
 C D-flat E-flat F G A-flat B-flat = 1/1 256/243 32/27 4/3 3/2 128/81 16/9. In
 53-EDO's notation the gamut spells these C-sharp-up, E-flat-down, A-flat-down
 and B-flat-down.</notes>

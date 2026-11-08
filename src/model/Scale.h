@@ -25,13 +25,16 @@ enum class Scale {
   OTONAL,
   UTONAL,
   DIAMOND7,
-  // C D E F G A B♭ of the Pythagorean gamut. To be renamed after the Babylonian
-  // tuning with this pattern once that mapping is verified. Named for the
-  // gamut so a 5-limit Mixolydian can join the duodene later.
-  PYTHAGOREAN_MIXOLYDIAN,
-  // C D♭ E♭ F G A♭ B♭ of the Pythagorean gamut: the Phrygian rotation of its
-  // seven-note scale, the Babylonian nīd qablim.
-  NID_QABLIM,
+  // The seven Babylonian modes of the Pythagorean gamut, each a rotation of
+  // the one seven-note pattern, named after the tuning text (descending
+  // reading; docs/glossary.md). The church-mode name is the rotation.
+  NIS_TUHRIM, // Locrian    C D♭ E♭ F G♭ A♭ B♭
+  ISARTUM,    // Ionian     C D E F G A B (the gamut's "normal" scale)
+  EMBUBUM,    // Dorian     C D E♭ F G A B♭
+  NID_QABLIM, // Phrygian   C D♭ E♭ F G A♭ B♭
+  QABLITUM,   // Lydian     C D E F♯ G A B
+  KITMUM,     // Mixolydian C D E F G A B♭
+  PITUM,      // Aeolian    C D E♭ F G A♭ B♭
 
   // Arabic
   RAST,
@@ -53,10 +56,20 @@ static inline std::string to_string(Scale scale) {
   case Scale::UTONAL: return "utonal";
   case Scale::DIAMOND7:
     return "diamond7";
-  case Scale::PYTHAGOREAN_MIXOLYDIAN:
-    return "pythagorean-mixolydian";
+  case Scale::NIS_TUHRIM:
+    return "nistuhrim";
+  case Scale::ISARTUM:
+    return "isartum";
+  case Scale::EMBUBUM:
+    return "embubum";
   case Scale::NID_QABLIM:
-    return "nid-qablim";
+    return "nidqablim";
+  case Scale::QABLITUM:
+    return "qablitum";
+  case Scale::KITMUM:
+    return "kitmum";
+  case Scale::PITUM:
+    return "pitum";
   case Scale::RAST:
     return "rast";
   case Scale::BAYATI:
@@ -92,10 +105,20 @@ static inline std::string scaleLabel(Scale scale) {
       return "Utonal";
     case Scale::DIAMOND7:
       return "Diamond (7-limit)";
-    case Scale::PYTHAGOREAN_MIXOLYDIAN:
-      return "Pythagorean Mixolydian";
+    case Scale::NIS_TUHRIM:
+      return "Nīš tuḫrim";
+    case Scale::ISARTUM:
+      return "Išartum";
+    case Scale::EMBUBUM:
+      return "Embūbum";
     case Scale::NID_QABLIM:
       return "Nīd qablim";
+    case Scale::QABLITUM:
+      return "Qablītum";
+    case Scale::KITMUM:
+      return "Kitmum";
+    case Scale::PITUM:
+      return "Pītum";
     case Scale::RAST:
       return "Rāst";
     case Scale::BAYATI:
@@ -122,8 +145,13 @@ static inline Scale scaleFromString(const std::string & text) {
   if (text == "otonal") return Scale::OTONAL;
   if (text == "utonal") return Scale::UTONAL;
   if (text == "diamond7") return Scale::DIAMOND7;
-  if (text == "pythagorean-mixolydian") return Scale::PYTHAGOREAN_MIXOLYDIAN;
-  if (text == "nid-qablim") return Scale::NID_QABLIM;
+  if (text == "nistuhrim") return Scale::NIS_TUHRIM;
+  if (text == "isartum") return Scale::ISARTUM;
+  if (text == "embubum") return Scale::EMBUBUM;
+  if (text == "nidqablim") return Scale::NID_QABLIM;
+  if (text == "qablitum") return Scale::QABLITUM;
+  if (text == "kitmum") return Scale::KITMUM;
+  if (text == "pitum") return Scale::PITUM;
   if (text == "rast") return Scale::RAST;
   if (text == "bayati") return Scale::BAYATI;
   if (text == "hijaz") return Scale::HIJAZ;
@@ -137,7 +165,7 @@ static inline Scale scaleFromString(const std::string & text) {
 
 // Every scale names its gamut, and selecting the scale selects the gamut: major
 // and minor the duodene, otonal and utonal the superparticular gamut, diamond7
-// the diamond, the Pythagorean modes (Mixolydian and nīd qablim) the Pythagorean gamut. The maqamat and NONE
+// the diamond, the seven Babylonian modes the Pythagorean gamut. The maqamat and NONE
 // have none: they are tempered and get no tuning corrections. The scale itself
 // is a selection from its gamut. Otonal is the superparticular gamut's notes of
 // its side (or of both) through round kJustScaleRound:
@@ -146,16 +174,27 @@ static inline Scale scaleFromString(const std::string & text) {
 // mirror image, 1/1 16/15 12/11 8/7 6/5 4/3 3/2 8/5 12/7 16/9 24/13 (C D♭↓ C𝄪
 // E𝄫 E♭ F G A♭ B𝄫 B♭↓ B↓). The terms are Partch's, though his otonalities are
 // chords, not these scales. Diamond7 is all thirteen notes of the tonality
-// diamond. Pythagorean Mixolydian is seven notes of the Pythagorean gamut,
-// 3-limit and meant for 53-EDO only (scaleSupportsTuning()), as is nīd qablim,
-// its Phrygian rotation. Major and minor
+// diamond. Each Babylonian mode is seven notes of the Pythagorean gamut,
+// 3-limit and meant for 53-EDO only (scaleSupportsTuning()); išartum is the
+// gamut's default. Major and minor
 // are seven of the duodene's twelve.
 constexpr int kJustScaleRound = 3;
 
-// C D E F G A B♭
-inline constexpr std::array<Ratio, 7> kPythagoreanMixolydianRatios = {Ratio{1, 1}, Ratio{9, 8}, Ratio{81, 64}, Ratio{4, 3}, Ratio{3, 2}, Ratio{27, 16}, Ratio{16, 9}};
+// The Babylonian modes, by ascending ratio.
+// C D♭ E♭ F G♭ A♭ B♭
+inline constexpr std::array<Ratio, 7> kNisTuhrimRatios = {Ratio{1, 1}, Ratio{256, 243}, Ratio{32, 27}, Ratio{4, 3}, Ratio{1024, 729}, Ratio{128, 81}, Ratio{16, 9}};
+// C D E F G A B
+inline constexpr std::array<Ratio, 7> kIsartumRatios = {Ratio{1, 1}, Ratio{9, 8}, Ratio{81, 64}, Ratio{4, 3}, Ratio{3, 2}, Ratio{27, 16}, Ratio{243, 128}};
+// C D E♭ F G A B♭
+inline constexpr std::array<Ratio, 7> kEmbubumRatios = {Ratio{1, 1}, Ratio{9, 8}, Ratio{32, 27}, Ratio{4, 3}, Ratio{3, 2}, Ratio{27, 16}, Ratio{16, 9}};
 // C D♭ E♭ F G A♭ B♭
 inline constexpr std::array<Ratio, 7> kNidQablimRatios = {Ratio{1, 1}, Ratio{256, 243}, Ratio{32, 27}, Ratio{4, 3}, Ratio{3, 2}, Ratio{128, 81}, Ratio{16, 9}};
+// C D E F♯ G A B
+inline constexpr std::array<Ratio, 7> kQablitumRatios = {Ratio{1, 1}, Ratio{9, 8}, Ratio{81, 64}, Ratio{729, 512}, Ratio{3, 2}, Ratio{27, 16}, Ratio{243, 128}};
+// C D E F G A B♭
+inline constexpr std::array<Ratio, 7> kKitmumRatios = {Ratio{1, 1}, Ratio{9, 8}, Ratio{81, 64}, Ratio{4, 3}, Ratio{3, 2}, Ratio{27, 16}, Ratio{16, 9}};
+// C D E♭ F G A♭ B♭
+inline constexpr std::array<Ratio, 7> kPitumRatios = {Ratio{1, 1}, Ratio{9, 8}, Ratio{32, 27}, Ratio{4, 3}, Ratio{3, 2}, Ratio{128, 81}, Ratio{16, 9}};
 // C D E F G A B
 inline constexpr std::array<Ratio, 7> kMajorRatios = {Ratio{1, 1}, Ratio{9, 8}, Ratio{5, 4}, Ratio{4, 3}, Ratio{3, 2}, Ratio{5, 3}, Ratio{15, 8}};
 // C D E♭ F G A♭ B♭
@@ -171,8 +210,13 @@ constexpr bool allInGamut(std::span<const Ratio> only, std::span<const GamutNote
   }
   return true;
 }
-static_assert(allInGamut(kPythagoreanMixolydianRatios, gamut::kPythagorean));
+static_assert(allInGamut(kNisTuhrimRatios, gamut::kPythagorean));
+static_assert(allInGamut(kIsartumRatios, gamut::kPythagorean));
+static_assert(allInGamut(kEmbubumRatios, gamut::kPythagorean));
 static_assert(allInGamut(kNidQablimRatios, gamut::kPythagorean));
+static_assert(allInGamut(kQablitumRatios, gamut::kPythagorean));
+static_assert(allInGamut(kKitmumRatios, gamut::kPythagorean));
+static_assert(allInGamut(kPitumRatios, gamut::kPythagorean));
 static_assert(allInGamut(kMajorRatios, gamut::kDuodene));
 static_assert(allInGamut(kMinorRatios, gamut::kDuodene));
 
@@ -190,11 +234,26 @@ struct JustScale {
   }
 };
 
+static inline bool isBabylonianMode(Scale scale) {
+  switch (scale) {
+    case Scale::NIS_TUHRIM:
+    case Scale::ISARTUM:
+    case Scale::EMBUBUM:
+    case Scale::NID_QABLIM:
+    case Scale::QABLITUM:
+    case Scale::KITMUM:
+    case Scale::PITUM:
+      return true;
+    default:
+      return false;
+  }
+}
+
 // Whether a scale's notes mean what it says under a tuning. The Pythagorean
 // gamut has 3-limit ratios no spelling reaches in 31-EDO (81/64 lies between
 // its steps 10 and 11), so its scale is for 53-EDO alone.
 static inline bool scaleSupportsTuning(Scale scale, Tuning tuning) {
-  return (scale != Scale::PYTHAGOREAN_MIXOLYDIAN && scale != Scale::NID_QABLIM) || tuning == Tuning::EDO53;
+  return !isBabylonianMode(scale) || tuning == Tuning::EDO53;
 }
 
 static inline std::optional<JustScale> justScale(Scale scale) {
@@ -209,10 +268,20 @@ static inline std::optional<JustScale> justScale(Scale scale) {
       return JustScale{gamut::kSuperparticular, GamutSide::UTONAL, kJustScaleRound};
     case Scale::DIAMOND7:
       return JustScale{gamut::kDiamond7, std::nullopt, 0};
-    case Scale::PYTHAGOREAN_MIXOLYDIAN:
-      return JustScale{gamut::kPythagorean, std::nullopt, 0, kPythagoreanMixolydianRatios};
+    case Scale::NIS_TUHRIM:
+      return JustScale{gamut::kPythagorean, std::nullopt, 0, kNisTuhrimRatios};
+    case Scale::ISARTUM:
+      return JustScale{gamut::kPythagorean, std::nullopt, 0, kIsartumRatios};
+    case Scale::EMBUBUM:
+      return JustScale{gamut::kPythagorean, std::nullopt, 0, kEmbubumRatios};
     case Scale::NID_QABLIM:
       return JustScale{gamut::kPythagorean, std::nullopt, 0, kNidQablimRatios};
+    case Scale::QABLITUM:
+      return JustScale{gamut::kPythagorean, std::nullopt, 0, kQablitumRatios};
+    case Scale::KITMUM:
+      return JustScale{gamut::kPythagorean, std::nullopt, 0, kKitmumRatios};
+    case Scale::PITUM:
+      return JustScale{gamut::kPythagorean, std::nullopt, 0, kPitumRatios};
     default:
       break;
   }
@@ -248,7 +317,7 @@ static inline std::vector<std::size_t> scaleGamutIndices(Scale scale) {
 //
 // A gamut scale's names are its gamut's spellings (major and minor have their
 // own, the same as the duodene's), chosen to mean those ratios
-// in both 31 and 53-EDO, except Pythagorean Mixolydian, whose E and B♭ carry
+// in both 31 and 53-EDO, except the Babylonian modes, whose E, A and B♭ carry
 // 53-EDO arrows that 31-EDO ignores and so land on the wrong step there; 12 and 19-EDO take the nearest step (in 12-EDO E𝄫
 // sounds identical to D, so two degrees can share a key). 31-EDO has one step
 // for each pair of notes a syntonic comma apart and ignores the arrow; 53-EDO
@@ -260,8 +329,13 @@ static inline std::vector<std::string_view> scaleDegreeNames(Scale scale) {
   case Scale::OTONAL:
   case Scale::UTONAL:
   case Scale::DIAMOND7:
-  case Scale::PYTHAGOREAN_MIXOLYDIAN:
-  case Scale::NID_QABLIM: {
+  case Scale::NIS_TUHRIM:
+  case Scale::ISARTUM:
+  case Scale::EMBUBUM:
+  case Scale::NID_QABLIM:
+  case Scale::QABLITUM:
+  case Scale::KITMUM:
+  case Scale::PITUM: {
     std::vector<std::string_view> names;
     auto just = justScale(scale);
     if (!just) return names;
