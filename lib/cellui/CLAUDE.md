@@ -16,7 +16,8 @@ carries the app's object as an opaque `getAppContext()`.
 - `Color`: linear Rec.2020 light as floats, 1.0 = SDR white, never negative,
   above 1 is HDR. Built from `#rgb`/`#rrggbb`, `oklch()`,
   `color(srgb|srgb-linear|display-p3|rec2020 ...)`, HSL or linear values; an
-  sRGB-only backend takes `toSrgb8()` (gamut-mapped, range-scaled). `mix()`
+  sRGB-only backend takes `toSrgb8()` (gamut-mapped; light past white is scaled to
+  fit and washes toward white the more there is, a path to white). `mix()`
   is in linear light (the compositor, `bg_blend`, backdrops); `blend()` is a
   widget's tween in encoded sRGB, where the theme was tuned.
 - `NumberParse.h`: `parseFloat()` is `std::from_chars` on every platform,

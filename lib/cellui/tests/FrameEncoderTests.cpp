@@ -220,9 +220,12 @@ TEST(encoder_sends_a_wide_colour_as_its_srgb_clip_and_only_when_the_clip_changes
   auto clip = lit.fg->toSrgb8();
   f.write(0, 0, "J", lit);
   CHECK(same(e.encode(f), "\x1b[38;2;" + std::to_string(int{clip[0]}) + ";" + std::to_string(int{clip[1]}) + ";" + std::to_string(int{clip[2]}) + "mJ"));
-  // Lit further, it clips to the same colour: nothing to send.
-  lit.fg = Color(200, 30, 30) * 9.0f;
-  CHECK(lit.fg->toSrgb8() == clip);
+  // Lit far enough it is plain white, and lit further it is the same: nothing to send.
+  lit.fg = Color(200, 30, 30) * 6000.0f;
+  f.write(0, 0, "J", lit);
+  e.encode(f);
+  lit.fg = Color(200, 30, 30) * 9000.0f;
+  CHECK(lit.fg->toSrgb8() == (Color(200, 30, 30) * 6000.0f).toSrgb8());
   f.write(0, 0, "J", lit);
   CHECK(e.encode(f).empty());
 }

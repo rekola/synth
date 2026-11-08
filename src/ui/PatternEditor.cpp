@@ -1344,6 +1344,34 @@ PatternEditor::render(const StyleProvider & styles, bool refresh, bool focused) 
 
   auto track_ids = trackIds(song);
 
+  // Where each playhead is while the transport rolls, kept for the note flash to go on
+  // fading from when it stops.
+  auto has_playhead = [&](int id) { return isLiveMode() ? source_->trackHasPlayhead(id) : source_->cursorFollowsTransport(); };
+  bool flash_rows_needed = false;
+  {
+    bool playing = info.isPlaying();
+    bool decaying = false;
+    if (playing) {
+      last_playheads_.clear();
+      for (int id : track_ids) {
+        if (has_playhead(id)) last_playheads_[id] = StoppedPlayhead{source_->trackCursor(id), playPhase(info)};
+      }
+      flash_row_seconds_ = info.getRowSeconds();
+      stopped_since_.reset();
+    } else {
+      auto now = std::chrono::steady_clock::now();
+      if (was_playing_) stopped_since_ = now;
+      if (stopped_since_) {
+        stopped_seconds_ = std::chrono::duration<double>(now - *stopped_since_).count();
+        decaying = !last_playheads_.empty() && stopped_seconds_ < StyleProvider::kNoteFlashSeconds;
+      }
+    }
+    was_playing_ = playing;
+    // One more pass once it is over, to draw the rows without it.
+    flash_rows_needed = playing || decaying || flash_decaying_;
+    flash_decaying_ = decaying;
+  }
+
   // Tracks can be deleted from anywhere (delete-track is a global command),
   // so keep the cursor on a real track and column.
   auto num_tracks = static_cast<int>(track_ids.size());
@@ -1589,13 +1617,21 @@ PatternEditor::render(const StyleProvider & styles, bool refresh, bool focused) 
 
   // A note that has just started fades out frame by frame: redraw the rows around each
   // playhead that can still hold a lit one.
-  if (!render_all && info.isPlaying()) {
-    double row_seconds = info.getRowSeconds();
+  if (!render_all && flash_rows_needed) {
+    double row_seconds = info.isPlaying() ? info.getRowSeconds() : flash_row_seconds_;
     int lit_rows = row_seconds > 0.0 ? std::clamp(static_cast<int>(std::ceil(StyleProvider::kNoteFlashSeconds / row_seconds)), 1, 8) : 1;
     std::vector<int> lines;
     for (int id : track_ids) {
-      if (isLiveMode() ? !source_->trackHasPlayhead(id) : !source_->cursorFollowsTransport()) continue;
-      int line = source_->rowsBetween(RowAddress{view_block_, current_scroll_.row}, source_->trackCursor(id));
+      RowAddress at;
+      if (info.isPlaying()) {
+        if (!has_playhead(id)) continue;
+        at = source_->trackCursor(id);
+      } else {
+        auto stopped = last_playheads_.find(id);
+        if (stopped == last_playheads_.end()) continue;
+        at = stopped->second.at;
+      }
+      int line = source_->rowsBetween(RowAddress{view_block_, current_scroll_.row}, at);
       for (int back = 0; back <= lit_rows; back++) lines.push_back(line - back);
     }
     std::sort(lines.begin(), lines.end());
@@ -3421,14 +3457,23 @@ PatternEditor::renderRow(const StyleProvider & styles, int heading_height, const
   // its delay included, until kNoteFlashSeconds later. Not for a track that isn't playing.
   const auto & play_info = getController().getPlaybackInfo();
   auto noteFlashOf = [&](int track_id, int delay) -> float {
-    if (!playing_now || (isLiveMode() ? !source_->trackHasPlayhead(track_id) : !source_->cursorFollowsTransport())) return 0.0f;
-    double row_seconds = play_info.getRowSeconds();
+    double row_seconds, rows_since, extra = 0.0;
+    if (playing_now) {
+      if (isLiveMode() ? !source_->trackHasPlayhead(track_id) : !source_->cursorFollowsTransport()) return 0.0f;
+      row_seconds = play_info.getRowSeconds();
+      rows_since = source_->rowsBetween(address, source_->trackCursor(track_id)) + playPhase(play_info) - delay / 256.0;
+    } else {
+      // Stopped: the playhead stays where it was and the time since goes on.
+      auto stopped = last_playheads_.find(track_id);
+      if (!flash_decaying_ || stopped == last_playheads_.end()) return 0.0f;
+      row_seconds = flash_row_seconds_;
+      rows_since = source_->rowsBetween(address, stopped->second.at) + stopped->second.phase - delay / 256.0;
+      if (rows_since < 0.0) return 0.0f; // not yet played when it stopped
+      extra = stopped_seconds_;
+    }
     if (row_seconds <= 0.0) return 0.0f;
-    double rows_since = source_->rowsBetween(address, source_->trackCursor(track_id)) + playPhase(play_info) - delay / 256.0;
-    return StyleProvider::noteFlash(rows_since * row_seconds, styles.reduced_motion);
+    return StyleProvider::noteFlash(rows_since * row_seconds + extra, styles.reduced_motion);
   };
-  // A foreground lit past white by `flash`; the display decides how that looks.
-  auto litBy = [](const Color & c, float flash) { return c * (1.0f + (StyleProvider::kNoteFlashGain - 1.0f) * flash); };
 
   // One pattern row's slice of a sample clip's waveform, drawn by the
   // display's scopes across `width` cells from start_col: each time slice of
@@ -3911,7 +3956,7 @@ PatternEditor::renderRow(const StyleProvider & styles, int heading_height, const
 	  cell_fg = command.isDefined() && !column_selected ? tintForPlayhead(dim_fixed_color(styles.command_column_color)) : (cell_is_selected ? cur_fg : tintForPlayhead(fg));
 	  cell_bg = cell_is_selected ? cur_bg : tintForPlayhead(bg);
           // A command takes effect at the start of its row.
-          if (command.isDefined() && !cell_is_selected && track_dim <= 0.0f) cell_fg = litBy(cell_fg, noteFlashOf(track_id, 0));
+          if (command.isDefined() && !cell_is_selected && track_dim <= 0.0f) cell_fg = StyleProvider::lit(cell_fg, noteFlashOf(track_id, 0));
           setFgColor(cell_fg);
 	  setBgColor(cell_bg);
 	  auto s = to_string(command);
@@ -3935,6 +3980,8 @@ PatternEditor::renderRow(const StyleProvider & styles, int heading_height, const
 	  cell_fg = column_selected ? cur_fg : tintForPlayhead(dim_fixed_color(styles.data_fx_color));
 	  cell_bg = cell_is_selected ? cur_bg : tintForPlayhead(bg);
           if (!note.hasFx()) cell_fg = cell_fg.blend(0.5f, cell_bg);
+          else if (!cell_is_selected && track_dim <= 0.0f)
+            cell_fg = StyleProvider::lit(cell_fg, noteFlashOf(track_id, note.getDelay()));
           setFgColor(cell_fg);
 	  setBgColor(cell_bg);
 	  putstr(display_row, current_pos, shown);
@@ -3953,7 +4000,7 @@ PatternEditor::renderRow(const StyleProvider & styles, int heading_height, const
 	  cell_bg = cell_is_selected ? cur_bg : tintForPlayhead(bg);
 	  if (!note.isDefined()) cell_fg = cell_fg.blend(0.5f, cell_bg);
           // A note that has just started is lit past white.
-          if (!cell_is_selected && track_dim <= 0.0f && note.isDefined() && !note.isOff()) cell_fg = litBy(cell_fg, noteFlashOf(track_id, note.getDelay()));
+          if (!cell_is_selected && track_dim <= 0.0f && note.isDefined() && !note.isOff()) cell_fg = StyleProvider::lit(cell_fg, noteFlashOf(track_id, note.getDelay()));
           setFgColor(cell_fg);
 	  setBgColor(cell_bg);
 	  auto s = note.toString(tuning);
@@ -4013,7 +4060,7 @@ PatternEditor::renderRow(const StyleProvider & styles, int heading_height, const
 	  cell_bg = cell_is_selected ? cur_bg : tintForPlayhead(bg);
 	  if (!note.isDefined()) cell_fg = cell_fg.blend(0.5f, cell_bg);
           // Lit with its note, when it has a value to show.
-          if (!cell_is_selected && track_dim <= 0.0f && note.isDefined() && !(column_type == ColumnType::VELOCITY && note.isOff())) cell_fg = litBy(cell_fg, noteFlashOf(track_id, note.getDelay()));
+          if (!cell_is_selected && track_dim <= 0.0f && note.isDefined() && !(column_type == ColumnType::VELOCITY && note.isOff())) cell_fg = StyleProvider::lit(cell_fg, noteFlashOf(track_id, note.getDelay()));
           setFgColor(cell_fg);
 	  setBgColor(cell_bg);
 

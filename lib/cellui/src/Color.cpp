@@ -327,10 +327,12 @@ std::array<uint8_t, 3> Color::toSrgb8() const {
   if (std::fmin(v[0], std::fmin(v[1], v[2])) < 0.0f) reduceChroma(v, nullptr);
   float mx = std::fmax(v[0], std::fmax(v[1], v[2]));
   if (mx > 1.0f) {
+    // Path to white: light past what the display can show is scaled to fit, and
+    // the more of it there is the more it washes toward white, as a bright
+    // light does, instead of staying as saturated as at 1.
     float k = 1.0f / mx;
-    v[0] *= k;
-    v[1] *= k;
-    v[2] *= k;
+    float white = 1.0f - k;
+    for (int i = 0; i < 3; i++) v[i] = v[i] * k + (1.0f - v[i] * k) * white;
   }
   return {linearToSrgb8(v[0]), linearToSrgb8(v[1]), linearToSrgb8(v[2])};
 }

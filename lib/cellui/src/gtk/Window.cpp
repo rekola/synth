@@ -906,7 +906,7 @@ void Window::Impl::appendPainted(GtkSnapshot * snap, const Painted & p, const Ce
     graphene_point_t top = GRAPHENE_POINT_INIT(0.0f, static_cast<float>(static_cast<int>(i) * kBandRows * cell_h));
     gtk_snapshot_save(snap);
     gtk_snapshot_translate(snap, &top);
-    for (double radius : { 0.3 * cell_h, 0.3 * cell_h, 0.7 * cell_h, 0.7 * cell_h }) {
+    for (double radius : { 0.22 * cell_h, 0.22 * cell_h, 0.5 * cell_h, 0.5 * cell_h }) {
       gtk_snapshot_push_blur(snap, radius);
       gtk_snapshot_append_node(snap, band.glow);
       gtk_snapshot_pop(snap);

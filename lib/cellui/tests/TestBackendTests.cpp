@@ -174,7 +174,8 @@ TEST(testbackend_sdr_frame_is_the_frame_clipped_to_srgb) {
   CHECK(*t.frame().at(0, 0).bg == *led.bg);
   CellBuffer sdr = t.sdrFrame();
   CHECK(sdr.at(0, 0).text == "x");
-  CHECK(*sdr.at(0, 0).bg == Color(255, 41, 41));
+  auto bg = led.bg->toSrgb8();
+  CHECK(*sdr.at(0, 0).bg == Color(bg[0], bg[1], bg[2]));
   auto fg = led.fg->toSrgb8();
   CHECK(*sdr.at(0, 0).fg == Color(fg[0], fg[1], fg[2]));
   CHECK(!sdr.at(1, 3).fg && !sdr.at(1, 3).bg);
