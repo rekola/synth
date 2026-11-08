@@ -1,24 +1,25 @@
 #include "HeadlessUI.h"
 
 #include "Plane.h"
+#include "WaitSources.h"
+
 #include "../launchpad/LaunchpadIO.h"
 #include "../midi/MidiInput.h"
 #include "../util/WaitSet.h"
-#include "WaitSources.h"
-
-#include <cellui/PlatformEventLoop.h>
 #include "../launchpad/LaunchpadManager.h"
 #include "../audio/AudioAPI.h"
 #include "../playback/LogEvent.h"
 #include "../playback/MidiEvent.h"
 #include "../playback/VisualizationResultEvent.h"
 #include "../playback/PlaybackControlEvent.h"
-#include "../instruments/Tuning.h"
 #include "../playback/PlaybackEvent.h"
 #include "../playback/ClipPlayer.h"
 #include "../Controller.h"
+#include "../model/Tuning.h"
 #include "../model/ArrangementOps.h"
 #include "../model/Song.h"
+
+#include <cellui/PlatformEventLoop.h>
 
 #include <algorithm>
 #include <cmath>

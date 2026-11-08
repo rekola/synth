@@ -22,11 +22,11 @@
 
 using namespace ratio_literals;
 
-TEST(the_mixolydian_scale_is_c_d_e_f_g_a_b_flat_of_the_pythagorean_gamut) {
+TEST(kitmum_is_the_mixolydian_scale_c_d_e_f_g_a_b_flat_of_the_pythagorean_gamut) {
   std::vector<Ratio> ratios;
-  for (auto i : scaleGamutIndices(Scale::PYTHAGOREAN_MIXOLYDIAN)) ratios.push_back(gamut::kPythagorean[i].ratio);
+  for (auto i : scaleGamutIndices(Scale::KITMUM)) ratios.push_back(gamut::kPythagorean[i].ratio);
   CHECK((ratios == std::vector<Ratio>{1 / 1_r, 9 / 8_r, 81 / 64_r, 4 / 3_r, 3 / 2_r, 27 / 16_r, 16 / 9_r}));
-  CHECK(scaleFromString(to_string(Scale::PYTHAGOREAN_MIXOLYDIAN)) == Scale::PYTHAGOREAN_MIXOLYDIAN);
+  CHECK(scaleFromString(to_string(Scale::KITMUM)) == Scale::KITMUM);
   // Every gamut note is 3-limit and sits on its 53-EDO spelling's step.
   for (auto & note : gamut::kPythagorean) {
     CHECK(Note::stringToKey(Tuning::EDO53, std::string(note.spelling) + "4") - Note::stringToKey(Tuning::EDO53, "C-4") ==
@@ -34,12 +34,45 @@ TEST(the_mixolydian_scale_is_c_d_e_f_g_a_b_flat_of_the_pythagorean_gamut) {
   }
 }
 
+TEST(the_seven_babylonian_modes_are_rotations_of_one_pattern) {
+  const Scale modes[] = {Scale::NIS_TUHRIM, Scale::ISARTUM, Scale::EMBUBUM, Scale::NID_QABLIM, Scale::QABLITUM, Scale::KITMUM, Scale::PITUM};
+  // Ionian-order degrees of the chain of fifths: the pattern 2 2 1 2 2 2 1 rotated.
+  const int whole_semitone_pattern[7] = {2, 2, 1, 2, 2, 2, 1};
+  // Church-mode rotation of each (Locrian = rotation 6, Ionian 0, Dorian 1, Phrygian 2, Lydian 3, Mixolydian 4, Aeolian 5).
+  const int rotation[7] = {6, 0, 1, 2, 3, 4, 5};
+  for (int m = 0; m < 7; m++) {
+    auto scale = modes[m];
+    CHECK(scaleGamut(scale).data() == gamut::kPythagorean.data());
+    CHECK(scaleSupportsTuning(scale, Tuning::EDO53));
+    CHECK(!scaleSupportsTuning(scale, Tuning::EDO31));
+    CHECK(scaleFromString(to_string(scale)) == scale);
+    auto indices = scaleGamutIndices(scale);
+    CHECK(indices.size() == 7);
+    if (indices.size() != 7) continue;
+    // Interval pattern in 53-EDO steps (tone 9, limma 4) matches the rotation.
+    for (int d = 0; d < 7; d++) {
+      auto here = gamut::kPythagorean[indices[static_cast<size_t>(d)]].ratio.steps(53);
+      auto next = d == 6 ? 53 : gamut::kPythagorean[indices[static_cast<size_t>(d + 1)]].ratio.steps(53);
+      CHECK(next - here == (whole_semitone_pattern[(rotation[m] + d) % 7] == 2 ? 9 : 4));
+    }
+  }
+}
+
+TEST(kitmum_is_the_mixolydian_rotation_and_isartum_the_default_ionian) {
+  std::vector<Ratio> ratios;
+  for (auto i : scaleGamutIndices(Scale::KITMUM)) ratios.push_back(gamut::kPythagorean[i].ratio);
+  CHECK((ratios == std::vector<Ratio>{1 / 1_r, 9 / 8_r, 81 / 64_r, 4 / 3_r, 3 / 2_r, 27 / 16_r, 16 / 9_r}));
+  ratios.clear();
+  for (auto i : scaleGamutIndices(Scale::ISARTUM)) ratios.push_back(gamut::kPythagorean[i].ratio);
+  CHECK((ratios == std::vector<Ratio>{1 / 1_r, 9 / 8_r, 81 / 64_r, 4 / 3_r, 3 / 2_r, 27 / 16_r, 243 / 128_r}));
+}
+
 TEST(seikilos_plays_only_scale_notes_each_tuned_to_its_3_limit_ratio_in_144_rows) {
   InstrumentProvider provider;
   Song song;
   CHECK(song.open(std::string(TESTS_SONGS_DIR) + "/seikilos.xml", provider));
   CHECK(song.getTuning() == Tuning::EDO53);
-  CHECK(song.getScale() == Scale::PYTHAGOREAN_MIXOLYDIAN);
+  CHECK(song.getScale() == Scale::KITMUM);
   CHECK(song.getArrangementLength() == 144); // a 24-row intro, 96 rows of song, a 24-row outro
 
   // The tempo broadens over the outro, as tempo changes in the arrangement.
@@ -47,10 +80,10 @@ TEST(seikilos_plays_only_scale_notes_each_tuned_to_its_3_limit_ratio_in_144_rows
 
   const int key = song.getKey();
   CHECK(key == Note::stringToKey(Tuning::EDO53, "C-4"));
-  auto corrections = just_intonation::scaleCorrectionsFor(Tuning::EDO53, Scale::PYTHAGOREAN_MIXOLYDIAN, key);
+  auto corrections = just_intonation::scaleCorrectionsFor(Tuning::EDO53, Scale::KITMUM, key);
 
   std::map<int, Ratio> ratio_of_step; // the scale's degrees
-  for (auto i : scaleGamutIndices(Scale::PYTHAGOREAN_MIXOLYDIAN)) ratio_of_step.emplace(((gamut::kPythagorean[i].ratio.steps(53) % 53) + 53) % 53, gamut::kPythagorean[i].ratio);
+  for (auto i : scaleGamutIndices(Scale::KITMUM)) ratio_of_step.emplace(((gamut::kPythagorean[i].ratio.steps(53) % 53) + 53) % 53, gamut::kPythagorean[i].ratio);
 
   int notes = 0;
   auto arrangement = song.getArrangement();
@@ -109,8 +142,8 @@ TEST(notes_lose_the_files_indentation_and_survive_a_leading_comment) {
   CHECK(song.getSongNotes() == "first line\n  indented\n\nlast line");
 }
 
-TEST(only_53_edo_offers_pythagorean_mixolydian) {
-  CHECK(scaleSupportsTuning(Scale::PYTHAGOREAN_MIXOLYDIAN, Tuning::EDO53));
-  CHECK(!scaleSupportsTuning(Scale::PYTHAGOREAN_MIXOLYDIAN, Tuning::EDO31));
+TEST(only_53_edo_offers_kitmum) {
+  CHECK(scaleSupportsTuning(Scale::KITMUM, Tuning::EDO53));
+  CHECK(!scaleSupportsTuning(Scale::KITMUM, Tuning::EDO31));
   CHECK(scaleSupportsTuning(Scale::MAJOR, Tuning::EDO31));
 }

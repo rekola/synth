@@ -5,11 +5,9 @@
 #include "../playback/InputEvent.h"
 #include "../state/SongState.h"
 #include "../Controller.h"
-#include "StyleProvider.h"
-#include "../instruments/Tuning.h"
+#include "../model/Tuning.h"
 #include "../model/LeafTrack.h"
 #include "../model/PatternGrid.h"
-#include "ArrangementPatternSource.h"
 #include "../model/InstrumentTrack.h"
 #include "../model/SampleTrack.h"
 #include "../model/PercussionTrack.h"
@@ -17,11 +15,14 @@
 #include "../playback/MidiEvent.h"
 #include "../playback/MidiNoteInput.h"
 #include "../playback/PlaybackControlEvent.h"
-#include "KeyStroke.h"
-#include "PatternScroll.h"
 #include "../model/ArrangementOps.h"
 #include "../model/Clip.h"
 #include "../util/Utf8.h"
+
+#include "StyleProvider.h"
+#include "ArrangementPatternSource.h"
+#include "KeyStroke.h"
+#include "PatternScroll.h"
 
 #include <string>
 #include <random>

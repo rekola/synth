@@ -163,7 +163,7 @@ TEST(the_gamut_of_each_scale) {
   CHECK(scaleGamut(Scale::OTONAL).data() == gamut::kSuperparticular.data());
   CHECK(scaleGamut(Scale::UTONAL).data() == gamut::kSuperparticular.data());
   CHECK(scaleGamut(Scale::DIAMOND7).data() == gamut::kDiamond7.data());
-  CHECK(scaleGamut(Scale::PYTHAGOREAN_MIXOLYDIAN).data() == gamut::kPythagorean.data());
+  CHECK(scaleGamut(Scale::KITMUM).data() == gamut::kPythagorean.data());
   for (auto scale : {Scale::NONE, Scale::RAST, Scale::BAYATI, Scale::HIJAZ, Scale::NAHAWAND, Scale::KURD, Scale::AJAM, Scale::SABA, Scale::SIKAH}) {
     CHECK(scaleGamut(scale).empty());
   }

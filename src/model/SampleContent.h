@@ -3,7 +3,7 @@
 
 #include "../audio/AudioBuffer.h"
 #include "WaveformPeaks.h"
-#include "../instruments/Tuning.h"
+#include "Tuning.h"
 
 #include <atomic>
 #include <cmath>

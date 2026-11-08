@@ -10,7 +10,7 @@
 
 #include "../src/instruments/Additive.h"
 #include "../src/instruments/AdditiveModel.h"
-#include "../src/instruments/Tuning.h"
+#include "../src/model/Tuning.h"
 #include "../src/model/SendLevels.h"
 
 #include <chrono>

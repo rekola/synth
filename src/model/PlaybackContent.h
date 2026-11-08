@@ -1,14 +1,15 @@
 #ifndef _PLAYBACKCONTENT_H_
 #define _PLAYBACKCONTENT_H_
 
+#include "../util/constants.h"
+
 #include "Arrangement.h"
 #include "BarGrid.h"
 #include "Clip.h"
 #include "JustIntonation.h"
 #include "Swing.h"
 #include "TimeSignature.h"
-#include "../instruments/Tuning.h"
-#include "../util/constants.h"
+#include "Tuning.h"
 
 #include <atomic>
 #include <cstdint>

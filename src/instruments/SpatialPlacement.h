@@ -1,7 +1,7 @@
 #ifndef _SPATIALPLACEMENT_H_
 #define _SPATIALPLACEMENT_H_
 
-#include "Tuning.h"
+#include "../model/Tuning.h"
 #include "../ambisonic/AmbisonicEncoding.h"
 #include "../ambisonic/SpatialMode.h"
 #include "../ambisonic/SphericalPosition.h"
