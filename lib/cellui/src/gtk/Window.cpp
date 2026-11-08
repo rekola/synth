@@ -666,19 +666,22 @@ GskRenderNode * Window::Impl::glowNode(const CellBuffer & cells, int r0, int r1)
   for (int r = r0; r < r1; r++) {
     for (int c = 0; c < cells.cols(); c++) {
       const CellBuffer::Cell & cell = cells.at(r, c);
-      graphene_point_t at = GRAPHENE_POINT_INIT(static_cast<float>(c * cell_w), static_cast<float>((r - r0) * cell_h));
       if (!hasText(cell) || cell.text.empty() || cell.text == " ") continue;
       Color fg = cell.fg.value_or(default_fg);
       int level = glowLevel(fg);
       if (level == 0) continue;
-      if (GskRenderNode * glyph = glyphNode(cell, fg)) {
-        gtk_snapshot_save(snap);
-        gtk_snapshot_translate(snap, &at);
-        gtk_snapshot_push_opacity(snap, kGlowStrength * static_cast<double>(level) / 16.0);
-        gtk_snapshot_append_node(snap, glyph);
-        gtk_snapshot_pop(snap);
-        gtk_snapshot_restore(snap);
-      }
+      GskRenderNode * glyph = glyphNode(cell, fg);
+      if (!glyph) continue;
+      graphene_point_t at = GRAPHENE_POINT_INIT(static_cast<float>(c * cell_w), static_cast<float>((r - r0) * cell_h));
+      gtk_snapshot_save(snap);
+      gtk_snapshot_translate(snap, &at);
+      // What laying the glyph twice at kGlowStrength would come to: a thin glyph's glow
+      // has to be strong to show on a dark ground, and the layer is blurred once.
+      double once = kGlowStrength * static_cast<double>(level) / 16.0;
+      gtk_snapshot_push_opacity(snap, 1.0 - (1.0 - once) * (1.0 - once));
+      gtk_snapshot_append_node(snap, glyph);
+      gtk_snapshot_pop(snap);
+      gtk_snapshot_restore(snap);
     }
   }
   return gtk_snapshot_free_to_node(snap);
@@ -922,21 +925,32 @@ void Window::Impl::appendPainted(GtkSnapshot * snap, const Painted & p, const Ce
     if (band.bg) gtk_snapshot_append_node(snap, band.bg);
   }
   if (cells) appendImages(snap, *cells);
-  // The glow lies over the backgrounds and under the text: a tight and a wide blur,
-  // each laid twice so a thin glyph's glow is strong enough to show on a dark ground.
-  for (size_t i = 0; i < p.bands.size(); i++) {
-    const Painted::Band & band = p.bands[i];
-    if (!band.glow) continue;
-    stats.glows++;
-    graphene_point_t top = GRAPHENE_POINT_INIT(0.0f, static_cast<float>(static_cast<int>(i) * kBandRows * cell_h));
-    gtk_snapshot_save(snap);
-    gtk_snapshot_translate(snap, &top);
-    for (double radius : { 0.22 * cell_h, 0.22 * cell_h, 0.5 * cell_h, 0.5 * cell_h }) {
-      gtk_snapshot_push_blur(snap, radius);
-      gtk_snapshot_append_node(snap, band.glow);
-      gtk_snapshot_pop(snap);
+  // The glow lies over the backgrounds and under the text: every band's lit glyphs
+  // together, blurred tight and wide. A blur is a pass of its own on the GPU, so it
+  // is one for the whole layer, not one for each band.
+  {
+    GtkSnapshot * lit = gtk_snapshot_new();
+    bool any = false;
+    for (size_t i = 0; i < p.bands.size(); i++) {
+      const Painted::Band & band = p.bands[i];
+      if (!band.glow) continue;
+      any = true;
+      stats.glows++;
+      graphene_point_t top = GRAPHENE_POINT_INIT(0.0f, static_cast<float>(static_cast<int>(i) * kBandRows * cell_h));
+      gtk_snapshot_save(lit);
+      gtk_snapshot_translate(lit, &top);
+      gtk_snapshot_append_node(lit, band.glow);
+      gtk_snapshot_restore(lit);
     }
-    gtk_snapshot_restore(snap);
+    GskRenderNode * all = gtk_snapshot_free_to_node(lit);
+    if (any && all) {
+      for (double radius : { 0.22 * cell_h, 0.5 * cell_h }) {
+        gtk_snapshot_push_blur(snap, radius);
+        gtk_snapshot_append_node(snap, all);
+        gtk_snapshot_pop(snap);
+      }
+    }
+    if (all) gsk_render_node_unref(all);
   }
   for (size_t i = 0; i < p.bands.size(); i++) {
     const Painted::Band & band = p.bands[i];
