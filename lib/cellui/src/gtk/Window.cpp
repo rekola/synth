@@ -157,6 +157,7 @@ struct Window::Impl {
   std::map<Glyph, GskRenderNode *> glyph_nodes;
   GskRenderNode * glyphNode(const CellBuffer::Cell & cell, const Color & fg);
   GskRenderNode * textNode(const CellBuffer & cells, int r0, int r1);
+  GskRenderNode * glowNode(const CellBuffer & cells, int r0, int r1, bool transparent);
 
   DisplayInfo display_info;
   int rows = 0, cols = 0;
@@ -191,6 +192,10 @@ struct Window::Impl {
       bool bg_valid = false, text_valid = false;
       GskRenderNode * bg = nullptr;
       GskRenderNode * text = nullptr;  // glyphs and underlines, from the band's top-left corner
+      // The cells lit past white (an HDR colour), to be blurred into a glow; null when none is.
+      uint64_t glow_print = 0;
+      bool glow_valid = false;
+      GskRenderNode * glow = nullptr;
     };
     uint64_t shape = 0;
     std::vector<Band> bands;
@@ -255,6 +260,7 @@ struct Window::Impl {
   static void releaseBand(Painted::Band & band) {
     if (band.bg) gsk_render_node_unref(band.bg);
     if (band.text) gsk_render_node_unref(band.text);
+    if (band.glow) gsk_render_node_unref(band.glow);
     band = {};
   }
   void appendShadows(GtkSnapshot * snap, const Painted & top, GskRenderNode * below, const std::vector<GskRenderNode *> & stacks);
@@ -518,6 +524,16 @@ bool hasText(const CellBuffer::Cell & cell) {
   return cell.underline || (!cell.text.empty() && cell.text != " ");
 }
 
+// How strongly a colour lit past white glows, in sixteenths (0 for one at or
+// under white): full from kGlowFullExcess above it. Nothing else decides what
+// glows - an app only says how bright, and this window shows that as light.
+constexpr float kGlowFullExcess = 1.5f;
+int glowLevel(const Color & c) {
+  float excess = std::max({ c.r(), c.g(), c.b() }) - 1.0f;
+  if (!(excess > 0.0f)) return 0;
+  return static_cast<int>(std::lround(std::min(excess / kGlowFullExcess, 1.0f) * 16.0f));
+}
+
 }  // namespace
 
 // The backgrounds of rows [r0, r1) as colour rectangles, one for each run of
@@ -603,8 +619,74 @@ const Window::Impl::Painted & Window::Impl::paint(size_t slot, const CellBuffer 
       stats.raster_ms_total += ms;
       stats.raster_ms_max = std::max(stats.raster_ms_max, ms);
     }
+
+    // The glow: only cells lit past white have any, and a band with none keeps no node.
+    // The cells' printed colours are the visible ones (scaled to white), so the glow has
+    // a print of its own, of the strengths.
+    Print glow_print;
+    bool any_glow = false;
+    const Color & default_fg = *display_info.default_fg;
+    for (int r = r0; r < r1; r++) {
+      for (int c = 0; c < cells.cols(); c++) {
+        const CellBuffer::Cell & cell = cells.at(r, c);
+        auto cell_bg = backgroundOf(cell, transparent, window_bg);
+        int text_level = hasText(cell) ? glowLevel(cell.fg.value_or(default_fg)) : 0;
+        int bg_level = cell_bg ? glowLevel(*cell_bg) : 0;
+        if (text_level == 0 && bg_level == 0) continue;
+        any_glow = true;
+        glow_print.add(static_cast<uint64_t>(r) << 32 | static_cast<uint32_t>(c));
+        glow_print.add(cell.text);
+        glow_print.add(cell.fg);
+        glow_print.add(cell_bg);
+        glow_print.add(static_cast<uint64_t>(text_level) << 8 | static_cast<uint64_t>(bg_level));
+        glow_print.add(static_cast<uint64_t>(cell.weight) << 1 | static_cast<uint64_t>(cell.italic));
+      }
+    }
+    uint64_t glow_value = any_glow ? glow_print.value() : 0;
+    if (!band.glow_valid || band.glow_print != glow_value) {
+      if (band.glow) gsk_render_node_unref(band.glow);
+      band.glow = any_glow ? glowNode(cells, r0, r1, transparent) : nullptr;
+      band.glow_print = glow_value;
+      band.glow_valid = true;
+    }
   }
   return p;
+}
+
+// The cells of rows [r0, r1) lit past white, each at the strength of its light:
+// the glyph, and the background as a faint wash. Drawn blurred, from the band's
+// top-left corner.
+GskRenderNode * Window::Impl::glowNode(const CellBuffer & cells, int r0, int r1, bool transparent) {
+  GtkSnapshot * snap = gtk_snapshot_new();
+  const Color & window_bg = *display_info.default_bg;
+  const Color & default_fg = *display_info.default_fg;
+  for (int r = r0; r < r1; r++) {
+    for (int c = 0; c < cells.cols(); c++) {
+      const CellBuffer::Cell & cell = cells.at(r, c);
+      graphene_point_t at = GRAPHENE_POINT_INIT(static_cast<float>(c * cell_w), static_cast<float>((r - r0) * cell_h));
+      if (auto cell_bg = backgroundOf(cell, transparent, window_bg)) {
+        if (int level = glowLevel(*cell_bg); level > 0) {
+          auto rgb = cell_bg->toSrgb8();
+          GdkRGBA wash = { rgb[0] / 255.0f, rgb[1] / 255.0f, rgb[2] / 255.0f, 0.5f * static_cast<float>(level) / 16.0f };
+          graphene_rect_t rect = GRAPHENE_RECT_INIT(at.x, at.y, static_cast<float>(cell_w), static_cast<float>(cell_h));
+          gtk_snapshot_append_color(snap, &wash, &rect);
+        }
+      }
+      if (!hasText(cell) || cell.text.empty() || cell.text == " ") continue;
+      Color fg = cell.fg.value_or(default_fg);
+      int level = glowLevel(fg);
+      if (level == 0) continue;
+      if (GskRenderNode * glyph = glyphNode(cell, fg)) {
+        gtk_snapshot_save(snap);
+        gtk_snapshot_translate(snap, &at);
+        gtk_snapshot_push_opacity(snap, static_cast<double>(level) / 16.0);
+        gtk_snapshot_append_node(snap, glyph);
+        gtk_snapshot_pop(snap);
+        gtk_snapshot_restore(snap);
+      }
+    }
+  }
+  return gtk_snapshot_free_to_node(snap);
 }
 
 PangoFontDescription * Window::Impl::cellFont(int style) {
@@ -827,6 +909,22 @@ void Window::Impl::appendPainted(GtkSnapshot * snap, const Painted & p, const Ce
     if (band.bg) gtk_snapshot_append_node(snap, band.bg);
   }
   if (cells) appendImages(snap, *cells);
+  // The glow lies over the backgrounds and under the text: a tight and a wide blur,
+  // so the light has a core and a haze.
+  for (size_t i = 0; i < p.bands.size(); i++) {
+    const Painted::Band & band = p.bands[i];
+    if (!band.glow) continue;
+    stats.glows++;
+    graphene_point_t top = GRAPHENE_POINT_INIT(0.0f, static_cast<float>(static_cast<int>(i) * kBandRows * cell_h));
+    gtk_snapshot_save(snap);
+    gtk_snapshot_translate(snap, &top);
+    for (double radius : { 0.35 * cell_h, 0.9 * cell_h }) {
+      gtk_snapshot_push_blur(snap, radius);
+      gtk_snapshot_append_node(snap, band.glow);
+      gtk_snapshot_pop(snap);
+    }
+    gtk_snapshot_restore(snap);
+  }
   for (size_t i = 0; i < p.bands.size(); i++) {
     const Painted::Band & band = p.bands[i];
     if (!band.text) continue;
@@ -996,6 +1094,7 @@ void Window::Impl::appendShadows(GtkSnapshot * snap, const Painted & top, GskRen
 
 void Window::Impl::snapshot(GtkSnapshot * snap) {
   auto start = Clock::now();
+  stats.glows = 0;
   int width = gtk_widget_get_width(view), height = gtk_widget_get_height(view);
   auto channel = [](const Color & c, float alpha = 1.0f) {
     auto rgb = c.toSrgb8();

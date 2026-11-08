@@ -53,6 +53,27 @@ void xdotool(const std::string & args) {
 
 }  // namespace
 
+// A cell lit past white (an HDR colour) glows; one at or under white does not.
+TEST(gtk_window_glows_where_a_colour_is_lit_past_white) {
+  gtk::Window * w = theWindow();
+  if (!w) return;
+  StyleProvider styles;
+  auto drawn = [&](const Color & fg) {
+    CellBuffer screen(w->rows(), w->cols());
+    BufferPlane root(screen, styles);
+    root.setFgColor(fg);
+    root.putstr(3, 4, "C-4");
+    root.refresh();
+    size_t before = w->stats().frames;
+    w->present(screen, {}, root.images());
+    CHECK(pumpUntil(*w, [&] { return w->stats().frames > before; }));
+    return w->stats().glows;
+  };
+  CHECK(drawn(Color::linear(1.0f, 1.0f, 1.0f)) == 0);
+  CHECK(drawn(Color::linear(2.5f, 2.5f, 2.5f)) == 1);
+  CHECK(drawn(Color::linear(0.6f, 0.6f, 0.6f)) == 0);
+}
+
 TEST(gtk_window_reports_its_display_and_size) {
   gtk::Window * w = theWindow();
   if (!w) return;
