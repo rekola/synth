@@ -1,3 +1,4 @@
+#include <algorithm>
 #include <cellui/term/FrameEncoder.h>
 
 #include <cstdint>
@@ -46,8 +47,15 @@ bool sameColor(const std::optional<Color> & a, const std::optional<Color> & b) {
   return !a || *a == *b || a->toSrgb8() == b->toSrgb8();
 }
 
+// A terminal has no light to spare, and bold is how it makes a colour brighter, so a foreground
+// the app lit past white (by this much, in linear light) is written bold.
+constexpr float kLitBold = 1.4f;
+bool boldCell(const CellBuffer::Cell & c) {
+  return c.bold() || (c.fg && std::max({ c.fg->r(), c.fg->g(), c.fg->b() }) > kLitBold);
+}
+
 bool sameCell(const CellBuffer::Cell & a, const CellBuffer::Cell & b) {
-  return a.text == b.text && a.continuation == b.continuation && a.image == b.image && a.bold() == b.bold() && a.italic == b.italic &&
+  return a.text == b.text && a.continuation == b.continuation && a.image == b.image && boldCell(a) == boldCell(b) && a.italic == b.italic &&
          a.underline == b.underline && sameColor(a.fg, b.fg) && sameColor(a.bg, b.bg);
 }
 
@@ -144,13 +152,13 @@ void FrameEncoder::pen(std::string & out, const CellBuffer::Cell & cell) {
   };
   if (!pen_known_) {
     add("0");
-    if (cell.bold()) add("1");
+    if (boldCell(cell)) add("1");
     if (cell.italic) add("3");
     if (cell.underline) add("4");
     if (fg.kind != Ink::DEFAULT) add(color(fg, false));
     if (bg.kind != Ink::DEFAULT) add(color(bg, true));
   } else {
-    if (cell.bold() != bold_) add(cell.bold() ? "1" : "22");
+    if (boldCell(cell) != bold_) add(boldCell(cell) ? "1" : "22");
     if (cell.italic != italic_) add(cell.italic ? "3" : "23");
     if (cell.underline != underline_) add(cell.underline ? "4" : "24");
     if (fg != fg_) add(color(fg, false));
@@ -160,7 +168,7 @@ void FrameEncoder::pen(std::string & out, const CellBuffer::Cell & cell) {
   pen_known_ = true;
   fg_ = fg;
   bg_ = bg;
-  bold_ = cell.bold();
+  bold_ = boldCell(cell);
   italic_ = cell.italic;
   underline_ = cell.underline;
 }
