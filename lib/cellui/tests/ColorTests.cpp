@@ -245,3 +245,10 @@ TEST(tone_map_with_the_khronos_parameters_is_khronos_neutral) {
   neutralToneMap(dim, 0.76f, 0.15f);
   CHECK(dim[0] == 0.5f && dim[1] == 0.3f && dim[2] == 0.1f);
 }
+
+TEST(note_flash_is_stronger_for_a_louder_note) {
+  CHECK_NEAR(StyleProvider::velocityFlash(127), 1.0f, 1e-6f);
+  CHECK_NEAR(StyleProvider::velocityFlash(0), 0.5f, 1e-6f);
+  CHECK(StyleProvider::velocityFlash(0x28) < StyleProvider::velocityFlash(0x60));
+  CHECK_NEAR(StyleProvider::velocityFlash(500), 1.0f, 1e-6f);
+}
