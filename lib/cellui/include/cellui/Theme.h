@@ -8,62 +8,6 @@
 
 namespace cellui {
 
-// How a track's identity colour is made from its ordinal: the original steps
-// the HSL hue by the golden angle at a fixed saturation and lightness. The
-// modern one has one OKLCH lightness and, for each of the first eight tracks,
-// a hue and a chroma picked to keep the closest two as different as can be on
-// the screen and on the Launchpad's pads, with the hues clear of the clip
-// state colours: one colour per family (orange, olive, cyan, blue, purple,
-// pink) and two greys, without the gamut's pure blue corner;
-// later tracks step the hue by the golden ratio over the arcs the states leave
-// free, so a track never looks like a playing or a recording clip.
-struct TrackPalette {
-  enum class Model { GOLDEN_HSL, OKLCH_TABLE };
-  Model model = Model::GOLDEN_HSL;
-  float lightness = 0.42f;
-  float saturation_or_chroma = 0.35f;
-
-  static TrackPalette original() { return { Model::GOLDEN_HSL, 0.42f, 0.35f }; }
-  static TrackPalette modern() { return { Model::OKLCH_TABLE, 0.585f, 0.12f }; }
-
-  // The model's own hue, in degrees.
-  float hue(int ordinal) const {
-    if (model == Model::GOLDEN_HSL) return std::fmod(static_cast<float>(ordinal) * 137.50776f, 360.0f);
-    if (ordinal < kTableSize) return kTable[ordinal].hue;
-    constexpr float arcs[2][2] = { { 62.0f, 110.0f }, { 180.0f, 352.0f } };
-    float t = std::fmod(0.5f + static_cast<float>(ordinal - kTableSize) * 0.6180339887f, 1.0f);
-    float pos = t * ((arcs[0][1] - arcs[0][0]) + (arcs[1][1] - arcs[1][0]));
-    for (auto & arc : arcs) {
-      if (pos <= arc[1] - arc[0]) return arc[0] + pos;
-      pos -= arc[1] - arc[0];
-    }
-    return arcs[1][1];
-  }
-  float chroma(int ordinal) const {
-    return model == Model::OKLCH_TABLE && ordinal < kTableSize && ordinal >= 0 ? kTable[ordinal].chroma : saturation_or_chroma;
-  }
-  Color color(int ordinal) const {
-    return model == Model::GOLDEN_HSL ? Color::fromHSL(hue(ordinal), saturation_or_chroma, lightness)
-                                      : Color::fromOklchClipped(lightness, chroma(ordinal), hue(ordinal));
-  }
-  // The same colour's HSL hue, and the saturation a pad shows it with: a pad
-  // has only its primaries, so a muted colour is shown less saturated.
-  float hslHue(int ordinal) const { return color(ordinal).hslHue(); }
-  float padSaturation(int ordinal) const {
-    if (model == Model::GOLDEN_HSL) return 0.8f;
-    return std::fmin(1.0f, 0.35f + chroma(ordinal) / 0.17f * 0.55f);
-  }
-
- private:
-  struct Entry {
-    float hue, chroma;
-  };
-  static constexpr int kTableSize = 8;
-  static constexpr Entry kTable[kTableSize] = {
-    { 205, 0.14f }, { 344, 0.08f }, { 108, 0.19f }, { 263, 0.12f }, { 108, 0.04f }, { 308, 0.12f }, { 69, 0.19f }, { 230, 0.04f },
-  };
-};
-
 // The colour tokens of a theme, by role: widgets ask for what a colour
 // means, a theme says what it is. Themes are plain data.
 struct Theme {
@@ -84,36 +28,10 @@ struct Theme {
   Color accent_dim;
   Color focus;
 
-  // State, each with its dim form (paused; armed or stopping).
-  Color state_playing;
-  Color state_playing_dim;
-  Color state_recording;
-  Color state_recording_dim;
-
-  // Pattern editor rows: beat and bar accents, as tones.
-  Color grid_beat_fg;
-  Color grid_beat_bg;
-  Color grid_bar_fg;
-  Color grid_bar_bg;
-
-  TrackPalette tracks = TrackPalette::original();
-
-  // Columns of a grid are told apart by a line between them; without lines
-  // each column body is a panel surface with a gutter of the base surface
-  // between. (The tracker view keeps its lines either way.)
-  bool grid_lines = true;
-
-  // A track header is the raised surface with a narrow slice of the track's
-  // colour at its left, instead of a block of that colour.
-  bool track_chips = false;
-
-  // Roles outside the surfaces: the cursor tints, text on a track colour,
-  // the command and reader text, the info bar, the meter and spectrum
-  // ramps, track flags, locators, buttons and the master track's bar.
+  // Roles outside the surfaces: the cursor tints, the reader text, the info
+  // bar, the level meter and line chart ramps, and buttons.
   Color cursor_tint;
   Color cursor_row_tint;
-  Color command_column;
-  Color text_on_track;
   Color reader_text;
   Color info_line_fg;
   Color info_line_bg;
@@ -126,18 +44,10 @@ struct Theme {
   Color level_hot;
   Color line_low;
   Color line_high;
-  Color mute;
-  Color solo;
-  Color monitor;
-  Color clip_override;
-  Color locator;
-  Color locator_bg;
-  Color locator_mark;
   Color button_fg;
   Color button_bg;
   Color button_pressed_bg;
   Color row_pressed_bg;
-  Color master_track;
   // The menu bar, and the sections that drop down from it.
   Color menu_fg;
   Color menu_bg;
@@ -149,13 +59,6 @@ struct Theme {
   Color plane_base_bg;
   Color picker_bg;
   Color picker_fg;
-  // The pattern editor's data columns: local fx, velocity, delay.
-  Color data_fx;
-  Color data_velocity;
-  Color data_delay;
-  // The comma arrows of a note name (↑ ↓ and the sharps and flats that carry one).
-  Color comma_up;
-  Color comma_down;
   // What a modal dialog does to everything behind it.
   Backdrop modal_backdrop;
   // How far above its parent a plane (or a lifted cell) stands, by role, in
@@ -185,18 +88,8 @@ struct Theme {
     t.accent = Color("#bcd4e0");
     t.accent_dim = Color("#3a4a54");
     t.focus = Color("#bcd4e0");
-    t.state_playing = Color("#50e070");
-    t.state_playing_dim = Color("#2e7a3e");
-    t.state_recording = Color("#ff3c3c");
-    t.state_recording_dim = Color("#a04040");
-    t.grid_beat_fg = Color("#c4c4c4");
-    t.grid_beat_bg = Color("#232323");
-    t.grid_bar_fg = Color("#ffffff");
-    t.grid_bar_bg = Color("#323232");
     t.cursor_tint = Color("#d0ecff");
     t.cursor_row_tint = Color("#90b8cc");
-    t.command_column = Color("#c67610");
-    t.text_on_track = Color("#ffffff");
     t.reader_text = Color("#c080c0");
     t.info_line_fg = Color("#1e1e1e");
     t.info_line_bg = Color("#787878");
@@ -209,18 +102,10 @@ struct Theme {
     t.level_hot = Color("#ff5a20");
     t.line_low = Color("#1e5fd0");
     t.line_high = Color("#7af0d8");
-    t.mute = Color("#ff5a5a");
-    t.solo = Color("#ffdc5a");
-    t.monitor = Color("#5ad2ff");
-    t.clip_override = Color("#ff9a3c");
-    t.locator = Color("#e03030");
-    t.locator_bg = Color("#702020");
-    t.locator_mark = Color("#c8c8c8");
     t.button_fg = Color("#ffffff");
     t.button_bg = Color("#c04080");
     t.button_pressed_bg = Color("#7a2850");
     t.row_pressed_bg = Color("#5c7c8c");
-    t.master_track = Color("#533918");
     t.menu_fg = Color("#ffffff");
     t.menu_bg = Color("#7f347f");
     t.menu_section_fg = Color("#ffffff");
@@ -228,11 +113,6 @@ struct Theme {
     t.plane_base_bg = Color("#200020");
     t.picker_bg = Color("#202020");
     t.picker_fg = Color("#c0c0c0");
-    t.data_fx = Color("#d65cd6");
-    t.data_velocity = Color("#bfa426");
-    t.data_delay = Color("#42c1ea");
-    t.comma_up = Color("#ff8a3d");
-    t.comma_down = Color("#5ea0ff");
     return t;
   }
 
@@ -240,9 +120,6 @@ struct Theme {
   // look token tables).
   static Theme dark() {
     Theme t = original();
-    t.tracks = TrackPalette::modern();
-    t.grid_lines = false;
-    t.track_chips = true;
     t.surface_base = Color("#11161a");
     t.surface_panel = Color("#1c2227");
     t.surface_raised = Color("#2c3338");
@@ -255,30 +132,17 @@ struct Theme {
     t.accent_dim = Color("#245560");
     t.focus = t.accent;
     shareStates(t);
-    t.grid_beat_fg = t.text_secondary;
-    t.grid_beat_bg = t.surface_panel;
-    t.grid_bar_fg = t.text_primary;
-    t.grid_bar_bg = t.surface_raised;
     t.cursor_tint = Color("#bae9f5");
     t.cursor_row_tint = t.accent;
-    t.command_column = Color("#d4963c");
     t.reader_text = t.accent;
     t.info_line_fg = t.text_secondary;
     t.info_line_bg = t.surface_raised;
     t.line_low = Color("#2b5fa8");
     t.line_high = t.accent;
-    t.mute = Color("#e8746a");
-    t.solo = Color("#e6ad00");
-    t.monitor = t.accent;
-    t.clip_override = Color("#e09036");
-    t.locator = t.text_primary;
-    t.locator_bg = t.surface_raised;
-    t.locator_mark = t.text_secondary;
     t.button_fg = t.text_on_accent;
     t.button_bg = t.accent;
     t.button_pressed_bg = Color("#4f9fb4");
     t.row_pressed_bg = Color("#2f6b78");
-    t.master_track = t.surface_overlay;
     t.menu_fg = t.text_primary;
     t.menu_bg = t.surface_panel;
     t.menu_section_fg = t.text_primary;
@@ -286,11 +150,6 @@ struct Theme {
     t.plane_base_bg = t.surface_base;
     t.picker_bg = t.surface_overlay;
     t.picker_fg = t.text_primary;
-    t.data_fx = Color("#c58be0");
-    t.data_velocity = Color("#d4b03c");
-    t.data_delay = Color("#6cc4e0");
-    t.comma_up = Color("#ff9a52");
-    t.comma_down = Color("#6aa8ff");
     t.modal_backdrop = Backdrop{ 2, 0.35f, t.surface_base };
     return t;
   }
@@ -310,30 +169,17 @@ struct Theme {
     t.accent = Color("#0071e3");
     t.accent_dim = Color("#c7e0ff");
     t.focus = t.accent;
-    t.grid_beat_fg = t.text_secondary;
-    t.grid_beat_bg = t.surface_panel;
-    t.grid_bar_fg = t.text_primary;
-    t.grid_bar_bg = Color("#dde0e7");
     t.cursor_tint = t.accent;
     t.cursor_row_tint = t.accent;
-    t.command_column = Color("#c76a00");
     t.reader_text = t.accent;
     t.info_line_fg = t.text_secondary;
     t.info_line_bg = t.surface_raised;
     t.line_low = Color("#4f4dd0");
     t.line_high = Color("#0071e3");
-    t.mute = Color("#ff3b30");
-    t.solo = Color("#ff9500");
-    t.monitor = t.accent;
-    t.clip_override = Color("#d97706");
-    t.locator = t.text_primary;
-    t.locator_bg = t.surface_raised;
-    t.locator_mark = t.text_secondary;
     t.button_fg = t.text_on_accent;
     t.button_bg = t.accent;
     t.button_pressed_bg = Color("#0058b8");
     t.row_pressed_bg = Color("#b9d8ff");
-    t.master_track = t.surface_overlay;
     t.menu_fg = t.text_primary;
     t.menu_bg = t.surface_panel;
     t.menu_section_fg = t.text_primary;
@@ -341,11 +187,6 @@ struct Theme {
     t.plane_base_bg = t.surface_base;
     t.picker_bg = t.surface_overlay;
     t.picker_fg = t.text_primary;
-    t.data_fx = Color("#9b3fc7");
-    t.data_velocity = Color("#8a5a00");
-    t.data_delay = Color("#0070a0");
-    t.comma_up = Color("#b84a00");
-    t.comma_down = Color("#1f55c4");
     t.modal_backdrop = Backdrop{ 2, 0.3f, t.surface_base };
     return t;
   }
@@ -360,14 +201,8 @@ struct Theme {
   }
 
  private:
-  // The colours that are the same in every modern theme: the Launchpad's
-  // clip states, the text on a track colour and the meter ramp.
+  // The colours that are the same in every modern theme: the level meter ramp.
   static void shareStates(Theme & t) {
-    t.state_playing = Color("#009722");
-    t.state_playing_dim = Color("#668666");
-    t.state_recording = Color("#e23532");
-    t.state_recording_dim = Color("#a46a64");
-    t.text_on_track = Color("#010204");
     t.level_low = Color("#2d8949");
     t.level_mid = Color("#429c44");
     t.level_active = Color("#56b93e");

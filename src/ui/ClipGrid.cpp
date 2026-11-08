@@ -357,8 +357,8 @@ ClipGrid::startClipRename(const Song & song, const std::vector<int> & track_ids)
   field.col = col_x + std::min(prefix_width, kColWidth - 1);
   field.width = edit_width;
   field.initial_text = clip.getName();
-  field.text_color = getPlane().getStyles().clip_text_color;
-  field.backdrop = structure.getBaselineInfo(track_id).getColor(getPlane().getStyles().tracks).blend(0.05f, Color(0, 0, 0));
+  field.text_color = synthStyles().clip_text_color;
+  field.backdrop = structure.getBaselineInfo(track_id).getColor(synthStyles().tracks).blend(0.05f, Color(0, 0, 0));
   inline_editor_.open(field, [this, track_id, clip_row](std::string text) {
     auto & target_song = getController().getSong();
     auto target_clips = target_song.getClips(track_id);
@@ -415,7 +415,7 @@ ClipGrid::startTrackRename(const Song & song, const std::vector<int> & track_ids
   // replacing.
   SongStructure structure(song);
   auto prefix = "T" + std::to_string(structure.getBaselineInfo(track_id).color_ordinal_) + " ";
-  const int chip_width = getPlane().getStyles().track_chips ? 1 : 0;
+  const int chip_width = synthStyles().track_chips ? 1 : 0;
   auto name_area_width = kColWidth - kHeaderFlagsWidth - chip_width;
   auto prefix_width = std::min(static_cast<int>(prefix.size()), name_area_width);
   auto edit_col = col_x + chip_width + prefix_width;
@@ -731,7 +731,7 @@ void ClipGrid::startClipDrag(const cellui::MouseMove & e) {
   if (!drag.clip.getName().empty()) name += " " + drag.clip.getName();
   bool looping = drag.clip.isLooping();
   SongStructure structure(song);
-  auto & styles = getPlane().getStyles();
+  auto & styles = synthStyles();
   Color track_color = structure.getBaselineInfo(track_id).getColor(styles.tracks);
   // Where in the slot the pointer took hold of it.
   auto cell = contentCell(e.col - getPosition().second);
@@ -749,7 +749,7 @@ void ClipGrid::startClipDrag(const cellui::MouseMove & e) {
   ghost_ = std::make_unique<cellui::DragGhost>(getPlane(), 1, kColWidth, grab_y, grab_x, [name, looping, track_color](cellui::Plane & plane, int y, int x, bool) {
     // The same wherever it is; the pointer says whether it can land.
     clip_card::lift(plane, plane.getStyles());
-    putClipSlot(plane, y, x, " ▸ ", name, kColWidth - 3 - std::max(2, looping ? 2 : 0), looping, false, plane.getStyles().clip_text_color, track_color);
+    putClipSlot(plane, y, x, " ▸ ", name, kColWidth - 3 - std::max(2, looping ? 2 : 0), looping, false, ::synthStyles(plane).clip_text_color, track_color);
   });
   ghost_->moveTo(e.y, e.x);
 }
@@ -771,7 +771,7 @@ void ClipGrid::startTrackDrag(const DragCandidate & candidate, const cellui::Mou
   if (candidate.track_index >= static_cast<int>(track_ids.size())) return;
   auto track_id = track_ids[static_cast<size_t>(candidate.track_index)];
   auto label = trackLabel(track_id);
-  auto & styles = getPlane().getStyles();
+  auto & styles = synthStyles();
   SongStructure structure(getController().getSong());
   Color chip = styles.trackChipColor(structure.getBaselineInfo(track_id).color_ordinal_);
   auto cell = contentCell(e.col - getPosition().second);
@@ -782,7 +782,7 @@ void ClipGrid::startTrackDrag(const DragCandidate & candidate, const cellui::Mou
   track_drag_source_ = candidate.track_index;
   drag_version_++;
   ghost_ = std::make_unique<cellui::DragGhost>(getPlane(), 1, kColWidth, grab_y, grab_x, [label, chip](cellui::Plane & plane, int y, int x, bool) {
-    auto & st = plane.getStyles();
+    auto & st = ::synthStyles(plane);
     const int chip_width = st.track_chips ? 1 : 0;
     plane.setLift(st.theme.elevation.card);
     plane.setFgColor(st.window_accent_fg_color);

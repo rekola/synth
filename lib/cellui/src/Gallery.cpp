@@ -127,11 +127,9 @@ Gallery::Gallery(Plane & plane, const Theme & theme, const DisplayInfo & display
   page.plain();
   page.skip();
 
-  page.heading("Accent and state");
+  page.heading("Accent");
   const std::pair<const char *, const Color *> tokens[] = {
     {"accent", &theme.accent}, {"accent.dim", &theme.accent_dim}, {"focus", &theme.focus},
-    {"state.playing", &theme.state_playing}, {"state.playing.dim", &theme.state_playing_dim},
-    {"state.recording", &theme.state_recording}, {"state.recording.dim", &theme.state_recording_dim},
   };
   for (auto & [name, color] : tokens) {
     page.colors(readableOn(*color), *color);

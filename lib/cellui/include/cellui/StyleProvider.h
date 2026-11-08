@@ -21,10 +21,6 @@ class StyleProvider {
   // Sets every colour from the theme's tokens.
   void applyTheme(const Theme & t) {
     theme = t;
-    tracks = t.tracks;
-    grid_lines = t.grid_lines;
-    track_chips = t.track_chips;
-    grid_bg_color = t.grid_lines ? t.surface_base : t.surface_panel;
     highlight_fg_color = t.text_on_accent;
     highlight_bg_color = t.accent;
     highlight_unfocused_bg_color = t.accent_dim;
@@ -33,19 +29,9 @@ class StyleProvider {
     window_bg_color = t.surface_base;
     window_accent_fg_color = t.text_primary;
     window_accent_bg_color = t.surface_panel;
-    window_beat_accent_fg_color = t.grid_beat_fg;
-    window_beat_accent_bg_color = t.grid_beat_bg;
-    window_bar_accent_fg_color = t.grid_bar_fg;
-    window_bar_accent_bg_color = t.grid_bar_bg;
-    clip_playing_color = t.state_playing;
-    clip_paused_color = t.state_playing_dim;
-    clip_recording_color = t.state_recording;
-    clip_armed_color = t.state_recording_dim;
     heading_bg_color = t.surface_raised;
     cursor_tint_color = t.cursor_tint;
     cursor_row_tint_color = t.cursor_row_tint;
-    command_column_color = t.command_column;
-    clip_text_color = t.text_on_track;
     reader_text_color = t.reader_text;
     info_line_fg_color = t.info_line_fg;
     info_line_bg_color = t.info_line_bg;
@@ -58,18 +44,10 @@ class StyleProvider {
     level_hot_color = t.level_hot;
     line_low_color = t.line_low;
     line_high_color = t.line_high;
-    mute_color = t.mute;
-    solo_color = t.solo;
-    monitor_color = t.monitor;
-    clip_override_color = t.clip_override;
-    locator_color = t.locator;
-    locator_bg_color = t.locator_bg;
-    locator_mark_color = t.locator_mark;
     button_fg_color = t.button_fg;
     button_bg_color = t.button_bg;
     button_pressed_bg_color = t.button_pressed_bg;
     row_pressed_bg_color = t.row_pressed_bg;
-    master_track_color = t.master_track;
     menu_fg_color = t.menu_fg;
     menu_bg_color = t.menu_bg;
     menu_section_fg_color = t.menu_section_fg;
@@ -77,28 +55,9 @@ class StyleProvider {
     plane_base_bg_color = t.plane_base_bg;
     picker_bg_color = t.picker_bg;
     picker_fg_color = t.picker_fg;
-    data_fx_color = t.data_fx;
-    data_velocity_color = t.data_velocity;
-    data_delay_color = t.data_delay;
-    comma_up_color = t.comma_up;
-    comma_down_color = t.comma_down;
   }
 
   Theme theme;
-
-  // Whether grid columns have a line between them, and the colour of a
-  // column's body: the window's, or a panel surface over the gutters.
-  bool grid_lines = true;
-  // Track headers carry the track's colour as a slice, not a block.
-  bool track_chips = false;
-  Color grid_bg_color;
-
-  // A track's identity colour, from the theme's palette.
-  TrackPalette tracks;
-  Color trackColor(int ordinal) const { return tracks.color(ordinal); }
-  // The slice of it on a track header: a shade toward the text colour, so it
-  // stays apart from the track's colour on a clip slot below.
-  Color trackChipColor(int ordinal) const { return tracks.color(ordinal).blend(0.3f, window_accent_fg_color); }
 
   // Cursor and playhead colors lean cyan, so they never read as the
   // neutral grey bar/beat highlighting.
@@ -119,30 +78,6 @@ class StyleProvider {
   bool window_focused = true;
   Color cursor_row_tint_color;
   static constexpr float kRowTintAlpha = 0.35f;
-  // A note that has just started is lit past white (linear light, 1 = SDR white);
-  // each display decides what that looks like, and the light falls back to
-  // normal over kNoteFlashSeconds.
-  static constexpr float kNoteFlashGain = 2.5f;
-  static constexpr float kNoteFlashSeconds = 0.7f;
-  // The least a lit colour peaks at (its brightest channel), so a dim colour lights up as much as a bright one.
-  static constexpr float kNoteFlashPeak = 2.0f;
-  // 1 at the moment of the attack, falling to 0 after kNoteFlashSeconds; a reduced-motion
-  // display gets the first half at full strength and then nothing.
-  static float noteFlash(double age_seconds, bool reduced_motion) {
-    if (age_seconds < 0.0 || age_seconds >= kNoteFlashSeconds) return 0.0f;
-    float left = 1.0f - static_cast<float>(age_seconds / kNoteFlashSeconds);
-    return reduced_motion ? (left > 0.5f ? 1.0f : 0.0f) : left;
-  }
-  // How much of a full flash a note of this velocity (0 to 127) gets: half, up to all.
-  static float velocityFlash(int velocity) { return 0.5f + 0.5f * static_cast<float>(std::clamp(velocity, 0, 127)) / 127.0f; }
-  // `c` lit by `flash` (0 to 1): its brightest channel taken from where it is toward
-  // the larger of kNoteFlashGain times that and kNoteFlashPeak.
-  static Color lit(const Color & c, float flash) {
-    float peak = std::max({ c.r(), c.g(), c.b() });
-    if (!(flash > 0.0f) || !(peak > 0.0f)) return c;
-    float scale = std::min(std::max(kNoteFlashGain, kNoteFlashPeak / peak), 8.0f);
-    return c * (1.0f + (scale - 1.0f) * flash);
-  }
   Color cursorRowTint(Color base) const { return base.blend(kRowTintAlpha, cursor_row_tint_color); }
 
   Color window_border_color;
@@ -150,20 +85,6 @@ class StyleProvider {
   Color window_bg_color;
   Color window_accent_fg_color;
   Color window_accent_bg_color;
-
-  // The pattern editor's beat rows, and its bar rows (Song::
-  // getRowsPerBar()) a step above them. Both stay well below the cursor
-  // row's tint, so the cursor still stands out on an accented row.
-  Color window_beat_accent_fg_color;
-  Color window_beat_accent_bg_color;
-  Color window_bar_accent_fg_color;
-  Color window_bar_accent_bg_color;
-
-  Color command_column_color;
-
-  // Text drawn on a clip's own track color (a clip's name, a placed
-  // instance's digit).
-  Color clip_text_color;
 
   // Typed text in a reader (the status line's name prompts, inline name editors).
   Color reader_text_color;
@@ -204,51 +125,19 @@ class StyleProvider {
   }
   Color lineColor(float fraction) const { return line_low_color.blend(std::clamp(fraction, 0.0f, 1.0f), line_high_color); }
 
-  // The clip grid header's track flags when on: Mute, Solo, and a Monitor
-  // set to In (Auto shows in window_fg_color, Off in window_border_color).
-  Color mute_color;
-  Color solo_color;
-  Color monitor_color;
-  // The mark on a track Live View has taken over from the arrangement.
-  Color clip_override_color;
-
-  // A clip slot's state glyph in the clip grid (ClipHighlight):
-  // playing or queued; launched while the transport is paused; recording
-  // or queued to record; an armed track's empty slot, or a take queued to
-  // stop.
-  Color clip_playing_color;
-  Color clip_paused_color;
-  Color clip_recording_color;
-  Color clip_armed_color;
-
-  // Pattern editor locators.
-  Color locator_color;
-  Color locator_bg_color;
-  // The arrangement grid's mark for a bar with a locator.
-  Color locator_mark_color;
-
-  // Panel headers (a list's heading, a grid's track header row, and
+  // Panel headers (a list's heading, a grid's header row, and
   // the divider between them) - brighter than
   // window_accent_bg_color, so they read as a stronger accent than the
   // content beneath them.
   Color heading_bg_color;
 
-
-  // Action buttons in a details panel - distinct from
-  // command_column_color so a clickable button reads as its own kind of
-  // thing rather than borrowing the pattern editor's command-column hue.
+  // Action buttons in a details panel.
   Color button_fg_color;
   Color button_bg_color;
   // While the mouse is held down on a button, all of it.
   Color button_pressed_bg_color;
   // While the mouse is held down on a list row.
   Color row_pressed_bg_color;
-
-  // Same hue as command_column_color, but at half that color's lightness
-  // and a moderately lower saturation - the pattern editor's
-  // master-track ancestor row (a whole title bar, not text on a dark
-  // background).
-  Color master_track_color;
 
   // The menu bar, and the sections that drop down from it.
   Color menu_fg_color;
@@ -261,13 +150,6 @@ class StyleProvider {
   Color plane_base_bg_color;
   Color picker_bg_color;
   Color picker_fg_color;
-
-  // The pattern editor's data columns: local fx, velocity, delay.
-  Color data_fx_color;
-  Color data_velocity_color;
-  Color data_delay_color;
-  Color comma_up_color;
-  Color comma_down_color;
 };
 
 }  // namespace cellui

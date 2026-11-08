@@ -59,8 +59,8 @@ TEST(gallery_ansi_carries_the_theme_colours) {
   Gallery gallery(plane, theme);
   plane.refresh();
   std::string ansi = buffer.toAnsi(gallery.rows());
-  // The playing token #009722 is a background in the accent-and-state list.
-  CHECK(ansi.find("48;2;0;151;34") != std::string::npos);
+  // The accent token #75d4eb is a background in the accent list.
+  CHECK(ansi.find("48;2;117;212;235") != std::string::npos);
   // Bold, italic and underline each appear.
   CHECK(ansi.find(";1") != std::string::npos);
   CHECK(ansi.find(";3") != std::string::npos);
