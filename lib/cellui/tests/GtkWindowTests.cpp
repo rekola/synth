@@ -5,6 +5,7 @@
 #include <cellui/gtk/Window.h>
 
 #include <chrono>
+#include <cmath>
 #include <cstdlib>
 #include <functional>
 #include <thread>
@@ -24,8 +25,8 @@ gtk::Window * theWindow() {
     tried = true;
     gtk::WindowOptions options;
     options.title = "cellui-test";
-    options.rows = 20;
-    options.cols = 60;
+    options.rows = std::getenv("CELLUI_GLOW_ROWS") ? std::atoi(std::getenv("CELLUI_GLOW_ROWS")) : 20;
+    options.cols = std::getenv("CELLUI_GLOW_COLS") ? std::atoi(std::getenv("CELLUI_GLOW_COLS")) : 60;
     std::string error;
     window = gtk::Window::open(options, &error);
     if (!window) std::printf("SKIP: no display (%s)\n", error.c_str());
@@ -52,6 +53,52 @@ void xdotool(const std::string & args) {
 }
 
 }  // namespace
+
+// Not a test: CELLUI_GLOW_BENCH=1 times frames of many notes lit and fading, with the window at
+// CELLUI_GLOW_ROWS x CELLUI_GLOW_COLS and CELLUI_GLOW_LIT_ROWS rows lit in each of 8 tracks.
+// The benchmark goes first so no test has resized the window. For example:
+//   CELLUI_GLOW_BENCH=1 CELLUI_GLOW_ROWS=50 CELLUI_GLOW_COLS=150 GSK_RENDERER=gl xvfb-run -a cellui_gtk_tests
+TEST(gtk_bench_glow) {
+  if (!std::getenv("CELLUI_GLOW_BENCH")) return;
+  gtk::Window * w = theWindow();
+  if (!w) return;
+  StyleProvider styles;
+  pumpUntil(*w, [] { return false; }, 800);
+  std::printf("BENCH window %dx%d cells, frames %zu, raster %.2f, cell %dx%d\n", w->rows(), w->cols(), w->stats().frames, w->stats().raster_ms_total, w->display().cell_px_width, w->display().cell_px_height);
+  const int frames = 150;
+  auto run = [&](const char * name, int mode) {
+    auto start = std::chrono::steady_clock::now();
+    double draw0 = w->stats().draw_ms_total, raster0 = w->stats().raster_ms_total;
+    for (int f = 0; f < frames; f++) {
+      CellBuffer screen(w->rows(), w->cols());
+      BufferPlane root(screen, styles);
+      root.setFgColor(Color::linear(0.25f, 0.25f, 0.25f));
+      for (int r = 1; r < w->rows(); r++) root.putstr(r, 0, std::string("00 C-4 28 00 ... ") + std::string(160, '.'));
+      for (int t = 0; t < 8; t++) {
+        for (int r = 0; r < (std::getenv("CELLUI_GLOW_LIT_ROWS") ? std::atoi(std::getenv("CELLUI_GLOW_LIT_ROWS")) : 16); r++) {
+          float flash = 1.0f - static_cast<float>((r * 7 + f) % 40) / 40.0f;
+          if (mode == 2) flash = std::round(flash * 8.0f) / 8.0f;
+          float gain = mode == 0 ? 1.0f : 1.0f + 1.5f * flash;
+          for (int k = 0; k < 4; k++) {
+            root.setFgColor(Color::linear(0.5f, 0.8f, 0.5f) * (k == 0 ? gain : 1.0f + 0.9f * (gain - 1.0f)));
+            root.putstr(10 + r, 3 + t * 20 + k * 4, k == 0 ? "C-4" : "28 ");
+          }
+        }
+      }
+      root.refresh();
+      size_t before = w->stats().frames;
+      w->present(screen, {}, root.images());
+      pumpUntil(*w, [&] { return w->stats().frames > before; });
+    }
+    double ms = std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - start).count();
+    std::printf("BENCH %-22s %6.2f ms/frame  (snapshot %5.2f ms, raster %5.2f ms)\n", name, ms / frames,
+                (w->stats().draw_ms_total - draw0) / frames, (w->stats().raster_ms_total - raster0) / frames);
+  };
+  run("no glow (control)", 0);
+  run("glow, continuous", 1);
+  run("glow, 8 steps", 2);
+  run("no glow (control)", 0);
+}
 
 // A cell lit past white (an HDR colour) glows; one at or under white does not.
 TEST(gtk_window_glows_where_a_colour_is_lit_past_white) {

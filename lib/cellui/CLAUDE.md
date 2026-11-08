@@ -279,7 +279,10 @@ the cells of every area as high or higher again over them, plus a light top
 and dark bottom edge per area. Glow: a glyph whose foreground is lit past white
 (a `Color` channel above 1, from 0.6 above it at full strength) gets a glow, drawn
 over the backgrounds and under the text as the glyph again under a tight and a
-wide GSK blur, each laid twice, at 0.6 of full strength. A background never glows. A band with no such
+wide GSK blur, at 0.6 of full strength. The blurs are one pass each for a whole layer's
+glyphs together (a blur is a GPU pass of its own, and its cost goes with the area), not
+one per band; a glyph's opacity is its strength, so a stronger one glows more in the
+same layer. A background never glows. A band with no such
 glyph keeps no glow node, and the glow's cache print holds the strengths, since
 the cells' own prints are of the colours scaled to white. An app only says how
 bright; this window decides that bright means light around it. Not done yet:
