@@ -5,6 +5,7 @@
 #include <cellui/gtk/GlibEventLoop.h>
 
 #include <gtk/gtk.h>
+#include <pango/pangocairo.h>
 
 #include <sys/eventfd.h>
 #include <unistd.h>
@@ -160,6 +161,20 @@ struct Window::Impl {
     bool operator<(const Glyph & o) const { return std::tie(text, color, style) < std::tie(o.text, o.color, o.style); }
   };
   std::map<Glyph, GskRenderNode *> glyph_nodes;
+  // The glow of a glyph, blurred once on the CPU and kept as a small texture (the glyph, a
+  // tight and a wide blur of it, in one colour): drawing a glow is then a textured quad
+  // for each lit glyph, with no blur on the GPU. Keyed by glyph, face and colour (4 bits a
+  // channel); the strength is the quad's opacity.
+  struct GlowKey {
+    std::string text;
+    int style;
+    uint32_t color;
+    bool operator<(const GlowKey & o) const { return std::tie(text, style, color) < std::tie(o.text, o.style, o.color); }
+  };
+  std::map<GlowKey, GdkTexture *> glow_sprites;
+  // How far a glow reaches past its cell on every side, in pixels.
+  int glowMargin() const { return static_cast<int>(std::ceil(0.75 * cell_h)) + 1; }
+  GdkTexture * glowSprite(const CellBuffer::Cell & cell, const Color & fg);
   GskRenderNode * glyphNode(const CellBuffer::Cell & cell, const Color & fg);
   GskRenderNode * textNode(const CellBuffer & cells, int r0, int r1);
   GskRenderNode * glowNode(const CellBuffer & cells, int r0, int r1);
@@ -658,6 +673,103 @@ const Window::Impl::Painted & Window::Impl::paint(size_t slot, const CellBuffer 
   return p;
 }
 
+// A Gaussian blur of an alpha image, a row pass and a column pass.
+static void gaussianBlur(std::vector<float> & px, int w, int h, double sigma) {
+  int radius = std::max(1, static_cast<int>(std::ceil(3.0 * sigma)));
+  std::vector<float> kernel(static_cast<size_t>(2 * radius + 1));
+  float sum = 0.0f;
+  for (int i = -radius; i <= radius; i++) {
+    float v = static_cast<float>(std::exp(-(i * i) / (2.0 * sigma * sigma)));
+    kernel[static_cast<size_t>(i + radius)] = v;
+    sum += v;
+  }
+  for (float & v : kernel) v /= sum;
+  std::vector<float> tmp(px.size(), 0.0f);
+  for (int y = 0; y < h; y++) {
+    for (int x = 0; x < w; x++) {
+      float acc = 0.0f;
+      for (int k = -radius; k <= radius; k++) {
+        int xx = x + k;
+        if (xx >= 0 && xx < w) acc += px[static_cast<size_t>(y * w + xx)] * kernel[static_cast<size_t>(k + radius)];
+      }
+      tmp[static_cast<size_t>(y * w + x)] = acc;
+    }
+  }
+  for (int y = 0; y < h; y++) {
+    for (int x = 0; x < w; x++) {
+      float acc = 0.0f;
+      for (int k = -radius; k <= radius; k++) {
+        int yy = y + k;
+        if (yy >= 0 && yy < h) acc += tmp[static_cast<size_t>(yy * w + x)] * kernel[static_cast<size_t>(k + radius)];
+      }
+      px[static_cast<size_t>(y * w + x)] = acc;
+    }
+  }
+}
+
+// The glow texture of a glyph in a colour: its cell and glowMargin() on every side, with the
+// glyph blurred tight and wide, premultiplied in the colour. Null when it cannot be made.
+GdkTexture * Window::Impl::glowSprite(const CellBuffer::Cell & cell, const Color & fg) {
+  auto rgb = fg.toSrgb8();
+  uint32_t color = static_cast<uint32_t>(rgb[0] >> 4) << 8 | static_cast<uint32_t>(rgb[1] >> 4) << 4 | static_cast<uint32_t>(rgb[2] >> 4);
+  GlowKey key{ cell.text, shownWeight(cell.weight) * 2 + (cell.italic ? 1 : 0), color };
+  auto found = glow_sprites.find(key);
+  if (found != glow_sprites.end()) return found->second;
+  if (glow_sprites.size() > 2048) {
+    for (auto & entry : glow_sprites) {
+      if (entry.second) g_object_unref(entry.second);
+    }
+    glow_sprites.clear();
+  }
+  // The glyph as glyphNode() lays it out: shrunk to its cells if it comes out wider.
+  PangoLayout * layout = pango_layout_new(text_context);
+  pango_layout_set_font_description(layout, cellFont(key.style));
+  pango_layout_set_text(layout, cell.text.c_str(), -1);
+  int pw = 0, ph = 0;
+  pango_layout_get_pixel_size(layout, &pw, &ph);
+  int wide = std::max(1, utf8::displayWidth(cell.text));
+  double scale = pw > wide * cell_w ? static_cast<double>(wide * cell_w) / pw : 1.0;
+  double top = std::max(0.0, (cell_h - ph * scale) / 2.0);
+  int margin = glowMargin();
+  int w = wide * cell_w + 2 * margin, h = cell_h + 2 * margin;
+  cairo_surface_t * surface = cairo_image_surface_create(CAIRO_FORMAT_A8, w, h);
+  cairo_t * cr = cairo_create(surface);
+  cairo_set_source_rgba(cr, 0, 0, 0, 1);
+  cairo_translate(cr, margin, margin + top);
+  if (scale < 1.0) cairo_scale(cr, scale, scale);
+  pango_cairo_show_layout(cr, layout);
+  cairo_destroy(cr);
+  g_object_unref(layout);
+  cairo_surface_flush(surface);
+  std::vector<float> glyph(static_cast<size_t>(w * h));
+  const unsigned char * data = cairo_image_surface_get_data(surface);
+  int stride = cairo_image_surface_get_stride(surface);
+  for (int y = 0; y < h; y++) {
+    for (int x = 0; x < w; x++) glyph[static_cast<size_t>(y * w + x)] = data[y * stride + x] / 255.0f;
+  }
+  cairo_surface_destroy(surface);
+  // Spread of a blur node is half its radius (the radii of the tight and the wide blur).
+  std::vector<float> tight = glyph, wide_blur = glyph;
+  gaussianBlur(tight, w, h, 0.5 * 0.22 * cell_h);
+  gaussianBlur(wide_blur, w, h, 0.5 * 0.5 * cell_h);
+  float red = static_cast<float>(((color >> 8) & 15) * 17) / 255.0f, green = static_cast<float>(((color >> 4) & 15) * 17) / 255.0f,
+        blue = static_cast<float>((color & 15) * 17) / 255.0f;
+  guchar * pixels = static_cast<guchar *>(g_malloc(static_cast<gsize>(w * h * 4)));
+  for (size_t i = 0; i < glyph.size(); i++) {
+    float a = std::min(1.0f, tight[i] + wide_blur[i]);
+    pixels[i * 4 + 0] = static_cast<guchar>(std::lround(red * a * 255.0f));
+    pixels[i * 4 + 1] = static_cast<guchar>(std::lround(green * a * 255.0f));
+    pixels[i * 4 + 2] = static_cast<guchar>(std::lround(blue * a * 255.0f));
+    pixels[i * 4 + 3] = static_cast<guchar>(std::lround(a * 255.0f));
+  }
+  GBytes * bytes = g_bytes_new_take(pixels, static_cast<gsize>(w * h * 4));
+  GdkTexture * texture = gdk_memory_texture_new(w, h, GDK_MEMORY_R8G8B8A8_PREMULTIPLIED, bytes, static_cast<gsize>(w * 4));
+  g_bytes_unref(bytes);
+  glow_sprites[key] = texture;
+  stats.glow_sprites++;
+  return texture;
+}
+
 // The glyphs of rows [r0, r1) lit past white, each at the strength of its light.
 // Drawn blurred, from the band's top-left corner.
 GskRenderNode * Window::Impl::glowNode(const CellBuffer & cells, int r0, int r1) {
@@ -670,18 +782,16 @@ GskRenderNode * Window::Impl::glowNode(const CellBuffer & cells, int r0, int r1)
       Color fg = cell.fg.value_or(default_fg);
       int level = glowLevel(fg);
       if (level == 0) continue;
-      GskRenderNode * glyph = glyphNode(cell, fg);
-      if (!glyph) continue;
-      graphene_point_t at = GRAPHENE_POINT_INIT(static_cast<float>(c * cell_w), static_cast<float>((r - r0) * cell_h));
-      gtk_snapshot_save(snap);
-      gtk_snapshot_translate(snap, &at);
-      // What laying the glyph twice at kGlowStrength would come to: a thin glyph's glow
-      // has to be strong to show on a dark ground, and the layer is blurred once.
+      GdkTexture * sprite = glowSprite(cell, fg);
+      if (!sprite) continue;
+      int margin = glowMargin();
+      graphene_rect_t bounds = GRAPHENE_RECT_INIT(static_cast<float>(c * cell_w - margin), static_cast<float>((r - r0) * cell_h - margin),
+                                                  static_cast<float>(gdk_texture_get_width(sprite)), static_cast<float>(gdk_texture_get_height(sprite)));
+      // The sprite holds both blurs once; laying the glyph twice at kGlowStrength comes to this.
       double once = kGlowStrength * static_cast<double>(level) / 16.0;
       gtk_snapshot_push_opacity(snap, 1.0 - (1.0 - once) * (1.0 - once));
-      gtk_snapshot_append_node(snap, glyph);
+      gtk_snapshot_append_texture(snap, sprite, &bounds);
       gtk_snapshot_pop(snap);
-      gtk_snapshot_restore(snap);
     }
   }
   return gtk_snapshot_free_to_node(snap);
@@ -925,32 +1035,17 @@ void Window::Impl::appendPainted(GtkSnapshot * snap, const Painted & p, const Ce
     if (band.bg) gtk_snapshot_append_node(snap, band.bg);
   }
   if (cells) appendImages(snap, *cells);
-  // The glow lies over the backgrounds and under the text: every band's lit glyphs
-  // together, blurred tight and wide. A blur is a pass of its own on the GPU, so it
-  // is one for the whole layer, not one for each band.
-  {
-    GtkSnapshot * lit = gtk_snapshot_new();
-    bool any = false;
-    for (size_t i = 0; i < p.bands.size(); i++) {
-      const Painted::Band & band = p.bands[i];
-      if (!band.glow) continue;
-      any = true;
-      stats.glows++;
-      graphene_point_t top = GRAPHENE_POINT_INIT(0.0f, static_cast<float>(static_cast<int>(i) * kBandRows * cell_h));
-      gtk_snapshot_save(lit);
-      gtk_snapshot_translate(lit, &top);
-      gtk_snapshot_append_node(lit, band.glow);
-      gtk_snapshot_restore(lit);
-    }
-    GskRenderNode * all = gtk_snapshot_free_to_node(lit);
-    if (any && all) {
-      for (double radius : { 0.22 * cell_h, 0.5 * cell_h }) {
-        gtk_snapshot_push_blur(snap, radius);
-        gtk_snapshot_append_node(snap, all);
-        gtk_snapshot_pop(snap);
-      }
-    }
-    if (all) gsk_render_node_unref(all);
+  // The glow lies over the backgrounds and under the text: a textured quad for each lit
+  // glyph (see glowSprite()), so a frame costs no blur.
+  for (size_t i = 0; i < p.bands.size(); i++) {
+    const Painted::Band & band = p.bands[i];
+    if (!band.glow) continue;
+    stats.glows++;
+    graphene_point_t top = GRAPHENE_POINT_INIT(0.0f, static_cast<float>(static_cast<int>(i) * kBandRows * cell_h));
+    gtk_snapshot_save(snap);
+    gtk_snapshot_translate(snap, &top);
+    gtk_snapshot_append_node(snap, band.glow);
+    gtk_snapshot_restore(snap);
   }
   for (size_t i = 0; i < p.bands.size(); i++) {
     const Painted::Band & band = p.bands[i];
@@ -1518,6 +1613,9 @@ Window::~Window() {
   if (impl_->proportional) pango_font_description_free(impl_->proportional);
   for (auto & entry : impl_->glyph_nodes) {
     if (entry.second) gsk_render_node_unref(entry.second);
+  }
+  for (auto & entry : impl_->glow_sprites) {
+    if (entry.second) g_object_unref(entry.second);
   }
   for (auto & entry : impl_->cell_fonts) pango_font_description_free(entry.second);
   if (impl_->cell_base) pango_font_description_free(impl_->cell_base);
