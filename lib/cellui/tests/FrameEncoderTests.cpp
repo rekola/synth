@@ -213,6 +213,7 @@ TEST(encoder_sends_a_glyph_in_its_own_background_as_a_space) {
 
 TEST(encoder_sends_a_wide_colour_as_its_srgb_clip_and_only_when_the_clip_changes) {
   FrameEncoder e(profile(ColorDepth::TRUECOLOR));
+  e.setClock([] { return 0.0; });
   CellBuffer f(2, 20);
   e.encode(f);
   CellBuffer::Style lit;
@@ -233,6 +234,7 @@ TEST(encoder_sends_a_wide_colour_as_its_srgb_clip_and_only_when_the_clip_changes
 
 TEST(encoder_writes_a_foreground_lit_past_white_bold_and_plain_again_when_it_fades) {
   FrameEncoder e(profile(ColorDepth::TRUECOLOR));
+  e.setClock([] { return 0.0; });
   CellBuffer f(2, 20);
   e.encode(f);
   CellBuffer::Style style;
@@ -243,13 +245,6 @@ TEST(encoder_writes_a_foreground_lit_past_white_bold_and_plain_again_when_it_fad
   style.fg = Color::linear(0.5f, 0.5f, 0.5f) * 1.2f;
   f.write(0, 0, "J", style);
   CHECK(e.encode(f).find("22") != std::string::npos);
-  // Lit only just past white is not bold; a visible lift is.
-  style.fg = Color::linear(1.15f, 1.15f, 1.15f);
-  f.write(0, 3, "M", style);
-  CHECK(e.encode(f).find("\x1b[1") == std::string::npos);
-  style.fg = Color::linear(1.4f, 1.4f, 1.4f);
-  f.write(0, 3, "M", style);
-  CHECK(e.encode(f).find("\x1b[1") != std::string::npos);
   // A colour at white or less is never bold, and one the app asked bold for still is.
   style.fg = Color::linear(0.9f, 0.9f, 0.9f);
   f.write(0, 1, "K", style);
@@ -257,4 +252,34 @@ TEST(encoder_writes_a_foreground_lit_past_white_bold_and_plain_again_when_it_fad
   style.weight = 700;
   f.write(0, 2, "L", style);
   CHECK(e.encode(f).find("\x1b[1m") != std::string::npos);
+}
+
+TEST(encoder_writes_a_lit_cell_bold_for_its_first_moments_only) {
+  double now = 0.0;
+  FrameEncoder e(profile(ColorDepth::TRUECOLOR));
+  e.setClock([&] { return now; });
+  CellBuffer f(2, 20);
+  e.encode(f);
+  CellBuffer::Style lit;
+  lit.fg = Color::linear(1.3f, 1.3f, 1.3f);  // only just past white: no velocity or tint changes that
+  now = 1.0;
+  f.write(0, 0, "J", lit);
+  CHECK(e.encode(f).find("\x1b[1;") != std::string::npos);
+  // Within the hold nothing changes, so nothing is sent.
+  now = 1.0 + FrameEncoder::kBoldHold * 0.5;
+  CHECK(e.encode(f).empty());
+  // Past it the cell is plain again, though its colour is still lit.
+  now = 1.0 + FrameEncoder::kBoldHold * 1.5;
+  CHECK(e.encode(f).find("22") != std::string::npos);
+  now += 1.0;
+  CHECK(e.encode(f).empty());
+  // It falls to a normal colour, and is lit again: bold again, for another hold.
+  CellBuffer::Style plain;
+  plain.fg = Color::linear(0.8f, 0.8f, 0.8f);
+  now += 0.1;
+  f.write(0, 0, "J", plain);
+  e.encode(f);
+  now += 0.1;
+  f.write(0, 0, "J", lit);
+  CHECK(e.encode(f).find("\x1b[1;") != std::string::npos);
 }

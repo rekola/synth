@@ -225,53 +225,17 @@ TEST(note_flash_without_motion_is_a_step) {
   CHECK(StyleProvider::noteFlash(StyleProvider::kNoteFlashSeconds * 0.75, true) == 0.0f);
 }
 
-namespace {
-float peakOf(const Color & c) { return std::max({c.r(), c.g(), c.b()}); }
-} // namespace
-
-TEST(note_flash_intensity_is_smooth_through_white) {
-  // Brightness up to white and paleness past it as one number that rises evenly.
-  CHECK_NEAR(StyleProvider::intensity(0.5f), 0.5f, 1e-6f);
-  CHECK_NEAR(StyleProvider::intensity(1.0f), 1.0f, 1e-6f);
-  CHECK_NEAR(StyleProvider::intensity(2.0f), 1.5f, 1e-6f);
-  for (float v : {0.2f, 0.7f, 1.0f, 1.3f, 1.8f}) CHECK_NEAR(StyleProvider::intensity(StyleProvider::peakFor(v)), v, 1e-4f);
-  // The same step in intensity just under and just over white.
-  float below = StyleProvider::intensity(0.99f) - StyleProvider::intensity(0.98f);
-  float over = StyleProvider::intensity(1.02f) - StyleProvider::intensity(1.01f);
-  CHECK_NEAR(below, over, 0.01f);
-}
-
-TEST(note_flash_fades_in_even_steps_of_intensity_and_ends_at_the_colour) {
-  // A colour lit by a falling flash moves in a straight line from lit to its own: no stretch
-  // where nothing changes and no drop at the end.
-  for (const Color & c : {Color::linear(0.9f, 0.9f, 0.9f), Color::linear(0.5f, 0.25f, 0.1f), Color::linear(0.15f, 0.4f, 0.2f)}) {
-    float own = StyleProvider::intensity(peakOf(c));
-    float top = StyleProvider::intensity(peakOf(StyleProvider::lit(c, 1.0f)));
-    CHECK_NEAR(top, StyleProvider::kNoteFlashIntensity, 1e-3f);
-    for (int i = 0; i <= 10; i++) {
-      float flash = static_cast<float>(i) / 10.0f;
-      CHECK_NEAR(StyleProvider::intensity(peakOf(StyleProvider::lit(c, flash))), own + (top - own) * flash, 1e-3f);
-    }
-  }
-  Color c = Color::linear(0.9f, 0.9f, 0.9f);
-  CHECK(StyleProvider::lit(c, 0.0f) == c);
+TEST(note_flash_lights_a_dim_colour_as_far_as_a_bright_one) {
+  Color dim = Color::linear(0.1f, 0.3f, 0.1f), bright = Color::linear(0.9f, 0.9f, 0.9f);
+  auto peak = [](const Color & c) { return std::max({c.r(), c.g(), c.b()}); };
+  CHECK(peak(StyleProvider::lit(dim, 1.0f)) >= StyleProvider::kNoteFlashPeak - 1e-4f);
+  CHECK(peak(StyleProvider::lit(bright, 1.0f)) >= StyleProvider::kNoteFlashGain * peak(bright) - 1e-4f);
+  CHECK(StyleProvider::lit(dim, 0.0f) == dim);
 }
 
 TEST(note_flash_is_stronger_for_a_louder_note) {
   CHECK_NEAR(StyleProvider::velocityFlash(127), 1.0f, 1e-6f);
-  CHECK_NEAR(StyleProvider::velocityFlash(0), 0.75f, 1e-6f);
+  CHECK_NEAR(StyleProvider::velocityFlash(0), 0.5f, 1e-6f);
   CHECK(StyleProvider::velocityFlash(0x28) < StyleProvider::velocityFlash(0x60));
   CHECK_NEAR(StyleProvider::velocityFlash(500), 1.0f, 1e-6f);
-}
-
-// A lit note starts clearly past white whatever its colour or velocity: a terminal shows that as
-// bold, and a note without it looks like a bug.
-TEST(note_flash_starts_every_lit_colour_clearly_past_white_whatever_its_velocity) {
-  const Color colours[] = {Color::linear(0.9f, 0.9f, 0.9f), Color::linear(0.15f, 0.55f, 0.2f), Color::linear(0.3f, 0.12f, 0.05f),
-                           Color::linear(0.6f, 0.35f, 0.1f), Color::linear(0.45f, 0.45f, 0.45f)};
-  for (const Color & c : colours) {
-    for (int velocity : {0, 0x10, 0x28, 0x60, 0x7f}) {
-      CHECK(peakOf(StyleProvider::lit(c, StyleProvider::velocityFlash(velocity))) > 1.4f);
-    }
-  }
 }
