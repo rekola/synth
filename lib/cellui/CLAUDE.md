@@ -262,7 +262,8 @@ timing (and missed-vsync counts) at exit.
 A `GtkWindow` with one custom widget whose `snapshot()` draws the presented
 frame per layer in bands of 4 rows, redone only for a band whose part
 changed: cell backgrounds as one render node of rectangles per band, text as
-Pango glyph nodes (one per glyph, colour and face, shaped once and shared; a
+Pango glyph nodes (one per glyph, colour and face; a glyph in a face is shaped once and
+another colour of it is built from the same glyphs, `recolourText()`; a
 cell at a time so glyphs sit on the grid; a glyph the system monospace font
 lacks, such as 31/53-EDO accidentals, comes from another font shrunk to its
 cell), and pictures as `GdkTexture`s uploaded only when new or re-versioned
@@ -280,8 +281,9 @@ the cells of every area as high or higher again over them, plus a light top
 and dark bottom edge per area. Glow: a glyph whose foreground is lit past white
 (a `Color` channel above 1, from 0.6 above it at full strength) gets a glow, drawn
 over the backgrounds and under the text as a small cached texture: the glyph blurred
-tight and wide once on the CPU (`glowSprite()`, keyed by glyph, face and colour at
-4 bits a channel, reaching 0.75 cell heights past its cell), then a textured quad at
+tight and wide once on the CPU for a glyph in a face (the mask), tinted into a sprite
+for each colour at 4 bits a channel (`glowSprite()`, reaching 0.75 cell heights past its
+cell), then a textured quad at
 the glyph's strength as opacity each frame. No blur runs on the GPU, so a frame costs
 what a few hundred small quads do, on a software renderer too (GSK can keep textures this
 small in its own atlas). A background never glows. A band with no such
