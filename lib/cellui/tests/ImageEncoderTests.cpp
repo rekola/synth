@@ -1,6 +1,8 @@
 #include "TestFramework.h"
 #include "Inflate.h"
 
+#include <set>
+
 #include <cellui/BufferPlane.h>
 #include <cellui/term/FrameEncoder.h>
 #include <cellui/term/ImageEncoder.h>
@@ -740,6 +742,68 @@ TEST(a_stretched_picture_keeps_its_dither_on_a_slow_link) {
   Image smooth = ramp(40, 12);
   CHECK(encodePalettePng(smooth, 0, 0, 40, 12, 4, true) != encodePalettePng(smooth, 0, 0, 40, 12, 4, false));
   CHECK(encodePalettePng(smooth, 0, 0, 40, 12, 4) == encodePalettePng(smooth, 0, 0, 40, 12, 4, false));
+}
+
+// The colour definitions of a Sixel, as "r;g;b" percents.
+namespace {
+
+std::set<std::string> sixelColours(const std::string & sixel) {
+  std::set<std::string> out;
+  for (size_t i = sixel.find(";2;"); i != std::string::npos; i = sixel.find(";2;", i + 1)) {
+    size_t end = sixel.find_first_not_of("0123456789;", i + 3);
+    out.insert(sixel.substr(i + 3, end - i - 3));
+  }
+  return out;
+}
+
+}  // namespace
+
+// A blurred backdrop (stretched over its cells) goes out in the terminal's default palette when the terminal
+// has the registers for it; anything else, and a terminal with fewer registers, in a palette of its own.
+TEST(a_stretched_picture_uses_the_terminals_default_palette) {
+  auto percent = [](int v) { return static_cast<int>(std::lround(v * 100.0 / 255.0)); };
+  std::set<std::string> default_palette;
+  const int cube[6] = {0, 95, 135, 175, 215, 255};
+  auto add = [&](int r, int g, int b) { default_palette.insert(std::to_string(percent(r)) + ";" + std::to_string(percent(g)) + ";" + std::to_string(percent(b))); };
+  for (int r = 0; r < 6; r++)
+    for (int g = 0; g < 6; g++)
+      for (int b = 0; b < 6; b++) add(cube[r], cube[g], cube[b]);
+  for (int i = 0; i < 24; i++) add(8 + 10 * i, 8 + 10 * i, 8 + 10 * i);
+
+  Image backdrop = ramp(40, 12);
+  backdrop.cols = 20;
+  backdrop.rows = 2;
+  auto bytes = [&](const Image & picture, int registers) {
+    ImageEncoder::Profile prof = profile(PixelProtocol::SIXEL);
+    prof.sixel_registers_total = registers;
+    ImageEncoder enc(prof);
+    int cols = picture.stretched() ? picture.cols : (picture.width + 1) / 2, rows = picture.stretched() ? picture.rows : (picture.height + 5) / 6;
+    CellBuffer b(rows + 1, cols);
+    CellBuffer::Cell marked;
+    marked.image = 1;
+    for (int r = 0; r < rows; r++)
+      for (int c = 0; c < cols; c++) b.put(r, c, marked);
+    ImagePlacement place;
+    place.image = std::make_shared<const Image>(picture);
+    place.key = 1;
+    return enc.encode(b, {place}, true);
+  };
+
+  auto fixed = sixelColours(bytes(backdrop, 256));
+  CHECK(!fixed.empty());
+  for (const std::string & c : fixed) CHECK(default_palette.count(c) == 1);
+  // Too few registers for it: the picture's own palette, which is not that one.
+  auto own = sixelColours(bytes(backdrop, 16));
+  bool all_default = true;
+  for (const std::string & c : own) all_default = all_default && default_palette.count(c) == 1;
+  CHECK(!all_default);
+  // A picture that is not stretched keeps its own palette: one grey that the default palette lacks.
+  Image flat_grey;
+  flat_grey.width = 16;
+  flat_grey.height = 12;
+  flat_grey.pixels.assign(16 * 12, Image::pack(33, 33, 33));
+  auto grey = sixelColours(bytes(flat_grey, 256));
+  CHECK(grey.size() == 1 && default_palette.count(*grey.begin()) == 0);
 }
 
 namespace {

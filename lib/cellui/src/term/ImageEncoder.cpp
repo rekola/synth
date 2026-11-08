@@ -133,22 +133,27 @@ constexpr size_t kPartialBelowPercent = 80;
 
 int percent(int v) { return static_cast<int>(std::lround(v * 100.0 / 255.0)); }
 
-// EXPERIMENT (CELLUI_SIXEL_LEGACY): the first Sixel encoder, a fixed 256-colour palette (the xterm cube and
-// greys), ordered dither, one Sixel for the bounding rectangle of what is visible.
-constexpr int kLegacyCube[6] = {0, 95, 135, 175, 215, 255};
+// The terminal's own default 256-colour palette beyond the 16 base colours (the 6x6x6 cube and 24 greys:
+// entries 16 to 255), as a fixed palette: register n is entry n + 16. A picture drawn in it carries no
+// palette of its own to compute, and a smooth dark gradient maps to long runs of a few greys.
+constexpr int kXtermCube[6] = {0, 95, 135, 175, 215, 255};
+constexpr int kXtermRegisters = 240;
 
-void legacyPaletteRgb(int index, int & r, int & g, int & b) {
+uint32_t xtermColour(int reg) {
+  int index = reg + 16, r, g, b;
   if (index >= 232) {
     r = g = b = 8 + 10 * (index - 232);
   } else {
     int i = index - 16;
-    r = kLegacyCube[i / 36];
-    g = kLegacyCube[(i / 6) % 6];
-    b = kLegacyCube[i % 6];
+    r = kXtermCube[i / 36];
+    g = kXtermCube[(i / 6) % 6];
+    b = kXtermCube[i % 6];
   }
+  return (static_cast<uint32_t>(r) << 16) | (static_cast<uint32_t>(g) << 8) | static_cast<uint32_t>(b);
 }
 
-int legacyLevel(int v, const int * levels, int count, float threshold) {
+// Of the two entries around `v` on a ramp, the upper one when v lies above `threshold` of the way between.
+int xtermLevel(int v, const int * levels, int count, float threshold) {
   int i = 0;
   while (i + 2 < count && v >= levels[i + 1]) i++;
   float span = static_cast<float>(levels[i + 1] - levels[i]);
@@ -156,103 +161,16 @@ int legacyLevel(int v, const int * levels, int count, float threshold) {
   return frac > threshold ? i + 1 : i;
 }
 
-int legacyIndex(int r, int g, int b, float threshold) {
+// A pixel's register in the fixed palette by ordered dithering: each channel between its two cube levels,
+// a grey on the grey ramp (the cube's black and white at its ends).
+int xtermRegister(int r, int g, int b, float threshold) {
   int hi = std::max({r, g, b}), lo = std::min({r, g, b});
   if (hi - lo < 12) {
     static const int kGreys[26] = {0, 8, 18, 28, 38, 48, 58, 68, 78, 88, 98, 108, 118, 128, 138, 148, 158, 168, 178, 188, 198, 208, 218, 228, 238, 255};
-    int k = legacyLevel((r + g + b) / 3, kGreys, 26, threshold);
-    return k == 0 ? 16 : k == 25 ? 231 : 232 + (k - 1);
+    int k = xtermLevel((r + g + b) / 3, kGreys, 26, threshold);
+    return (k == 0 ? 16 : k == 25 ? 231 : 232 + (k - 1)) - 16;
   }
-  return 16 + 36 * legacyLevel(r, kLegacyCube, 6, threshold) + 6 * legacyLevel(g, kLegacyCube, 6, threshold) + legacyLevel(b, kLegacyCube, 6, threshold);
-}
-
-int cubeLevelsN() {
-  static const int n = [] {
-    const char * v = std::getenv("CELLUI_SIXEL_LEVELS");
-    return v ? std::max(2, std::atoi(v)) : 0;
-  }();
-  return n;
-}
-
-// Of an N-level uniform cube, a pixel's register by ordered dithering: each channel between two levels.
-int cubeRegister(int r, int g, int b, float threshold) {
-  int n = cubeLevelsN();
-  auto level = [&](int v) {
-    float pos = static_cast<float>(v) * static_cast<float>(n - 1) / 255.0f;
-    int lo = std::min(static_cast<int>(pos), n - 2);
-    return pos - static_cast<float>(lo) > threshold ? lo + 1 : lo;
-  };
-  return (level(r) * n + level(g)) * n + level(b);
-}
-
-void cubeRgb(int reg, int & r, int & g, int & b) {
-  int n = cubeLevelsN();
-  auto v = [&](int l) { return static_cast<int>(std::lround(l * 255.0 / (n - 1))); };
-  r = v(reg / (n * n));
-  g = v((reg / n) % n);
-  b = v(reg % n);
-}
-
-std::string encodeSixelLegacy(const Image & image, int x0, int y0, int width, int height, const std::vector<bool> & keep, int origin_x, int origin_y) {
-  size_t n = static_cast<size_t>(width) * static_cast<size_t>(height);
-  std::vector<int> regs(n, -1);
-  std::set<int> used;
-  bool transparent = height % 6 != 0;
-  for (int y = 0; y < height; y++) {
-    for (int x = 0; x < width; x++) {
-      size_t i = static_cast<size_t>(y) * static_cast<size_t>(width) + static_cast<size_t>(x);
-      uint32_t p = image.pixels[static_cast<size_t>(y0 + y) * static_cast<size_t>(image.width) + static_cast<size_t>(x0 + x)];
-      if (!keep[i] || Image::alpha(p) < 192) {
-        transparent = true;
-        continue;
-      }
-      regs[i] = cubeLevelsN() ? cubeRegister(Image::red(p), Image::green(p), Image::blue(p), std::getenv("CELLUI_SIXEL_NODITHER") ? 0.5f : bayer8(origin_x + x, origin_y + y))
-                              : legacyIndex(Image::red(p), Image::green(p), Image::blue(p), bayer8(origin_x + x, origin_y + y)) - 16;
-      used.insert(regs[i]);
-    }
-  }
-  std::string out = "\x1bP0;" + std::string(transparent ? "1" : "0") + ";0q\"1;1;" + std::to_string(width) + ";" + std::to_string(height);
-  for (int reg : used) {
-    int r, g, b;
-    if (cubeLevelsN()) cubeRgb(reg, r, g, b);
-    else legacyPaletteRgb(reg + 16, r, g, b);
-    out += "#" + std::to_string(reg) + ";2;" + std::to_string(percent(r)) + ";" + std::to_string(percent(g)) + ";" + std::to_string(percent(b));
-  }
-  std::vector<int> bits(static_cast<size_t>(width));
-  for (int band = 0; band < height; band += 6) {
-    std::set<int> in_band;
-    for (int y = band; y < std::min(band + 6, height); y++) {
-      for (int x = 0; x < width; x++) {
-        int reg = regs[static_cast<size_t>(y) * static_cast<size_t>(width) + static_cast<size_t>(x)];
-        if (reg >= 0) in_band.insert(reg);
-      }
-    }
-    bool first = true;
-    for (int reg : in_band) {
-      std::fill(bits.begin(), bits.end(), 0);
-      for (int y = band; y < std::min(band + 6, height); y++) {
-        for (int x = 0; x < width; x++) {
-          if (regs[static_cast<size_t>(y) * static_cast<size_t>(width) + static_cast<size_t>(x)] == reg) bits[static_cast<size_t>(x)] |= 1 << (y - band);
-        }
-      }
-      int last = width - 1;
-      while (last >= 0 && bits[static_cast<size_t>(last)] == 0) last--;
-      if (!first) out += '$';
-      first = false;
-      out += "#" + std::to_string(reg);
-      for (int x = 0; x <= last;) {
-        int run = 1;
-        while (x + run <= last && bits[static_cast<size_t>(x + run)] == bits[static_cast<size_t>(x)]) run++;
-        char c = static_cast<char>(0x3f + bits[static_cast<size_t>(x)]);
-        if (run > 2) out += "!" + std::to_string(run) + c;
-        else out.append(static_cast<size_t>(run), c);
-        x += run;
-      }
-    }
-    out += '-';
-  }
-  out += "\x1b\\";
-  return out;
+  return 36 * xtermLevel(r, kXtermCube, 6, threshold) + 6 * xtermLevel(g, kXtermCube, 6, threshold) + xtermLevel(b, kXtermCube, 6, threshold);
 }
 
 // The 8-bit level a Sixel colour definition (percent) makes of `v`: the level the terminal shows.
@@ -282,6 +200,7 @@ ImageEncoder::Profile ImageEncoder::Profile::from(const Capabilities & caps) {
   p.cell_px_width = caps.display.cell_px_width;
   p.sixel_setup = caps.sixel_setup;
   if (caps.sixel_registers > 0) p.sixel_registers = std::min(caps.sixel_registers, 128);
+  p.sixel_registers_total = caps.sixel_registers;
   return p;
 }
 
@@ -322,6 +241,7 @@ struct SixelPalette {
   bool exact = false;         // every pixel's colour is a register: nothing to dither
   bool grid = false;          // colours are first put on the 101 levels a Sixel colour definition has
   bool grid_dither = false;   // and a gradient (more colours than registers) is dithered between those levels
+  bool fixed = false;         // the terminal's default palette (kXtermRegisters registers), not made from the picture
   std::unordered_map<uint32_t, int> index;  // (exact) colour -> register
 };
 
@@ -473,6 +393,13 @@ SixelPalette makeSixelPalette(const Image & image, int x0, int y0, int width, in
   return palette;
 }
 
+SixelPalette xtermPalette() {
+  SixelPalette palette;
+  palette.fixed = true;
+  for (int reg = 0; reg < kXtermRegisters; reg++) palette.rgb.push_back(xtermColour(reg));
+  return palette;
+}
+
 // The pixels as Sixel in the colours of `palette`: covered pixels (`keep` false, one entry per pixel)
 // are left transparent. A palette that holds the picture's colours exactly draws them as they are;
 // otherwise each pixel goes to the nearest register, after the dither's offset or with its error
@@ -488,6 +415,21 @@ std::vector<int> mapToRegisters(const SixelPalette & palette, const Image & imag
   std::vector<int> regs(static_cast<size_t>(width) * static_cast<size_t>(height), -1);
   transparent = transparent || height % 6 != 0;
   auto left_out = [&](size_t i, uint32_t p) { return !keep[i] || Image::alpha(p) < 192; };
+  if (palette.fixed) {
+    for (int y = 0; y < height; y++) {
+      for (int x = 0; x < width; x++) {
+        size_t i = static_cast<size_t>(y) * static_cast<size_t>(width) + static_cast<size_t>(x);
+        uint32_t p = pixel(x, y);
+        if (left_out(i, p)) {
+          transparent = true;
+          continue;
+        }
+        float threshold = dither.method == Dither::Method::ORDERED ? bayer8(dither.origin_x + x, dither.origin_y + y) : 0.5f;
+        regs[i] = xtermRegister(Image::red(p), Image::green(p), Image::blue(p), threshold);
+      }
+    }
+    return regs;
+  }
   std::unordered_map<uint32_t, int> cache;  // (offset) colour -> nearest register
   auto nearest = [&](int r, int g, int b) {
     uint32_t key = (static_cast<uint32_t>(r) << 16) | (static_cast<uint32_t>(g) << 8) | static_cast<uint32_t>(b);
@@ -1014,29 +956,6 @@ std::string ImageEncoder::sixel(const CellBuffer & frame, const ImagePlacement &
     sixel_ready_ = true;
   }
   sizes_.placement += out.size();
-  if (std::getenv("CELLUI_SIXEL_LEGACY")) {
-    int r0 = rects[0].row, c0 = rects[0].col, r1 = r0, c1 = c0;
-    for (const Rect & r : rects) {
-      r0 = std::min(r0, r.row);
-      c0 = std::min(c0, r.col);
-      r1 = std::max(r1, r.row + r.rows);
-      c1 = std::max(c1, r.col + r.cols);
-    }
-    int x = (c0 - p.col) * cw, y = (r0 - p.row) * ch;
-    int w = std::min((c1 - c0) * cw, img.width - x), h = std::min((r1 - r0) * ch, img.height - y);
-    if (w <= 0 || h <= 0) return "";
-    std::vector<bool> keep(static_cast<size_t>(w) * static_cast<size_t>(h), false);
-    for (const Rect & r : rects) {
-      for (int py = (r.row - r0) * ch; py < std::min((r.row - r0 + r.rows) * ch, h); py++) {
-        for (int px = (r.col - c0) * cw; px < std::min((r.col - c0 + r.cols) * cw, w); px++) keep[static_cast<size_t>(py) * static_cast<size_t>(w) + static_cast<size_t>(px)] = true;
-      }
-    }
-    std::string legacy = out + cup(r0, c0);
-    size_t before = legacy.size();
-    legacy += encodeSixelLegacy(img, x, y, w, h, keep, p.col * cw + x, p.row * ch + y);
-    sizes_.upload += legacy.size() - before;
-    return legacy;
-  }
   struct Piece {
     std::string bytes;
     size_t position = 0, picture = 0;  // of `bytes`, the cursor positions and the Sixel data
@@ -1092,7 +1011,10 @@ std::string ImageEncoder::sixel(const CellBuffer & frame, const ImagePlacement &
     palette_dither.origin_x = p.col * cw + x;
     palette_dither.origin_y = p.row * ch + y;
     palette_dither.gradient = p.image->stretched();
-    SixelPalette palette = makeSixelPalette(img, x, y, w, h, all, registers, true, &palette_dither);
+    // A blurred backdrop (stretched over its cells) at full quality goes out in the terminal's default
+    // palette where it has the registers for it: quicker than one made from the picture, in duller colours.
+    bool fixed = p.image->stretched() && quality_ == PictureQuality::FULL && profile_.sixel_registers_total >= kXtermRegisters;
+    SixelPalette palette = fixed ? xtermPalette() : makeSixelPalette(img, x, y, w, h, all, registers, true, &palette_dither);
     // The cells to send are a row of them at a time, from the first that changed to the last: each Sixel
     // carries the definitions of its registers, which cost more than the cells between two changes.
     std::vector<std::pair<int, int>> spans(static_cast<size_t>(r.rows), {r.cols, -1});
