@@ -91,8 +91,8 @@ TEST(gtk_bench_glow) {
       pumpUntil(*w, [&] { return w->stats().frames > before; });
     }
     double ms = std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - start).count();
-    std::printf("BENCH %-22s %6.2f ms/frame  (snapshot %5.2f ms, raster %5.2f ms)\n", name, ms / frames,
-                (w->stats().draw_ms_total - draw0) / frames, (w->stats().raster_ms_total - raster0) / frames);
+    std::printf("BENCH %-22s %6.2f ms/frame  (snapshot %5.2f ms, raster %5.2f ms, %zu glow textures so far)\n", name, ms / frames,
+                (w->stats().draw_ms_total - draw0) / frames, (w->stats().raster_ms_total - raster0) / frames, w->stats().glow_sprites);
   };
   run("no glow (control)", 0);
   run("glow, continuous", 1);
@@ -119,6 +119,32 @@ TEST(gtk_window_glows_where_a_colour_is_lit_past_white) {
   CHECK(drawn(Color::linear(1.0f, 1.0f, 1.0f)) == 0);
   CHECK(drawn(Color::linear(2.5f, 2.5f, 2.5f)) == 1);
   CHECK(drawn(Color::linear(0.6f, 0.6f, 0.6f)) == 0);
+}
+
+// A glow texture is made once for a glyph in a colour and kept: showing it again makes none.
+TEST(gtk_window_keeps_the_glow_of_a_glyph) {
+  gtk::Window * w = theWindow();
+  if (!w) return;
+  StyleProvider styles;
+  auto present = [&](const Color & fg, const char * text) {
+    CellBuffer screen(w->rows(), w->cols());
+    BufferPlane root(screen, styles);
+    root.setFgColor(fg);
+    root.putstr(3, 4, text);
+    root.refresh();
+    size_t before = w->stats().frames;
+    w->present(screen, {}, root.images());
+    CHECK(pumpUntil(*w, [&] { return w->stats().frames > before; }));
+  };
+  Color lit = Color::linear(2.5f, 2.5f, 2.5f);
+  present(lit, "C-4");
+  size_t made = w->stats().glow_sprites;
+  CHECK(made >= 2);  // "C", "-" and "4" are three glyphs; the same one twice would be fewer
+  present(lit, "C-4");
+  present(Color::linear(1.0f, 1.0f, 1.0f), "C-4");  // not lit: no glow
+  CHECK(w->stats().glow_sprites == made);
+  present(lit, "4-C");  // the same glyphs in another order: nothing new
+  CHECK(w->stats().glow_sprites == made);
 }
 
 TEST(gtk_window_reports_its_display_and_size) {

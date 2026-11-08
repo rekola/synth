@@ -278,11 +278,12 @@ offset down by half the height, and a faint ambient one) around every
 the cells of every area as high or higher again over them, plus a light top
 and dark bottom edge per area. Glow: a glyph whose foreground is lit past white
 (a `Color` channel above 1, from 0.6 above it at full strength) gets a glow, drawn
-over the backgrounds and under the text as the glyph again under a tight and a
-wide GSK blur, at 0.6 of full strength. The blurs are one pass each for a whole layer's
-glyphs together (a blur is a GPU pass of its own, and its cost goes with the area), not
-one per band; a glyph's opacity is its strength, so a stronger one glows more in the
-same layer. A background never glows. A band with no such
+over the backgrounds and under the text as a small cached texture: the glyph blurred
+tight and wide once on the CPU (`glowSprite()`, keyed by glyph, face and colour at
+4 bits a channel, reaching 0.75 cell heights past its cell), then a textured quad at
+the glyph's strength as opacity each frame. No blur runs on the GPU, so a frame costs
+what a few hundred small quads do, on a software renderer too (GSK can keep textures this
+small in its own atlas). A background never glows. A band with no such
 glyph keeps no glow node, and the glow's cache print holds the strengths, since
 the cells' own prints are of the colours scaled to white. An app only says how
 bright; this window decides that bright means light around it. Not done yet:
