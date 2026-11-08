@@ -2,7 +2,7 @@
 #define _LAUNCHPADMANAGER_H_
 
 #include "../doc/Document.h"
-#include "../instruments/Tuning.h"
+#include "../model/Tuning.h"
 #include "../model/Color.h"
 #include "LaunchpadProtocol.h"
 #include "ClipHighlight.h"

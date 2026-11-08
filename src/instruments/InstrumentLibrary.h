@@ -1,7 +1,7 @@
 #ifndef _INSTRUMENTLIBRARY_H_
 #define _INSTRUMENTLIBRARY_H_
 
-#include "Tuning.h"
+#include "../model/Tuning.h"
 
 class InstrumentProvider;
 class ChannelConfiguration;

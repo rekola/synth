@@ -1,11 +1,11 @@
 #ifndef _RENDERCONTEXT_H_
 #define _RENDERCONTEXT_H_
 
+#include "../ambisonic/ChannelConfiguration.h"
 #include "../model/Command.h"
 #include "../model/NoteCoordinate.h"
 #include "../model/SampleContent.h"
-#include "../ambisonic/ChannelConfiguration.h"
-#include "../instruments/Tuning.h"
+#include "../model/Tuning.h"
 
 #include <algorithm>
 #include <cmath>
@@ -14,7 +14,6 @@
 #include <memory>
 #include <unordered_map>
 #include <vector>
-
 
 // Both TrackEvent and SampleTrackEvent below are queued entries on a
 // RenderContext timeline: something a track's own chunked render() must

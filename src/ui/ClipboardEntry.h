@@ -1,10 +1,11 @@
 #ifndef _CLIPBOARDENTRY_H_
 #define _CLIPBOARDENTRY_H_
 
-#include "../model/PatternBlockOps.h"
 #include "SelectionScope.h"
+
+#include "../model/PatternBlockOps.h"
 #include "../model/Command.h"
-#include "../instruments/Tuning.h"
+#include "../model/Tuning.h"
 
 #include <string>
 #include <vector>

@@ -2,7 +2,7 @@
 #define _JUSTINTONATION_H_
 
 #include "Scale.h"
-#include "../instruments/Tuning.h"
+#include "Tuning.h"
 
 #include <array>
 #include <cstdint>

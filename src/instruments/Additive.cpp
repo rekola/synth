@@ -2,7 +2,7 @@
 #include "SpatialPlacement.h"
 
 #include "AdditiveVoice.h"
-#include "Tuning.h"
+#include "../model/Tuning.h"
 #include "../state/MemoryParameterSource.h"
 
 using namespace std;

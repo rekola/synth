@@ -4,16 +4,17 @@
 #include "UIElement.h"
 #include "InlineEditor.h"
 #include "LevelMeter.h"
+#include "TrackDrag.h"
 
 #include <cellui/Dial.h>
 #include <cellui/DragDrop.h>
-#include "TrackDrag.h"
 #include <cellui/Fade.h>
 #include <cellui/Viewport.h>
 #include <cellui/WheelAcceleration.h>
 #include <cellui/Charts.h>
+
 #include "../launchpad/ClipHighlight.h"
-#include "../instruments/Tuning.h"
+#include "../model/Tuning.h"
 #include "../model/Clip.h"
 #include "../model/SendLevels.h"
 

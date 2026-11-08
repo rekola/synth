@@ -11,7 +11,7 @@
 #include <vector>
 
 #include "Gamut.h"
-#include "../instruments/Tuning.h"
+#include "Tuning.h"
 
 // A song-wide scale, for the sequencer (Song::getScaleDegreesWindow()) and,
 // through its gamut (scaleGamut()), the tuning of the song's notes; the

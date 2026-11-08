@@ -1,7 +1,7 @@
 #ifndef _NOTE_H_
 #define _NOTE_H_
 
-#include "../instruments/Tuning.h"
+#include "Tuning.h"
 
 #include <algorithm>
 #include <cstdint>

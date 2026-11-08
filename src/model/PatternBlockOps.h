@@ -1,12 +1,12 @@
 #ifndef _PATTERNBLOCKOPS_H_
 #define _PATTERNBLOCKOPS_H_
 
-#include "BarGrid.h"
 #include "../dsp/NoiseGenerator.h"
 #include "../model/Note.h"
 #include "../model/Command.h"
+#include "BarGrid.h"
 #include "JustIntonation.h"
-#include "../instruments/Tuning.h"
+#include "Tuning.h"
 
 #include <functional>
 #include <string>

@@ -1,14 +1,15 @@
 #ifndef _TRACK_H_
 #define _TRACK_H_
 
-#include "StatefulSongObject.h"
-#include "../state/VoiceState.h"
-#include "TrackType.h"
 #include "../ambisonic/SphericalPosition.h"
+#include "../ambisonic/SpatialMode.h"
+#include "../state/VoiceState.h"
+
+#include "StatefulSongObject.h"
+#include "TrackType.h"
 #include "SendLevels.h"
 #include "NoteCoordinate.h"
-#include "../instruments/Tuning.h"
-#include "../ambisonic/SpatialMode.h"
+#include "Tuning.h"
 
 #include <string_view>
 #include <vector>

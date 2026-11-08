@@ -1,6 +1,6 @@
 #include "TestFramework.h"
 
-#include "../src/instruments/Tuning.h"
+#include "../src/model/Tuning.h"
 #include "../src/model/Note.h"
 
 #include <cmath>

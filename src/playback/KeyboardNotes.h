@@ -1,7 +1,7 @@
 #ifndef _KEYBOARDNOTES_H_
 #define _KEYBOARDNOTES_H_
 
-#include "../instruments/Tuning.h"
+#include "../model/Tuning.h"
 #include "../model/Scale.h"
 
 #include <cellui/Input.h>
@@ -47,6 +47,48 @@ inline const std::string_view keyToMidiNote(int key, Tuning tuning, Scale scale)
       case '5':
         return "RD"; // 51 Ride Cymbal 1
     }
+  } else if (scale == Scale::PYTHAGOREAN_MIXOLYDIAN) {
+    switch (key) {
+      case 'z':
+        return "C";
+      case 'x':
+        return "D";
+      case 'c':
+        return "E↑";
+      case 'v':
+        return "F";
+      case 'b':
+        return "G";
+      case 'n':
+        return "A↑";
+      case 'm':
+        return "B♭↓";
+      case ',':
+        return "C'";
+      case '.':
+        return "D'";
+    }
+  } else if (scale == Scale::NID_QABLIM) {
+    switch (key) {
+      case 'z':
+        return "C";
+      case 'x':
+        return "C♯↑";
+      case 'c':
+        return "E♭↓";
+      case 'v':
+        return "F";
+      case 'b':
+        return "G";
+      case 'n':
+        return "A♭↓";
+      case 'm':
+        return "B♭↓";
+      case ',':
+        return "C'";
+      case '.':
+        return "C♯↑'";
+    }
   } else if (scale == Scale::RAST) {
     switch (key) {
       case 'z':
@@ -63,6 +105,10 @@ inline const std::string_view keyToMidiNote(int key, Tuning tuning, Scale scale)
         return "A";
       case 'm':
         return "B𝄳";
+      case ',':
+        return "C'";
+      case '.':
+        return "D'";
     }
   } else if (scale == Scale::UTONAL) {
     switch (key) {

@@ -1,7 +1,7 @@
 #ifndef _LAUNCHPADLAYOUT_H_
 #define _LAUNCHPADLAYOUT_H_
 
-#include "../instruments/Tuning.h"
+#include "../model/Tuning.h"
 
 #include <array>
 #include <vector>

@@ -1,11 +1,12 @@
 #include "MidiNoteInput.h"
 
-#include "PlaybackControlEvent.h"
 #include "../Controller.h"
-#include "../instruments/Tuning.h"
+#include "../model/Tuning.h"
 #include "../model/Note.h"
 #include "../model/PatternBlockOps.h"
 #include "../model/Song.h"
+
+#include "PlaybackControlEvent.h"
 
 #include <algorithm>
 #include <cmath>
