@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<song key="C" scale="pythagorean-mixolydian" temperament="53edo" tempo="99" timeSignature="6/8">
+<song key="C" scale="kitmum" temperament="53edo" tempo="99" timeSignature="6/8">
     <instruments from="kit">
         <instrument id="i1" from="string.plucked.harp"/>
         <instrument id="i2" from="string.plucked.harp"/>
@@ -41,7 +41,7 @@ holds its last note, then stops. The tempo broadens over the outro from 99
 to 80 (tempo changes in the arrangement). The two aulos tracks stand in for the singer;
 the reed drone is a second player.
 
-The scale is the Pythagorean Mixolydian mode on C: C D E F G A B-flat = 1/1
+The scale is kitmum, the Mixolydian mode on C of the Pythagorean gamut: C D E F G A B-flat = 1/1
 9/8 81/64 4/3 3/2 27/16 16/9. In 53-EDO's notation the plain names are the
 just major scale, so the Pythagorean E, A and B-flat are written E-up, A-up
 and B-flat-down.</notes>

@@ -6,7 +6,10 @@
 
 #include <cellui/Input.h>
 
+#include <map>
+#include <string>
 #include <string_view>
+#include <vector>
 
 // The note-entry keyboard mapping: the MIDI note a key plays in a tuning, or -1.
 inline const std::string_view keyToMidiNote(int key, Tuning tuning, Scale scale) {
@@ -47,48 +50,22 @@ inline const std::string_view keyToMidiNote(int key, Tuning tuning, Scale scale)
       case '5':
         return "RD"; // 51 Ride Cymbal 1
     }
-  } else if (scale == Scale::PYTHAGOREAN_MIXOLYDIAN) {
-    switch (key) {
-      case 'z':
-        return "C";
-      case 'x':
-        return "D";
-      case 'c':
-        return "E↑";
-      case 'v':
-        return "F";
-      case 'b':
-        return "G";
-      case 'n':
-        return "A↑";
-      case 'm':
-        return "B♭↓";
-      case ',':
-        return "C'";
-      case '.':
-        return "D'";
-    }
-  } else if (scale == Scale::NID_QABLIM) {
-    switch (key) {
-      case 'z':
-        return "C";
-      case 'x':
-        return "C♯↑";
-      case 'c':
-        return "E♭↓";
-      case 'v':
-        return "F";
-      case 'b':
-        return "G";
-      case 'n':
-        return "A♭↓";
-      case 'm':
-        return "B♭↓";
-      case ',':
-        return "C'";
-      case '.':
-        return "C♯↑'";
-    }
+  } else if (isBabylonianMode(scale)) {
+    // The scale's seven degrees on z x c v b n m, then the tonic and second
+    // an octave up; the spellings are the gamut's own.
+    static const std::map<Scale, std::vector<std::string>> table = [] {
+      std::map<Scale, std::vector<std::string>> out;
+      for (auto mode : {Scale::NIS_TUHRIM, Scale::ISARTUM, Scale::EMBUBUM, Scale::NID_QABLIM, Scale::QABLITUM, Scale::KITMUM, Scale::PITUM}) {
+        auto & keys = out[mode];
+        for (auto name : scaleDegreeNames(mode)) keys.emplace_back(name);
+        keys.push_back(keys[0] + "'");
+        keys.push_back(keys[1] + "'");
+      }
+      return out;
+    }();
+    static constexpr std::string_view kKeys = "zxcvbnm,.";
+    auto at = key >= 0 && key < 128 ? kKeys.find(static_cast<char>(key)) : std::string_view::npos;
+    if (at != std::string_view::npos) return table.at(scale)[at];
   } else if (scale == Scale::RAST) {
     switch (key) {
       case 'z':

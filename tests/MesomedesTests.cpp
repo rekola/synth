@@ -85,5 +85,5 @@ TEST(mesomedes_plays_scale_notes_tuned_to_their_ratios_in_120_rows) {
       }
     }
   }
-  CHECK(off_scale == 4); // the lyre, its octave lower and the two aulos
+  CHECK(off_scale == 1); // the lyre alone
 }

@@ -174,18 +174,33 @@ shuffle, erode, shatter, gate, crush, duck, a send throw, orbit): it
 lasts while the pad is held and never changes the song. See
 launchpad.md.
 
-**Pythagorean gamut, Pythagorean Mixolydian and nīd qablim**
+**Pythagorean gamut and the Babylonian modes**
 The Pythagorean gamut is thirteen notes of the chain of fifths, six below
 the tonic and six above, octave-reduced (all 3-limit). Pythagorean Mixolydian
-selects C D E F G A B♭ from it: 1/1 9/8 81/64 4/3 3/2 27/16 16/9. A scale's
-name carries its gamut's, so a 5-limit Mixolydian can be added beside it. The
-gamut is for 53-EDO only: its fifth is almost exact and its spellings write
+has seven modes, each a rotation of one seven-note pattern and named after
+the Babylonian tuning text (the table below; išartum, the "normal" scale, is
+the gamut's default). The gamut is for 53-EDO only: its fifth is almost exact and its spellings write
 the Pythagorean E, A and B♭ as E↑, A↑ and B♭↓. 31-EDO cannot tune it under
 any spelling (81/64 lies between its steps 10 and 11), and 12 and 19-EDO
-approximate it as they do every just ratio. The scale will take the
-Babylonian tuning's name once that mapping is verified. Nīd qablim is its
-Phrygian rotation, C D♭ E♭ F G A♭ B♭ = 1/1 256/243 32/27 4/3 3/2 128/81 16/9
-(spelled C♯↑ E♭↓ A♭↓ B♭↓ in the gamut), also 53-EDO only.
+approximate it as they do every just ratio.
+
+| Name | Strings | Mode | Notes on C |
+| --- | --- | --- | --- |
+| nīš tuḫrim | 1–5 | Locrian | C D♭ E♭ F G♭ A♭ B♭ |
+| išartum | 2–6 | Ionian | C D E F G A B |
+| embūbum | 3–7 | Dorian | C D E♭ F G A B♭ |
+| nīd qablim | 4–1 | Phrygian | C D♭ E♭ F G A♭ B♭ |
+| qablītum | 5–2 | Lydian | C D E F♯ G A B |
+| kitmum | 6–3 | Mixolydian | C D E F G A B♭ |
+| pītum | 7–4 | Aeolian | C D E♭ F G A♭ B♭ |
+
+The names follow the descending reading of the tuning text accepted since
+1990; under the older ascending reading each name denotes the inverse mode
+(kitmum and pītum, išartum and nīd qablim, nīš tuḫrim and qablītum exchange;
+embūbum is unchanged), which is what older tables and the Wikipedia
+heptachord table show. Sources: Kilmer, "Mesopotamian Music Theory Since
+1977" (2014), which gives the Greek octave-species names; Gurney, "Babylonian
+Music Again" (1994); Krispijn (1990). The tuning text is UET VII 74.
 
 **Rhythm**
 A pre-written drum pattern in the Library, such as Waltz, Funk or Bossa
