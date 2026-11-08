@@ -166,6 +166,33 @@ int legacyIndex(int r, int g, int b, float threshold) {
   return 16 + 36 * legacyLevel(r, kLegacyCube, 6, threshold) + 6 * legacyLevel(g, kLegacyCube, 6, threshold) + legacyLevel(b, kLegacyCube, 6, threshold);
 }
 
+int cubeLevelsN() {
+  static const int n = [] {
+    const char * v = std::getenv("CELLUI_SIXEL_LEVELS");
+    return v ? std::max(2, std::atoi(v)) : 0;
+  }();
+  return n;
+}
+
+// Of an N-level uniform cube, a pixel's register by ordered dithering: each channel between two levels.
+int cubeRegister(int r, int g, int b, float threshold) {
+  int n = cubeLevelsN();
+  auto level = [&](int v) {
+    float pos = static_cast<float>(v) * static_cast<float>(n - 1) / 255.0f;
+    int lo = std::min(static_cast<int>(pos), n - 2);
+    return pos - static_cast<float>(lo) > threshold ? lo + 1 : lo;
+  };
+  return (level(r) * n + level(g)) * n + level(b);
+}
+
+void cubeRgb(int reg, int & r, int & g, int & b) {
+  int n = cubeLevelsN();
+  auto v = [&](int l) { return static_cast<int>(std::lround(l * 255.0 / (n - 1))); };
+  r = v(reg / (n * n));
+  g = v((reg / n) % n);
+  b = v(reg % n);
+}
+
 std::string encodeSixelLegacy(const Image & image, int x0, int y0, int width, int height, const std::vector<bool> & keep, int origin_x, int origin_y) {
   size_t n = static_cast<size_t>(width) * static_cast<size_t>(height);
   std::vector<int> regs(n, -1);
@@ -179,14 +206,16 @@ std::string encodeSixelLegacy(const Image & image, int x0, int y0, int width, in
         transparent = true;
         continue;
       }
-      regs[i] = legacyIndex(Image::red(p), Image::green(p), Image::blue(p), bayer8(origin_x + x, origin_y + y)) - 16;
+      regs[i] = cubeLevelsN() ? cubeRegister(Image::red(p), Image::green(p), Image::blue(p), bayer8(origin_x + x, origin_y + y))
+                              : legacyIndex(Image::red(p), Image::green(p), Image::blue(p), bayer8(origin_x + x, origin_y + y)) - 16;
       used.insert(regs[i]);
     }
   }
   std::string out = "\x1bP0;" + std::string(transparent ? "1" : "0") + ";0q\"1;1;" + std::to_string(width) + ";" + std::to_string(height);
   for (int reg : used) {
     int r, g, b;
-    legacyPaletteRgb(reg + 16, r, g, b);
+    if (cubeLevelsN()) cubeRgb(reg, r, g, b);
+    else legacyPaletteRgb(reg + 16, r, g, b);
     out += "#" + std::to_string(reg) + ";2;" + std::to_string(percent(r)) + ";" + std::to_string(percent(g)) + ";" + std::to_string(percent(b));
   }
   std::vector<int> bits(static_cast<size_t>(width));
