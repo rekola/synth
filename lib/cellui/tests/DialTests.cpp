@@ -44,7 +44,7 @@ TEST(dial_image_has_a_ring_open_at_the_bottom_and_a_pointer_that_follows_the_val
 
 TEST(dial_draws_a_picture_where_the_plane_shows_pictures_and_text_otherwise) {
   StyleProvider styles;
-  DialLook look{styles.grid_bg_color, styles.window_accent_fg_color};
+  DialLook look{styles.window_bg_color, styles.window_accent_fg_color};
   DialReading reading{"A", 0.5f, "-12"};
   CellBuffer pictured(4, 9);
   BufferPlane with_pictures(pictured, styles);
@@ -69,7 +69,7 @@ TEST(dial_draws_a_picture_where_the_plane_shows_pictures_and_text_otherwise) {
 
 TEST(dial_text_version_is_clipped_to_the_plane_rows_it_is_given) {
   StyleProvider styles;
-  DialLook look{styles.grid_bg_color, styles.window_accent_fg_color};
+  DialLook look{styles.window_bg_color, styles.window_accent_fg_color};
   CellBuffer plain(3, 6);
   BufferPlane text(plain, styles);
   drawDial(text, 0, 0, 3, 6, DialReading{"B", 0.0f, "off"}, look, 1, 3);

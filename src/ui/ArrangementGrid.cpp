@@ -228,7 +228,7 @@ void ArrangementGrid::startInstanceDrag(const cellui::MouseMove & e) {
   if (!block) return;
   auto & song = getController().getSong();
   SongStructure structure(song);
-  auto & styles = getPlane().getStyles();
+  auto & styles = synthStyles();
   Color track_color = structure.getBaselineInfo(block->track_id).getColor(styles.tracks);
   // Where in the block the pointer took hold of it, in bars.
   auto [pos_y, pos_x] = getPosition();
@@ -245,7 +245,7 @@ void ArrangementGrid::startInstanceDrag(const cellui::MouseMove & e) {
   drag_copy_ = e.mods.ctrl;
   drag_version_++;
   ghost_ = std::make_unique<cellui::DragGhost>(getPlane(), 1, bars, grab_y, grab_x, [bars, clip_index, track_color](cellui::Plane & plane, int y, int x, bool) {
-    auto & st = plane.getStyles();
+    auto & st = ::synthStyles(plane);
     plane.setFgColor(st.clip_text_color);
     plane.setBgColor(track_color);
     clip_card::lift(plane, st);
@@ -283,7 +283,7 @@ void ArrangementGrid::startTrackDrag(const DragCandidate & candidate, const cell
   auto track_id = track_ids[static_cast<size_t>(candidate.track_index)];
   auto label = trackLabel(track_id);
   SongStructure structure(getController().getSong());
-  Color color = structure.getBaselineInfo(track_id).getColor(getPlane().getStyles().tracks);
+  Color color = structure.getBaselineInfo(track_id).getColor(synthStyles().tracks);
   auto [pos_y, pos_x] = getPosition();
   float grab_x = std::clamp(e.x - static_cast<float>(pos_x), 0.0f, static_cast<float>(kNameWidth) - 0.01f);
   float grab_y = e.y - static_cast<float>(e.row);

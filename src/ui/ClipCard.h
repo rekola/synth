@@ -2,7 +2,7 @@
 #define _CLIPCARD_H_
 
 #include <cellui/Plane.h>
-#include "StyleProvider.h"
+#include <cellui/StyleProvider.h>
 
 // How a clip stands on a grid wherever one shows - a slot of the clip grid, a
 // block of the arrangement grid, the ghost of either being dragged: a card in
@@ -12,7 +12,7 @@ namespace clip_card {
 
 // The cursor's card stands as high as the others but casts no shadow, so no
 // other clip's shadow falls on it.
-inline void lift(cellui::Plane & plane, const StyleProvider & styles, bool cursor = false) {
+inline void lift(cellui::Plane & plane, const cellui::StyleProvider & styles, bool cursor = false) {
   if (cursor)
     plane.setLift(styles.theme.elevation.card, false, false);
   else

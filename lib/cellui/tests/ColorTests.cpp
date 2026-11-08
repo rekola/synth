@@ -198,26 +198,6 @@ TEST(color_parsing_ignores_the_locale_decimal_separator) {
   CHECK(percent == Color::fromOklch(0.75f, 0.15f, 60.0f));
 }
 
-TEST(note_flash_is_full_at_the_attack_and_gone_after_its_time) {
-  CHECK_NEAR(cellui::StyleProvider::noteFlash(0.0, false), 1.0f, 1e-6f);
-  CHECK(cellui::StyleProvider::noteFlash(0.05, false) > cellui::StyleProvider::noteFlash(0.15, false));
-  CHECK(cellui::StyleProvider::noteFlash(-0.01, false) == 0.0f); // not started yet
-  CHECK(cellui::StyleProvider::noteFlash(cellui::StyleProvider::kNoteFlashSeconds, false) == 0.0f);
-}
-
-TEST(note_flash_without_motion_is_a_step) {
-  CHECK(cellui::StyleProvider::noteFlash(0.01, true) == 1.0f);
-  CHECK(cellui::StyleProvider::noteFlash(cellui::StyleProvider::kNoteFlashSeconds * 0.75, true) == 0.0f);
-}
-
-TEST(note_flash_lights_a_dim_colour_as_far_as_a_bright_one) {
-  Color dim = Color::linear(0.1f, 0.3f, 0.1f), bright = Color::linear(0.9f, 0.9f, 0.9f);
-  auto peak = [](const Color & c) { return std::max({ c.r(), c.g(), c.b() }); };
-  CHECK(peak(StyleProvider::lit(dim, 1.0f)) >= StyleProvider::kNoteFlashPeak - 1e-4f);
-  CHECK(peak(StyleProvider::lit(bright, 1.0f)) >= StyleProvider::kNoteFlashGain * peak(bright) - 1e-4f);
-  CHECK(StyleProvider::lit(dim, 0.0f) == dim);
-}
-
 TEST(tone_map_leaves_what_the_display_can_show_alone) {
   float rgb[3] = { 0.2f, 0.9f, 1.0f };
   neutralToneMap(rgb);
@@ -244,11 +224,4 @@ TEST(tone_map_with_the_khronos_parameters_is_khronos_neutral) {
   float dim[3] = { 0.5f, 0.3f, 0.1f };
   neutralToneMap(dim, 0.76f, 0.15f);
   CHECK(dim[0] == 0.5f && dim[1] == 0.3f && dim[2] == 0.1f);
-}
-
-TEST(note_flash_is_stronger_for_a_louder_note) {
-  CHECK_NEAR(StyleProvider::velocityFlash(127), 1.0f, 1e-6f);
-  CHECK_NEAR(StyleProvider::velocityFlash(0), 0.5f, 1e-6f);
-  CHECK(StyleProvider::velocityFlash(0x28) < StyleProvider::velocityFlash(0x60));
-  CHECK_NEAR(StyleProvider::velocityFlash(500), 1.0f, 1e-6f);
 }

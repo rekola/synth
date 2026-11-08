@@ -1072,7 +1072,7 @@ PatternEditor::startTrackNameEdit() {
   field.initial_text = track->getName();
   field.text_color = last_styles_->track_chips ? last_styles_->window_accent_fg_color : last_styles_->clip_text_color;
   field.backdrop = last_styles_->track_chips ? last_styles_->heading_bg_color
-                                             : track_info.getColor(getPlane().getStyles().tracks).blend(0.05f, Color(0, 0, 0));
+                                             : track_info.getColor(synthStyles().tracks).blend(0.05f, Color(0, 0, 0));
   inline_editor_.open(field, [this, track_id](std::string text) {
     auto & target_song = getController().getSong();
     if (target_song.getMasterTrack().getChildByInternalId(track_id)) {
