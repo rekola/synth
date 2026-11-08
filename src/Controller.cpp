@@ -823,6 +823,11 @@ Controller::receivePlaybackSnapshot(const string & buffer_name, const PlaybackIn
     playback_infos_[buffer_name] = info;
     return;
   }
+  // A ZT00 stopped the transport: what stopping it by hand ends ends too.
+  if (auto & seen = seen_stop_count_[buffer_name]; info.getStopCount() > seen) {
+    seen = info.getStopCount();
+    stopAnyActiveRecordArm();
+  }
   auto merged = info;
   if (info.getPositionEditSeq() < local_position_edit_seq_) {
     // Stale: the audio thread took this snapshot before draining our most

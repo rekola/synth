@@ -160,6 +160,9 @@ class PlaybackInfo {
   // one a ZTxx set.
   int getSceneTempo() const { return scene_tempo_; }
   void setSceneTempo(int tempo) { scene_tempo_ = tempo; }
+  // How many times a ZT00 had stopped the transport (SongState::getStopCount()).
+  int getStopCount() const { return stop_count_; }
+  void setStopCount(int count) { stop_count_ = count; }
   const RunningBars & getRunningBars() const { return running_bars_; }
   void setRunningBars(RunningBars running) { running_bars_ = running; }
   int getSceneSeq() const { return scene_seq_; }
@@ -195,6 +198,7 @@ private:
   int live_seq_ = 0;
   int tempo_ = 0;
   int scene_tempo_ = 0;
+  int stop_count_ = 0;
   RunningBars running_bars_;
   int scene_seq_ = 0;
 

@@ -11,6 +11,7 @@
 #include "../src/ambisonic/ChannelConfiguration.h"
 #include "../src/model/Clip.h"
 #include "../src/model/ArrangementOps.h"
+#include "../src/audio/OfflineRenderer.h"
 
 using namespace std;
 
@@ -133,4 +134,58 @@ TEST(tempo_edit_overrides_a_tempo_command) {
   song.setTempo(100);
   rig.play(1);
   CHECK(rig.state.getTempo() == 100);
+}
+
+TEST(tempo_zero_is_a_stop) {
+  CHECK(Command("ZT00").isSongStop());
+  CHECK(Command("ZT00").getTempoBpm() == 0);
+  CHECK(!Command("ZT01").isSongStop());
+  CHECK(!Command("ZT78").isSongStop());
+}
+
+// ZT00: its row plays, then the transport stops on the row after it, so
+// play carries on from there.
+TEST(tempo_zero_stops_the_transport_after_its_row) {
+  Song song;
+  auto & track = song.addTrack(make_unique<InstrumentTrack>(0));
+  song.getArrangement().setCommand(2, track.getInternalId(), Command("ZT00"));
+
+  Rig rig(song);
+  rig.play(2);
+  CHECK(rig.state.isPlaying());
+  // One block longer than the row: the stop ends the row early in it.
+  rig.state.renderBlock(rig.state.samplesUntilNextRow() + 100, song, *rig.mixer);
+  CHECK(!rig.state.isPlaying());
+  CHECK(rig.state.getAbsolutePosition() == 3);
+  CHECK(rig.state.getStopCount() == 1);
+  CHECK(rig.state.getTempo() == song.getTempo()); // not a tempo
+
+  rig.state.setIsPlaying(true);
+  rig.play(2);
+  CHECK(rig.state.isPlaying());
+  CHECK(rig.state.getAbsolutePosition() == 5);
+}
+
+TEST(tempo_below_range_other_than_zero_does_not_stop) {
+  Song song;
+  auto & track = song.addTrack(make_unique<InstrumentTrack>(0));
+  song.getArrangement().setCommand(0, track.getInternalId(), Command("ZT01"));
+
+  Rig rig(song);
+  rig.play(2);
+  CHECK(rig.state.isPlaying());
+}
+
+// An offline render ends at a ZT00 (plus the release tail), not at the
+// arrangement's end.
+TEST(tempo_zero_ends_an_offline_render) {
+  Song song;
+  auto & track = song.addTrack(make_unique<InstrumentTrack>(0));
+  song.getArrangement().setCommand(0, track.getInternalId(), Command("ZT00"));
+  song.getArrangement().setCommand(63, track.getInternalId(), Command("ZT78"));
+
+  ChannelConfiguration config(44100, 1);
+  auto result = renderSongOffline(song, config, MixerType::AMBISONIC_STEREO, 512, 10, 1e-4f, false);
+  auto frames = result.interleaved.size() / static_cast<size_t>(result.channels);
+  CHECK(frames < static_cast<size_t>(config.getSampleInterval(song.getTempo())) * 4);
 }

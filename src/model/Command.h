@@ -118,9 +118,11 @@ class Command {
     return (hi < 0 ? 0 : hi) * 16 + (lo < 0 ? 0 : lo);
   }
 
-  // ZTxx - set the tempo to `xx` BPM (hex) from this row on. Below 20 (32
-  // BPM) it does nothing. See docs/commands.md.
+  // ZTxx - set the tempo to `xx` BPM (hex) from this row on; ZT00 stops the
+  // transport instead (isSongStop()), and 01-1F do nothing. See
+  // docs/commands.md.
   bool isTempoSet() const { return values_[0] == 'Z' && values_[1] == 'T'; }
+  bool isSongStop() const { return isTempoSet() && digit(values_[2], 16) <= 0 && digit(values_[3], 16) <= 0; }
   static constexpr int kMinTempoBpm = 0x20;
   // The BPM ZTxx sets, 0 for one below kMinTempoBpm.
   int getTempoBpm() const {
