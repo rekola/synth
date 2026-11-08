@@ -3956,17 +3956,14 @@ PatternEditor::renderRow(const StyleProvider & styles, int heading_height, const
 	  cell_fg = command.isDefined() && !column_selected ? tintForPlayhead(dim_fixed_color(styles.command_column_color)) : (cell_is_selected ? cur_fg : tintForPlayhead(fg));
 	  cell_bg = cell_is_selected ? cur_bg : tintForPlayhead(bg);
           // A command lights with a note or aftertouch on its row, at that one's velocity; a free one doesn't.
-          float flash = 0.0f, attack = 0.0f;
+          float flash = 0.0f;
           if (command.isDefined() && !cell_is_selected && track_dim <= 0.0f) {
             int velocity = 0;
             for (auto & n : notes) {
               if (n.isDefined() && !n.isOff()) velocity = std::max<int>(velocity, n.getVelocity());
             }
-            if (velocity > 0) {
-              attack = noteFlashOf(track_id, 0);
-              flash = attack * StyleProvider::velocityFlash(velocity);
-            }
-            cell_fg = StyleProvider::lit(cell_fg, flash, attack);
+            if (velocity > 0) flash = noteFlashOf(track_id, 0) * StyleProvider::velocityFlash(velocity);
+            cell_fg = StyleProvider::lit(cell_fg, flash);
           }
           setFgColor(cell_fg);
 	  setBgColor(cell_bg);
@@ -3990,13 +3987,11 @@ PatternEditor::renderRow(const StyleProvider & styles, int heading_height, const
 	  // dark foreground inside the highlight.
 	  cell_fg = column_selected ? cur_fg : tintForPlayhead(dim_fixed_color(styles.data_fx_color));
 	  cell_bg = cell_is_selected ? cur_bg : tintForPlayhead(bg);
-          float flash = 0.0f, attack = 0.0f;
+          float flash = 0.0f;
           if (!note.hasFx()) cell_fg = cell_fg.blend(0.5f, cell_bg);
-          else if (!cell_is_selected && track_dim <= 0.0f) {
-            attack = noteFlashOf(track_id, note.getDelay());
-            flash = attack * StyleProvider::velocityFlash(note.getVelocity());
-          }
-          cell_fg = StyleProvider::lit(cell_fg, flash, attack);
+          else if (!cell_is_selected && track_dim <= 0.0f)
+            flash = noteFlashOf(track_id, note.getDelay()) * StyleProvider::velocityFlash(note.getVelocity());
+          cell_fg = StyleProvider::lit(cell_fg, flash);
           setFgColor(cell_fg);
 	  setBgColor(cell_bg);
           putstr(display_row, current_pos, shown);
@@ -4015,9 +4010,8 @@ PatternEditor::renderRow(const StyleProvider & styles, int heading_height, const
 	  cell_bg = cell_is_selected ? cur_bg : tintForPlayhead(bg);
 	  if (!note.isDefined()) cell_fg = cell_fg.blend(0.5f, cell_bg);
           // A note that has just started is lit past white.
-          float note_attack = !cell_is_selected && track_dim <= 0.0f && note.isDefined() ? noteFlashOf(track_id, note.getDelay()) : 0.0f;
-          float note_flash = note_attack * StyleProvider::velocityFlash(note.getVelocity());
-          cell_fg = StyleProvider::lit(cell_fg, note_flash, note_attack);
+          float note_flash = !cell_is_selected && track_dim <= 0.0f && note.isDefined() ? noteFlashOf(track_id, note.getDelay()) * StyleProvider::velocityFlash(note.getVelocity()) : 0.0f;
+          cell_fg = StyleProvider::lit(cell_fg, note_flash);
           setFgColor(cell_fg);
 	  setBgColor(cell_bg);
 	  auto s = note.toString(tuning);
@@ -4039,7 +4033,7 @@ PatternEditor::renderRow(const StyleProvider & styles, int heading_height, const
 	    if (auto hue = comma_hue(piece); hue && !cell_is_selected) {
 	      Color c = tintForPlayhead(dim_fixed_color(*hue));
 	      if (!note.isDefined()) c = c.blend(0.5f, cell_bg);
-              setFgColor(StyleProvider::lit(c, note_flash, note_attack));
+              setFgColor(StyleProvider::lit(c, note_flash));
             } else {
 	      setFgColor(cell_fg);
 	    }
@@ -4077,12 +4071,9 @@ PatternEditor::renderRow(const StyleProvider & styles, int heading_height, const
 	  cell_bg = cell_is_selected ? cur_bg : tintForPlayhead(bg);
 	  if (!note.isDefined()) cell_fg = cell_fg.blend(0.5f, cell_bg);
           // Lit with its note, when it has a value to show.
-          float flash = 0.0f, attack = 0.0f;
-          if (!cell_is_selected && track_dim <= 0.0f && note.isDefined() && !(column_type == ColumnType::VELOCITY && note.isOff())) {
-            attack = noteFlashOf(track_id, note.getDelay());
-            flash = attack * StyleProvider::velocityFlash(note.getVelocity());
-          }
-          cell_fg = StyleProvider::lit(cell_fg, flash, attack);
+          float flash = 0.0f;
+          if (!cell_is_selected && track_dim <= 0.0f && note.isDefined() && !(column_type == ColumnType::VELOCITY && note.isOff())) flash = noteFlashOf(track_id, note.getDelay()) * StyleProvider::velocityFlash(note.getVelocity());
+          cell_fg = StyleProvider::lit(cell_fg, flash);
           setFgColor(cell_fg);
 	  setBgColor(cell_bg);
 

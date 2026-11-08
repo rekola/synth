@@ -243,6 +243,13 @@ TEST(encoder_writes_a_foreground_lit_past_white_bold_and_plain_again_when_it_fad
   style.fg = Color::linear(0.5f, 0.5f, 0.5f) * 1.2f;
   f.write(0, 0, "J", style);
   CHECK(e.encode(f).find("22") != std::string::npos);
+  // Lit only just past white is not bold; a visible lift is.
+  style.fg = Color::linear(1.15f, 1.15f, 1.15f);
+  f.write(0, 3, "M", style);
+  CHECK(e.encode(f).find("\x1b[1") == std::string::npos);
+  style.fg = Color::linear(1.4f, 1.4f, 1.4f);
+  f.write(0, 3, "M", style);
+  CHECK(e.encode(f).find("\x1b[1") != std::string::npos);
   // A colour at white or less is never bold, and one the app asked bold for still is.
   style.fg = Color::linear(0.9f, 0.9f, 0.9f);
   f.write(0, 1, "K", style);

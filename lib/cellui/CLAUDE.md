@@ -215,7 +215,7 @@ timing (and missed-vsync counts) at exit.
   split sequences), `Discovery`/`Capabilities` (start-up queries with a
   deadline; true colour is also found by setting a 24-bit background and reading the pen back with DECRQSS, which xterm answers with the colour only when it keeps 24 bits; display scale guessed from the cell size, light/dark from the
   default colours, which picks the default `--theme`), `FrameEncoder` (frame
-  diff as escape sequences; a foreground lit past white, a channel above 1.05, is written
+  diff as escape sequences; a foreground lit visibly past white, a channel above 1.25, is written
   bold, a terminal's way of brighter, so an app never asks a weight for a flash), `ImageEncoder` (kitty graphics, iTerm2 inline
   images, Sixel; a Sixel image gets its own palette, the picture's exact colours when they fit the registers or their median cut (colours first put on the 101 levels a Sixel colour definition has, so two the terminal cannot tell apart are one register), one Sixel per visible rectangle, and only the changed rows of cells when that is smaller; a picture stretched over its cells (a blurred backdrop) at full quality is instead drawn in the terminal's default 256-colour palette (registers for entries 16-255, ordered dither) where the terminal has 240 registers: about half the bytes and time of a palette made from the picture, in duller colours; `PictureQuality` follows the link class (`pictureQualityFor()`): FULL to 30 Hz, REDUCED (64 colours) at 15 Hz, LOW (16) below, as a palette PNG for kitty and iTerm2 (quantised RGB where a terminal refuses the PNG) and fewer Sixel registers, undithered unless the picture is stretched over its cells (a blurred backdrop); kitty uploads and PNGs deflated by the in-tree
   `term/Deflate.h`, raw fallback when it saves under 10 % or the terminal
@@ -279,7 +279,8 @@ offset down by half the height, and a faint ambient one) around every
 `FrameInfo::elevations` area no later backdrop covers, then height by height
 the cells of every area as high or higher again over them, plus a light top
 and dark bottom edge per area. Glow: a glyph whose foreground is lit past white
-(a `Color` channel above 1, from 0.6 above it at full strength) gets a glow, drawn
+(a `Color` channel above 1; its strength is how pale the display shows it, 1 - 1/channel,
+full at 0.8, so a fade of the colour is an even fade of the glow) gets a glow, drawn
 over the backgrounds and under the text as a small cached texture: the glyph blurred
 tight and wide once on the CPU for a glyph in a face (`glowSprite()`, a white texture
 reaching 0.75 cell heights past its cell), then a textured quad each frame, in the glyph's

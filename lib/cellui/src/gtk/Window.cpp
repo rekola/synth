@@ -549,16 +549,18 @@ bool hasText(const CellBuffer::Cell & cell) {
 }
 
 // How strongly a colour lit past white glows, in sixteenths (0 for one at or
-// under white): full from kGlowFullExcess above it. Only text glows, never a
-// background. Nothing else decides what glows - an app only says how bright,
-// and this window shows that as light.
-constexpr float kGlowFullExcess = 0.6f;
+// under white): by how pale the display shows it, 1 - 1/channel, full at
+// kGlowFullPaleness. That rises evenly with the light an app adds (the channel
+// does not: it races up as the paleness settles), so a glow fades as evenly as
+// a colour does. Only text glows, never a background. Nothing else decides what
+// glows - an app only says how bright, and this window shows that as light.
+constexpr float kGlowFullPaleness = 0.8f;
 // How much of its strength a glow is drawn with.
 constexpr double kGlowStrength = 0.6;
 int glowLevel(const Color & c) {
-  float excess = std::max({ c.r(), c.g(), c.b() }) - 1.0f;
-  if (!(excess > 0.0f)) return 0;
-  return static_cast<int>(std::lround(std::min(excess / kGlowFullExcess, 1.0f) * 16.0f));
+  float peak = std::max({ c.r(), c.g(), c.b() });
+  if (!(peak > 1.0f)) return 0;
+  return static_cast<int>(std::lround(std::min((1.0f - 1.0f / peak) / kGlowFullPaleness, 1.0f) * 16.0f));
 }
 
 }  // namespace

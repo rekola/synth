@@ -65,10 +65,7 @@ class StyleProvider : public cellui::StyleProvider {
   // A note that has just started is lit past white (linear light, 1 = SDR white);
   // each display decides what that looks like, and the light falls back to
   // normal over kNoteFlashSeconds.
-  static constexpr float kNoteFlashGain = 2.5f;
   static constexpr float kNoteFlashSeconds = 0.7f;
-  // The least a lit colour peaks at (its brightest channel), so a dim colour lights up as much as a bright one.
-  static constexpr float kNoteFlashPeak = 2.0f;
   // 1 at the moment of the attack, falling to 0 after kNoteFlashSeconds; a reduced-motion
   // display gets the first half at full strength and then nothing.
   static float noteFlash(double age_seconds, bool reduced_motion) {
@@ -76,25 +73,25 @@ class StyleProvider : public cellui::StyleProvider {
     float left = 1.0f - static_cast<float>(age_seconds / kNoteFlashSeconds);
     return reduced_motion ? (left > 0.5f ? 1.0f : 0.0f) : left;
   }
-  // How much of a full flash a note of this velocity (0 to 127) gets: half, up to all.
-  static float velocityFlash(int velocity) { return 0.5f + 0.5f * static_cast<float>(std::clamp(velocity, 0, 127)) / 127.0f; }
-  // The least a lit colour peaks past white, whatever its colour, its velocity or the tint of the
-  // playhead row it is on: its brightest channel is at least 1 + kNoteFlashLift, reached over the
-  // first kNoteFlashLiftRamp of the attack (so nothing jumps) and held for the rest. Every lit note
-  // is therefore past white for nearly the whole flash, which a display with no light to spare (a
-  // terminal) shows as bold; velocity only scales how far past.
-  static constexpr float kNoteFlashLift = 0.3f;
-  static constexpr float kNoteFlashLiftRamp = 0.25f;
-  // `c` lit by `flash` (0 to 1, velocity included) for an attack of `attack` (0 to 1, not): its
-  // brightest channel taken from where it is toward the larger of kNoteFlashGain times that and
-  // kNoteFlashPeak, and never under the lift above.
-  static Color lit(const Color & c, float flash, float attack) {
+  // How much of a full flash a note of this velocity (0 to 127) gets: three quarters, up to all.
+  // Narrow, so a quiet note is still lit as far as a louder one for long enough to be seen.
+  static float velocityFlash(int velocity) { return 0.75f + 0.25f * static_cast<float>(std::clamp(velocity, 0, 127)) / 127.0f; }
+  // How lit a colour looks, as one number that rises evenly: its brightest channel up to white,
+  // and past white, where a display can only show it paler, 1 plus how pale (1 - 1/channel). It
+  // is smooth through white, and a colour's visible brightness and paleness both follow it.
+  static float intensity(float peak) { return peak <= 1.0f ? peak : 2.0f - 1.0f / peak; }
+  static float peakFor(float intensity) { return intensity <= 1.0f ? intensity : 1.0f / (2.0f - std::min(intensity, 1.99f)); }
+  // The intensity a note is lit to at its full flash (a peak channel of 5, a colour 80% white).
+  static constexpr float kNoteFlashIntensity = 1.8f;
+  // `c` lit by `flash` (0 to 1, velocity included): its intensity moves in a straight line from its
+  // own to kNoteFlashIntensity, so the brightness and the paleness a display shows fall evenly as
+  // the flash does, with no stretch where nothing seems to change.
+  static Color lit(const Color & c, float flash) {
     float peak = std::max({c.r(), c.g(), c.b()});
-    if (!(attack > 0.0f) || !(peak > 0.0f)) return c;
-    float target = std::max(kNoteFlashGain * peak, kNoteFlashPeak);
-    float lifted = peak + (target - peak) * std::clamp(flash, 0.0f, 1.0f);
-    float least = 1.0f + kNoteFlashLift * std::min(1.0f, attack / kNoteFlashLiftRamp);
-    return c * (std::min(std::max(lifted, least), 16.0f * peak) / peak);
+    if (!(flash > 0.0f) || !(peak > 0.0f)) return c;
+    float own = intensity(peak);
+    float lit_to = own + (std::max(own, kNoteFlashIntensity) - own) * std::clamp(flash, 0.0f, 1.0f);
+    return c * (peakFor(lit_to) / peak);
   }
 
   // The clip grid header's track flags when on: Mute, Solo, and a Monitor
