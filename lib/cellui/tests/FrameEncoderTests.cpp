@@ -219,7 +219,8 @@ TEST(encoder_sends_a_wide_colour_as_its_srgb_clip_and_only_when_the_clip_changes
   lit.fg = Color(200, 30, 30) * 6.0f;
   auto clip = lit.fg->toSrgb8();
   f.write(0, 0, "J", lit);
-  CHECK(same(e.encode(f), "\x1b[38;2;" + std::to_string(int{clip[0]}) + ";" + std::to_string(int{clip[1]}) + ";" + std::to_string(int{clip[2]}) + "mJ"));
+  // Lit this far it is bold too, the terminal's way of brighter.
+  CHECK(same(e.encode(f), "\x1b[1;38;2;" + std::to_string(int{clip[0]}) + ";" + std::to_string(int{clip[1]}) + ";" + std::to_string(int{clip[2]}) + "mJ"));
   // Lit far enough it is plain white, and lit further it is the same: nothing to send.
   lit.fg = Color(200, 30, 30) * 6000.0f;
   f.write(0, 0, "J", lit);
@@ -228,4 +229,25 @@ TEST(encoder_sends_a_wide_colour_as_its_srgb_clip_and_only_when_the_clip_changes
   CHECK(lit.fg->toSrgb8() == (Color(200, 30, 30) * 6000.0f).toSrgb8());
   f.write(0, 0, "J", lit);
   CHECK(e.encode(f).empty());
+}
+
+TEST(encoder_writes_a_foreground_lit_past_white_bold_and_plain_again_when_it_fades) {
+  FrameEncoder e(profile(ColorDepth::TRUECOLOR));
+  CellBuffer f(2, 20);
+  e.encode(f);
+  CellBuffer::Style style;
+  style.fg = Color::linear(0.5f, 0.5f, 0.5f) * 3.0f;  // 1.5: lit past white
+  f.write(0, 0, "J", style);
+  CHECK(e.encode(f).find("\x1b[1;") != std::string::npos);
+  // Lit but under the bold threshold, and in the same colour on the display: plain again.
+  style.fg = Color::linear(0.5f, 0.5f, 0.5f) * 1.2f;
+  f.write(0, 0, "J", style);
+  CHECK(e.encode(f).find("22") != std::string::npos);
+  // A colour at white or less is never bold, and one the app asked bold for still is.
+  style.fg = Color::linear(0.9f, 0.9f, 0.9f);
+  f.write(0, 1, "K", style);
+  CHECK(e.encode(f).find("\x1b[1") == std::string::npos);
+  style.weight = 700;
+  f.write(0, 2, "L", style);
+  CHECK(e.encode(f).find("\x1b[1m") != std::string::npos);
 }
