@@ -9,14 +9,10 @@ Surfaces and text
  surface.raised      secondary text      disabled text       #2c3338
  surface.overlay     secondary text      disabled text       #3e464c
 
-Accent and state
+Accent
  accent                  #75d4eb
  accent.dim              #245560
  focus                   #75d4eb
- state.playing           #009722
- state.playing.dim       #668666
- state.recording         #e23532
- state.recording.dim     #a46a64
 
 Wide colours and their clip
  srgb green              #00ff00  Y 0.72

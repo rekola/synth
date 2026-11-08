@@ -311,17 +311,17 @@ public:
    rebuild();
  }
 
-  void applyStyles(const StyleProvider & styles) override {
-    cellui::MenuBar::Colors colors;
-    colors.header_fg = styles.menu_fg_color;
-    colors.header_bg = styles.menu_bg_color;
-    colors.section_fg = styles.menu_section_fg_color;
-    colors.section_bg = styles.menu_section_bg_color;
-    colors.selected_fg = styles.highlight_fg_color;
-    colors.selected_bg = styles.highlight_bg_color;
-    bar_.setColors(colors);
-    bar_.draw();
-  }
+ void applyStyles(const cellui::StyleProvider & styles) override {
+   cellui::MenuBar::Colors colors;
+   colors.header_fg = styles.menu_fg_color;
+   colors.header_bg = styles.menu_bg_color;
+   colors.section_fg = styles.menu_section_fg_color;
+   colors.section_bg = styles.menu_section_bg_color;
+   colors.selected_fg = styles.highlight_fg_color;
+   colors.selected_bg = styles.highlight_bg_color;
+   bar_.setColors(colors);
+   bar_.draw();
+ }
 
   void refreshBuffers(const vector<string> & buffer_names, const vector<string> & buffer_display_names,
 		       const string & active_buffer_name) override {

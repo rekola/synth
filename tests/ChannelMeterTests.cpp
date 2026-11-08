@@ -8,7 +8,7 @@
 using namespace cellui;
 
 TEST(channel_meter_draws_bars_and_a_legend_then_falls_to_rest) {
-  StyleProvider styles;
+  cellui::StyleProvider styles;
   CellBuffer b(5, 20);
   BufferPlane root(b, styles);
   auto charts = cellCharts();
@@ -26,7 +26,7 @@ TEST(channel_meter_draws_bars_and_a_legend_then_falls_to_rest) {
 }
 
 TEST(channel_meter_ignores_channels_beyond_its_room) {
-  StyleProvider styles;
+  cellui::StyleProvider styles;
   CellBuffer b(4, 40);
   BufferPlane root(b, styles);
   auto charts = cellCharts();

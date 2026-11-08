@@ -176,6 +176,17 @@ Controller-level and per-widget commands. Not migrated: `StatusLine`,
   column shows two marked rows. Velocity/delay's bright colours switch to the
   region foreground inside it. The theme is `InteractiveUI`'s `styles_`,
   handed to widgets in `render()` and carried by every `Plane`.
+- Theme split: cellui's `Theme`/`StyleProvider` hold only the generic roles
+  (surfaces, text, accent, cursor, menus, buttons, level and line ramps). The
+  tracker's own roles (clip and transport states, beat/bar rows, data columns,
+  comma arrows, track flags, locators, `TrackPalette`) are `SynthPalette`
+  (`ui/Theme.h`); the app's `Theme` is a cellui `Theme` plus its palette, and
+  `ui/StyleProvider.h`'s `StyleProvider` derives from cellui's and adds the
+  palette's colours, the note flash and `trackColor()`. Every plane of the app
+  is made with one, so a widget reaches a tracker role with
+  `UIElement::synthStyles()` (or `synthStyles(plane)`); code that needs only
+  generic roles takes a `cellui::StyleProvider`. A new tracker colour goes in
+  `SynthPalette`, never in cellui.
 
 ## Arrangement view, Live View, clip grid
 

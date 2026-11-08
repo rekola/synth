@@ -48,8 +48,8 @@ class HeatmapChart : public Widget {
   int grid_cols_, grid_rows_;
 };
 
-// Fixed hue every HeatmapChart renderer paints with - the hue of
-// StyleProvider.h's command_column_color ("#c67610", RGB 198/118/16),
+// Fixed hue every HeatmapChart renderer paints with - the hue of the
+// original theme's orange ("#c67610", RGB 198/118/16),
 // derived once here (60*((118-16)/182) = 33.63) rather than duplicated as
 // an independently-rounded constant in each renderer, for UI-wide consistency.
 constexpr float kHeatmapHue = 33.63f;
