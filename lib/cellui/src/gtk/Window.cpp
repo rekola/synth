@@ -157,7 +157,7 @@ struct Window::Impl {
   std::map<Glyph, GskRenderNode *> glyph_nodes;
   GskRenderNode * glyphNode(const CellBuffer::Cell & cell, const Color & fg);
   GskRenderNode * textNode(const CellBuffer & cells, int r0, int r1);
-  GskRenderNode * glowNode(const CellBuffer & cells, int r0, int r1, bool transparent);
+  GskRenderNode * glowNode(const CellBuffer & cells, int r0, int r1);
 
   DisplayInfo display_info;
   int rows = 0, cols = 0;
@@ -525,9 +525,10 @@ bool hasText(const CellBuffer::Cell & cell) {
 }
 
 // How strongly a colour lit past white glows, in sixteenths (0 for one at or
-// under white): full from kGlowFullExcess above it. Nothing else decides what
-// glows - an app only says how bright, and this window shows that as light.
-constexpr float kGlowFullExcess = 1.5f;
+// under white): full from kGlowFullExcess above it. Only text glows, never a
+// background. Nothing else decides what glows - an app only says how bright,
+// and this window shows that as light.
+constexpr float kGlowFullExcess = 0.6f;
 int glowLevel(const Color & c) {
   float excess = std::max({ c.r(), c.g(), c.b() }) - 1.0f;
   if (!(excess > 0.0f)) return 0;
@@ -629,23 +630,20 @@ const Window::Impl::Painted & Window::Impl::paint(size_t slot, const CellBuffer 
     for (int r = r0; r < r1; r++) {
       for (int c = 0; c < cells.cols(); c++) {
         const CellBuffer::Cell & cell = cells.at(r, c);
-        auto cell_bg = backgroundOf(cell, transparent, window_bg);
         int text_level = hasText(cell) ? glowLevel(cell.fg.value_or(default_fg)) : 0;
-        int bg_level = cell_bg ? glowLevel(*cell_bg) : 0;
-        if (text_level == 0 && bg_level == 0) continue;
+        if (text_level == 0) continue;
         any_glow = true;
         glow_print.add(static_cast<uint64_t>(r) << 32 | static_cast<uint32_t>(c));
         glow_print.add(cell.text);
         glow_print.add(cell.fg);
-        glow_print.add(cell_bg);
-        glow_print.add(static_cast<uint64_t>(text_level) << 8 | static_cast<uint64_t>(bg_level));
+        glow_print.add(static_cast<uint64_t>(text_level));
         glow_print.add(static_cast<uint64_t>(cell.weight) << 1 | static_cast<uint64_t>(cell.italic));
       }
     }
     uint64_t glow_value = any_glow ? glow_print.value() : 0;
     if (!band.glow_valid || band.glow_print != glow_value) {
       if (band.glow) gsk_render_node_unref(band.glow);
-      band.glow = any_glow ? glowNode(cells, r0, r1, transparent) : nullptr;
+      band.glow = any_glow ? glowNode(cells, r0, r1) : nullptr;
       band.glow_print = glow_value;
       band.glow_valid = true;
     }
@@ -653,25 +651,15 @@ const Window::Impl::Painted & Window::Impl::paint(size_t slot, const CellBuffer 
   return p;
 }
 
-// The cells of rows [r0, r1) lit past white, each at the strength of its light:
-// the glyph, and the background as a faint wash. Drawn blurred, from the band's
-// top-left corner.
-GskRenderNode * Window::Impl::glowNode(const CellBuffer & cells, int r0, int r1, bool transparent) {
+// The glyphs of rows [r0, r1) lit past white, each at the strength of its light.
+// Drawn blurred, from the band's top-left corner.
+GskRenderNode * Window::Impl::glowNode(const CellBuffer & cells, int r0, int r1) {
   GtkSnapshot * snap = gtk_snapshot_new();
-  const Color & window_bg = *display_info.default_bg;
   const Color & default_fg = *display_info.default_fg;
   for (int r = r0; r < r1; r++) {
     for (int c = 0; c < cells.cols(); c++) {
       const CellBuffer::Cell & cell = cells.at(r, c);
       graphene_point_t at = GRAPHENE_POINT_INIT(static_cast<float>(c * cell_w), static_cast<float>((r - r0) * cell_h));
-      if (auto cell_bg = backgroundOf(cell, transparent, window_bg)) {
-        if (int level = glowLevel(*cell_bg); level > 0) {
-          auto rgb = cell_bg->toSrgb8();
-          GdkRGBA wash = { rgb[0] / 255.0f, rgb[1] / 255.0f, rgb[2] / 255.0f, 0.5f * static_cast<float>(level) / 16.0f };
-          graphene_rect_t rect = GRAPHENE_RECT_INIT(at.x, at.y, static_cast<float>(cell_w), static_cast<float>(cell_h));
-          gtk_snapshot_append_color(snap, &wash, &rect);
-        }
-      }
       if (!hasText(cell) || cell.text.empty() || cell.text == " ") continue;
       Color fg = cell.fg.value_or(default_fg);
       int level = glowLevel(fg);
@@ -910,7 +898,7 @@ void Window::Impl::appendPainted(GtkSnapshot * snap, const Painted & p, const Ce
   }
   if (cells) appendImages(snap, *cells);
   // The glow lies over the backgrounds and under the text: a tight and a wide blur,
-  // so the light has a core and a haze.
+  // each laid twice so a thin glyph's glow is strong enough to show on a dark ground.
   for (size_t i = 0; i < p.bands.size(); i++) {
     const Painted::Band & band = p.bands[i];
     if (!band.glow) continue;
@@ -918,7 +906,7 @@ void Window::Impl::appendPainted(GtkSnapshot * snap, const Painted & p, const Ce
     graphene_point_t top = GRAPHENE_POINT_INIT(0.0f, static_cast<float>(static_cast<int>(i) * kBandRows * cell_h));
     gtk_snapshot_save(snap);
     gtk_snapshot_translate(snap, &top);
-    for (double radius : { 0.35 * cell_h, 0.9 * cell_h }) {
+    for (double radius : { 0.3 * cell_h, 0.3 * cell_h, 0.7 * cell_h, 0.7 * cell_h }) {
       gtk_snapshot_push_blur(snap, radius);
       gtk_snapshot_append_node(snap, band.glow);
       gtk_snapshot_pop(snap);

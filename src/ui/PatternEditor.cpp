@@ -3420,13 +3420,15 @@ PatternEditor::renderRow(const StyleProvider & styles, int heading_height, const
   // How lit a note is by its attack (0 to 1): from when the track's playhead reached it,
   // its delay included, until kNoteFlashSeconds later. Not for a track that isn't playing.
   const auto & play_info = getController().getPlaybackInfo();
-  auto noteFlashOf = [&](int track_id, const Note & note) -> float {
+  auto noteFlashOf = [&](int track_id, int delay) -> float {
     if (!playing_now || (isLiveMode() ? !source_->trackHasPlayhead(track_id) : !source_->cursorFollowsTransport())) return 0.0f;
     double row_seconds = play_info.getRowSeconds();
     if (row_seconds <= 0.0) return 0.0f;
-    double rows_since = source_->rowsBetween(address, source_->trackCursor(track_id)) + playPhase(play_info) - note.getDelay() / 256.0;
+    double rows_since = source_->rowsBetween(address, source_->trackCursor(track_id)) + playPhase(play_info) - delay / 256.0;
     return StyleProvider::noteFlash(rows_since * row_seconds, styles.reduced_motion);
   };
+  // A foreground lit past white by `flash`; the display decides how that looks.
+  auto litBy = [](const Color & c, float flash) { return c * (1.0f + (StyleProvider::kNoteFlashGain - 1.0f) * flash); };
 
   // One pattern row's slice of a sample clip's waveform, drawn by the
   // display's scopes across `width` cells from start_col: each time slice of
@@ -3908,7 +3910,9 @@ PatternEditor::renderRow(const StyleProvider & styles, int heading_height, const
 	  // the playhead row's own translucent tint on top when not selected.
 	  cell_fg = command.isDefined() && !column_selected ? tintForPlayhead(dim_fixed_color(styles.command_column_color)) : (cell_is_selected ? cur_fg : tintForPlayhead(fg));
 	  cell_bg = cell_is_selected ? cur_bg : tintForPlayhead(bg);
-	  setFgColor(cell_fg);
+          // A command takes effect at the start of its row.
+          if (command.isDefined() && !cell_is_selected && track_dim <= 0.0f) cell_fg = litBy(cell_fg, noteFlashOf(track_id, 0));
+          setFgColor(cell_fg);
 	  setBgColor(cell_bg);
 	  auto s = to_string(command);
 	  putstr(display_row, current_pos, s);
@@ -3948,13 +3952,8 @@ PatternEditor::renderRow(const StyleProvider & styles, int heading_height, const
 	  cell_fg = cell_is_selected ? cur_fg : tintForPlayhead(fg);
 	  cell_bg = cell_is_selected ? cur_bg : tintForPlayhead(bg);
 	  if (!note.isDefined()) cell_fg = cell_fg.blend(0.5f, cell_bg);
-          // A note that has just started is lit past white; the display decides how that looks.
-          if (!cell_is_selected && track_dim <= 0.0f && note.isDefined() && !note.isOff()) {
-            if (float flash = noteFlashOf(track_id, note); flash > 0.0f) {
-              cell_fg = cell_fg * (1.0f + (StyleProvider::kNoteFlashGain - 1.0f) * flash);
-              cell_bg = cell_bg.mix(track_info.getColor(styles.tracks) * StyleProvider::kNoteFlashGain, StyleProvider::kNoteFlashBgMix * flash);
-            }
-          }
+          // A note that has just started is lit past white.
+          if (!cell_is_selected && track_dim <= 0.0f && note.isDefined() && !note.isOff()) cell_fg = litBy(cell_fg, noteFlashOf(track_id, note.getDelay()));
           setFgColor(cell_fg);
 	  setBgColor(cell_bg);
 	  auto s = note.toString(tuning);
@@ -4013,7 +4012,9 @@ PatternEditor::renderRow(const StyleProvider & styles, int heading_height, const
 	  cell_fg = column_selected ? cur_fg : tintForPlayhead(dim_fixed_color(column_type == ColumnType::VELOCITY ? styles.data_velocity_color : styles.data_delay_color));
 	  cell_bg = cell_is_selected ? cur_bg : tintForPlayhead(bg);
 	  if (!note.isDefined()) cell_fg = cell_fg.blend(0.5f, cell_bg);
-	  setFgColor(cell_fg);
+          // Lit with its note, when it has a value to show.
+          if (!cell_is_selected && track_dim <= 0.0f && note.isDefined() && !(column_type == ColumnType::VELOCITY && note.isOff())) cell_fg = litBy(cell_fg, noteFlashOf(track_id, note.getDelay()));
+          setFgColor(cell_fg);
 	  setBgColor(cell_bg);
 
 	  putstr(display_row, current_pos, s);

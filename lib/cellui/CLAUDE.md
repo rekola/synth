@@ -273,14 +273,14 @@ itself. Shadows: two GSK outset shadows (a key light from the upper left,
 offset down by half the height, and a faint ambient one) around every
 `FrameInfo::elevations` area no later backdrop covers, then height by height
 the cells of every area as high or higher again over them, plus a light top
-and dark bottom edge per area. Glow: a cell whose foreground or background is lit past white
-(a `Color` channel above 1, from 1.5 above it at full strength) gets a glow, drawn
-over the backgrounds and under the text as the cell's glyph and a wash of its
-background under a tight and a wide GSK blur. A band with no such cell keeps no
-glow node, and the glow's cache print holds the strengths, since the cells' own
-prints are of the colours scaled to white. An app only says how bright; this
-window decides that bright means light around it. Not done yet: per-plane render
-nodes, input methods, HiDPI, native dialogs and menus.
+and dark bottom edge per area. Glow: a glyph whose foreground is lit past white
+(a `Color` channel above 1, from 0.6 above it at full strength) gets a glow, drawn
+over the backgrounds and under the text as the glyph again under a tight and a
+wide GSK blur, each laid twice. A background never glows. A band with no such
+glyph keeps no glow node, and the glow's cache print holds the strengths, since
+the cells' own prints are of the colours scaled to white. An app only says how
+bright; this window decides that bright means light around it. Not done yet:
+per-plane render nodes, input methods, HiDPI, native dialogs and menus.
 
 ## Win32 window backend (`cellui/win32/`)
 

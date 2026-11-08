@@ -123,10 +123,7 @@ class StyleProvider {
   // each display decides what that looks like, and the light falls back to
   // normal over kNoteFlashSeconds.
   static constexpr float kNoteFlashGain = 2.5f;
-  static constexpr float kNoteFlashSeconds = 0.6f;
-  // How much of the note cell's background a full flash lights in the track's colour.
-  // Off for now: the lit background also covered the space after the note and hid the glow.
-  static constexpr float kNoteFlashBgMix = 0.0f;
+  static constexpr float kNoteFlashSeconds = 0.9f;
   // 1 at the moment of the attack, falling to 0 after kNoteFlashSeconds; a reduced-motion
   // display gets the first half at full strength and then nothing.
   static float noteFlash(double age_seconds, bool reduced_motion) {
