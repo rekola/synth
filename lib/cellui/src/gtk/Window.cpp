@@ -161,20 +161,24 @@ struct Window::Impl {
     bool operator<(const Glyph & o) const { return std::tie(text, color, style) < std::tie(o.text, o.color, o.style); }
   };
   std::map<Glyph, GskRenderNode *> glyph_nodes;
-  // The glow of a glyph, blurred once on the CPU and kept as a small texture (the glyph, a
-  // tight and a wide blur of it, in one colour): drawing a glow is then a textured quad
-  // for each lit glyph, with no blur on the GPU. Keyed by glyph, face and colour (4 bits a
-  // channel); the strength is the quad's opacity.
-  struct GlowKey {
+  // A glyph in a face, shaped once: the colour of a glyph is a node made from this one
+  // (recolourText()), so a colour never shapes the text again.
+  struct Shape {
     std::string text;
     int style;
-    uint32_t color;
-    bool operator<(const GlowKey & o) const { return std::tie(text, style, color) < std::tie(o.text, o.style, o.color); }
+    bool operator<(const Shape & o) const { return std::tie(text, style) < std::tie(o.text, o.style); }
   };
-  std::map<GlowKey, GdkTexture *> glow_sprites;
+  std::map<Shape, GskRenderNode *> glyph_shapes;
+  GskRenderNode * layoutGlyph(const std::string & text, int style, const GdkRGBA & color);
+  // The glow of a glyph in a face, blurred once on the CPU (the glyph, a tight and a wide blur
+  // of it) and kept as a small white texture: drawing a glow is a textured quad for each lit
+  // glyph, with no blur on the GPU. The colour and the strength are the quad's, set when it is
+  // drawn (a colour matrix), so a glow can be any colour and fade smoothly with one texture
+  // for the glyph. This takes a GL renderer.
+  std::map<Shape, GdkTexture *> glow_sprites;
   // How far a glow reaches past its cell on every side, in pixels.
   int glowMargin() const { return static_cast<int>(std::ceil(0.75 * cell_h)) + 1; }
-  GdkTexture * glowSprite(const CellBuffer::Cell & cell, const Color & fg);
+  GdkTexture * glowSprite(const CellBuffer::Cell & cell);
   GskRenderNode * glyphNode(const CellBuffer::Cell & cell, const Color & fg);
   GskRenderNode * textNode(const CellBuffer & cells, int r0, int r1);
   GskRenderNode * glowNode(const CellBuffer & cells, int r0, int r1);
@@ -707,12 +711,10 @@ static void gaussianBlur(std::vector<float> & px, int w, int h, double sigma) {
   }
 }
 
-// The glow texture of a glyph in a colour: its cell and glowMargin() on every side, with the
-// glyph blurred tight and wide, premultiplied in the colour. Null when it cannot be made.
-GdkTexture * Window::Impl::glowSprite(const CellBuffer::Cell & cell, const Color & fg) {
-  auto rgb = fg.toSrgb8();
-  uint32_t color = static_cast<uint32_t>(rgb[0] >> 4) << 8 | static_cast<uint32_t>(rgb[1] >> 4) << 4 | static_cast<uint32_t>(rgb[2] >> 4);
-  GlowKey key{ cell.text, shownWeight(cell.weight) * 2 + (cell.italic ? 1 : 0), color };
+// The glow texture of a glyph in a face: its cell and glowMargin() on every side, with the
+// glyph blurred tight and wide, white and premultiplied. Null when it cannot be made.
+GdkTexture * Window::Impl::glowSprite(const CellBuffer::Cell & cell) {
+  Shape key{ cell.text, shownWeight(cell.weight) * 2 + (cell.italic ? 1 : 0) };
   auto found = glow_sprites.find(key);
   if (found != glow_sprites.end()) return found->second;
   if (glow_sprites.size() > 2048) {
@@ -721,17 +723,18 @@ GdkTexture * Window::Impl::glowSprite(const CellBuffer::Cell & cell, const Color
     }
     glow_sprites.clear();
   }
-  // The glyph as glyphNode() lays it out: shrunk to its cells if it comes out wider.
+  int wide = std::max(1, utf8::displayWidth(cell.text));
+  int margin = glowMargin();
+  int w = wide * cell_w + 2 * margin, h = cell_h + 2 * margin;
+
+  // The glyph as layoutGlyph() lays it out: shrunk to its cells if it comes out wider.
   PangoLayout * layout = pango_layout_new(text_context);
   pango_layout_set_font_description(layout, cellFont(key.style));
   pango_layout_set_text(layout, cell.text.c_str(), -1);
   int pw = 0, ph = 0;
   pango_layout_get_pixel_size(layout, &pw, &ph);
-  int wide = std::max(1, utf8::displayWidth(cell.text));
   double scale = pw > wide * cell_w ? static_cast<double>(wide * cell_w) / pw : 1.0;
   double top = std::max(0.0, (cell_h - ph * scale) / 2.0);
-  int margin = glowMargin();
-  int w = wide * cell_w + 2 * margin, h = cell_h + 2 * margin;
   cairo_surface_t * surface = cairo_image_surface_create(CAIRO_FORMAT_A8, w, h);
   cairo_t * cr = cairo_create(surface);
   cairo_set_source_rgba(cr, 0, 0, 0, 1);
@@ -752,17 +755,12 @@ GdkTexture * Window::Impl::glowSprite(const CellBuffer::Cell & cell, const Color
   std::vector<float> tight = glyph, wide_blur = glyph;
   gaussianBlur(tight, w, h, 0.5 * 0.22 * cell_h);
   gaussianBlur(wide_blur, w, h, 0.5 * 0.5 * cell_h);
-  float red = static_cast<float>(((color >> 8) & 15) * 17) / 255.0f, green = static_cast<float>(((color >> 4) & 15) * 17) / 255.0f,
-        blue = static_cast<float>((color & 15) * 17) / 255.0f;
-  guchar * pixels = static_cast<guchar *>(g_malloc(static_cast<gsize>(w * h * 4)));
+  guchar * pixels = static_cast<guchar *>(g_malloc(glyph.size() * 4));
   for (size_t i = 0; i < glyph.size(); i++) {
-    float a = std::min(1.0f, tight[i] + wide_blur[i]);
-    pixels[i * 4 + 0] = static_cast<guchar>(std::lround(red * a * 255.0f));
-    pixels[i * 4 + 1] = static_cast<guchar>(std::lround(green * a * 255.0f));
-    pixels[i * 4 + 2] = static_cast<guchar>(std::lround(blue * a * 255.0f));
-    pixels[i * 4 + 3] = static_cast<guchar>(std::lround(a * 255.0f));
+    guchar a = static_cast<guchar>(std::lround(std::min(1.0f, tight[i] + wide_blur[i]) * 255.0f));
+    pixels[i * 4 + 0] = pixels[i * 4 + 1] = pixels[i * 4 + 2] = pixels[i * 4 + 3] = a;  // white, premultiplied
   }
-  GBytes * bytes = g_bytes_new_take(pixels, static_cast<gsize>(w * h * 4));
+  GBytes * bytes = g_bytes_new_take(pixels, glyph.size() * 4);
   GdkTexture * texture = gdk_memory_texture_new(w, h, GDK_MEMORY_R8G8B8A8_PREMULTIPLIED, bytes, static_cast<gsize>(w * 4));
   g_bytes_unref(bytes);
   glow_sprites[key] = texture;
@@ -782,14 +780,23 @@ GskRenderNode * Window::Impl::glowNode(const CellBuffer & cells, int r0, int r1)
       Color fg = cell.fg.value_or(default_fg);
       int level = glowLevel(fg);
       if (level == 0) continue;
-      GdkTexture * sprite = glowSprite(cell, fg);
+      GdkTexture * sprite = glowSprite(cell);
       if (!sprite) continue;
       int margin = glowMargin();
       graphene_rect_t bounds = GRAPHENE_RECT_INIT(static_cast<float>(c * cell_w - margin), static_cast<float>((r - r0) * cell_h - margin),
                                                   static_cast<float>(gdk_texture_get_width(sprite)), static_cast<float>(gdk_texture_get_height(sprite)));
       // The sprite holds both blurs once; laying the glyph twice at kGlowStrength comes to this.
       double once = kGlowStrength * static_cast<double>(level) / 16.0;
-      gtk_snapshot_push_opacity(snap, 1.0 - (1.0 - once) * (1.0 - once));
+      double strength = 1.0 - (1.0 - once) * (1.0 - once);
+      // The white sprite in the glyph's colour and strength: a colour matrix on the GPU, which
+      // takes any colour (no steps) and any strength without another texture.
+      auto rgb = fg.toSrgb8();
+      float m[16] = { rgb[0] / 255.0f, 0, 0, 0, 0, rgb[1] / 255.0f, 0, 0, 0, 0, rgb[2] / 255.0f, 0, 0, 0, 0, static_cast<float>(strength) };
+      graphene_matrix_t matrix;
+      graphene_matrix_init_from_float(&matrix, m);
+      graphene_vec4_t offset;
+      graphene_vec4_init(&offset, 0, 0, 0, 0);
+      gtk_snapshot_push_color_matrix(snap, &matrix, &offset);
       gtk_snapshot_append_texture(snap, sprite, &bounds);
       gtk_snapshot_pop(snap);
     }
@@ -825,9 +832,67 @@ PangoFontDescription * Window::Impl::cellFont(int style) {
   return font;
 }
 
+// `node` with every text in it drawn in `color`, built from the same glyphs without
+// shaping; null if there is anything else in it.
+static GskRenderNode * recolourText(GskRenderNode * node, const GdkRGBA & color) {
+  switch (gsk_render_node_get_node_type(node)) {
+    case GSK_TEXT_NODE: {
+      guint count = 0;
+      const PangoGlyphInfo * infos = gsk_text_node_get_glyphs(node, &count);
+      PangoGlyphString * glyphs = pango_glyph_string_new();
+      pango_glyph_string_set_size(glyphs, static_cast<gint>(count));
+      std::copy(infos, infos + count, glyphs->glyphs);
+      GskRenderNode * out = gsk_text_node_new(gsk_text_node_get_font(node), glyphs, &color, gsk_text_node_get_offset(node));
+      pango_glyph_string_free(glyphs);
+      return out;
+    }
+    case GSK_TRANSFORM_NODE: {
+      GskRenderNode * child = recolourText(gsk_transform_node_get_child(node), color);
+      if (!child) return nullptr;
+      GskRenderNode * out = gsk_transform_node_new(child, gsk_transform_node_get_transform(node));
+      gsk_render_node_unref(child);
+      return out;
+    }
+    case GSK_CONTAINER_NODE: {
+      std::vector<GskRenderNode *> children;
+      bool ok = true;
+      for (guint i = 0; i < gsk_container_node_get_n_children(node) && ok; i++) {
+        GskRenderNode * child = recolourText(gsk_container_node_get_child(node, i), color);
+        if (child) children.push_back(child);
+        else ok = false;
+      }
+      GskRenderNode * out = ok ? gsk_container_node_new(children.data(), static_cast<guint>(children.size())) : nullptr;
+      for (GskRenderNode * child : children) gsk_render_node_unref(child);
+      return out;
+    }
+    default:
+      return nullptr;
+  }
+}
+
 // One glyph in a cell's size, at the cell's corner: shaped by Pango, which
 // finds a font for a character the cell font lacks; one that comes out wider
 // than its cells is shrunk to them.
+GskRenderNode * Window::Impl::layoutGlyph(const std::string & text, int style, const GdkRGBA & color) {
+  stats.glyphs_shaped++;
+  PangoLayout * layout = pango_layout_new(text_context);
+  pango_layout_set_font_description(layout, cellFont(style));
+  pango_layout_set_text(layout, text.c_str(), -1);
+  int w = 0, h = 0;
+  pango_layout_get_pixel_size(layout, &w, &h);
+  int wide = std::max(1, utf8::displayWidth(text));
+  GtkSnapshot * snap = gtk_snapshot_new();
+  float scale = w > wide * cell_w ? static_cast<float>(wide * cell_w) / static_cast<float>(w) : 1.0f;
+  float top = std::max(0.0f, (static_cast<float>(cell_h) - static_cast<float>(h) * scale) / 2.0f);
+  graphene_point_t at = GRAPHENE_POINT_INIT(0.0f, top);
+  gtk_snapshot_translate(snap, &at);
+  if (scale < 1.0f) gtk_snapshot_scale(snap, scale, scale);
+  gtk_snapshot_append_layout(snap, layout, &color);
+  GskRenderNode * node = gtk_snapshot_free_to_node(snap);
+  g_object_unref(layout);
+  return node;
+}
+
 GskRenderNode * Window::Impl::glyphNode(const CellBuffer::Cell & cell, const Color & fg) {
   auto rgb = fg.toSrgb8();
   Glyph key{ cell.text, static_cast<uint32_t>(rgb[0]) << 16 | static_cast<uint32_t>(rgb[1]) << 8 | rgb[2],
@@ -840,22 +905,21 @@ GskRenderNode * Window::Impl::glyphNode(const CellBuffer::Cell & cell, const Col
     }
     glyph_nodes.clear();
   }
-  PangoLayout * layout = pango_layout_new(text_context);
-  pango_layout_set_font_description(layout, cellFont(key.style));
-  pango_layout_set_text(layout, cell.text.c_str(), -1);
-  int w = 0, h = 0;
-  pango_layout_get_pixel_size(layout, &w, &h);
-  int wide = std::max(1, utf8::displayWidth(cell.text));
-  GtkSnapshot * snap = gtk_snapshot_new();
-  float scale = w > wide * cell_w ? static_cast<float>(wide * cell_w) / static_cast<float>(w) : 1.0f;
-  float top = std::max(0.0f, (static_cast<float>(cell_h) - static_cast<float>(h) * scale) / 2.0f);
-  graphene_point_t at = GRAPHENE_POINT_INIT(0.0f, top);
-  gtk_snapshot_translate(snap, &at);
-  if (scale < 1.0f) gtk_snapshot_scale(snap, scale, scale);
   GdkRGBA color = { rgb[0] / 255.0f, rgb[1] / 255.0f, rgb[2] / 255.0f, 1.0f };
-  gtk_snapshot_append_layout(snap, layout, &color);
-  GskRenderNode * node = gtk_snapshot_free_to_node(snap);
-  g_object_unref(layout);
+  Shape shape{ cell.text, key.style };
+  auto shaped = glyph_shapes.find(shape);
+  if (shaped == glyph_shapes.end()) {
+    if (glyph_shapes.size() > 1024) {
+      for (auto & entry : glyph_shapes) {
+        if (entry.second) gsk_render_node_unref(entry.second);
+      }
+      glyph_shapes.clear();
+    }
+    GdkRGBA white = { 1.0f, 1.0f, 1.0f, 1.0f };
+    shaped = glyph_shapes.emplace(shape, layoutGlyph(cell.text, key.style, white)).first;
+  }
+  GskRenderNode * node = shaped->second ? recolourText(shaped->second, color) : nullptr;
+  if (!node) node = layoutGlyph(cell.text, key.style, color);
   glyph_nodes[key] = node;
   return node;
 }
@@ -1616,6 +1680,9 @@ Window::~Window() {
   }
   for (auto & entry : impl_->glow_sprites) {
     if (entry.second) g_object_unref(entry.second);
+  }
+  for (auto & entry : impl_->glyph_shapes) {
+    if (entry.second) gsk_render_node_unref(entry.second);
   }
   for (auto & entry : impl_->cell_fonts) pango_font_description_free(entry.second);
   if (impl_->cell_base) pango_font_description_free(impl_->cell_base);

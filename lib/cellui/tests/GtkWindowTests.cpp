@@ -749,3 +749,28 @@ TEST(gtk_window_draws_text_runs_in_its_own_face) {
   w->present(screen, {}, root.images(), &info);
   CHECK(pumpUntil(*w, [&] { return w->stats().frames > before; }));
 }
+
+// A glyph is shaped once and its glow blurred once; another colour of it is made from those,
+// the glow's at draw time.
+TEST(gtk_window_makes_another_colour_of_a_glyph_without_shaping_or_blurring_it_again) {
+  gtk::Window * w = theWindow();
+  if (!w) return;
+  StyleProvider styles;
+  auto present = [&](const Color & fg) {
+    CellBuffer screen(w->rows(), w->cols());
+    BufferPlane root(screen, styles);
+    root.setFgColor(fg);
+    root.putstr(3, 4, "Q");
+    root.refresh();
+    size_t before = w->stats().frames;
+    w->present(screen, {}, root.images());
+    CHECK(pumpUntil(*w, [&] { return w->stats().frames > before; }));
+  };
+  present(Color::linear(2.5f, 2.5f, 2.5f));
+  size_t shaped = w->stats().glyphs_shaped, sprites = w->stats().glow_sprites;
+  CHECK(shaped >= 1 && sprites >= 1);
+  present(Color::linear(2.0f, 1.2f, 1.2f));
+  present(Color::linear(1.6f, 2.4f, 1.3f));
+  CHECK(w->stats().glyphs_shaped == shaped);  // no glyph shaped again
+  CHECK(w->stats().glow_sprites == sprites);  // and no glow blurred again
+}
