@@ -281,12 +281,11 @@ the cells of every area as high or higher again over them, plus a light top
 and dark bottom edge per area. Glow: a glyph whose foreground is lit past white
 (a `Color` channel above 1, from 0.6 above it at full strength) gets a glow, drawn
 over the backgrounds and under the text as a small cached texture: the glyph blurred
-tight and wide once on the CPU for a glyph in a face (the mask), tinted into a sprite
-for each colour at 4 bits a channel (`glowSprite()`, reaching 0.75 cell heights past its
-cell), then a textured quad at
-the glyph's strength as opacity each frame. No blur runs on the GPU, so a frame costs
-what a few hundred small quads do, on a software renderer too (GSK can keep textures this
-small in its own atlas). A background never glows. A band with no such
+tight and wide once on the CPU for a glyph in a face (`glowSprite()`, a white texture
+reaching 0.75 cell heights past its cell), then a textured quad each frame, in the glyph's
+colour and strength through a colour matrix, so the glow takes any colour with no steps and
+no texture of its own (this assumes a GL renderer). No blur runs on the GPU, so a frame
+costs what a few hundred small quads do. A background never glows. A band with no such
 glyph keeps no glow node, and the glow's cache print holds the strengths, since
 the cells' own prints are of the colours scaled to white. An app only says how
 bright; this window decides that bright means light around it. Not done yet:

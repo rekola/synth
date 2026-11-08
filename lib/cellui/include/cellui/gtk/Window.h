@@ -25,8 +25,7 @@ struct FrameStats {
   size_t shadows = 0;  // the last frame's, under raised planes
   size_t glows = 0;  // the last frame's bands with cells lit past white
   size_t glyphs_shaped = 0;  // glyphs laid out by Pango so far; a glyph in another colour is not
-  size_t glow_masks = 0;  // glyph blurs made so far; a glow in another colour is not
-  size_t glow_sprites = 0;  // glow textures made so far; one is kept for each glyph, weight and colour
+  size_t glow_sprites = 0;  // glow textures made so far; one is kept for each glyph and face, in any colour
 };
 
 // The GTK 4 backend: a GtkWindow with one custom widget that shows the

@@ -170,26 +170,15 @@ struct Window::Impl {
   };
   std::map<Shape, GskRenderNode *> glyph_shapes;
   GskRenderNode * layoutGlyph(const std::string & text, int style, const GdkRGBA & color);
-  // The glow of a glyph, blurred once on the CPU and kept as a small texture (the glyph, a
-  // tight and a wide blur of it, in one colour): drawing a glow is then a textured quad
-  // for each lit glyph, with no blur on the GPU. Keyed by glyph, face and colour (4 bits a
-  // channel); the strength is the quad's opacity.
-  struct GlowKey {
-    std::string text;
-    int style;
-    uint32_t color;
-    bool operator<(const GlowKey & o) const { return std::tie(text, style, color) < std::tie(o.text, o.style, o.color); }
-  };
-  std::map<GlowKey, GdkTexture *> glow_sprites;
-  // The blur of a glyph in a face, once, without a colour: a sprite in a colour is this
-  // times the colour, so a new colour costs a pass over a small image, not two blurs.
-  struct GlowMask {
-    std::vector<uint8_t> alpha;
-  };
-  std::map<Shape, GlowMask> glow_masks;
+  // The glow of a glyph in a face, blurred once on the CPU (the glyph, a tight and a wide blur
+  // of it) and kept as a small white texture: drawing a glow is a textured quad for each lit
+  // glyph, with no blur on the GPU. The colour and the strength are the quad's, set when it is
+  // drawn (a colour matrix), so a glow can be any colour and fade smoothly with one texture
+  // for the glyph. This takes a GL renderer.
+  std::map<Shape, GdkTexture *> glow_sprites;
   // How far a glow reaches past its cell on every side, in pixels.
   int glowMargin() const { return static_cast<int>(std::ceil(0.75 * cell_h)) + 1; }
-  GdkTexture * glowSprite(const CellBuffer::Cell & cell, const Color & fg);
+  GdkTexture * glowSprite(const CellBuffer::Cell & cell);
   GskRenderNode * glyphNode(const CellBuffer::Cell & cell, const Color & fg);
   GskRenderNode * textNode(const CellBuffer & cells, int r0, int r1);
   GskRenderNode * glowNode(const CellBuffer & cells, int r0, int r1);
@@ -722,14 +711,10 @@ static void gaussianBlur(std::vector<float> & px, int w, int h, double sigma) {
   }
 }
 
-// The glow texture of a glyph in a colour: its cell and glowMargin() on every side, with the
-// glyph blurred tight and wide, premultiplied. Null when it cannot be made. The blur is the
-// mask's, made once for the glyph in its face; a colour only tints it.
-GdkTexture * Window::Impl::glowSprite(const CellBuffer::Cell & cell, const Color & fg) {
-  auto rgb = fg.toSrgb8();
-  uint32_t color = static_cast<uint32_t>(rgb[0] >> 4) << 8 | static_cast<uint32_t>(rgb[1] >> 4) << 4 | static_cast<uint32_t>(rgb[2] >> 4);
-  int style = shownWeight(cell.weight) * 2 + (cell.italic ? 1 : 0);
-  GlowKey key{ cell.text, style, color };
+// The glow texture of a glyph in a face: its cell and glowMargin() on every side, with the
+// glyph blurred tight and wide, white and premultiplied. Null when it cannot be made.
+GdkTexture * Window::Impl::glowSprite(const CellBuffer::Cell & cell) {
+  Shape key{ cell.text, shownWeight(cell.weight) * 2 + (cell.italic ? 1 : 0) };
   auto found = glow_sprites.find(key);
   if (found != glow_sprites.end()) return found->second;
   if (glow_sprites.size() > 2048) {
@@ -742,56 +727,40 @@ GdkTexture * Window::Impl::glowSprite(const CellBuffer::Cell & cell, const Color
   int margin = glowMargin();
   int w = wide * cell_w + 2 * margin, h = cell_h + 2 * margin;
 
-  Shape shape{ cell.text, style };
-  auto mask = glow_masks.find(shape);
-  if (mask == glow_masks.end()) {
-    if (glow_masks.size() > 1024) glow_masks.clear();
-    // The glyph as layoutGlyph() lays it out: shrunk to its cells if it comes out wider.
-    PangoLayout * layout = pango_layout_new(text_context);
-    pango_layout_set_font_description(layout, cellFont(style));
-    pango_layout_set_text(layout, cell.text.c_str(), -1);
-    int pw = 0, ph = 0;
-    pango_layout_get_pixel_size(layout, &pw, &ph);
-    double scale = pw > wide * cell_w ? static_cast<double>(wide * cell_w) / pw : 1.0;
-    double top = std::max(0.0, (cell_h - ph * scale) / 2.0);
-    cairo_surface_t * surface = cairo_image_surface_create(CAIRO_FORMAT_A8, w, h);
-    cairo_t * cr = cairo_create(surface);
-    cairo_set_source_rgba(cr, 0, 0, 0, 1);
-    cairo_translate(cr, margin, margin + top);
-    if (scale < 1.0) cairo_scale(cr, scale, scale);
-    pango_cairo_show_layout(cr, layout);
-    cairo_destroy(cr);
-    g_object_unref(layout);
-    cairo_surface_flush(surface);
-    std::vector<float> glyph(static_cast<size_t>(w * h));
-    const unsigned char * data = cairo_image_surface_get_data(surface);
-    int stride = cairo_image_surface_get_stride(surface);
-    for (int y = 0; y < h; y++) {
-      for (int x = 0; x < w; x++) glyph[static_cast<size_t>(y * w + x)] = data[y * stride + x] / 255.0f;
-    }
-    cairo_surface_destroy(surface);
-    // Spread of a blur node is half its radius (the radii of the tight and the wide blur).
-    std::vector<float> tight = glyph, wide_blur = glyph;
-    gaussianBlur(tight, w, h, 0.5 * 0.22 * cell_h);
-    gaussianBlur(wide_blur, w, h, 0.5 * 0.5 * cell_h);
-    GlowMask made;
-    made.alpha.resize(glyph.size());
-    for (size_t i = 0; i < glyph.size(); i++) made.alpha[i] = static_cast<uint8_t>(std::lround(std::min(1.0f, tight[i] + wide_blur[i]) * 255.0f));
-    mask = glow_masks.emplace(shape, std::move(made)).first;
-    stats.glow_masks++;
+  // The glyph as layoutGlyph() lays it out: shrunk to its cells if it comes out wider.
+  PangoLayout * layout = pango_layout_new(text_context);
+  pango_layout_set_font_description(layout, cellFont(key.style));
+  pango_layout_set_text(layout, cell.text.c_str(), -1);
+  int pw = 0, ph = 0;
+  pango_layout_get_pixel_size(layout, &pw, &ph);
+  double scale = pw > wide * cell_w ? static_cast<double>(wide * cell_w) / pw : 1.0;
+  double top = std::max(0.0, (cell_h - ph * scale) / 2.0);
+  cairo_surface_t * surface = cairo_image_surface_create(CAIRO_FORMAT_A8, w, h);
+  cairo_t * cr = cairo_create(surface);
+  cairo_set_source_rgba(cr, 0, 0, 0, 1);
+  cairo_translate(cr, margin, margin + top);
+  if (scale < 1.0) cairo_scale(cr, scale, scale);
+  pango_cairo_show_layout(cr, layout);
+  cairo_destroy(cr);
+  g_object_unref(layout);
+  cairo_surface_flush(surface);
+  std::vector<float> glyph(static_cast<size_t>(w * h));
+  const unsigned char * data = cairo_image_surface_get_data(surface);
+  int stride = cairo_image_surface_get_stride(surface);
+  for (int y = 0; y < h; y++) {
+    for (int x = 0; x < w; x++) glyph[static_cast<size_t>(y * w + x)] = data[y * stride + x] / 255.0f;
   }
-
-  float red = static_cast<float>(((color >> 8) & 15) * 17) / 255.0f, green = static_cast<float>(((color >> 4) & 15) * 17) / 255.0f,
-        blue = static_cast<float>((color & 15) * 17) / 255.0f;
-  const std::vector<uint8_t> & alpha = mask->second.alpha;
-  guchar * pixels = static_cast<guchar *>(g_malloc(alpha.size() * 4));
-  for (size_t i = 0; i < alpha.size(); i++) {
-    pixels[i * 4 + 0] = static_cast<guchar>(std::lround(red * alpha[i]));
-    pixels[i * 4 + 1] = static_cast<guchar>(std::lround(green * alpha[i]));
-    pixels[i * 4 + 2] = static_cast<guchar>(std::lround(blue * alpha[i]));
-    pixels[i * 4 + 3] = alpha[i];
+  cairo_surface_destroy(surface);
+  // Spread of a blur node is half its radius (the radii of the tight and the wide blur).
+  std::vector<float> tight = glyph, wide_blur = glyph;
+  gaussianBlur(tight, w, h, 0.5 * 0.22 * cell_h);
+  gaussianBlur(wide_blur, w, h, 0.5 * 0.5 * cell_h);
+  guchar * pixels = static_cast<guchar *>(g_malloc(glyph.size() * 4));
+  for (size_t i = 0; i < glyph.size(); i++) {
+    guchar a = static_cast<guchar>(std::lround(std::min(1.0f, tight[i] + wide_blur[i]) * 255.0f));
+    pixels[i * 4 + 0] = pixels[i * 4 + 1] = pixels[i * 4 + 2] = pixels[i * 4 + 3] = a;  // white, premultiplied
   }
-  GBytes * bytes = g_bytes_new_take(pixels, alpha.size() * 4);
+  GBytes * bytes = g_bytes_new_take(pixels, glyph.size() * 4);
   GdkTexture * texture = gdk_memory_texture_new(w, h, GDK_MEMORY_R8G8B8A8_PREMULTIPLIED, bytes, static_cast<gsize>(w * 4));
   g_bytes_unref(bytes);
   glow_sprites[key] = texture;
@@ -811,14 +780,23 @@ GskRenderNode * Window::Impl::glowNode(const CellBuffer & cells, int r0, int r1)
       Color fg = cell.fg.value_or(default_fg);
       int level = glowLevel(fg);
       if (level == 0) continue;
-      GdkTexture * sprite = glowSprite(cell, fg);
+      GdkTexture * sprite = glowSprite(cell);
       if (!sprite) continue;
       int margin = glowMargin();
       graphene_rect_t bounds = GRAPHENE_RECT_INIT(static_cast<float>(c * cell_w - margin), static_cast<float>((r - r0) * cell_h - margin),
                                                   static_cast<float>(gdk_texture_get_width(sprite)), static_cast<float>(gdk_texture_get_height(sprite)));
       // The sprite holds both blurs once; laying the glyph twice at kGlowStrength comes to this.
       double once = kGlowStrength * static_cast<double>(level) / 16.0;
-      gtk_snapshot_push_opacity(snap, 1.0 - (1.0 - once) * (1.0 - once));
+      double strength = 1.0 - (1.0 - once) * (1.0 - once);
+      // The white sprite in the glyph's colour and strength: a colour matrix on the GPU, which
+      // takes any colour (no steps) and any strength without another texture.
+      auto rgb = fg.toSrgb8();
+      float m[16] = { rgb[0] / 255.0f, 0, 0, 0, 0, rgb[1] / 255.0f, 0, 0, 0, 0, rgb[2] / 255.0f, 0, 0, 0, 0, static_cast<float>(strength) };
+      graphene_matrix_t matrix;
+      graphene_matrix_init_from_float(&matrix, m);
+      graphene_vec4_t offset;
+      graphene_vec4_init(&offset, 0, 0, 0, 0);
+      gtk_snapshot_push_color_matrix(snap, &matrix, &offset);
       gtk_snapshot_append_texture(snap, sprite, &bounds);
       gtk_snapshot_pop(snap);
     }
