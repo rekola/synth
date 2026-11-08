@@ -4,6 +4,7 @@
 #include <cellui/Theme.h>
 
 #include <algorithm>
+#include <cmath>
 #include <iterator>
 #include <utility>
 
@@ -135,6 +136,10 @@ class StyleProvider {
   }
   // How much of a full flash a note of this velocity (0 to 127) gets: half, up to all.
   static float velocityFlash(int velocity) { return 0.5f + 0.5f * static_cast<float>(std::clamp(velocity, 0, 127)) / 127.0f; }
+  // The weight a note is drawn in while `flash` (0 to 1) lights it: normal, then up through
+  // 500, 600, 700 to 800 in whole steps of 100, so it never animates between weights that
+  // look the same. A display with only normal and bold draws 600 and up bold.
+  static int flashWeight(float flash) { return 400 + 100 * static_cast<int>(std::lround(std::clamp(flash, 0.0f, 1.0f) * 4.0f)); }
   // `c` lit by `flash` (0 to 1): its brightest channel taken from where it is toward
   // the larger of kNoteFlashGain times that and kNoteFlashPeak.
   static Color lit(const Color & c, float flash) {

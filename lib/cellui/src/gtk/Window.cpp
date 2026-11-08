@@ -147,6 +147,11 @@ struct Window::Impl {
   PangoContext * text_context = nullptr;
   PangoFontDescription * cell_base = nullptr;
   std::map<int, PangoFontDescription *> cell_fonts;
+  // The weight the cell font really draws a requested one in: its nearest face, or
+  // the weight itself for a variable font. Weights that come out the same are one
+  // to the caches, so a weight that looks like another costs nothing.
+  std::map<int, int> shown_weights;
+  int shownWeight(int weight);
   PangoFontDescription * cellFont(int style);
   struct Glyph {
     std::string text;
@@ -601,7 +606,7 @@ const Window::Impl::Painted & Window::Impl::paint(size_t slot, const CellBuffer 
         }
         text_print.add(cell.text);
         text_print.add(cell.fg);
-        text_print.add(static_cast<uint64_t>(cell.weight) << 2 | static_cast<uint64_t>(cell.italic) << 1 | static_cast<uint64_t>(cell.underline));
+        text_print.add(static_cast<uint64_t>(shownWeight(cell.weight)) << 2 | static_cast<uint64_t>(cell.italic) << 1 | static_cast<uint64_t>(cell.underline));
       }
     }
 
@@ -639,7 +644,7 @@ const Window::Impl::Painted & Window::Impl::paint(size_t slot, const CellBuffer 
         glow_print.add(cell.text);
         glow_print.add(cell.fg);
         glow_print.add(static_cast<uint64_t>(text_level));
-        glow_print.add(static_cast<uint64_t>(cell.weight) << 1 | static_cast<uint64_t>(cell.italic));
+        glow_print.add(static_cast<uint64_t>(shownWeight(cell.weight)) << 1 | static_cast<uint64_t>(cell.italic));
       }
     }
     uint64_t glow_value = any_glow ? glow_print.value() : 0;
@@ -679,6 +684,24 @@ GskRenderNode * Window::Impl::glowNode(const CellBuffer & cells, int r0, int r1)
   return gtk_snapshot_free_to_node(snap);
 }
 
+int Window::Impl::shownWeight(int weight) {
+  if (weight == 400) return weight;
+  auto found = shown_weights.find(weight);
+  if (found != shown_weights.end()) return found->second;
+  int shown = weight;
+  PangoFontDescription * font = pango_font_description_copy(cell_base);
+  pango_font_description_set_weight(font, static_cast<PangoWeight>(weight));
+  if (PangoFont * loaded = pango_context_load_font(text_context, font)) {
+    PangoFontDescription * real = pango_font_describe(loaded);
+    shown = static_cast<int>(pango_font_description_get_weight(real));
+    pango_font_description_free(real);
+    g_object_unref(loaded);
+  }
+  pango_font_description_free(font);
+  shown_weights[weight] = shown;
+  return shown;
+}
+
 PangoFontDescription * Window::Impl::cellFont(int style) {
   auto found = cell_fonts.find(style);
   if (found != cell_fonts.end()) return found->second;
@@ -695,7 +718,7 @@ PangoFontDescription * Window::Impl::cellFont(int style) {
 GskRenderNode * Window::Impl::glyphNode(const CellBuffer::Cell & cell, const Color & fg) {
   auto rgb = fg.toSrgb8();
   Glyph key{ cell.text, static_cast<uint32_t>(rgb[0]) << 16 | static_cast<uint32_t>(rgb[1]) << 8 | rgb[2],
-             cell.weight * 2 + (cell.italic ? 1 : 0) };
+             shownWeight(cell.weight) * 2 + (cell.italic ? 1 : 0) };
   auto found = glyph_nodes.find(key);
   if (found != glyph_nodes.end()) return found->second;
   if (glyph_nodes.size() > 4096) {

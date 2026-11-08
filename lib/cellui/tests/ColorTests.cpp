@@ -252,3 +252,18 @@ TEST(note_flash_is_stronger_for_a_louder_note) {
   CHECK(StyleProvider::velocityFlash(0x28) < StyleProvider::velocityFlash(0x60));
   CHECK_NEAR(StyleProvider::velocityFlash(500), 1.0f, 1e-6f);
 }
+
+TEST(note_flash_weight_goes_in_whole_steps_from_normal_to_heavy) {
+  CHECK(StyleProvider::flashWeight(0.0f) == 400);
+  CHECK(StyleProvider::flashWeight(1.0f) == 800);
+  CHECK(StyleProvider::flashWeight(-1.0f) == 400);
+  int last = 400;
+  for (int i = 0; i <= 100; i++) {
+    int w = StyleProvider::flashWeight(static_cast<float>(i) / 100.0f);
+    CHECK(w % 100 == 0 && w >= last && w <= 800);
+    last = w;
+  }
+  // A faded flash is back to normal; half of one is already bold for a bold-only display.
+  CHECK(StyleProvider::flashWeight(0.05f) == 400);
+  CHECK(StyleProvider::flashWeight(0.5f) >= 600);
+}
