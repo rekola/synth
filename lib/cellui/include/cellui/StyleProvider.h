@@ -123,15 +123,16 @@ class StyleProvider {
   // each display decides what that looks like, and the light falls back to
   // normal over kNoteFlashSeconds.
   static constexpr float kNoteFlashGain = 2.5f;
-  static constexpr float kNoteFlashSeconds = 0.25f;
+  static constexpr float kNoteFlashSeconds = 0.6f;
   // How much of the note cell's background a full flash lights in the track's colour.
-  static constexpr float kNoteFlashBgMix = 0.3f;
+  // Off for now: the lit background also covered the space after the note and hid the glow.
+  static constexpr float kNoteFlashBgMix = 0.0f;
   // 1 at the moment of the attack, falling to 0 after kNoteFlashSeconds; a reduced-motion
   // display gets the first half at full strength and then nothing.
   static float noteFlash(double age_seconds, bool reduced_motion) {
     if (age_seconds < 0.0 || age_seconds >= kNoteFlashSeconds) return 0.0f;
     float left = 1.0f - static_cast<float>(age_seconds / kNoteFlashSeconds);
-    return reduced_motion ? (left > 0.5f ? 1.0f : 0.0f) : left * left;
+    return reduced_motion ? (left > 0.5f ? 1.0f : 0.0f) : left;
   }
   Color cursorRowTint(Color base) const { return base.blend(kRowTintAlpha, cursor_row_tint_color); }
 
