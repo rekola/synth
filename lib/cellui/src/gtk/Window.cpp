@@ -558,7 +558,7 @@ constexpr double kGlowStrength = 0.6;
 // How much larger a glyph lit to the full is drawn, and the factor for a level (in sixteenths, as
 // glowLevel()): it grows with the light and fades back with it. A transform about the cell's
 // centre on the glyph's cached node and its glow's quad, so no node or texture is made again.
-constexpr double kZoomMax = 0.05;
+constexpr double kZoomMax = 0.5;
 double glowZoom(int level) { return 1.0 + kZoomMax * static_cast<double>(level) / 16.0; }
 int glowLevel(const Color & c) {
   float excess = std::max({ c.r(), c.g(), c.b() }) - 1.0f;
