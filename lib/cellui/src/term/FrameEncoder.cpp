@@ -1,6 +1,7 @@
-#include <algorithm>
 #include <cellui/term/FrameEncoder.h>
 
+#include <algorithm>
+#include <chrono>
 #include <cstdint>
 #include <cstdlib>
 
@@ -47,15 +48,8 @@ bool sameColor(const std::optional<Color> & a, const std::optional<Color> & b) {
   return !a || *a == *b || a->toSrgb8() == b->toSrgb8();
 }
 
-// A terminal has no light to spare, and bold is how it makes a colour brighter, so a foreground
-// the app lit past white (by this much, in linear light) is written bold.
-constexpr float kLitBold = 1.05f;
-bool boldCell(const CellBuffer::Cell & c) {
-  return c.bold() || (c.fg && std::max({ c.fg->r(), c.fg->g(), c.fg->b() }) > kLitBold);
-}
-
 bool sameCell(const CellBuffer::Cell & a, const CellBuffer::Cell & b) {
-  return a.text == b.text && a.continuation == b.continuation && a.image == b.image && boldCell(a) == boldCell(b) && a.italic == b.italic &&
+  return a.text == b.text && a.continuation == b.continuation && a.image == b.image && a.bold() == b.bold() && a.italic == b.italic &&
          a.underline == b.underline && sameColor(a.fg, b.fg) && sameColor(a.bg, b.bg);
 }
 
@@ -94,7 +88,20 @@ EncoderProfile EncoderProfile::from(const Capabilities & caps) {
   return p;
 }
 
-FrameEncoder::FrameEncoder(EncoderProfile profile) : profile_(std::move(profile)), full_(true) { }
+FrameEncoder::FrameEncoder(EncoderProfile profile) : profile_(std::move(profile)), full_(true) {
+  clock_ = [] { return std::chrono::duration<double>(std::chrono::steady_clock::now().time_since_epoch()).count(); };
+}
+
+bool FrameEncoder::litBold(size_t index, const CellBuffer::Cell & cell, double now) {
+  bool lit = cell.fg && std::max({ cell.fg->r(), cell.fg->g(), cell.fg->b() }) > kLitBold;
+  double & since = lit_since_[index];
+  if (!lit) {
+    since = -1.0;
+    return false;
+  }
+  if (since < 0.0) since = now;
+  return now - since < kBoldHold;
+}
 
 FrameEncoder::Ink FrameEncoder::ink(const std::optional<Color> & c, bool background) const {
   Ink k;
@@ -152,13 +159,13 @@ void FrameEncoder::pen(std::string & out, const CellBuffer::Cell & cell) {
   };
   if (!pen_known_) {
     add("0");
-    if (boldCell(cell)) add("1");
+    if (cell.bold()) add("1");
     if (cell.italic) add("3");
     if (cell.underline) add("4");
     if (fg.kind != Ink::DEFAULT) add(color(fg, false));
     if (bg.kind != Ink::DEFAULT) add(color(bg, true));
   } else {
-    if (boldCell(cell) != bold_) add(boldCell(cell) ? "1" : "22");
+    if (cell.bold() != bold_) add(cell.bold() ? "1" : "22");
     if (cell.italic != italic_) add(cell.italic ? "3" : "23");
     if (cell.underline != underline_) add(cell.underline ? "4" : "24");
     if (fg != fg_) add(color(fg, false));
@@ -168,7 +175,7 @@ void FrameEncoder::pen(std::string & out, const CellBuffer::Cell & cell) {
   pen_known_ = true;
   fg_ = fg;
   bg_ = bg;
-  bold_ = boldCell(cell);
+  bold_ = cell.bold();
   italic_ = cell.italic;
   underline_ = cell.underline;
 }
@@ -187,9 +194,23 @@ std::string FrameEncoder::encode(const CellBuffer & frame, const CursorRequest &
     full_ = false;
   }
   CellBuffer & last = *last_;
+  double now = clock_();
+  if (lit_since_.size() != static_cast<size_t>(rows) * static_cast<size_t>(cols)) lit_since_.assign(static_cast<size_t>(rows) * static_cast<size_t>(cols), -1.0);
   for (int r = 0; r < rows; r++) {
     for (int c = 0; c < cols; c++) {
-      const CellBuffer::Cell & cell = frame.at(r, c);
+      const CellBuffer::Cell & raw = frame.at(r, c);
+      size_t index = static_cast<size_t>(r) * static_cast<size_t>(cols) + static_cast<size_t>(c);
+      if (raw.image || raw.continuation) lit_since_[index] = -1.0;
+      // A lit cell is bold for its first kBoldHold; the cell the terminal is sent (and
+      // compared with the next frame) is that one.
+      CellBuffer::Cell lit_cell;
+      const CellBuffer::Cell * shown = &raw;
+      if (!raw.image && !raw.continuation && litBold(index, raw, now) && !raw.bold()) {
+        lit_cell = raw;
+        lit_cell.weight = 700;
+        shown = &lit_cell;
+      }
+      const CellBuffer::Cell & cell = *shown;
       if (cell.image) {
         // The image draws this cell. What was under it is blanked as the
         // image arrives (in the same frame, before it), so a selection in

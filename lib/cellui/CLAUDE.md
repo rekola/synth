@@ -215,8 +215,10 @@ timing (and missed-vsync counts) at exit.
   split sequences), `Discovery`/`Capabilities` (start-up queries with a
   deadline; true colour is also found by setting a 24-bit background and reading the pen back with DECRQSS, which xterm answers with the colour only when it keeps 24 bits; display scale guessed from the cell size, light/dark from the
   default colours, which picks the default `--theme`), `FrameEncoder` (frame
-  diff as escape sequences; a foreground lit past white, a channel above 1.05, is written
-  bold, a terminal's way of brighter, so an app never asks a weight for a flash), `ImageEncoder` (kitty graphics, iTerm2 inline
+  diff as escape sequences; a foreground lit past white, a channel above `kLitBold`, is written bold
+  for its first `kBoldHold` seconds lit (a latch per cell, on a clock a test can set): a terminal's
+  way of brighter, so an app never asks a weight for a flash and the bold shows on every lit
+  cell for the same short time, whatever the colour does after), `ImageEncoder` (kitty graphics, iTerm2 inline
   images, Sixel; a Sixel image gets its own palette, the picture's exact colours when they fit the registers or their median cut (colours first put on the 101 levels a Sixel colour definition has, so two the terminal cannot tell apart are one register), one Sixel per visible rectangle, and only the changed rows of cells when that is smaller; a picture stretched over its cells (a blurred backdrop) at full quality is instead drawn in the terminal's default 256-colour palette (registers for entries 16-255, ordered dither) where the terminal has 240 registers: about half the bytes and time of a palette made from the picture, in duller colours; `PictureQuality` follows the link class (`pictureQualityFor()`): FULL to 30 Hz, REDUCED (64 colours) at 15 Hz, LOW (16) below, as a palette PNG for kitty and iTerm2 (quantised RGB where a terminal refuses the PNG) and fewer Sixel registers, undithered unless the picture is stretched over its cells (a blurred backdrop); kitty uploads and PNGs deflated by the in-tree
   `term/Deflate.h`, raw fallback when it saves under 10 % or the terminal
   refuses), `TerminalSession` (tty, modes, signals, restoration). `TermEvent`s

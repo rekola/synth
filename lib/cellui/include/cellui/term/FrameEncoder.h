@@ -3,8 +3,10 @@
 #include <cellui/CellBuffer.h>
 #include <cellui/term/Capabilities.h>
 
+#include <functional>
 #include <optional>
 #include <string>
+#include <vector>
 
 namespace cellui::term {
 
@@ -36,6 +38,9 @@ class FrameEncoder {
  public:
   explicit FrameEncoder(EncoderProfile profile = {});
 
+  // The clock, in seconds, the bold of a lit cell is timed by (see encode()); a test sets its own.
+  void setClock(std::function<double()> clock) { clock_ = std::move(clock); }
+
   // The next frame clears the screen and draws everything: after a resize
   // or a resume, when what the terminal shows is no longer known. A frame
   // of a different size than the last does the same.
@@ -55,9 +60,20 @@ class FrameEncoder {
   // Cells an image covers (CellBuffer::Cell::image) are left to `images`,
   // the bytes that draw the images, sent after the text in the same update;
   // the cursor is not known after them.
+  // A foreground the app lit past white (a channel above kLitBold) is written bold for the first
+  // kBoldHold seconds it stays lit: a terminal has no light to spare, and bold is how it makes a
+  // colour brighter. How long it shows does not depend on how the colour falls, or on a note's
+  // velocity or the tint of its row, so every lit cell shows it and none for long.
+  static constexpr float kLitBold = 1.1f;
+  static constexpr double kBoldHold = 0.3;
   std::string encode(const CellBuffer & frame, const CursorRequest & cursor = {}, const std::string & images = "");
 
  private:
+  // Whether the cell at `index` is within its first kBoldHold seconds of being lit.
+  bool litBold(size_t index, const CellBuffer::Cell & cell, double now);
+  std::function<double()> clock_;
+  // When each cell was first lit, in the clock's seconds; negative while it is not.
+  std::vector<double> lit_since_;
   // A colour as sent: the terminal's default, a palette index or RGB.
   struct Ink {
     enum Kind { DEFAULT, INDEX, RGB } kind = DEFAULT;

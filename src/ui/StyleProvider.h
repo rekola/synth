@@ -78,23 +78,13 @@ class StyleProvider : public cellui::StyleProvider {
   }
   // How much of a full flash a note of this velocity (0 to 127) gets: half, up to all.
   static float velocityFlash(int velocity) { return 0.5f + 0.5f * static_cast<float>(std::clamp(velocity, 0, 127)) / 127.0f; }
-  // The least a lit colour peaks past white, whatever its colour, its velocity or the tint of the
-  // playhead row it is on: its brightest channel is at least 1 + kNoteFlashLift, reached over the
-  // first kNoteFlashLiftRamp of the attack (so nothing jumps) and held for the rest. Every lit note
-  // is therefore past white for nearly the whole flash, which a display with no light to spare (a
-  // terminal) shows as bold; velocity only scales how far past.
-  static constexpr float kNoteFlashLift = 0.3f;
-  static constexpr float kNoteFlashLiftRamp = 0.25f;
-  // `c` lit by `flash` (0 to 1, velocity included) for an attack of `attack` (0 to 1, not): its
-  // brightest channel taken from where it is toward the larger of kNoteFlashGain times that and
-  // kNoteFlashPeak, and never under the lift above.
-  static Color lit(const Color & c, float flash, float attack) {
+  // `c` lit by `flash` (0 to 1): its brightest channel taken from where it is toward
+  // the larger of kNoteFlashGain times that and kNoteFlashPeak.
+  static Color lit(const Color & c, float flash) {
     float peak = std::max({c.r(), c.g(), c.b()});
-    if (!(attack > 0.0f) || !(peak > 0.0f)) return c;
-    float target = std::max(kNoteFlashGain * peak, kNoteFlashPeak);
-    float lifted = peak + (target - peak) * std::clamp(flash, 0.0f, 1.0f);
-    float least = 1.0f + kNoteFlashLift * std::min(1.0f, attack / kNoteFlashLiftRamp);
-    return c * (std::min(std::max(lifted, least), 16.0f * peak) / peak);
+    if (!(flash > 0.0f) || !(peak > 0.0f)) return c;
+    float scale = std::min(std::max(kNoteFlashGain, kNoteFlashPeak / peak), 8.0f);
+    return c * (1.0f + (scale - 1.0f) * flash);
   }
 
   // The clip grid header's track flags when on: Mute, Solo, and a Monitor

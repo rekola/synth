@@ -228,9 +228,9 @@ TEST(note_flash_without_motion_is_a_step) {
 TEST(note_flash_lights_a_dim_colour_as_far_as_a_bright_one) {
   Color dim = Color::linear(0.1f, 0.3f, 0.1f), bright = Color::linear(0.9f, 0.9f, 0.9f);
   auto peak = [](const Color & c) { return std::max({c.r(), c.g(), c.b()}); };
-  CHECK(peak(StyleProvider::lit(dim, 1.0f, 1.0f)) >= StyleProvider::kNoteFlashPeak - 1e-4f);
-  CHECK(peak(StyleProvider::lit(bright, 1.0f, 1.0f)) >= StyleProvider::kNoteFlashGain * peak(bright) - 1e-4f);
-  CHECK(StyleProvider::lit(dim, 0.0f, 0.0f) == dim);
+  CHECK(peak(StyleProvider::lit(dim, 1.0f)) >= StyleProvider::kNoteFlashPeak - 1e-4f);
+  CHECK(peak(StyleProvider::lit(bright, 1.0f)) >= StyleProvider::kNoteFlashGain * peak(bright) - 1e-4f);
+  CHECK(StyleProvider::lit(dim, 0.0f) == dim);
 }
 
 TEST(note_flash_is_stronger_for_a_louder_note) {
@@ -238,24 +238,4 @@ TEST(note_flash_is_stronger_for_a_louder_note) {
   CHECK_NEAR(StyleProvider::velocityFlash(0), 0.5f, 1e-6f);
   CHECK(StyleProvider::velocityFlash(0x28) < StyleProvider::velocityFlash(0x60));
   CHECK_NEAR(StyleProvider::velocityFlash(500), 1.0f, 1e-6f);
-}
-
-// A lit note is past white whatever its colour or velocity, for nearly the whole flash: a terminal
-// shows that as bold, and a note without it looks like a bug.
-TEST(note_flash_lifts_every_lit_colour_past_white_whatever_its_velocity) {
-  auto peak = [](const Color & c) { return std::max({c.r(), c.g(), c.b()}); };
-  const Color colours[] = {Color::linear(0.9f, 0.9f, 0.9f), Color::linear(0.15f, 0.55f, 0.2f), Color::linear(0.05f, 0.02f, 0.3f),
-                           Color::linear(0.6f, 0.35f, 0.1f), Color::linear(0.5f, 0.5f, 0.5f) * 0.7f};
-  for (const Color & c : colours) {
-    for (int velocity : {0, 0x10, 0x28, 0x60, 0x7f}) {
-      for (float attack : {1.0f, 0.8f, 0.5f, 0.25f, 0.1f}) {
-        float flash = attack * StyleProvider::velocityFlash(velocity);
-        CHECK(peak(StyleProvider::lit(c, flash, attack)) > 1.05f);
-      }
-    }
-  }
-  // Rising from white without a jump, and nothing lit once the attack is over.
-  Color c = Color::linear(0.9f, 0.9f, 0.9f);
-  CHECK(peak(StyleProvider::lit(c, 0.0f, 0.0f)) == peak(c));
-  CHECK(peak(StyleProvider::lit(c, 0.01f, 0.01f)) < 1.1f);
 }
