@@ -555,6 +555,11 @@ bool hasText(const CellBuffer::Cell & cell) {
 constexpr float kGlowFullExcess = 0.6f;
 // How much of its strength a glow is drawn with.
 constexpr double kGlowStrength = 0.6;
+// How much larger a glyph lit to the full is drawn, and the factor for a level (in sixteenths, as
+// glowLevel()): it grows with the light and fades back with it. A transform about the cell's
+// centre on the glyph's cached node and its glow's quad, so no node or texture is made again.
+constexpr double kZoomMax = 0.5;
+double glowZoom(int level) { return 1.0 + kZoomMax * static_cast<double>(level) / 16.0; }
 int glowLevel(const Color & c) {
   float excess = std::max({ c.r(), c.g(), c.b() }) - 1.0f;
   if (!(excess > 0.0f)) return 0;
@@ -625,6 +630,7 @@ const Window::Impl::Painted & Window::Impl::paint(size_t slot, const CellBuffer 
         }
         text_print.add(cell.text);
         text_print.add(cell.fg);
+        text_print.add(static_cast<uint64_t>(cell.fg ? glowLevel(*cell.fg) : 0));
         text_print.add(static_cast<uint64_t>(shownWeight(cell.weight)) << 2 | static_cast<uint64_t>(cell.italic) << 1 | static_cast<uint64_t>(cell.underline));
       }
     }
@@ -796,9 +802,19 @@ GskRenderNode * Window::Impl::glowNode(const CellBuffer & cells, int r0, int r1)
       graphene_matrix_init_from_float(&matrix, m);
       graphene_vec4_t offset;
       graphene_vec4_init(&offset, 0, 0, 0, 0);
+      // Zoomed with its glyph, about the centre of the glyph's cell.
+      int wide = std::max(1, utf8::displayWidth(cell.text));
+      graphene_point_t centre = GRAPHENE_POINT_INIT(static_cast<float>(c * cell_w + wide * cell_w / 2.0f), static_cast<float>((r - r0) * cell_h + cell_h / 2.0f));
+      graphene_point_t back = GRAPHENE_POINT_INIT(-centre.x, -centre.y);
+      float zoom = static_cast<float>(glowZoom(level));
+      gtk_snapshot_save(snap);
+      gtk_snapshot_translate(snap, &centre);
+      gtk_snapshot_scale(snap, zoom, zoom);
+      gtk_snapshot_translate(snap, &back);
       gtk_snapshot_push_color_matrix(snap, &matrix, &offset);
       gtk_snapshot_append_texture(snap, sprite, &bounds);
       gtk_snapshot_pop(snap);
+      gtk_snapshot_restore(snap);
     }
   }
   return gtk_snapshot_free_to_node(snap);
@@ -940,7 +956,25 @@ GskRenderNode * Window::Impl::textNode(const CellBuffer & cells, int r0, int r1)
       graphene_point_t at = GRAPHENE_POINT_INIT(static_cast<float>(c * cell_w), static_cast<float>((r - r0) * cell_h));
       gtk_snapshot_translate(snap, &at);
       if (!cell.text.empty() && cell.text != " ") {
-        if (GskRenderNode * glyph = glyphNode(cell, fg)) gtk_snapshot_append_node(snap, glyph);
+        if (GskRenderNode * glyph = glyphNode(cell, fg)) {
+          int level = glowLevel(fg);
+          if (level > 0) {
+            // Larger the more it is lit, about the centre of its cell.
+            int wide = std::max(1, utf8::displayWidth(cell.text));
+            graphene_point_t centre = GRAPHENE_POINT_INIT(static_cast<float>(wide * cell_w) / 2.0f, static_cast<float>(cell_h) / 2.0f);
+            graphene_point_t back = GRAPHENE_POINT_INIT(-centre.x, -centre.y);
+            float zoom = static_cast<float>(glowZoom(level));
+            gtk_snapshot_save(snap);
+            gtk_snapshot_translate(snap, &centre);
+            gtk_snapshot_scale(snap, zoom, zoom);
+            gtk_snapshot_translate(snap, &back);
+            gtk_snapshot_append_node(snap, glyph);
+            gtk_snapshot_restore(snap);
+            stats.glyphs_zoomed++;
+          } else {
+            gtk_snapshot_append_node(snap, glyph);
+          }
+        }
       }
       if (cell.underline) {
         auto rgb = fg.toSrgb8();
