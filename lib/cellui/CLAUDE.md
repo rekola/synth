@@ -287,7 +287,11 @@ tight and wide once on the CPU for a glyph in a face (`glowSprite()`, a white te
 reaching 0.75 cell heights past its cell), then a textured quad each frame, in the glyph's
 colour and strength through a colour matrix, so the glow takes any colour with no steps and
 no texture of its own (this assumes a GL renderer). No blur runs on the GPU, so a frame
-costs what a few hundred small quads do. A background never glows. A band with no such
+costs what a few hundred small quads do. A lit glyph is also drawn larger, up to 5%
+(`kZoomMax`) by the same light as the glow, so the zoom fades with the brightness: a
+transform about the glyph's cell centre on its cached node and on its glow's quad, so no node
+or texture is made again (the band's cache print holds the level, since the colour shown may
+not change while the light does). A background never glows. A band with no such
 glyph keeps no glow node, and the glow's cache print holds the strengths, since
 the cells' own prints are of the colours scaled to white. An app only says how
 bright; this window decides that bright means light around it. Not done yet:

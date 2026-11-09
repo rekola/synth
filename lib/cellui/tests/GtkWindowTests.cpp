@@ -100,6 +100,31 @@ TEST(gtk_bench_glow) {
   run("no glow (control)", 0);
 }
 
+// A lit glyph is drawn larger, the more the more it is lit; one at white or less is not.
+TEST(gtk_window_draws_a_lit_glyph_larger) {
+  gtk::Window * w = theWindow();
+  if (!w) return;
+  StyleProvider styles;
+  auto present = [&](const Color & fg) {
+    CellBuffer screen(w->rows(), w->cols());
+    BufferPlane root(screen, styles);
+    root.setFgColor(fg);
+    root.putstr(3, 4, "Q");
+    root.refresh();
+    size_t before = w->stats().frames;
+    w->present(screen, {}, root.images());
+    CHECK(pumpUntil(*w, [&] { return w->stats().frames > before; }));
+  };
+  size_t none = w->stats().glyphs_zoomed;
+  present(Color::linear(0.9f, 0.9f, 0.9f));
+  CHECK(w->stats().glyphs_zoomed == none);
+  present(Color::linear(2.5f, 2.5f, 2.5f));
+  size_t zoomed = w->stats().glyphs_zoomed;
+  CHECK(zoomed > none);
+  present(Color::linear(1.0f, 1.0f, 1.0f));
+  CHECK(w->stats().glyphs_zoomed == zoomed);
+}
+
 // A cell lit past white (an HDR colour) glows; one at or under white does not.
 TEST(gtk_window_glows_where_a_colour_is_lit_past_white) {
   gtk::Window * w = theWindow();
