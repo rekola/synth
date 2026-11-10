@@ -633,8 +633,9 @@ class SongState : public TrackState {
             for (size_t j = 0; j < notes.size(); j++) {
 	      if (notes[j].isDefined()) {
 		auto & note = notes[j];
-                if (note.isLost()) continue; // a note with no known pitch makes no sound
-                float velocity = note.getVelocityAsFloat();
+                // A lost note has no pitch to sound, but a note did begin here, so it ends the
+                // column's previous one as an OFF would, with the neutral lift.
+                float velocity = note.isLost() ? velocity::toFloat(constants::NEUTRAL_VELOCITY) : note.getVelocityAsFloat();
                 auto delay_samples = int((note.getDelayAsFloat() + swing::offsetRows(swing_row, swing_)) * getChannelConfiguration().getSampleInterval(tempo_));
 		int note_value = (note.isAftertouch() || note.isOff()) ? -1 : note.getValue();
 		// The note's own fx is a command with an implicit leading 0.
@@ -670,7 +671,7 @@ class SongState : public TrackState {
                   }
                 }
                 auto event_frame = i + delay_samples;
-                if (note.isOff()) {
+                if (note.isOff() || note.isLost()) {
                   render_context_.addPendingOff(track_id, event_frame, static_cast<short>(j), tuning, velocity);
                   last_notes_[track_id].erase(int(j));
                 } else if (note.isAftertouch()) {

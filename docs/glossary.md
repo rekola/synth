@@ -306,6 +306,6 @@ song file it is the `velocity` attribute of an OFF note.
 **Lost note**
 A note that began on this row whose pitch is gone, written `???` (typed with `?` in
 the note column). It has a velocity and a delay like any note but no value, and it
-makes no sound and cuts nothing. It is for transcriptions of music that survives
+makes no sound, but it ends the previous note in its column, as an OFF does. It is for transcriptions of music that survives
 incompletely, such as the Delphic Paean of Athenaeus, where some of the notes are
 unknown.

@@ -295,7 +295,7 @@ TEST(a_song_file_off_without_a_velocity_has_the_neutral_lift) {
   CHECK(text.find("velocity") == std::string::npos); // neutral is left out
 }
 
-TEST(a_lost_note_has_no_pitch_and_makes_no_sound) {
+TEST(a_lost_note_has_no_pitch_makes_no_sound_and_ends_the_previous_note) {
   auto lost = Note::lost(90, 5);
   CHECK(lost.isDefined() && lost.isLost());
   CHECK(!lost.isNoteOn() && !lost.isOff() && !lost.isAftertouch());
@@ -313,18 +313,19 @@ TEST(a_lost_note_has_no_pitch_and_makes_no_sound) {
   moved.transpose(7);
   CHECK(moved.isLost()); // there is no pitch to move
 
-  // Played, it is silent and takes nothing from the notes around it.
-  auto render = [](bool with_lost) {
+  // Played, it makes no sound of its own but ends the column's previous note, like an OFF.
+  auto render = [](Note second) {
     Song song(Tuning::EDO12);
     song.addInstrument(std::make_unique<Oscillator>(WaveformType::SINE));
     auto & track = song.addTrack(std::make_unique<InstrumentTrack>(0));
     auto id = track.getInternalId();
     song.getArrangement().setNote(0, id, 0, Note(60, 100));
-    if (with_lost) song.getArrangement().setNote(4, id, 0, Note::lost());
-    song.getArrangement().setNote(8, id, 0, Note::off());
+    song.getArrangement().setNote(4, id, 0, second);
     return renderSongOffline(song, ChannelConfiguration(44100, 1)).interleaved;
   };
-  CHECK(render(true) == render(false));
+  auto with_lost = render(Note::lost());
+  CHECK(with_lost == render(Note::off())); // the previous note stops, at the neutral lift
+  CHECK(with_lost != render(Note()));      // and not left to ring on
 }
 
 TEST(a_lost_note_is_saved_as_three_question_marks) {

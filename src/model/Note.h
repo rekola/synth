@@ -19,7 +19,8 @@
 // note's value, and the four largest values mean a lost note (a note began on
 // this row but its pitch is gone, shown ???), aftertouch (pressure on whatever
 // sounds in the column), an OFF, and undefined (an empty cell, or one with only
-// fx). A lost note makes no sound. Never the velocity: velocity 0 is a real note-on, one that
+// fx). A lost note makes no sound but ends the previous note in its column, as
+// an OFF does. Never the velocity: velocity 0 is a real note-on, one that
 // starts from silence. There is one 7-bit velocity, always present on a
 // note-on, a lost note, an OFF and aftertouch: the strike velocity, the release
 // velocity (the "lift") and the pressure.
@@ -43,7 +44,8 @@ class Note {
     n.delay_ = clampDelay(delay);
     return n;
   }
-  // A note that began on this row whose pitch is unknown; it makes no sound.
+  // A note that began on this row whose pitch is unknown; it makes no sound but
+  // ends the previous note in its column.
   static Note lost(int velocity = constants::DEFAULT_NOTE_ON_VELOCITY, int delay = 0) {
     Note n;
     n.packed_ = pack(kLost, velocity);
