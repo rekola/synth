@@ -472,7 +472,7 @@ Note convertNoteTuning(const Note & note, Tuning from, Tuning to, int from_ancho
   double interval = (note.getValue() - from_anchor) * 1200.0 / from_edo + note.getTuningCorrectionCents();
   int steps = nearestStep(interval, to_edo);
   auto value = std::max(to_anchor + steps, 0);
-  Note moved = note.isOff() ? Note::off(note.getVelocity(), note.getDelay(), value) : Note(value, note.getVelocity(), note.getDelay());
+  Note moved(value, note.getVelocity(), note.getDelay());
   moved.setFx(note.getFx());
   if (note.hasTuningCorrection()) moved.setTuningCorrection(static_cast<int>(std::lround(interval - steps * 1200.0 / to_edo)));
   return moved;

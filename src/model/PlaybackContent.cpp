@@ -34,8 +34,7 @@ uint64_t digestPattern(const Pattern & pattern) {
     uint64_t r = combine(1, row);
     for (auto & n : notes) {
       r = combine(r, static_cast<uint64_t>(n.isDefined()));
-      r = combine(r, static_cast<uint64_t>(n.getValue() + 1000));
-      r = combine(r, static_cast<uint64_t>(n.isOff()));
+      r = combine(r, static_cast<uint64_t>(n.toCode() + 1000));
       r = combine(r, static_cast<uint64_t>(n.getVelocity()));
       r = combine(r, static_cast<uint64_t>(n.getDelay()));
       for (char c : n.getFx()) r = combine(r, static_cast<uint64_t>(c));

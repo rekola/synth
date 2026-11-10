@@ -97,14 +97,11 @@ class Pattern : public SongObject {
     }
   }
 
-  // Removes every defined note across every row whose getValue() ==
-  // `value`, regardless of column - PercussionTrack::removeLane()'s own
-  // per-Pattern half: a removed lane's GM number no longer identifies
-  // anything, so any note referencing it (on or off - an off marker still
-  // carries the same value(), see Note::isOff()'s own comment) is purged
-  // wherever it appears, not just at one row/column. Aftertouch entries
-  // (value() == -1) are never matched - they aren't lane-specific to
-  // begin with.
+  // Removes every note-on across every row whose getValue() == `value`,
+  // regardless of column - PercussionTrack::removeLane()'s own per-Pattern
+  // half: a removed lane's GM number no longer identifies anything, so any
+  // note referencing it is purged wherever it appears, not just at one
+  // row/column. An OFF or aftertouch has no value and is never matched.
   void deleteNotesWithValue(int value) {
     for (auto it = notes_.begin(); it != notes_.end(); ) {
       auto & nv = it->second;

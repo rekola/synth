@@ -34,7 +34,7 @@ TEST(apply_just_intonation_tunes_every_pitched_note_and_skips_what_has_no_pitch)
   arrangement.setNote(0, 10, 0, Note(kKey, 100));      // C
   arrangement.setNote(0, 10, 1, Note(kKey + 8, 100));  // E♭
   arrangement.setNote(0, 10, 2, Note(kKey + 13, 100)); // F
-  auto off = Note::off(constants::NEUTRAL_VELOCITY, 0, kKey);
+  auto off = Note::off();
   arrangement.setNote(1, 10, 0, off);
   Note panned(kKey + 10, 100);
   panned.setFx("P80");
@@ -373,7 +373,7 @@ TEST(a_new_note_of_a_just_scale_is_written_with_its_correction) {
   Note drum(kKey + 7, 100);
   tuneNewNote(song, drums, drum);
   CHECK(!drum.hasFx());
-  auto off = Note::off(constants::NEUTRAL_VELOCITY, 0, kKey + 7);
+  auto off = Note::off();
   tuneNewNote(song, pitched, off);
   CHECK(!off.hasFx());
 }

@@ -125,8 +125,17 @@ TEST(a_note_is_8_bytes_and_keeps_its_kind) {
   CHECK(Note(-1, 50).isAftertouch() && !Note(-1, 50).isNoteOn());
   Note empty;
   CHECK(!empty.isDefined() && !empty.isAftertouch() && empty.getValue() == -1);
-  empty.setVelocity(0);
-  CHECK(empty.isAftertouch() && empty.getVelocity() == 0);
+  empty.setVelocity(0); // the type is the value's: this stays an empty cell
+  CHECK(!empty.isDefined());
+  // The type lives in the value: the top three values are aftertouch, OFF and undefined.
+  CHECK(Note(60, 10).isNoteOn() && Note::off(10).getValue() == -1 && Note::aftertouch(10).getValue() == -1);
+  for (auto note : {Note(0, 3), Note(123456, 100, 9), Note::off(7, 2), Note::aftertouch(0, 4), Note()}) {
+    auto back = Note::fromCode(note.toCode(), note.getVelocity(), note.getDelay());
+    CHECK(back.isNoteOn() == note.isNoteOn() && back.isOff() == note.isOff() && back.isAftertouch() == note.isAftertouch());
+    CHECK(back.isDefined() == note.isDefined() && back.getValue() == note.getValue() && back.getVelocity() == note.getVelocity());
+  }
+  Note high(1 << 24, 5);
+  CHECK(high.isNoteOn()); // the largest values are held below the three that mean other things
 }
 
 TEST(a_velocity_0_note_on_is_a_real_note_that_starts_silent) {
