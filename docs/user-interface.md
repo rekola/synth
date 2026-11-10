@@ -191,7 +191,10 @@ in the song, so playback never hears half a value) and committed together when
 the cursor leaves the cell, the pattern editor loses focus or any other key is
 pressed; Enter commits it and moves to the next column. A delay needs a note (or
 aftertouch) to belong to, so typing one on an empty column is refused; a velocity
-there makes an aftertouch. A command is text and is written as it is typed. Typed digits are amalgamated as Emacs does with typed characters: the hex
+there makes an aftertouch. An OFF row shows its release velocity (its *lift*) in the velocity
+column and edits it the same way; velocity 00 on a note-on is a real, quiet note, never an OFF.
+A newly entered note-on gets velocity 100 (shown `64`), a newly entered OFF the neutral 64 (shown `40`),
+Launchpads included. A command is text and is written as it is typed. Typed digits are amalgamated as Emacs does with typed characters: the hex
 digits of a velocity or delay, the characters of a command, and typed notes
 (a chord counts as one, an off or a delete as one), run on from one cell to the
 next, undo as one step. The run ends when you move the cursor or press any

@@ -14,11 +14,13 @@ inline constexpr const char * kNotesSlot = "notes";
 inline constexpr const char * kCommandsSlot = "commands";
 
 // type "note". The value is stored whatever it is - an aftertouch entry has
-// -1 - and a note-off has velocity 0, which is the default.
+// -1. The kind is a Note::Kind (0 none, an fx-only cell), and the velocity is
+// the Note's 16-bit one (a note-on's, an OFF's release velocity, or pressure).
 inline const doc::Prop<int> kNoteRow{"row", 0};
 inline const doc::Prop<int> kNoteColumn{"col", 0};
 inline const doc::Prop<int> kNoteValue{"value", -1};
-inline const doc::Prop<int> kNoteVelocity{"velocity", 0};
+inline const doc::Prop<int> kNoteKind{"kind", 0};
+inline const doc::Prop<int> kNoteVelocity{"velocity", 0x8000};
 inline const doc::Prop<int> kNoteDelay{"delay", 0};
 inline const doc::Prop<std::string> kNoteFx{"fx", "..."};
 

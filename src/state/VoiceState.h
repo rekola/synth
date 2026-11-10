@@ -111,6 +111,17 @@ class VoiceState : public TreeNode<VoiceState> {
 
   virtual void killNote() { killChildren(); }
 
+  // The release velocity ("lift", 7-bit) of the OFF about to stop this voice,
+  // fixed when the OFF arrives: it scales the release time of every envelope
+  // the voice has (velocity::releaseTimeFactor()). Set before stopNote(); a
+  // voice that never gets one releases as lift 64, unscaled. Default passes it
+  // on to the children.
+  virtual void setReleaseVelocity(int lift7) {
+    for (auto & [id, child] : getChildren()) {
+      child->setReleaseVelocity(lift7);
+    }
+  }
+
   // Reclaim a voice quickly without a hard cut - used by
   // InstrumentTrackState::retriggerVoices()/chokeExclusiveClasses() (see
   // their own comments) when a prior voice is either masked by a new

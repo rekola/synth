@@ -1658,7 +1658,7 @@ Controller::writeReleaseOff(std::set<std::pair<int, int>> & cleared_rows, bool a
   auto song = getCurrentSong();
   auto target = resolveEditTarget(*song, track_id, row, getFocusedClip());
   Song::Edit edit(*song, "release note");
-  target.pattern->setNote(target.effective_row, note_column, Note(0, 0, delay));
+  target.pattern->setNote(target.effective_row, note_column, Note::off(constants::NEUTRAL_VELOCITY, static_cast<short>(delay)));
 }
 
 void

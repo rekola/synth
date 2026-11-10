@@ -6,7 +6,12 @@ namespace constants {
   // Increasing the value significantly lowers the CPU usage of the voice rendering.
   // If LFO affects the low-pass filter it can be hearable even as low as 8.
   constexpr int RENDER_EFFECTSAMPLEBLOCK { 64 };
-  constexpr int DEFAULT_VELOCITY { 0x40 };
+  // Velocities on the 7-bit scale (a Note stores 16 bits; see util/Velocity.h).
+  // Neutral: what code gives a note-on or an OFF made without a velocity, and
+  // what a song file omits. The default note-on velocity is what the editor and
+  // the pad controllers give a newly entered note-on; a new OFF gets neutral.
+  constexpr int NEUTRAL_VELOCITY{64};
+  constexpr int DEFAULT_NOTE_ON_VELOCITY{100};
   // Below this, a releasing voice (SoundFontVoice::render(),
   // EnvelopeFilterState::applyEffect() - never ATTACK/DECAY/SUSTAIN of a
   // still-held note) is treated as effectively silent and freed early via

@@ -918,7 +918,7 @@ bool OutlineView::keyDown(const cellui::KeyDown & e) {
       if (!track_instrument) track_instrument = provider.resolvePath(row.ref_name);
       getController().prewarmInstrumentForPreview(track_instrument.get(), midi_note);
       getController().getPlaybackEventQueue().push(make_unique<PlaybackControlEvent>(
-        PlaybackControlEvent::PREVIEW_NOTE, row.ref_name, midi_note, constants::DEFAULT_VELOCITY));
+          PlaybackControlEvent::PREVIEW_NOTE, row.ref_name, midi_note, constants::DEFAULT_NOTE_ON_VELOCITY));
     } else {
       // POOL_INSTRUMENT - addresses row.ref_id (the pool's own index) via
       // PREVIEW_POOL_NOTE rather than PREVIEW_NOTE, so the exact pool slot
@@ -931,7 +931,7 @@ bool OutlineView::keyDown(const cellui::KeyDown & e) {
       auto pool_instrument = song ? song->getInstrumentPool().getByIndex(row.ref_id) : nullptr;
       getController().prewarmInstrumentForPreview(pool_instrument, midi_note);
       getController().getPlaybackEventQueue().push(make_unique<PlaybackControlEvent>(
-        PlaybackControlEvent::PREVIEW_POOL_NOTE, "", row.ref_id, midi_note, constants::DEFAULT_VELOCITY));
+          PlaybackControlEvent::PREVIEW_POOL_NOTE, "", row.ref_id, midi_note, constants::DEFAULT_NOTE_ON_VELOCITY));
     }
     // A terminal with no Kitty keyboard protocol reports every keystroke
     // as InputEvent::Kind::UNKNOWN (see PatternEditor.cpp's own identical

@@ -75,7 +75,7 @@ MidiNoteInput::handle(const MidiEvent & ev, Controller & controller, int track_i
     queue.push(make_unique<PlaybackControlEvent>(PlaybackControlEvent::STOP_NOTE, buffer, held.track_id, held.column));
     if (!options.write) return false;
     auto target = resolve(held.track_id);
-    target.pattern->setNote(target.effective_row, held.column, Note(0, 0, current_delay));
+    target.pattern->setNote(target.effective_row, held.column, Note::off(constants::NEUTRAL_VELOCITY, current_delay));
     return true;
   }
 

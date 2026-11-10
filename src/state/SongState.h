@@ -633,8 +633,8 @@ class SongState : public TrackState {
             for (size_t j = 0; j < notes.size(); j++) {
 	      if (notes[j].isDefined()) {
 		auto & note = notes[j];
-		float velocity = note.isOff() ? 0.0f : note.getVelocityAsFloat();
-		auto delay_samples = int((note.getDelayAsFloat() + swing::offsetRows(swing_row, swing_)) * getChannelConfiguration().getSampleInterval(tempo_));
+                float velocity = note.getVelocityAsFloat();
+                auto delay_samples = int((note.getDelayAsFloat() + swing::offsetRows(swing_row, swing_)) * getChannelConfiguration().getSampleInterval(tempo_));
 		int note_value = (note.isAftertouch() || note.isOff()) ? -1 : note.getValue();
 		// The note's own fx is a command with an implicit leading 0.
 		Command fx;
@@ -655,7 +655,7 @@ class SongState : public TrackState {
                 // A note column glides by its own fx (G04) or else the row's
                 // 0Gxx; G00 repeats what the column last had.
                 int own_glide = fx.isPitchGlide() ? fx.getPitchGlideCode() : -1;
-                if (note_value >= 0 && velocity > 0.0f && (own_glide >= 0 || row_glide_raw >= 0)) {
+                if (note.isNoteOn() && (own_glide >= 0 || row_glide_raw >= 0)) {
                   int raw = own_glide >= 0 ? own_glide : row_glide_raw;
                   int code = raw > 0 ? raw : rememberedGlideCode(track_id, int(j));
                   if (own_glide > 0) last_glide_codes_[track_id][int(j)] = own_glide;
@@ -668,13 +668,20 @@ class SongState : public TrackState {
                     event_override.glide_instant = code == 0xFF;
                   }
                 }
-                render_context_.addPendingEvent(track_id, i + delay_samples, int(j), tuning, velocity, note_value, NoteCoordinate(song_structure_.getOrdinalFor(track_id), row_idx, int(j)), event_override);
-                if (note.isOff()) last_notes_[track_id].erase(int(j));
-		else if (note_value >= 0 && velocity > 0.0f) {
-		  LastNote last { int(j), tuning, velocity, note_value, row_idx, note_override };
+                auto event_frame = i + delay_samples;
+                if (note.isOff()) {
+                  render_context_.addPendingOff(track_id, event_frame, static_cast<short>(j), tuning, velocity);
+                  last_notes_[track_id].erase(int(j));
+                } else if (note.isAftertouch()) {
+                  render_context_.addPendingAftertouch(track_id, event_frame, static_cast<short>(j), tuning, velocity);
+                } else {
+                  render_context_.addPendingEvent(track_id, event_frame, static_cast<short>(j), tuning, velocity, note_value, NoteCoordinate(song_structure_.getOrdinalFor(track_id), row_idx, int(j)), event_override);
+                }
+                if (note.isNoteOn()) {
+                  LastNote last { int(j), tuning, velocity, note_value, row_idx, note_override };
 		  last_notes_[track_id][int(j)] = last;
 		  if (fx.isRetrigger()) scheduleNoteRetrigger(track_id, i + delay_samples, last, fx.getRetriggerIntervalTicks(), fx.getRetriggerVolumeCode());
-		}
+                }
               } else if (notes[j].hasFx()) {
                 // A cell with only fx starts and stops no note; the fx acts on its
                 // column: a glide rate (G00 repeats the column's last), or a

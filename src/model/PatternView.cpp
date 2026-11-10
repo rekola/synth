@@ -58,7 +58,24 @@ PatternView::columnOf(doc::NodeId child) const {
 
 Note
 PatternView::noteOf(doc::NodeId child) const {
-  Note note(doc::get(*doc_, child, kNoteValue), static_cast<short>(doc::get(*doc_, child, kNoteVelocity)), static_cast<short>(doc::get(*doc_, child, kNoteDelay)));
+  auto value = doc::get(*doc_, child, kNoteValue);
+  auto velocity = static_cast<uint16_t>(doc::get(*doc_, child, kNoteVelocity));
+  auto delay = static_cast<short>(doc::get(*doc_, child, kNoteDelay));
+  Note note;
+  switch (static_cast<Note::Kind>(doc::get(*doc_, child, kNoteKind))) {
+    case Note::Kind::ON:
+      note = Note(value, 0, delay);
+      break;
+    case Note::Kind::OFF:
+      note = Note::off(0, delay, value);
+      break;
+    case Note::Kind::AFTERTOUCH:
+      note = Note::aftertouch(0, delay);
+      break;
+    case Note::Kind::NONE:
+      break;
+  }
+  note.setVelocity16(velocity);
   note.setFx(doc::getRef(*doc_, child, kNoteFx));
   return note;
 }
@@ -121,8 +138,9 @@ PatternView::setNote(int row, int note_column, Note note) {
   }
   if (exists) {
     auto node = list[index];
+    doc::set(*doc_, node, kNoteKind, static_cast<int>(note.getKind()));
     doc::set(*doc_, node, kNoteValue, note.getValue());
-    doc::set(*doc_, node, kNoteVelocity, static_cast<int>(note.getVelocity()));
+    doc::set(*doc_, node, kNoteVelocity, static_cast<int>(note.getVelocity16()));
     doc::set(*doc_, node, kNoteDelay, static_cast<int>(note.getDelay()));
     doc::set(*doc_, node, kNoteFx, std::string(note.getFx()));
     return;
@@ -130,8 +148,9 @@ PatternView::setNote(int row, int note_column, Note note) {
   std::vector<std::pair<std::string, doc::Value> > props;
   addProp(props, kNoteRow, row);
   addProp(props, kNoteColumn, note_column);
+  addProp(props, kNoteKind, static_cast<int>(note.getKind()));
   addProp(props, kNoteValue, note.getValue());
-  addProp(props, kNoteVelocity, note.getVelocity());
+  addProp(props, kNoteVelocity, static_cast<int>(note.getVelocity16()));
   addProp(props, kNoteDelay, note.getDelay());
   addProp(props, kNoteFx, std::string(note.getFx()));
   doc_->insertChild(node_, kNotesSlot, index, doc_->create("note", std::move(props)));

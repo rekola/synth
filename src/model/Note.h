@@ -2,6 +2,8 @@
 #define _NOTE_H_
 
 #include "Tuning.h"
+#include "../util/Velocity.h"
+#include "../util/constants.h"
 
 #include <algorithm>
 #include <cstdint>
@@ -13,14 +15,48 @@
 #include <charconv>
 #include <vector>
 
+// One cell of a pattern. What it is (nothing, a note-on, an OFF, aftertouch) is
+// its own `Kind`, never inferred from the velocity: velocity 0 is a real note-on.
+// There is one velocity field, held at 16 bits (MIDI 2.0 width) and shown and
+// edited at 7: on a note-on the strike velocity, on an OFF the release velocity
+// (the "lift"), on aftertouch the pressure. getVelocity()/setVelocity() are the
+// 7-bit view; the 16-bit one is getVelocity16()/setVelocity16().
 class Note {
- public:  
-  Note() : value(-1), velocity(0), delay(0) { }
-  explicit Note(int _value, short _velocity = 0x28, short _delay = 0) : value(_value), velocity(_velocity), delay(_delay) { }
-  explicit Note(std::string_view input_value, Tuning tuning, short _velocity = 0x28, short _delay = 0, int default_octave = 4)
+ public:
+  enum class Kind : uint8_t { NONE,
+                              ON,
+                              OFF,
+                              AFTERTOUCH };
+
+  Note() = default;
+  // A note-on (NONE for a negative value). The velocity is on the 7-bit scale.
+  explicit Note(int _value, short _velocity = constants::NEUTRAL_VELOCITY, short _delay = 0)
+      : value(_value), velocity(velocity::from7(_velocity)), delay(clampDelay(_delay)), kind(_value >= 0 ? Kind::ON : Kind::NONE) {}
+  // A note-on, or an OFF for the text "off"/"OFF" (the velocity is then its lift).
+  explicit Note(std::string_view input_value, Tuning tuning, short _velocity = constants::NEUTRAL_VELOCITY, short _delay = 0, int default_octave = 4)
       : value(stringToKey(tuning, input_value, default_octave)),
-        velocity(_velocity),
-        delay(_delay) {}
+        velocity(velocity::from7(_velocity)),
+        delay(clampDelay(_delay)),
+        kind(input_value == "off" || input_value == "OFF" ? Kind::OFF : Kind::ON) {}
+
+  // An OFF with release velocity `lift` (7-bit); `value` names the note it
+  // releases where that is known (a step grid), 0 otherwise.
+  static Note off(short lift = constants::NEUTRAL_VELOCITY, short delay = 0, int value = 0) {
+    Note n;
+    n.kind = Kind::OFF;
+    n.value = value;
+    n.velocity = velocity::from7(lift);
+    n.delay = clampDelay(delay);
+    return n;
+  }
+  // Pressure on whatever sounds in the column, with no note of its own.
+  static Note aftertouch(short pressure, short delay = 0) {
+    Note n;
+    n.kind = Kind::AFTERTOUCH;
+    n.velocity = velocity::from7(pressure);
+    n.delay = clampDelay(delay);
+    return n;
+  }
 
   // int, not short: value is stored as int (transpose() can legitimately
   // grow it well past SHRT_MAX for a high-EDO tuning many octaves up -
@@ -29,8 +65,16 @@ class Note {
   // returning short here was pure incidental narrowing on the way out,
   // not something any caller actually needed.
   int getValue() const { return value; }
-  short getVelocity() const { return velocity; }
-  float getVelocityAsFloat() const { return velocity / 127.0f; }
+  Kind getKind() const { return kind; }
+  // The velocity as shown and edited, 0-127.
+  short getVelocity() const { return static_cast<short>(velocity::to7(velocity)); }
+  uint16_t getVelocity16() const { return velocity; }
+  // 0-1. A note-on never reads below velocity::kMinSoundingLevel: velocity 0
+  // sounds, quietly.
+  float getVelocityAsFloat() const {
+    auto level = velocity::toFloat(velocity);
+    return kind == Kind::ON ? std::max(level, velocity::kMinSoundingLevel) : level;
+  }
   short getDelay() const { return delay; }
 
   // The note's local effect: three characters, a mnemonic and a two-digit hex
@@ -93,21 +137,25 @@ class Note {
     fx[2] = kHex[magnitude & 15];
   }
   float getDelayAsFloat() const { return delay / 255.0f; }
-  bool isDefined() const { return value >= 0 || velocity > 0; }
+  bool isDefined() const { return kind != Kind::NONE; }
   // A cell worth keeping: a note, or only fx (a command for the column, such
   // as 0Gxx's glide rate or a retrigger, with no note of its own). Storage and
   // display go by this; playback and editing of notes by isDefined().
   bool hasContent() const { return isDefined() || hasFx(); }
-  bool isOff() const { return value >= 0 && velocity == 0; }
-  bool isAftertouch() const { return value == -1 && velocity > 0; }
+  bool isNoteOn() const { return kind == Kind::ON; }
+  bool isOff() const { return kind == Kind::OFF; }
+  bool isAftertouch() const { return kind == Kind::AFTERTOUCH; }
 
-  void setVelocity(short v) { velocity = v; }
-  void setDelay(short d) { delay = d; }
+  // 7-bit; held to 0-127.
+  void setVelocity(short v) { velocity = velocity::from7(v); }
+  void setVelocity16(uint16_t v) { velocity = v; }
+  void setDelay(short d) { delay = clampDelay(d); }
 
   void clear() {
     value = -1;
-    velocity = 0;
+    velocity = velocity::from7(constants::NEUTRAL_VELOCITY);
     delay = 0;
+    kind = Kind::NONE;
     clearFx();
   }
 
@@ -124,7 +172,7 @@ class Note {
   // 53-EDO value spans well past a byte-sized range once you're a few
   // octaves up), so this just stops at whatever `value` itself can hold.
   void transpose(int delta) {
-    if (!isDefined() || isOff() || isAftertouch()) return;
+    if (!isNoteOn()) return;
     auto next = static_cast<int64_t>(value) + delta;
     value = static_cast<int>(std::clamp<int64_t>(next, 0, std::numeric_limits<int>::max()));
   }
@@ -483,7 +531,7 @@ class Note {
     }
   }
 
-  static std::vector<Note> createFromString(std::string_view line, short velocity, short delay, Tuning tuning) {
+  static std::vector<Note> createFromString(std::string_view line, short velocity, short delay, Tuning tuning, short lift = constants::NEUTRAL_VELOCITY) {
     std::vector<Note> r;
 
     std::string_view::size_type pos0 = 0;
@@ -494,8 +542,8 @@ class Note {
       if (pos0 < pos1) {
 	auto s = line.substr(pos0, pos1 - pos0);
 	if (s == "off" || s == "OFF") {
-	  r.emplace_back(0, 0);
-	} else {
+          r.push_back(off(lift, delay));
+        } else {
           r.emplace_back(s, tuning, velocity, delay);
         }
       }
@@ -507,9 +555,12 @@ class Note {
   }
 
  private:
-  int value; // sample position, note value or -1 for undefined note
-  short velocity;
-  short delay;
+  static short clampDelay(int d) { return static_cast<short>(std::clamp(d, 0, 255)); }
+
+  int value = -1; // the note's value, or -1 for none and aftertouch
+  uint16_t velocity = velocity::from7(constants::NEUTRAL_VELOCITY);
+  short delay = 0;
+  Kind kind = Kind::NONE;
   static int hexDigit(char c) {
     if (c >= '0' && c <= '9') return c - '0';
     if (c >= 'A' && c <= 'F') return c - 'A' + 10;
@@ -518,6 +569,9 @@ class Note {
 
   char fx[3] = { kFxEmpty, kFxEmpty, kFxEmpty };
 };
+
+// Notes are copied around by value, in registers; keep one to 16 bytes.
+static_assert(sizeof(Note) <= 16, "Note must stay at most 16 bytes");
 
 // The Note-taking overload of getFrequencyFor() (Tuning.h) lives here
 // rather than there, since Tuning.h is included by Note.h and can't

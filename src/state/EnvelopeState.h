@@ -131,7 +131,12 @@ class EnvelopeState : public State {
       return;
     case SUSTAIN:
       segment = RELEASE;
-      samplesUntilNextSegment = (int)((parameters.release_ <= 0 ? TSF_FASTRELEASETIME : parameters.release_) * getOutSampleRate());
+      {
+        // A release started by beginRelease() takes its own time; a release time
+        // of zero is the short anti-click fade.
+        const float release = releaseOverride_ >= 0.0f ? releaseOverride_ : parameters.release_;
+        samplesUntilNextSegment = (int)((release <= 0 ? TSF_FASTRELEASETIME : release) * getOutSampleRate());
+      }
       if (isAmpEnv) {
 	// I don't truly understand this; just following what LinuxSampler does.
 	float mysterySlope = -9.226f / samplesUntilNextSegment;
@@ -149,6 +154,15 @@ class EnvelopeState : public State {
       level = slope = 0.0f;
       samplesUntilNextSegment = 0x7FFFFFF;
     }
+  }
+
+  // Starts the release stage lasting `release_seconds` (0: the short anti-click
+  // fade) instead of the envelope's own release time, which is how an OFF's
+  // release velocity scales it. Calling it again restarts the release from the
+  // current level; it never changes `parameters`.
+  void beginRelease(float release_seconds) {
+    releaseOverride_ = std::max(0.0f, release_seconds);
+    nextSegment(SUSTAIN);
   }
 
   // Linear fade from the current level to silence over `seconds`, from any
@@ -191,6 +205,7 @@ private:
   float level, slope;
   int samplesUntilNextSegment;
   short midiVelocity;
+  float releaseOverride_ = -1.0f;
   bool segmentIsExponential, isAmpEnv;
 };
 
