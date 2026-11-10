@@ -3,6 +3,7 @@
 #include "Sf2Fixture.h"
 #include "../src/model/Song.h"
 #include "../src/model/Note.h"
+#include "../src/model/Pattern.h"
 #include "../src/model/InstrumentTrack.h"
 #include "../src/instruments/Additive.h"
 #include "../src/instruments/InstrumentProvider.h"
@@ -292,4 +293,57 @@ TEST(a_song_file_off_without_a_velocity_has_the_neutral_lift) {
   auto text = slurp(path);
   CHECK(text.find("OFF") != std::string::npos);
   CHECK(text.find("velocity") == std::string::npos); // neutral is left out
+}
+
+TEST(a_lost_note_has_no_pitch_and_makes_no_sound) {
+  auto lost = Note::lost(90, 5);
+  CHECK(lost.isDefined() && lost.isLost());
+  CHECK(!lost.isNoteOn() && !lost.isOff() && !lost.isAftertouch());
+  CHECK(lost.getValue() == -1 && lost.getVelocity() == 90 && lost.getDelay() == 5);
+  CHECK(lost.toString(Tuning::EDO53) == "???");
+  CHECK(getFrequencyFor(Tuning::EDO53, lost) == 0.0f);
+  CHECK(Note("???", Tuning::EDO53).isLost());
+  CHECK(Note::createFromString("???", 80, 0, Tuning::EDO53)[0].isLost());
+  auto back = Note::fromCode(lost.toCode(), lost.getVelocity(), lost.getDelay());
+  CHECK(back.isLost() && back.getVelocity() == 90);
+  Pattern pattern;
+  pattern.setNote(0, 0, lost);
+  CHECK(!pattern.isEmpty() && !pattern.hasSoundingNote());
+  Note moved = lost;
+  moved.transpose(7);
+  CHECK(moved.isLost()); // there is no pitch to move
+
+  // Played, it is silent and takes nothing from the notes around it.
+  auto render = [](bool with_lost) {
+    Song song(Tuning::EDO12);
+    song.addInstrument(std::make_unique<Oscillator>(WaveformType::SINE));
+    auto & track = song.addTrack(std::make_unique<InstrumentTrack>(0));
+    auto id = track.getInternalId();
+    song.getArrangement().setNote(0, id, 0, Note(60, 100));
+    if (with_lost) song.getArrangement().setNote(4, id, 0, Note::lost());
+    song.getArrangement().setNote(8, id, 0, Note::off());
+    return renderSongOffline(song, ChannelConfiguration(44100, 1)).interleaved;
+  };
+  CHECK(render(true) == render(false));
+}
+
+TEST(a_lost_note_is_saved_as_three_question_marks) {
+  auto path = (std::filesystem::path(TESTS_SCRATCH_DIR) / "velocity_lost_scratch.xml").string();
+  Song song(Tuning::EDO53);
+  auto track_to_add = std::make_unique<InstrumentTrack>(0);
+  track_to_add->setId("t");
+  auto & track = song.addTrack(std::move(track_to_add));
+  song.getArrangement().setNote(3, track.getInternalId(), 0, Note::lost(70, 4));
+  song.save(path);
+  CHECK(slurp(path).find(">?"
+                         "??"
+                         "</note>") != std::string::npos);
+  InstrumentProvider provider;
+  Song reloaded(Tuning::EDO53);
+  CHECK(reloaded.open(path, provider));
+  auto reloaded_track = reloaded.getMasterTrack().getChildById("t");
+  CHECK(reloaded_track != nullptr);
+  if (!reloaded_track) return;
+  auto note = reloaded.getArrangement().getNote(3, reloaded_track->getInternalId(), 0);
+  CHECK(note.isLost() && note.getVelocity() == 70 && note.getDelay() == 4);
 }

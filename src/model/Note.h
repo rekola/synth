@@ -16,12 +16,13 @@
 #include <vector>
 
 // One cell of a pattern. Its type is held in its value: a note-on has the
-// note's value, and the three largest values mean aftertouch (pressure on
-// whatever sounds in the column), an OFF, and undefined (an empty cell, or one
-// with only fx). Never the velocity: velocity 0 is a real note-on, one that
+// note's value, and the four largest values mean a lost note (a note began on
+// this row but its pitch is gone, shown ???), aftertouch (pressure on whatever
+// sounds in the column), an OFF, and undefined (an empty cell, or one with only
+// fx). A lost note makes no sound. Never the velocity: velocity 0 is a real note-on, one that
 // starts from silence. There is one 7-bit velocity, always present on a
-// note-on, an OFF and aftertouch: the strike velocity, the release velocity
-// (the "lift") and the pressure.
+// note-on, a lost note, an OFF and aftertouch: the strike velocity, the release
+// velocity (the "lift") and the pressure.
 class Note {
  public:
   Note() = default;
@@ -30,7 +31,9 @@ class Note {
       : packed_(pack(_value < 0 ? kAftertouch : clampValue(_value), _velocity)), delay_(clampDelay(_delay)) {}
   // A note-on, or an OFF for the text "off"/"OFF" (the velocity is then its lift).
   explicit Note(std::string_view input_value, Tuning tuning, int _velocity = constants::NEUTRAL_VELOCITY, int _delay = 0, int default_octave = 4)
-      : packed_(pack(input_value == "off" || input_value == "OFF" ? kOff : clampValue(stringToKey(tuning, input_value, default_octave)), _velocity)),
+      : packed_(pack(input_value == "off" || input_value == "OFF" ? kOff : input_value == "???" ? kLost
+                                                                                                : clampValue(stringToKey(tuning, input_value, default_octave)),
+                     _velocity)),
         delay_(clampDelay(_delay)) {}
 
   // An OFF with release velocity `lift` (7-bit).
@@ -40,18 +43,34 @@ class Note {
     n.delay_ = clampDelay(delay);
     return n;
   }
+  // A note that began on this row whose pitch is unknown; it makes no sound.
+  static Note lost(int velocity = constants::DEFAULT_NOTE_ON_VELOCITY, int delay = 0) {
+    Note n;
+    n.packed_ = pack(kLost, velocity);
+    n.delay_ = clampDelay(delay);
+    return n;
+  }
   // Pressure on whatever sounds in the column: a velocity and no value.
   static Note aftertouch(int pressure, int delay = 0) { return Note(-1, pressure, delay); }
 
   // The value as one int, for storing: a note's value, or -1 undefined, -2
-  // aftertouch, -3 OFF. fromCode() is its inverse.
-  int toCode() const { return isNoteOn() ? getValue() : isAftertouch() ? -2
-                                                    : isOff()          ? -3
-                                                                       : -1; }
+  // aftertouch, -3 OFF, -4 lost. fromCode() is its inverse.
+  int toCode() const {
+    if (isNoteOn()) return getValue();
+    return isAftertouch() ? -2 : isOff() ? -3
+                             : isLost()  ? -4
+                                         : -1;
+  }
   static Note fromCode(int code, int velocity, int delay) {
-    Note n = code >= 0 ? Note(code, velocity, delay) : code == -2 ? aftertouch(velocity, delay)
-                                                   : code == -3   ? off(velocity, delay)
-                                                                  : Note();
+    Note n;
+    if (code >= 0)
+      n = Note(code, velocity, delay);
+    else if (code == -2)
+      n = aftertouch(velocity, delay);
+    else if (code == -3)
+      n = off(velocity, delay);
+    else if (code == -4)
+      n = lost(velocity, delay);
     if (!n.isDefined()) n.setVelocity(velocity);
     return n;
   }
@@ -135,7 +154,8 @@ class Note {
   // as 0Gxx's glide rate or a retrigger, with no note of its own). Storage and
   // display go by this; playback and editing of notes by isDefined().
   bool hasContent() const { return isDefined() || hasFx(); }
-  bool isNoteOn() const { return value() < kAftertouch; }
+  bool isNoteOn() const { return value() < kLost; }
+  bool isLost() const { return value() == kLost; }
   bool isOff() const { return value() == kOff; }
   bool isAftertouch() const { return value() == kAftertouch; }
 
@@ -169,10 +189,12 @@ class Note {
 
   std::string toString(Tuning tuning) const {
     if (isDefined() && !isAftertouch()) {
-      if (isOff()) {
-	return "OFF";
+      if (isLost()) {
+        return "???";
+      } else if (isOff()) {
+        return "OFF";
       } else {
-	auto key_name = keyToString(tuning, getValue());
+        auto key_name = keyToString(tuning, getValue());
 	if (tuning != Tuning::PERCUSSION) {
 	  if (key_name.size() == 1) key_name += '-';
           int period = tuning == Tuning::EDO53 ? 53 : tuning == Tuning::EDO31 ? 31
@@ -531,7 +553,9 @@ class Note {
 
       if (pos0 < pos1) {
 	auto s = line.substr(pos0, pos1 - pos0);
-	if (s == "off" || s == "OFF") {
+        if (s == "???") {
+          r.push_back(lost(velocity, delay));
+        } else if (s == "off" || s == "OFF") {
           r.push_back(off(velocity, delay));
         } else {
           r.emplace_back(s, tuning, velocity, delay);
@@ -546,11 +570,11 @@ class Note {
 
  private:
   // 8 bytes: one word holding the value (25 bits) and the velocity (7), then the
-  // delay and the three fx characters. The top three values are the other types.
+  // delay and the three fx characters. The top four values are the other types.
   static constexpr int kVelocityShift = 25;
   static constexpr uint32_t kValueMask = (1u << kVelocityShift) - 1;
-  static constexpr uint32_t kUndefined = kValueMask, kOff = kValueMask - 1, kAftertouch = kValueMask - 2;
-  static constexpr uint32_t kMaxValue = kValueMask - 3;
+  static constexpr uint32_t kUndefined = kValueMask, kOff = kValueMask - 1, kAftertouch = kValueMask - 2, kLost = kValueMask - 3;
+  static constexpr uint32_t kMaxValue = kValueMask - 4;
   static constexpr uint32_t clampValue(int value) { return static_cast<uint32_t>(std::clamp<int64_t>(value, 0, kMaxValue)); }
   static constexpr uint32_t pack(uint32_t value, int velocity) {
     return (static_cast<uint32_t>(std::clamp(velocity, 0, 127)) << kVelocityShift) | value;
@@ -577,7 +601,7 @@ static_assert(sizeof(Note) == 8, "Note must stay 8 bytes");
 // rather than there, since Tuning.h is included by Note.h and can't
 // include it back without the two headers including each other.
 inline float getFrequencyFor(Tuning tuning, const Note & note) {
-  if (note.isOff() || !note.isDefined() || note.isAftertouch()) {
+  if (!note.isNoteOn()) {
     return 0.0f;
   }
   return getFrequencyFor(tuning, note.getValue());
