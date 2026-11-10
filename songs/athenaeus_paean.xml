@@ -1,0 +1,1811 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<song key="A" scale="phrygian-tonos" temperament="53edo" tempo="92" timeSignature="5/8">
+    <instruments from="kit">
+        <instrument id="i1" from="string.plucked.harp"/>
+        <instrument id="i2" from="reed.double.oboe"/>
+        <instrument id="i3" from="reed.double.oboe" detune="5"/>
+        <instrument id="i4" from="reed.double.oboe" detune="-4"/>
+        <instrument id="i5" from="reed.double.oboe"/>
+    </instruments>
+    <tracks id="master" collapsed="false">
+        <track id="chorus" sendMain="-12" sendA="-36" azimuth="-6" distance="1.2" elevation="0" instrument="i2"/>
+        <track id="chorus2" sendMain="-12" sendA="-36" azimuth="4" distance="1.3" elevation="0" instrument="i3"/>
+        <track id="chorus3" sendMain="-12" sendA="-36" azimuth="12" distance="1.4" elevation="0" instrument="i4"/>
+        <track id="aulos" sendMain="-12" sendA="-36" azimuth="24" distance="1.6" elevation="0" instrument="i5"/>
+        <track id="kithara" sendA="-36" azimuth="-20" distance="1" elevation="0" instrument="i1"/>
+        <track id="frame" sendA="-36" azimuth="-26" distance="1" elevation="0" instrument="i1"/>
+        <percussionTrack id="kymbala" name="Kymbala" azimuth="34" distance="2.5" elevation="0"/>
+    </tracks>
+    <notes>Athenaeus: Delphic Paean
+The first Delphic paean to Apollo, by Athenaeus son of Athenaeus, sung by the Athenian
+Technitai of Dionysus at the Pythaïs of 127 BC and inscribed, with vocal notation above
+the words, on the south wall of the Athenian Treasury at Delphi (Delphi Museum inv. 517,
+526, 494, 499). For chorus with kithara and aulos, as the text itself says.
+Source: M. L. West, Ancient Greek Music (Oxford 1992), no. 12, pp. 288-292, at West's
+pitch (tonic a), everything he transcribes; E. Pöhlmann, Denkmäler altgriechischer Musik
+(DAM), no. 19; Pöhlmann and West, Documents of Ancient Greek Music (2001), no. 20.
+The Greek below follows West's underlay, with his restorations in square brackets (other
+editors restore differently, e.g. Kéklyth' for the first word). The English versions are
+ours, not West's; see his pages for his translations.
+
+SCENES
+Intro - Section 1 - Section 2 - Section 3 - Section 4 - Section 5 - Fragment - Outro, each
+played once. 5/8 (paeonic) throughout, 2 rows per eighth, 10 rows per bar; an eighth is
+about 184, and since the tempo counts quarters it is 92, unchanged throughout.
+The sections are West's. His second and third music examples (Attica; incense, pipe and
+kithara) are one section, and the join falls inside bar 15, so they are one scene.
+
+LOST NOTES
+Where the stone is broken West still prints the rhythm: a metrical sign for each lost
+syllable (short or long), or a stem without a head where the words survive and only the
+note is gone. Nothing is invented for these; the chorus is silent. They are written into
+the first chorus track with two cells, which sound like OFF:
+  ???  a lost note begins on this row; its pitch is gone.
+  ~~~  lost music begins on this row; the number and rhythm of its notes are unknown.
+Either lasts until the next cell: a note, another ??? or ~~~, or an OFF where known
+silence follows. So a lost eighth is one ??? with the next cell two rows on, a lost
+quarter one ??? with the next cell four rows on. ~~~ is needed only once, where the
+stone breaks off at the end of Section 5; it runs to the end of that scene.
+
+SECTION 1 (lines 1-8). West pp. 288-9. 28 bars.
+  [Προμόλεθ' Ἑλι]κῶνα βαθύδενδρον αἳ λά[χετε, Διὸ]ς ἐ[ρι]βρόμου θύγατρες εὐώλ[ενοι·]
+  μόλετε, συνόμαιμον ἵνα Φοῖβον ὠιδαῖσι μέλψητε χρυσεοκόμαν, ὃς ἀνὰ δικόρυμβα
+  Παρνασσίδος τᾶσδε πετέρας ἕδραν' ἅμ' ἀγακλυταῖς Δελφίσιν Κασταλίδος εὐύδρου νάματ'
+  ἐπινίσεται, Δελφὸν ἀνὰ πρῶνα μαντεῖον ἐφέπων πάγον.
+"Come, you whose portion is deep-wooded Helicon, fair-armed daughters of loud-thundering
+Zeus: come and sing your brother Phoebus of the golden hair, who over the twin peaks of
+this rock of Parnassus, with the far-famed women of Delphi, comes to the streams of
+fair-flowing Castalia, visiting his oracle on the Delphic headland."
+Lost: bar 1 (five shorts, [Promóleth' Heli-]); the long -kô- that opens bar 2; six
+shorts from the second eighth of bar 4 through bar 5 (rows 32-43); a short and a long in
+bar 7 (rows 64-69); the first eighth of bar 19 (row 180). Melismas, under West's slurs:
+rows 46-48, 90-92, 100-102, 160-162, 186-188, 190-192, 196-198, 210-212, 250-252,
+256-258, 260-262. The last line reads a f, f, a b / c' b, a a a / e e e: West's prose
+confirms it (the line returns to f a b c'), so rows 258 and 260 are B and C, not B-flat
+and D as in our earlier draft. Bar 15 is e' quarter, c' eighth, e' quarter.
+
+SECTION 2. West pp. 290-1. 29 bars.
+  [Ἢν] κλυτὰ μεγαλόπολις Ἀθθὶς εὐχαῖσι φερόπλοιο ναίουσα Τριτωνίδος δάπεδον ἄθραυστον·
+  ἁγίοις δὲ βωμοῖσιν Ἅφαιστος αἴθει νέων μῆρα ταύρων· ὁμοῦ δέ νιν Ἄραψ ἀτμὸς ἐς
+  Ὄλυμπον ἀνακίδναται· λιγὺ δὲ λωτὸς βρέμων αἰόλοις μέλεσιν ὠιδὰν κρέκει· χρυσέα δ'
+  ἁδύθρους κίθαρις ὕμνοισιν ἀναμέλπεται.
+"See, glorious Attica of the great city is here with her prayers, she who lives on the
+unbroken ground of Tritonis in arms; on the holy altars Hephaestus burns the thighs of
+young bulls; with it the vapour of Arabia spreads up toward Olympus; the pipe, sounding
+clear, weaves a song of shimmering tunes; and the golden, sweet-voiced kithara answers
+in the hymns."
+The chromatic section: a to e' with a semitone either side (g-sharp, f'), b-flat beside
+b, e-flat' beside e'; from "homoû" (row 144) it also goes down to f. The five-note
+figure g-sharp a b-flat a g-sharp closes "anakídnatai" and "anamélpetai"; a b-flat b
+b-flat a sets "aiólois". Lost: the first quarter ([Ēn]) and the second eighth of bar 8
+(-pe-, row 72). Reading: in bar 21 (tós, row 200) the print has g with no accidental
+after a bar of g-sharps; it is played g-sharp, as in the same figure in bar 24, since g
+natural occurs nowhere else in the piece and West counts thirteen notes without it.
+
+SECTION 3. West p. 291. 15 bars.
+  ὁ δὲ [τεχνι]τῶν πρόπας ἑσμὸς Ἀθθίδα λαχὼν [ἀγλαΐ]ζει κλυτὸν παῖδα μεγάλου [Διός· σοὶ
+  γὰρ ἔπο]ρ' ἀκρονιφῆ τόνδε πάγον, ἄμ[βροθ' οὗ] πᾶσι θνατοῖς προφαίνει[ς λόγια,
+"And the whole swarm of Artists whose portion is Attica glorifies the famous son of great
+Zeus: for he gave you this snow-topped crag, where you show undying oracles to all
+mortals,"
+An octave leap e-e' opens it; then c' d' e' f' around e'. Lost: 17 notes in bars 1, 4,
+5, 8, 9, 12 and 15. The b-flat on "thnatoîs" (row 130) has West's question mark;
+Reinach conjectured f'. In bar 15 the d' is taken as a quarter (West dots in a possible
+second note).
+
+SECTION 4. West pp. 291-2. 16 bars.
+  τρ]ίποδα μαντεῖον ὡς εἷ[λες, ἐχθρὸς ὃν ἐφρ]ούρει δράκων, ὅτε τέ[κος Γᾶς ἀπέσ]τησας
+  αἰόλον ἑλικτὰν [φυάν, ἔσθ' ὁ θὴρ πυκν]ὰ συρίγμαθ' ἱεὶς ἀθώπε[υτ' ἀπέπνευσ' ὁμῶς.
+"how you took the prophetic tripod that the hostile serpent guarded, when you drove off
+Earth's child, that gleaming, coiling shape, until the beast, with hiss upon harsh hiss,
+breathed its last all the same."
+Lost: 23 notes in bars 3, 4, 6, 7, 10, 11, 12, 15 and 16, including the first note of
+the melismas on -phrou- (row 36) and sȳ- (row 116).
+
+SECTION 5 and FRAGMENT. West p. 292. 7 bars and 2 bars.
+  ὣ[ς] δὲ Γαλατᾶν Ἄρης [βάρβαρος, τάνδ' ὃς ἐπὶ γαῖα]ν ἐπέρασ' ἀσέπτ[ως ...
+  Ἀλλ' ἰὼ γένναν [...
+"So too the war of the Gauls, the barbarian who crossed impiously into this land ..."
+"But hail, offspring ..."
+"Galatân" rises to g-flat', the highest note. After -tōs the stone breaks off; West
+prints one more scrap, "All' iṑ génnan", after a gap of unknown length, and leaves the
+rest untranscribed. It is the Fragment scene. There is no surviving final cadence.
+
+THE SCALE
+The piece uses ten pitch classes (thirteen notes over an octave and a half:
+c e f g-sharp a b-flat b c' d' e-flat' e' f' g-flat'). As PHRYGIAN_TONOS on A they are
+tuned as one Pythagorean chain of fifths, E-flat to G-sharp, without G and C-sharp:
+  A 1/1, B-flat 256/243, B 9/8, C 32/27, D 4/3, E-flat 1024/729, E 3/2, F 128/81,
+  F-sharp (West's g-flat') 27/16, G-sharp 243/128.
+So each chromatic semitone above a standing note (a-b-flat, d'-e-flat', e'-f') is a
+limma, 256/243, and the upper note of each close-packed three (b, e', g-flat') is a
+9/8 tone above the lowest. Not taken: Archytas' chromatic, with 28/27 for the lower
+semitone. In 53-EDO the plain names are the just major scale, so these are written
+A-up, B-flat-down, B-up, C, D, E-flat-down, E-up, F, G-flat-down and, for g-sharp,
+plain A-flat (36 steps above C).
+
+REALISATION
+The stone gives pitch and rhythm. Ours are the tempo and the instruments.
+Chorus: three oboes, the second and third a few cents off and a few milliseconds late;
+they breathe between phrases, more deeply between sentences, and stop at lost notes.
+Aulos: a fourth oboe an octave above the chorus, only from "mélpsēte" through the climb
+over Parnassus in Section 1 (rows 110-199) and in the sentence about the pipe in
+Section 2 (rows 190-239).
+Kithara: it does not double the voices. It strikes the sung note on the first and fourth
+eighth of each bar (the two beats of the paeon) and on every long note, leaving passing
+notes and the second notes of melismas to the singers. A second kithara track strikes
+the frame A-E at phrase starts and under two cadences, and through lost bars, so that
+they are not silent; every frame stroke has a soft stroke of the kymbala, louder at the
+start of each section. No drum. Intro: the kithara runs its strings up from A and
+strikes the frame. Outro: the frame once more, held.</notes>
+    <scenes>
+        <scene name="Intro" followAction="next" />
+        <scene name="Section 1" followAction="next" />
+        <scene name="Section 2" followAction="next" />
+        <scene name="Section 3" followAction="next" />
+        <scene name="Section 4" followAction="next" />
+        <scene name="Section 5" followAction="next" />
+        <scene name="Fragment" followAction="next" />
+        <scene name="Outro" followAction="next" />
+    </scenes>
+    <clips>
+        <clip track="chorus" id="clip1" name="Intro" loop="false" length="20">
+            <pattern/>
+        </clip>
+        <clip track="chorus" id="clip2" name="Section 1" loop="false" length="280">
+            <pattern>
+                <note row="0" velocity="0">???</note>
+                <note row="2" velocity="0">???</note>
+                <note row="4" velocity="0">???</note>
+                <note row="6" velocity="0">???</note>
+                <note row="8" velocity="0">???</note>
+                <note row="10" velocity="0">???</note>
+                <note row="14" velocity="52" fx="+00">C-4</note>
+                <note row="16" velocity="52" fx="+00">B↑3</note>
+                <note row="18" velocity="52" fx="+00">B↑3</note>
+                <note row="19" velocity="0" delay="192">OFF</note>
+                <note row="20" velocity="52" fx="+00">A↑3</note>
+                <note row="24" velocity="52" fx="+00">F-3</note>
+                <note row="26" velocity="52" fx="+00">A↑3</note>
+                <note row="30" velocity="52" fx="+00">A↑3</note>
+                <note row="32" velocity="0">???</note>
+                <note row="34" velocity="0">???</note>
+                <note row="36" velocity="0">???</note>
+                <note row="38" velocity="0">???</note>
+                <note row="40" velocity="0">???</note>
+                <note row="42" velocity="0">???</note>
+                <note row="44" velocity="52" fx="+00">C-4</note>
+                <note row="46" velocity="52" fx="+00">B↑3</note>
+                <note row="48" velocity="52" fx="+00">A↑3</note>
+                <note row="50" velocity="52" fx="+00">B↑3</note>
+                <note row="52" velocity="52" fx="+00">A↑3</note>
+                <note row="54" velocity="52" fx="+00">F-3</note>
+                <note row="56" velocity="52" fx="+00">A↑3</note>
+                <note row="59" velocity="0" delay="192">OFF</note>
+                <note row="60" velocity="52" fx="+00">A↑3</note>
+                <note row="64" velocity="0">???</note>
+                <note row="66" velocity="0">???</note>
+                <note row="70" velocity="52" fx="+00">C-4</note>
+                <note row="72" velocity="52" fx="+00">B↑3</note>
+                <note row="74" velocity="52" fx="+00">A↑3</note>
+                <note row="76" velocity="52" fx="+00">C-4</note>
+                <note row="78" velocity="52" fx="+00">C-4</note>
+                <note row="80" velocity="52" fx="+00">B↑3</note>
+                <note row="84" velocity="52" fx="+00">A↑3</note>
+                <note row="86" velocity="52" fx="+00">B↑3</note>
+                <note row="88" velocity="52" fx="+00">B↑3</note>
+                <note row="89" velocity="0" delay="192">OFF</note>
+                <note row="90" velocity="52" fx="+00">B↑3</note>
+                <note row="92" velocity="52" fx="+00">A↑3</note>
+                <note row="94" velocity="52" fx="+00">F-3</note>
+                <note row="96" velocity="52" fx="+00">A↑3</note>
+                <note row="100" velocity="52" fx="+00">A↑3</note>
+                <note row="102" velocity="52" fx="+00">F-3</note>
+                <note row="104" velocity="52" fx="+00">F-3</note>
+                <note row="106" velocity="52" fx="+00">A↑3</note>
+                <note row="109" velocity="0">OFF</note>
+                <note row="110" velocity="52" fx="+00">C-3</note>
+                <note row="114" velocity="52" fx="+00">C-3</note>
+                <note row="116" velocity="52" fx="+00">E↑3</note>
+                <note row="120" velocity="52" fx="+00">E↑3</note>
+                <note row="122" velocity="52" fx="+00">F-3</note>
+                <note row="124" velocity="52" fx="+00">F-3</note>
+                <note row="126" velocity="52" fx="+00">C-3</note>
+                <note row="129" velocity="0" delay="192">OFF</note>
+                <note row="130" velocity="52" fx="+00">C-4</note>
+                <note row="132" velocity="52" fx="+00">C-4</note>
+                <note row="134" velocity="52" fx="+00">C-4</note>
+                <note row="136" velocity="52" fx="+00">E↑4</note>
+                <note row="138" velocity="52" fx="+00">F-4</note>
+                <note row="140" velocity="52" fx="+00">E↑4</note>
+                <note row="144" velocity="52" fx="+00">C-4</note>
+                <note row="146" velocity="52" fx="+00">E↑4</note>
+                <note row="150" velocity="52" fx="+00">E↑4</note>
+                <note row="154" velocity="52" fx="+00">E↑4</note>
+                <note row="156" velocity="52" fx="+00">C-4</note>
+                <note row="160" velocity="52" fx="+00">C-4</note>
+                <note row="162" velocity="52" fx="+00">A↑3</note>
+                <note row="164" velocity="52" fx="+00">A↑3</note>
+                <note row="166" velocity="52" fx="+00">C-4</note>
+                <note row="168" velocity="52" fx="+00">C-4</note>
+                <note row="169" velocity="0" delay="192">OFF</note>
+                <note row="170" velocity="52" fx="+00">B↑3</note>
+                <note row="174" velocity="52" fx="+00">B↑3</note>
+                <note row="176" velocity="52" fx="+00">A↑3</note>
+                <note row="178" velocity="52" fx="+00">F-3</note>
+                <note row="180" velocity="0">???</note>
+                <note row="182" velocity="52" fx="+00">F-3</note>
+                <note row="184" velocity="52" fx="+00">A↑3</note>
+                <note row="186" velocity="52" fx="+00">A↑3</note>
+                <note row="188" velocity="52" fx="+00">F-3</note>
+                <note row="190" velocity="52" fx="+00">A↑3</note>
+                <note row="192" velocity="52" fx="+00">B↑3</note>
+                <note row="194" velocity="52" fx="+00">C-4</note>
+                <note row="196" velocity="52" fx="+00">B↑3</note>
+                <note row="198" velocity="52" fx="+00">C-4</note>
+                <note row="199" velocity="0">OFF</note>
+                <note row="200" velocity="52" fx="+00">D-4</note>
+                <note row="204" velocity="52" fx="+00">E↑4</note>
+                <note row="206" velocity="52" fx="+00">F-4</note>
+                <note row="208" velocity="52" fx="+00">D-4</note>
+                <note row="210" velocity="52" fx="+00">D-4</note>
+                <note row="212" velocity="52" fx="+00">E↑4</note>
+                <note row="214" velocity="52" fx="+00">F-4</note>
+                <note row="216" velocity="52" fx="+00">E↑4</note>
+                <note row="220" velocity="52" fx="+00">E↑4</note>
+                <note row="224" velocity="52" fx="+00">C-4</note>
+                <note row="226" velocity="52" fx="+00">D-4</note>
+                <note row="228" velocity="52" fx="+00">D-4</note>
+                <note row="230" velocity="52" fx="+00">D-4</note>
+                <note row="234" velocity="52" fx="+00">B♭↓3</note>
+                <note row="236" velocity="52" fx="+00">B♭↓3</note>
+                <note row="239" velocity="0" delay="192">OFF</note>
+                <note row="240" velocity="52" fx="+00">A↑3</note>
+                <note row="244" velocity="52" fx="+00">A↑3</note>
+                <note row="246" velocity="52" fx="+00">A↑3</note>
+                <note row="248" velocity="52" fx="+00">A↑3</note>
+                <note row="250" velocity="52" fx="+00">A↑3</note>
+                <note row="252" velocity="52" fx="+00">F-3</note>
+                <note row="254" velocity="52" fx="+00">F-3</note>
+                <note row="256" velocity="52" fx="+00">A↑3</note>
+                <note row="258" velocity="52" fx="+00">B↑3</note>
+                <note row="260" velocity="52" fx="+00">C-4</note>
+                <note row="262" velocity="52" fx="+00">B↑3</note>
+                <note row="264" velocity="52" fx="+00">A↑3</note>
+                <note row="266" velocity="52" fx="+00">A↑3</note>
+                <note row="268" velocity="52" fx="+00">A↑3</note>
+                <note row="270" velocity="52" fx="+00">E↑3</note>
+                <note row="274" velocity="52" fx="+00">E↑3</note>
+                <note row="276" velocity="52" fx="+00">E↑3</note>
+                <note row="279" velocity="0">OFF</note>
+            </pattern>
+        </clip>
+        <clip track="chorus" id="clip3" name="Section 2" loop="false" length="290">
+            <pattern>
+                <note row="0" velocity="0">???</note>
+                <note row="4" velocity="52" fx="+00">A↑3</note>
+                <note row="6" velocity="52" fx="+00">D-4</note>
+                <note row="10" velocity="52" fx="+00">D-4</note>
+                <note row="12" velocity="52" fx="+00">E↑4</note>
+                <note row="14" velocity="52" fx="+00">F-4</note>
+                <note row="16" velocity="52" fx="+00">E↑4</note>
+                <note row="18" velocity="52" fx="+00">E↑4</note>
+                <note row="20" velocity="52" fx="+00">E↑4</note>
+                <note row="24" velocity="52" fx="+00">E↑4</note>
+                <note row="25" velocity="0" delay="192">OFF</note>
+                <note row="26" velocity="52" fx="+00">E↑4</note>
+                <note row="30" velocity="52" fx="+00">E↑4</note>
+                <note row="32" velocity="52" fx="+00">D-4</note>
+                <note row="34" velocity="52" fx="+00">B↑3</note>
+                <note row="36" velocity="52" fx="+00">B♭↓3</note>
+                <note row="38" velocity="52" fx="+00">A↑3</note>
+                <note row="40" velocity="52" fx="+00">A♭3</note>
+                <note row="44" velocity="52" fx="+00">A♭3</note>
+                <note row="45" velocity="0" delay="192">OFF</note>
+                <note row="46" velocity="52" fx="+00">B↑3</note>
+                <note row="50" velocity="52" fx="+00">B♭↓3</note>
+                <note row="54" velocity="52" fx="+00">B↑3</note>
+                <note row="56" velocity="52" fx="+00">D-4</note>
+                <note row="60" velocity="52" fx="+00">D-4</note>
+                <note row="62" velocity="52" fx="+00">E↑4</note>
+                <note row="64" velocity="52" fx="+00">F-4</note>
+                <note row="66" velocity="52" fx="+00">E↑4</note>
+                <note row="69" velocity="0" delay="192">OFF</note>
+                <note row="70" velocity="52" fx="+00">E↑4</note>
+                <note row="72" velocity="0">???</note>
+                <note row="74" velocity="52" fx="+00">C-4</note>
+                <note row="76" velocity="52" fx="+00">D-4</note>
+                <note row="80" velocity="52" fx="+00">A↑3</note>
+                <note row="84" velocity="52" fx="+00">A↑3</note>
+                <note row="85" velocity="0">OFF</note>
+                <note row="86" velocity="52" fx="+00">D-4</note>
+                <note row="88" velocity="52" fx="+00">E♭↓4</note>
+                <note row="90" velocity="52" fx="+00">D-4</note>
+                <note row="94" velocity="52" fx="+00">B♭↓3</note>
+                <note row="96" velocity="52" fx="+00">B↑3</note>
+                <note row="100" velocity="52" fx="+00">D-4</note>
+                <note row="102" velocity="52" fx="+00">A♭3</note>
+                <note row="104" velocity="52" fx="+00">A↑3</note>
+                <note row="105" velocity="0" delay="192">OFF</note>
+                <note row="106" velocity="52" fx="+00">D-4</note>
+                <note row="110" velocity="52" fx="+00">B↑3</note>
+                <note row="114" velocity="52" fx="+00">A↑3</note>
+                <note row="116" velocity="52" fx="+00">B♭↓3</note>
+                <note row="118" velocity="52" fx="+00">B↑3</note>
+                <note row="120" velocity="52" fx="+00">B♭↓3</note>
+                <note row="123" velocity="0" delay="192">OFF</note>
+                <note row="124" velocity="52" fx="+00">B♭↓3</note>
+                <note row="126" velocity="52" fx="+00">A↑3</note>
+                <note row="130" velocity="52" fx="+00">A↑3</note>
+                <note row="134" velocity="52" fx="+00">A↑3</note>
+                <note row="136" velocity="52" fx="+00">B♭↓3</note>
+                <note row="138" velocity="52" fx="+00">A↑3</note>
+                <note row="140" velocity="52" fx="+00">A♭3</note>
+                <note row="143" velocity="0">OFF</note>
+                <note row="144" velocity="52" fx="+00">A♭3</note>
+                <note row="146" velocity="52" fx="+00">B↑3</note>
+                <note row="148" velocity="52" fx="+00">B♭↓3</note>
+                <note row="150" velocity="52" fx="+00">D-4</note>
+                <note row="152" velocity="52" fx="+00">A↑3</note>
+                <note row="154" velocity="52" fx="+00">E↑4</note>
+                <note row="156" velocity="52" fx="+00">C-4</note>
+                <note row="160" velocity="52" fx="+00">B↑3</note>
+                <note row="164" velocity="52" fx="+00">C-4</note>
+                <note row="165" velocity="0" delay="192">OFF</note>
+                <note row="166" velocity="52" fx="+00">D-4</note>
+                <note row="168" velocity="52" fx="+00">D-4</note>
+                <note row="170" velocity="52" fx="+00">C-4</note>
+                <note row="174" velocity="52" fx="+00">F-3</note>
+                <note row="176" velocity="52" fx="+00">A♭3</note>
+                <note row="178" velocity="52" fx="+00">A↑3</note>
+                <note row="180" velocity="52" fx="+00">B♭↓3</note>
+                <note row="184" velocity="52" fx="+00">A↑3</note>
+                <note row="186" velocity="52" fx="+00">A♭3</note>
+                <note row="189" velocity="0">OFF</note>
+                <note row="190" velocity="52" fx="+00">F-3</note>
+                <note row="192" velocity="52" fx="+00">A♭3</note>
+                <note row="194" velocity="52" fx="+00">A♭3</note>
+                <note row="196" velocity="52" fx="+00">A♭3</note>
+                <note row="200" velocity="52" fx="+00">A♭3</note>
+                <note row="202" velocity="52" fx="+00">A↑3</note>
+                <note row="204" velocity="52" fx="+00">B♭↓3</note>
+                <note row="206" velocity="52" fx="+00">A↑3</note>
+                <note row="209" velocity="0" delay="192">OFF</note>
+                <note row="210" velocity="52" fx="+00">A↑3</note>
+                <note row="212" velocity="52" fx="+00">B♭↓3</note>
+                <note row="214" velocity="52" fx="+00">B↑3</note>
+                <note row="216" velocity="52" fx="+00">B♭↓3</note>
+                <note row="218" velocity="52" fx="+00">A↑3</note>
+                <note row="220" velocity="52" fx="+00">B♭↓3</note>
+                <note row="222" velocity="52" fx="+00">A↑3</note>
+                <note row="224" velocity="52" fx="+00">F-3</note>
+                <note row="225" velocity="0" delay="192">OFF</note>
+                <note row="226" velocity="52" fx="+00">A♭3</note>
+                <note row="230" velocity="52" fx="+00">A♭3</note>
+                <note row="232" velocity="52" fx="+00">A↑3</note>
+                <note row="234" velocity="52" fx="+00">B♭↓3</note>
+                <note row="236" velocity="52" fx="+00">A↑3</note>
+                <note row="239" velocity="0">OFF</note>
+                <note row="240" velocity="52" fx="+00">D-4</note>
+                <note row="244" velocity="52" fx="+00">D-4</note>
+                <note row="246" velocity="52" fx="+00">B♭↓3</note>
+                <note row="250" velocity="52" fx="+00">B↑3</note>
+                <note row="254" velocity="52" fx="+00">D-4</note>
+                <note row="256" velocity="52" fx="+00">A↑3</note>
+                <note row="260" velocity="52" fx="+00">D-4</note>
+                <note row="262" velocity="52" fx="+00">B↑3</note>
+                <note row="264" velocity="52" fx="+00">B♭↓3</note>
+                <note row="265" velocity="0" delay="192">OFF</note>
+                <note row="266" velocity="52" fx="+00">A↑3</note>
+                <note row="270" velocity="52" fx="+00">A♭3</note>
+                <note row="274" velocity="52" fx="+00">F-3</note>
+                <note row="276" velocity="52" fx="+00">A♭3</note>
+                <note row="278" velocity="52" fx="+00">A↑3</note>
+                <note row="280" velocity="52" fx="+00">B♭↓3</note>
+                <note row="284" velocity="52" fx="+00">A↑3</note>
+                <note row="286" velocity="52" fx="+00">A♭3</note>
+                <note row="289" velocity="0">OFF</note>
+            </pattern>
+        </clip>
+        <clip track="chorus" id="clip4" name="Section 3" loop="false" length="150">
+            <pattern>
+                <note row="0" velocity="52" fx="+00">E↑3</note>
+                <note row="2" velocity="52" fx="+00">E↑4</note>
+                <note row="4" velocity="0">???</note>
+                <note row="6" velocity="0">???</note>
+                <note row="10" velocity="52" fx="+00">F-4</note>
+                <note row="12" velocity="52" fx="+00">D-4</note>
+                <note row="14" velocity="52" fx="+00">E↑4</note>
+                <note row="16" velocity="52" fx="+00">C-4</note>
+                <note row="20" velocity="52" fx="+00">D-4</note>
+                <note row="24" velocity="52" fx="+00">D-4</note>
+                <note row="26" velocity="52" fx="+00">D-4</note>
+                <note row="30" velocity="52" fx="+00">F-4</note>
+                <note row="32" velocity="52" fx="+00">F-4</note>
+                <note row="34" velocity="52" fx="+00">E↑4</note>
+                <note row="36" velocity="0">???</note>
+                <note row="40" velocity="0">???</note>
+                <note row="44" velocity="0">???</note>
+                <note row="46" velocity="0">???</note>
+                <note row="50" velocity="52" fx="+00">C-4</note>
+                <note row="53" velocity="0" delay="192">OFF</note>
+                <note row="54" velocity="52" fx="+00">D-4</note>
+                <note row="56" velocity="52" fx="+00">D-4</note>
+                <note row="59" velocity="0" delay="192">OFF</note>
+                <note row="60" velocity="52" fx="+00">F-4</note>
+                <note row="64" velocity="52" fx="+00">E↑4</note>
+                <note row="66" velocity="52" fx="+00">E↑4</note>
+                <note row="68" velocity="52" fx="+00">F-4</note>
+                <note row="70" velocity="52" fx="+00">D-4</note>
+                <note row="74" velocity="0">???</note>
+                <note row="76" velocity="0">???</note>
+                <note row="80" velocity="0">???</note>
+                <note row="84" velocity="0">???</note>
+                <note row="86" velocity="0">???</note>
+                <note row="88" velocity="0">???</note>
+                <note row="90" velocity="52" fx="+00">B↑3</note>
+                <note row="92" velocity="52" fx="+00">C-4</note>
+                <note row="94" velocity="52" fx="+00">D-4</note>
+                <note row="96" velocity="52" fx="+00">E↑4</note>
+                <note row="99" velocity="0" delay="192">OFF</note>
+                <note row="100" velocity="52" fx="+00">F-4</note>
+                <note row="104" velocity="52" fx="+00">E↑4</note>
+                <note row="106" velocity="52" fx="+00">F-4</note>
+                <note row="108" velocity="52" fx="+00">D-4</note>
+                <note row="110" velocity="52" fx="+00">D-4</note>
+                <note row="112" velocity="52" fx="+00">E↑4</note>
+                <note row="114" velocity="0">???</note>
+                <note row="116" velocity="0">???</note>
+                <note row="120" velocity="52" fx="+00">F-4</note>
+                <note row="124" velocity="52" fx="+00">E↑4</note>
+                <note row="126" velocity="52" fx="+00">E↑4</note>
+                <note row="130" velocity="52" fx="+00">B♭↓3</note>
+                <note row="132" velocity="52" fx="+00">D-4</note>
+                <note row="133" velocity="0" delay="192">OFF</note>
+                <note row="134" velocity="52" fx="+00">E↑4</note>
+                <note row="136" velocity="52" fx="+00">E↑4</note>
+                <note row="140" velocity="52" fx="+00">D-4</note>
+                <note row="144" velocity="0">???</note>
+                <note row="146" velocity="0">???</note>
+                <note row="148" velocity="0">???</note>
+            </pattern>
+        </clip>
+        <clip track="chorus" id="clip5" name="Section 4" loop="false" length="160">
+            <pattern>
+                <note row="0" velocity="52" fx="+00">A↑3</note>
+                <note row="2" velocity="52" fx="+00">F-3</note>
+                <note row="4" velocity="52" fx="+00">A↑3</note>
+                <note row="6" velocity="52" fx="+00">A↑3</note>
+                <note row="10" velocity="52" fx="+00">B↑3</note>
+                <note row="12" velocity="52" fx="+00">A↑3</note>
+                <note row="14" velocity="52" fx="+00">B↑3</note>
+                <note row="16" velocity="52" fx="+00">C-4</note>
+                <note row="20" velocity="52" fx="+00">D-4</note>
+                <note row="22" velocity="52" fx="+00">C-4</note>
+                <note row="24" velocity="0">???</note>
+                <note row="26" velocity="0">???</note>
+                <note row="30" velocity="0">???</note>
+                <note row="32" velocity="0">???</note>
+                <note row="34" velocity="0">???</note>
+                <note row="36" velocity="0">???</note>
+                <note row="38" velocity="52" fx="+00">F-4</note>
+                <note row="40" velocity="52" fx="+00">D-4</note>
+                <note row="42" velocity="52" fx="+00">E↑4</note>
+                <note row="44" velocity="52" fx="+00">F-4</note>
+                <note row="46" velocity="52" fx="+00">E↑4</note>
+                <note row="49" velocity="0" delay="192">OFF</note>
+                <note row="50" velocity="52" fx="+00">E↑4</note>
+                <note row="52" velocity="52" fx="+00">E↑3</note>
+                <note row="54" velocity="52" fx="+00">E↑4</note>
+                <note row="56" velocity="0">???</note>
+                <note row="60" velocity="0">???</note>
+                <note row="64" velocity="0">???</note>
+                <note row="66" velocity="0">???</note>
+                <note row="70" velocity="52" fx="+00">B↑3</note>
+                <note row="72" velocity="52" fx="+00">A♭3</note>
+                <note row="74" velocity="52" fx="+00">D-4</note>
+                <note row="75" velocity="0" delay="192">OFF</note>
+                <note row="76" velocity="52" fx="+00">D-4</note>
+                <note row="80" velocity="52" fx="+00">F-4</note>
+                <note row="82" velocity="52" fx="+00">F-4</note>
+                <note row="84" velocity="52" fx="+00">E↑4</note>
+                <note row="86" velocity="52" fx="+00">E↑4</note>
+                <note row="90" velocity="52" fx="+00">E↑4</note>
+                <note row="94" velocity="0">???</note>
+                <note row="96" velocity="0">???</note>
+                <note row="100" velocity="0">???</note>
+                <note row="104" velocity="0">???</note>
+                <note row="106" velocity="0">???</note>
+                <note row="110" velocity="0">???</note>
+                <note row="114" velocity="0">???</note>
+                <note row="116" velocity="0">???</note>
+                <note row="118" velocity="52" fx="+00">B↑3</note>
+                <note row="120" velocity="52" fx="+00">C-4</note>
+                <note row="124" velocity="52" fx="+00">A↑3</note>
+                <note row="126" velocity="52" fx="+00">B↑3</note>
+                <note row="128" velocity="52" fx="+00">C-4</note>
+                <note row="130" velocity="52" fx="+00">D-4</note>
+                <note row="133" velocity="0" delay="192">OFF</note>
+                <note row="134" velocity="52" fx="+00">D-4</note>
+                <note row="136" velocity="52" fx="+00">F-4</note>
+                <note row="140" velocity="52" fx="+00">F-4</note>
+                <note row="144" velocity="0">???</note>
+                <note row="146" velocity="0">???</note>
+                <note row="150" velocity="0">???</note>
+                <note row="154" velocity="0">???</note>
+                <note row="156" velocity="0">???</note>
+            </pattern>
+        </clip>
+        <clip track="chorus" id="clip6" name="Section 5" loop="false" length="70">
+            <pattern>
+                <note row="0" velocity="0">???</note>
+                <note row="4" velocity="52" fx="+00">E↑4</note>
+                <note row="6" velocity="52" fx="+00">E↑4</note>
+                <note row="8" velocity="52" fx="+00">F-4</note>
+                <note row="10" velocity="52" fx="+00">G♭↓4</note>
+                <note row="12" velocity="52" fx="+00">F-4</note>
+                <note row="14" velocity="52" fx="+00">F-4</note>
+                <note row="16" velocity="52" fx="+00">E↑4</note>
+                <note row="20" velocity="0">???</note>
+                <note row="24" velocity="0">???</note>
+                <note row="26" velocity="0">???</note>
+                <note row="30" velocity="0">???</note>
+                <note row="34" velocity="0">???</note>
+                <note row="36" velocity="0">???</note>
+                <note row="38" velocity="0">???</note>
+                <note row="40" velocity="0">???</note>
+                <note row="44" velocity="0">???</note>
+                <note row="46" velocity="0">???</note>
+                <note row="48" velocity="0">???</note>
+                <note row="50" velocity="52" fx="+00">B↑3</note>
+                <note row="52" velocity="52" fx="+00">C-4</note>
+                <note row="54" velocity="52" fx="+00">D-4</note>
+                <note row="56" velocity="52" fx="+00">F-4</note>
+                <note row="60" velocity="0">???</note>
+                <note row="64" velocity="0">~~~</note>
+            </pattern>
+        </clip>
+        <clip track="chorus" id="clip7" name="Fragment" loop="false" length="20">
+            <pattern>
+                <note row="0" velocity="0">???</note>
+                <note row="4" velocity="52" fx="+00">E↑4</note>
+                <note row="6" velocity="52" fx="+00">E↑4</note>
+                <note row="10" velocity="52" fx="+00">E↑4</note>
+                <note row="12" velocity="52" fx="+00">F-4</note>
+                <note row="14" velocity="52" fx="+00">D-4</note>
+                <note row="16" velocity="0">???</note>
+            </pattern>
+        </clip>
+        <clip track="chorus" id="clip8" name="Outro" loop="false" length="20">
+            <pattern/>
+        </clip>
+        <clip track="chorus2" id="clip9" name="Intro" loop="false" length="20">
+            <pattern/>
+        </clip>
+        <clip track="chorus2" id="clip10" name="Section 1" loop="false" length="280">
+            <pattern>
+                <note row="14" velocity="44" delay="8" fx="+00">C-4</note>
+                <note row="16" velocity="44" delay="8" fx="+00">B↑3</note>
+                <note row="18" velocity="44" delay="8" fx="+00">B↑3</note>
+                <note row="19" velocity="0" delay="200">OFF</note>
+                <note row="20" velocity="44" delay="8" fx="+00">A↑3</note>
+                <note row="24" velocity="44" delay="8" fx="+00">F-3</note>
+                <note row="26" velocity="44" delay="8" fx="+00">A↑3</note>
+                <note row="30" velocity="44" delay="8" fx="+00">A↑3</note>
+                <note row="32" velocity="0" delay="8">OFF</note>
+                <note row="44" velocity="44" delay="8" fx="+00">C-4</note>
+                <note row="46" velocity="44" delay="8" fx="+00">B↑3</note>
+                <note row="48" velocity="44" delay="8" fx="+00">A↑3</note>
+                <note row="50" velocity="44" delay="8" fx="+00">B↑3</note>
+                <note row="52" velocity="44" delay="8" fx="+00">A↑3</note>
+                <note row="54" velocity="44" delay="8" fx="+00">F-3</note>
+                <note row="56" velocity="44" delay="8" fx="+00">A↑3</note>
+                <note row="59" velocity="0" delay="200">OFF</note>
+                <note row="60" velocity="44" delay="8" fx="+00">A↑3</note>
+                <note row="64" velocity="0" delay="8">OFF</note>
+                <note row="70" velocity="44" delay="8" fx="+00">C-4</note>
+                <note row="72" velocity="44" delay="8" fx="+00">B↑3</note>
+                <note row="74" velocity="44" delay="8" fx="+00">A↑3</note>
+                <note row="76" velocity="44" delay="8" fx="+00">C-4</note>
+                <note row="78" velocity="44" delay="8" fx="+00">C-4</note>
+                <note row="80" velocity="44" delay="8" fx="+00">B↑3</note>
+                <note row="84" velocity="44" delay="8" fx="+00">A↑3</note>
+                <note row="86" velocity="44" delay="8" fx="+00">B↑3</note>
+                <note row="88" velocity="44" delay="8" fx="+00">B↑3</note>
+                <note row="89" velocity="0" delay="200">OFF</note>
+                <note row="90" velocity="44" delay="8" fx="+00">B↑3</note>
+                <note row="92" velocity="44" delay="8" fx="+00">A↑3</note>
+                <note row="94" velocity="44" delay="8" fx="+00">F-3</note>
+                <note row="96" velocity="44" delay="8" fx="+00">A↑3</note>
+                <note row="100" velocity="44" delay="8" fx="+00">A↑3</note>
+                <note row="102" velocity="44" delay="8" fx="+00">F-3</note>
+                <note row="104" velocity="44" delay="8" fx="+00">F-3</note>
+                <note row="106" velocity="44" delay="8" fx="+00">A↑3</note>
+                <note row="109" velocity="0" delay="8">OFF</note>
+                <note row="110" velocity="44" delay="8" fx="+00">C-3</note>
+                <note row="114" velocity="44" delay="8" fx="+00">C-3</note>
+                <note row="116" velocity="44" delay="8" fx="+00">E↑3</note>
+                <note row="120" velocity="44" delay="8" fx="+00">E↑3</note>
+                <note row="122" velocity="44" delay="8" fx="+00">F-3</note>
+                <note row="124" velocity="44" delay="8" fx="+00">F-3</note>
+                <note row="126" velocity="44" delay="8" fx="+00">C-3</note>
+                <note row="129" velocity="0" delay="200">OFF</note>
+                <note row="130" velocity="44" delay="8" fx="+00">C-4</note>
+                <note row="132" velocity="44" delay="8" fx="+00">C-4</note>
+                <note row="134" velocity="44" delay="8" fx="+00">C-4</note>
+                <note row="136" velocity="44" delay="8" fx="+00">E↑4</note>
+                <note row="138" velocity="44" delay="8" fx="+00">F-4</note>
+                <note row="140" velocity="44" delay="8" fx="+00">E↑4</note>
+                <note row="144" velocity="44" delay="8" fx="+00">C-4</note>
+                <note row="146" velocity="44" delay="8" fx="+00">E↑4</note>
+                <note row="150" velocity="44" delay="8" fx="+00">E↑4</note>
+                <note row="154" velocity="44" delay="8" fx="+00">E↑4</note>
+                <note row="156" velocity="44" delay="8" fx="+00">C-4</note>
+                <note row="160" velocity="44" delay="8" fx="+00">C-4</note>
+                <note row="162" velocity="44" delay="8" fx="+00">A↑3</note>
+                <note row="164" velocity="44" delay="8" fx="+00">A↑3</note>
+                <note row="166" velocity="44" delay="8" fx="+00">C-4</note>
+                <note row="168" velocity="44" delay="8" fx="+00">C-4</note>
+                <note row="169" velocity="0" delay="200">OFF</note>
+                <note row="170" velocity="44" delay="8" fx="+00">B↑3</note>
+                <note row="174" velocity="44" delay="8" fx="+00">B↑3</note>
+                <note row="176" velocity="44" delay="8" fx="+00">A↑3</note>
+                <note row="178" velocity="44" delay="8" fx="+00">F-3</note>
+                <note row="180" velocity="0" delay="8">OFF</note>
+                <note row="182" velocity="44" delay="8" fx="+00">F-3</note>
+                <note row="184" velocity="44" delay="8" fx="+00">A↑3</note>
+                <note row="186" velocity="44" delay="8" fx="+00">A↑3</note>
+                <note row="188" velocity="44" delay="8" fx="+00">F-3</note>
+                <note row="190" velocity="44" delay="8" fx="+00">A↑3</note>
+                <note row="192" velocity="44" delay="8" fx="+00">B↑3</note>
+                <note row="194" velocity="44" delay="8" fx="+00">C-4</note>
+                <note row="196" velocity="44" delay="8" fx="+00">B↑3</note>
+                <note row="198" velocity="44" delay="8" fx="+00">C-4</note>
+                <note row="199" velocity="0" delay="8">OFF</note>
+                <note row="200" velocity="44" delay="8" fx="+00">D-4</note>
+                <note row="204" velocity="44" delay="8" fx="+00">E↑4</note>
+                <note row="206" velocity="44" delay="8" fx="+00">F-4</note>
+                <note row="208" velocity="44" delay="8" fx="+00">D-4</note>
+                <note row="210" velocity="44" delay="8" fx="+00">D-4</note>
+                <note row="212" velocity="44" delay="8" fx="+00">E↑4</note>
+                <note row="214" velocity="44" delay="8" fx="+00">F-4</note>
+                <note row="216" velocity="44" delay="8" fx="+00">E↑4</note>
+                <note row="220" velocity="44" delay="8" fx="+00">E↑4</note>
+                <note row="224" velocity="44" delay="8" fx="+00">C-4</note>
+                <note row="226" velocity="44" delay="8" fx="+00">D-4</note>
+                <note row="228" velocity="44" delay="8" fx="+00">D-4</note>
+                <note row="230" velocity="44" delay="8" fx="+00">D-4</note>
+                <note row="234" velocity="44" delay="8" fx="+00">B♭↓3</note>
+                <note row="236" velocity="44" delay="8" fx="+00">B♭↓3</note>
+                <note row="239" velocity="0" delay="200">OFF</note>
+                <note row="240" velocity="44" delay="8" fx="+00">A↑3</note>
+                <note row="244" velocity="44" delay="8" fx="+00">A↑3</note>
+                <note row="246" velocity="44" delay="8" fx="+00">A↑3</note>
+                <note row="248" velocity="44" delay="8" fx="+00">A↑3</note>
+                <note row="250" velocity="44" delay="8" fx="+00">A↑3</note>
+                <note row="252" velocity="44" delay="8" fx="+00">F-3</note>
+                <note row="254" velocity="44" delay="8" fx="+00">F-3</note>
+                <note row="256" velocity="44" delay="8" fx="+00">A↑3</note>
+                <note row="258" velocity="44" delay="8" fx="+00">B↑3</note>
+                <note row="260" velocity="44" delay="8" fx="+00">C-4</note>
+                <note row="262" velocity="44" delay="8" fx="+00">B↑3</note>
+                <note row="264" velocity="44" delay="8" fx="+00">A↑3</note>
+                <note row="266" velocity="44" delay="8" fx="+00">A↑3</note>
+                <note row="268" velocity="44" delay="8" fx="+00">A↑3</note>
+                <note row="270" velocity="44" delay="8" fx="+00">E↑3</note>
+                <note row="274" velocity="44" delay="8" fx="+00">E↑3</note>
+                <note row="276" velocity="44" delay="8" fx="+00">E↑3</note>
+                <note row="279" velocity="0" delay="8">OFF</note>
+            </pattern>
+        </clip>
+        <clip track="chorus2" id="clip11" name="Section 2" loop="false" length="290">
+            <pattern>
+                <note row="4" velocity="44" delay="8" fx="+00">A↑3</note>
+                <note row="6" velocity="44" delay="8" fx="+00">D-4</note>
+                <note row="10" velocity="44" delay="8" fx="+00">D-4</note>
+                <note row="12" velocity="44" delay="8" fx="+00">E↑4</note>
+                <note row="14" velocity="44" delay="8" fx="+00">F-4</note>
+                <note row="16" velocity="44" delay="8" fx="+00">E↑4</note>
+                <note row="18" velocity="44" delay="8" fx="+00">E↑4</note>
+                <note row="20" velocity="44" delay="8" fx="+00">E↑4</note>
+                <note row="24" velocity="44" delay="8" fx="+00">E↑4</note>
+                <note row="25" velocity="0" delay="200">OFF</note>
+                <note row="26" velocity="44" delay="8" fx="+00">E↑4</note>
+                <note row="30" velocity="44" delay="8" fx="+00">E↑4</note>
+                <note row="32" velocity="44" delay="8" fx="+00">D-4</note>
+                <note row="34" velocity="44" delay="8" fx="+00">B↑3</note>
+                <note row="36" velocity="44" delay="8" fx="+00">B♭↓3</note>
+                <note row="38" velocity="44" delay="8" fx="+00">A↑3</note>
+                <note row="40" velocity="44" delay="8" fx="+00">A♭3</note>
+                <note row="44" velocity="44" delay="8" fx="+00">A♭3</note>
+                <note row="45" velocity="0" delay="200">OFF</note>
+                <note row="46" velocity="44" delay="8" fx="+00">B↑3</note>
+                <note row="50" velocity="44" delay="8" fx="+00">B♭↓3</note>
+                <note row="54" velocity="44" delay="8" fx="+00">B↑3</note>
+                <note row="56" velocity="44" delay="8" fx="+00">D-4</note>
+                <note row="60" velocity="44" delay="8" fx="+00">D-4</note>
+                <note row="62" velocity="44" delay="8" fx="+00">E↑4</note>
+                <note row="64" velocity="44" delay="8" fx="+00">F-4</note>
+                <note row="66" velocity="44" delay="8" fx="+00">E↑4</note>
+                <note row="69" velocity="0" delay="200">OFF</note>
+                <note row="70" velocity="44" delay="8" fx="+00">E↑4</note>
+                <note row="72" velocity="0" delay="8">OFF</note>
+                <note row="74" velocity="44" delay="8" fx="+00">C-4</note>
+                <note row="76" velocity="44" delay="8" fx="+00">D-4</note>
+                <note row="80" velocity="44" delay="8" fx="+00">A↑3</note>
+                <note row="84" velocity="44" delay="8" fx="+00">A↑3</note>
+                <note row="85" velocity="0" delay="8">OFF</note>
+                <note row="86" velocity="44" delay="8" fx="+00">D-4</note>
+                <note row="88" velocity="44" delay="8" fx="+00">E♭↓4</note>
+                <note row="90" velocity="44" delay="8" fx="+00">D-4</note>
+                <note row="94" velocity="44" delay="8" fx="+00">B♭↓3</note>
+                <note row="96" velocity="44" delay="8" fx="+00">B↑3</note>
+                <note row="100" velocity="44" delay="8" fx="+00">D-4</note>
+                <note row="102" velocity="44" delay="8" fx="+00">A♭3</note>
+                <note row="104" velocity="44" delay="8" fx="+00">A↑3</note>
+                <note row="105" velocity="0" delay="200">OFF</note>
+                <note row="106" velocity="44" delay="8" fx="+00">D-4</note>
+                <note row="110" velocity="44" delay="8" fx="+00">B↑3</note>
+                <note row="114" velocity="44" delay="8" fx="+00">A↑3</note>
+                <note row="116" velocity="44" delay="8" fx="+00">B♭↓3</note>
+                <note row="118" velocity="44" delay="8" fx="+00">B↑3</note>
+                <note row="120" velocity="44" delay="8" fx="+00">B♭↓3</note>
+                <note row="123" velocity="0" delay="200">OFF</note>
+                <note row="124" velocity="44" delay="8" fx="+00">B♭↓3</note>
+                <note row="126" velocity="44" delay="8" fx="+00">A↑3</note>
+                <note row="130" velocity="44" delay="8" fx="+00">A↑3</note>
+                <note row="134" velocity="44" delay="8" fx="+00">A↑3</note>
+                <note row="136" velocity="44" delay="8" fx="+00">B♭↓3</note>
+                <note row="138" velocity="44" delay="8" fx="+00">A↑3</note>
+                <note row="140" velocity="44" delay="8" fx="+00">A♭3</note>
+                <note row="143" velocity="0" delay="8">OFF</note>
+                <note row="144" velocity="44" delay="8" fx="+00">A♭3</note>
+                <note row="146" velocity="44" delay="8" fx="+00">B↑3</note>
+                <note row="148" velocity="44" delay="8" fx="+00">B♭↓3</note>
+                <note row="150" velocity="44" delay="8" fx="+00">D-4</note>
+                <note row="152" velocity="44" delay="8" fx="+00">A↑3</note>
+                <note row="154" velocity="44" delay="8" fx="+00">E↑4</note>
+                <note row="156" velocity="44" delay="8" fx="+00">C-4</note>
+                <note row="160" velocity="44" delay="8" fx="+00">B↑3</note>
+                <note row="164" velocity="44" delay="8" fx="+00">C-4</note>
+                <note row="165" velocity="0" delay="200">OFF</note>
+                <note row="166" velocity="44" delay="8" fx="+00">D-4</note>
+                <note row="168" velocity="44" delay="8" fx="+00">D-4</note>
+                <note row="170" velocity="44" delay="8" fx="+00">C-4</note>
+                <note row="174" velocity="44" delay="8" fx="+00">F-3</note>
+                <note row="176" velocity="44" delay="8" fx="+00">A♭3</note>
+                <note row="178" velocity="44" delay="8" fx="+00">A↑3</note>
+                <note row="180" velocity="44" delay="8" fx="+00">B♭↓3</note>
+                <note row="184" velocity="44" delay="8" fx="+00">A↑3</note>
+                <note row="186" velocity="44" delay="8" fx="+00">A♭3</note>
+                <note row="189" velocity="0" delay="8">OFF</note>
+                <note row="190" velocity="44" delay="8" fx="+00">F-3</note>
+                <note row="192" velocity="44" delay="8" fx="+00">A♭3</note>
+                <note row="194" velocity="44" delay="8" fx="+00">A♭3</note>
+                <note row="196" velocity="44" delay="8" fx="+00">A♭3</note>
+                <note row="200" velocity="44" delay="8" fx="+00">A♭3</note>
+                <note row="202" velocity="44" delay="8" fx="+00">A↑3</note>
+                <note row="204" velocity="44" delay="8" fx="+00">B♭↓3</note>
+                <note row="206" velocity="44" delay="8" fx="+00">A↑3</note>
+                <note row="209" velocity="0" delay="200">OFF</note>
+                <note row="210" velocity="44" delay="8" fx="+00">A↑3</note>
+                <note row="212" velocity="44" delay="8" fx="+00">B♭↓3</note>
+                <note row="214" velocity="44" delay="8" fx="+00">B↑3</note>
+                <note row="216" velocity="44" delay="8" fx="+00">B♭↓3</note>
+                <note row="218" velocity="44" delay="8" fx="+00">A↑3</note>
+                <note row="220" velocity="44" delay="8" fx="+00">B♭↓3</note>
+                <note row="222" velocity="44" delay="8" fx="+00">A↑3</note>
+                <note row="224" velocity="44" delay="8" fx="+00">F-3</note>
+                <note row="225" velocity="0" delay="200">OFF</note>
+                <note row="226" velocity="44" delay="8" fx="+00">A♭3</note>
+                <note row="230" velocity="44" delay="8" fx="+00">A♭3</note>
+                <note row="232" velocity="44" delay="8" fx="+00">A↑3</note>
+                <note row="234" velocity="44" delay="8" fx="+00">B♭↓3</note>
+                <note row="236" velocity="44" delay="8" fx="+00">A↑3</note>
+                <note row="239" velocity="0" delay="8">OFF</note>
+                <note row="240" velocity="44" delay="8" fx="+00">D-4</note>
+                <note row="244" velocity="44" delay="8" fx="+00">D-4</note>
+                <note row="246" velocity="44" delay="8" fx="+00">B♭↓3</note>
+                <note row="250" velocity="44" delay="8" fx="+00">B↑3</note>
+                <note row="254" velocity="44" delay="8" fx="+00">D-4</note>
+                <note row="256" velocity="44" delay="8" fx="+00">A↑3</note>
+                <note row="260" velocity="44" delay="8" fx="+00">D-4</note>
+                <note row="262" velocity="44" delay="8" fx="+00">B↑3</note>
+                <note row="264" velocity="44" delay="8" fx="+00">B♭↓3</note>
+                <note row="265" velocity="0" delay="200">OFF</note>
+                <note row="266" velocity="44" delay="8" fx="+00">A↑3</note>
+                <note row="270" velocity="44" delay="8" fx="+00">A♭3</note>
+                <note row="274" velocity="44" delay="8" fx="+00">F-3</note>
+                <note row="276" velocity="44" delay="8" fx="+00">A♭3</note>
+                <note row="278" velocity="44" delay="8" fx="+00">A↑3</note>
+                <note row="280" velocity="44" delay="8" fx="+00">B♭↓3</note>
+                <note row="284" velocity="44" delay="8" fx="+00">A↑3</note>
+                <note row="286" velocity="44" delay="8" fx="+00">A♭3</note>
+                <note row="289" velocity="0" delay="8">OFF</note>
+            </pattern>
+        </clip>
+        <clip track="chorus2" id="clip12" name="Section 3" loop="false" length="150">
+            <pattern>
+                <note row="0" velocity="44" delay="8" fx="+00">E↑3</note>
+                <note row="2" velocity="44" delay="8" fx="+00">E↑4</note>
+                <note row="4" velocity="0" delay="8">OFF</note>
+                <note row="10" velocity="44" delay="8" fx="+00">F-4</note>
+                <note row="12" velocity="44" delay="8" fx="+00">D-4</note>
+                <note row="14" velocity="44" delay="8" fx="+00">E↑4</note>
+                <note row="16" velocity="44" delay="8" fx="+00">C-4</note>
+                <note row="20" velocity="44" delay="8" fx="+00">D-4</note>
+                <note row="24" velocity="44" delay="8" fx="+00">D-4</note>
+                <note row="26" velocity="44" delay="8" fx="+00">D-4</note>
+                <note row="30" velocity="44" delay="8" fx="+00">F-4</note>
+                <note row="32" velocity="44" delay="8" fx="+00">F-4</note>
+                <note row="34" velocity="44" delay="8" fx="+00">E↑4</note>
+                <note row="36" velocity="0" delay="8">OFF</note>
+                <note row="50" velocity="44" delay="8" fx="+00">C-4</note>
+                <note row="53" velocity="0" delay="200">OFF</note>
+                <note row="54" velocity="44" delay="8" fx="+00">D-4</note>
+                <note row="56" velocity="44" delay="8" fx="+00">D-4</note>
+                <note row="59" velocity="0" delay="200">OFF</note>
+                <note row="60" velocity="44" delay="8" fx="+00">F-4</note>
+                <note row="64" velocity="44" delay="8" fx="+00">E↑4</note>
+                <note row="66" velocity="44" delay="8" fx="+00">E↑4</note>
+                <note row="68" velocity="44" delay="8" fx="+00">F-4</note>
+                <note row="70" velocity="44" delay="8" fx="+00">D-4</note>
+                <note row="74" velocity="0" delay="8">OFF</note>
+                <note row="90" velocity="44" delay="8" fx="+00">B↑3</note>
+                <note row="92" velocity="44" delay="8" fx="+00">C-4</note>
+                <note row="94" velocity="44" delay="8" fx="+00">D-4</note>
+                <note row="96" velocity="44" delay="8" fx="+00">E↑4</note>
+                <note row="99" velocity="0" delay="200">OFF</note>
+                <note row="100" velocity="44" delay="8" fx="+00">F-4</note>
+                <note row="104" velocity="44" delay="8" fx="+00">E↑4</note>
+                <note row="106" velocity="44" delay="8" fx="+00">F-4</note>
+                <note row="108" velocity="44" delay="8" fx="+00">D-4</note>
+                <note row="110" velocity="44" delay="8" fx="+00">D-4</note>
+                <note row="112" velocity="44" delay="8" fx="+00">E↑4</note>
+                <note row="114" velocity="0" delay="8">OFF</note>
+                <note row="120" velocity="44" delay="8" fx="+00">F-4</note>
+                <note row="124" velocity="44" delay="8" fx="+00">E↑4</note>
+                <note row="126" velocity="44" delay="8" fx="+00">E↑4</note>
+                <note row="130" velocity="44" delay="8" fx="+00">B♭↓3</note>
+                <note row="132" velocity="44" delay="8" fx="+00">D-4</note>
+                <note row="133" velocity="0" delay="200">OFF</note>
+                <note row="134" velocity="44" delay="8" fx="+00">E↑4</note>
+                <note row="136" velocity="44" delay="8" fx="+00">E↑4</note>
+                <note row="140" velocity="44" delay="8" fx="+00">D-4</note>
+                <note row="144" velocity="0" delay="8">OFF</note>
+            </pattern>
+        </clip>
+        <clip track="chorus2" id="clip13" name="Section 4" loop="false" length="160">
+            <pattern>
+                <note row="0" velocity="44" delay="8" fx="+00">A↑3</note>
+                <note row="2" velocity="44" delay="8" fx="+00">F-3</note>
+                <note row="4" velocity="44" delay="8" fx="+00">A↑3</note>
+                <note row="6" velocity="44" delay="8" fx="+00">A↑3</note>
+                <note row="10" velocity="44" delay="8" fx="+00">B↑3</note>
+                <note row="12" velocity="44" delay="8" fx="+00">A↑3</note>
+                <note row="14" velocity="44" delay="8" fx="+00">B↑3</note>
+                <note row="16" velocity="44" delay="8" fx="+00">C-4</note>
+                <note row="20" velocity="44" delay="8" fx="+00">D-4</note>
+                <note row="22" velocity="44" delay="8" fx="+00">C-4</note>
+                <note row="24" velocity="0" delay="8">OFF</note>
+                <note row="38" velocity="44" delay="8" fx="+00">F-4</note>
+                <note row="40" velocity="44" delay="8" fx="+00">D-4</note>
+                <note row="42" velocity="44" delay="8" fx="+00">E↑4</note>
+                <note row="44" velocity="44" delay="8" fx="+00">F-4</note>
+                <note row="46" velocity="44" delay="8" fx="+00">E↑4</note>
+                <note row="49" velocity="0" delay="200">OFF</note>
+                <note row="50" velocity="44" delay="8" fx="+00">E↑4</note>
+                <note row="52" velocity="44" delay="8" fx="+00">E↑3</note>
+                <note row="54" velocity="44" delay="8" fx="+00">E↑4</note>
+                <note row="56" velocity="0" delay="8">OFF</note>
+                <note row="70" velocity="44" delay="8" fx="+00">B↑3</note>
+                <note row="72" velocity="44" delay="8" fx="+00">A♭3</note>
+                <note row="74" velocity="44" delay="8" fx="+00">D-4</note>
+                <note row="75" velocity="0" delay="200">OFF</note>
+                <note row="76" velocity="44" delay="8" fx="+00">D-4</note>
+                <note row="80" velocity="44" delay="8" fx="+00">F-4</note>
+                <note row="82" velocity="44" delay="8" fx="+00">F-4</note>
+                <note row="84" velocity="44" delay="8" fx="+00">E↑4</note>
+                <note row="86" velocity="44" delay="8" fx="+00">E↑4</note>
+                <note row="90" velocity="44" delay="8" fx="+00">E↑4</note>
+                <note row="94" velocity="0" delay="8">OFF</note>
+                <note row="118" velocity="44" delay="8" fx="+00">B↑3</note>
+                <note row="120" velocity="44" delay="8" fx="+00">C-4</note>
+                <note row="124" velocity="44" delay="8" fx="+00">A↑3</note>
+                <note row="126" velocity="44" delay="8" fx="+00">B↑3</note>
+                <note row="128" velocity="44" delay="8" fx="+00">C-4</note>
+                <note row="130" velocity="44" delay="8" fx="+00">D-4</note>
+                <note row="133" velocity="0" delay="200">OFF</note>
+                <note row="134" velocity="44" delay="8" fx="+00">D-4</note>
+                <note row="136" velocity="44" delay="8" fx="+00">F-4</note>
+                <note row="140" velocity="44" delay="8" fx="+00">F-4</note>
+                <note row="144" velocity="0" delay="8">OFF</note>
+            </pattern>
+        </clip>
+        <clip track="chorus2" id="clip14" name="Section 5" loop="false" length="70">
+            <pattern>
+                <note row="4" velocity="44" delay="8" fx="+00">E↑4</note>
+                <note row="6" velocity="44" delay="8" fx="+00">E↑4</note>
+                <note row="8" velocity="44" delay="8" fx="+00">F-4</note>
+                <note row="10" velocity="44" delay="8" fx="+00">G♭↓4</note>
+                <note row="12" velocity="44" delay="8" fx="+00">F-4</note>
+                <note row="14" velocity="44" delay="8" fx="+00">F-4</note>
+                <note row="16" velocity="44" delay="8" fx="+00">E↑4</note>
+                <note row="20" velocity="0" delay="8">OFF</note>
+                <note row="50" velocity="44" delay="8" fx="+00">B↑3</note>
+                <note row="52" velocity="44" delay="8" fx="+00">C-4</note>
+                <note row="54" velocity="44" delay="8" fx="+00">D-4</note>
+                <note row="56" velocity="44" delay="8" fx="+00">F-4</note>
+                <note row="60" velocity="0" delay="8">OFF</note>
+            </pattern>
+        </clip>
+        <clip track="chorus2" id="clip15" name="Fragment" loop="false" length="20">
+            <pattern>
+                <note row="4" velocity="44" delay="8" fx="+00">E↑4</note>
+                <note row="6" velocity="44" delay="8" fx="+00">E↑4</note>
+                <note row="10" velocity="44" delay="8" fx="+00">E↑4</note>
+                <note row="12" velocity="44" delay="8" fx="+00">F-4</note>
+                <note row="14" velocity="44" delay="8" fx="+00">D-4</note>
+                <note row="16" velocity="0" delay="8">OFF</note>
+            </pattern>
+        </clip>
+        <clip track="chorus2" id="clip16" name="Outro" loop="false" length="20">
+            <pattern/>
+        </clip>
+        <clip track="chorus3" id="clip17" name="Intro" loop="false" length="20">
+            <pattern/>
+        </clip>
+        <clip track="chorus3" id="clip18" name="Section 1" loop="false" length="280">
+            <pattern>
+                <note row="14" velocity="40" delay="14" fx="+00">C-4</note>
+                <note row="16" velocity="40" delay="14" fx="+00">B↑3</note>
+                <note row="18" velocity="40" delay="14" fx="+00">B↑3</note>
+                <note row="19" velocity="0" delay="206">OFF</note>
+                <note row="20" velocity="40" delay="14" fx="+00">A↑3</note>
+                <note row="24" velocity="40" delay="14" fx="+00">F-3</note>
+                <note row="26" velocity="40" delay="14" fx="+00">A↑3</note>
+                <note row="30" velocity="40" delay="14" fx="+00">A↑3</note>
+                <note row="32" velocity="0" delay="14">OFF</note>
+                <note row="44" velocity="40" delay="14" fx="+00">C-4</note>
+                <note row="46" velocity="40" delay="14" fx="+00">B↑3</note>
+                <note row="48" velocity="40" delay="14" fx="+00">A↑3</note>
+                <note row="50" velocity="40" delay="14" fx="+00">B↑3</note>
+                <note row="52" velocity="40" delay="14" fx="+00">A↑3</note>
+                <note row="54" velocity="40" delay="14" fx="+00">F-3</note>
+                <note row="56" velocity="40" delay="14" fx="+00">A↑3</note>
+                <note row="59" velocity="0" delay="206">OFF</note>
+                <note row="60" velocity="40" delay="14" fx="+00">A↑3</note>
+                <note row="64" velocity="0" delay="14">OFF</note>
+                <note row="70" velocity="40" delay="14" fx="+00">C-4</note>
+                <note row="72" velocity="40" delay="14" fx="+00">B↑3</note>
+                <note row="74" velocity="40" delay="14" fx="+00">A↑3</note>
+                <note row="76" velocity="40" delay="14" fx="+00">C-4</note>
+                <note row="78" velocity="40" delay="14" fx="+00">C-4</note>
+                <note row="80" velocity="40" delay="14" fx="+00">B↑3</note>
+                <note row="84" velocity="40" delay="14" fx="+00">A↑3</note>
+                <note row="86" velocity="40" delay="14" fx="+00">B↑3</note>
+                <note row="88" velocity="40" delay="14" fx="+00">B↑3</note>
+                <note row="89" velocity="0" delay="206">OFF</note>
+                <note row="90" velocity="40" delay="14" fx="+00">B↑3</note>
+                <note row="92" velocity="40" delay="14" fx="+00">A↑3</note>
+                <note row="94" velocity="40" delay="14" fx="+00">F-3</note>
+                <note row="96" velocity="40" delay="14" fx="+00">A↑3</note>
+                <note row="100" velocity="40" delay="14" fx="+00">A↑3</note>
+                <note row="102" velocity="40" delay="14" fx="+00">F-3</note>
+                <note row="104" velocity="40" delay="14" fx="+00">F-3</note>
+                <note row="106" velocity="40" delay="14" fx="+00">A↑3</note>
+                <note row="109" velocity="0" delay="14">OFF</note>
+                <note row="110" velocity="40" delay="14" fx="+00">C-3</note>
+                <note row="114" velocity="40" delay="14" fx="+00">C-3</note>
+                <note row="116" velocity="40" delay="14" fx="+00">E↑3</note>
+                <note row="120" velocity="40" delay="14" fx="+00">E↑3</note>
+                <note row="122" velocity="40" delay="14" fx="+00">F-3</note>
+                <note row="124" velocity="40" delay="14" fx="+00">F-3</note>
+                <note row="126" velocity="40" delay="14" fx="+00">C-3</note>
+                <note row="129" velocity="0" delay="206">OFF</note>
+                <note row="130" velocity="40" delay="14" fx="+00">C-4</note>
+                <note row="132" velocity="40" delay="14" fx="+00">C-4</note>
+                <note row="134" velocity="40" delay="14" fx="+00">C-4</note>
+                <note row="136" velocity="40" delay="14" fx="+00">E↑4</note>
+                <note row="138" velocity="40" delay="14" fx="+00">F-4</note>
+                <note row="140" velocity="40" delay="14" fx="+00">E↑4</note>
+                <note row="144" velocity="40" delay="14" fx="+00">C-4</note>
+                <note row="146" velocity="40" delay="14" fx="+00">E↑4</note>
+                <note row="150" velocity="40" delay="14" fx="+00">E↑4</note>
+                <note row="154" velocity="40" delay="14" fx="+00">E↑4</note>
+                <note row="156" velocity="40" delay="14" fx="+00">C-4</note>
+                <note row="160" velocity="40" delay="14" fx="+00">C-4</note>
+                <note row="162" velocity="40" delay="14" fx="+00">A↑3</note>
+                <note row="164" velocity="40" delay="14" fx="+00">A↑3</note>
+                <note row="166" velocity="40" delay="14" fx="+00">C-4</note>
+                <note row="168" velocity="40" delay="14" fx="+00">C-4</note>
+                <note row="169" velocity="0" delay="206">OFF</note>
+                <note row="170" velocity="40" delay="14" fx="+00">B↑3</note>
+                <note row="174" velocity="40" delay="14" fx="+00">B↑3</note>
+                <note row="176" velocity="40" delay="14" fx="+00">A↑3</note>
+                <note row="178" velocity="40" delay="14" fx="+00">F-3</note>
+                <note row="180" velocity="0" delay="14">OFF</note>
+                <note row="182" velocity="40" delay="14" fx="+00">F-3</note>
+                <note row="184" velocity="40" delay="14" fx="+00">A↑3</note>
+                <note row="186" velocity="40" delay="14" fx="+00">A↑3</note>
+                <note row="188" velocity="40" delay="14" fx="+00">F-3</note>
+                <note row="190" velocity="40" delay="14" fx="+00">A↑3</note>
+                <note row="192" velocity="40" delay="14" fx="+00">B↑3</note>
+                <note row="194" velocity="40" delay="14" fx="+00">C-4</note>
+                <note row="196" velocity="40" delay="14" fx="+00">B↑3</note>
+                <note row="198" velocity="40" delay="14" fx="+00">C-4</note>
+                <note row="199" velocity="0" delay="14">OFF</note>
+                <note row="200" velocity="40" delay="14" fx="+00">D-4</note>
+                <note row="204" velocity="40" delay="14" fx="+00">E↑4</note>
+                <note row="206" velocity="40" delay="14" fx="+00">F-4</note>
+                <note row="208" velocity="40" delay="14" fx="+00">D-4</note>
+                <note row="210" velocity="40" delay="14" fx="+00">D-4</note>
+                <note row="212" velocity="40" delay="14" fx="+00">E↑4</note>
+                <note row="214" velocity="40" delay="14" fx="+00">F-4</note>
+                <note row="216" velocity="40" delay="14" fx="+00">E↑4</note>
+                <note row="220" velocity="40" delay="14" fx="+00">E↑4</note>
+                <note row="224" velocity="40" delay="14" fx="+00">C-4</note>
+                <note row="226" velocity="40" delay="14" fx="+00">D-4</note>
+                <note row="228" velocity="40" delay="14" fx="+00">D-4</note>
+                <note row="230" velocity="40" delay="14" fx="+00">D-4</note>
+                <note row="234" velocity="40" delay="14" fx="+00">B♭↓3</note>
+                <note row="236" velocity="40" delay="14" fx="+00">B♭↓3</note>
+                <note row="239" velocity="0" delay="206">OFF</note>
+                <note row="240" velocity="40" delay="14" fx="+00">A↑3</note>
+                <note row="244" velocity="40" delay="14" fx="+00">A↑3</note>
+                <note row="246" velocity="40" delay="14" fx="+00">A↑3</note>
+                <note row="248" velocity="40" delay="14" fx="+00">A↑3</note>
+                <note row="250" velocity="40" delay="14" fx="+00">A↑3</note>
+                <note row="252" velocity="40" delay="14" fx="+00">F-3</note>
+                <note row="254" velocity="40" delay="14" fx="+00">F-3</note>
+                <note row="256" velocity="40" delay="14" fx="+00">A↑3</note>
+                <note row="258" velocity="40" delay="14" fx="+00">B↑3</note>
+                <note row="260" velocity="40" delay="14" fx="+00">C-4</note>
+                <note row="262" velocity="40" delay="14" fx="+00">B↑3</note>
+                <note row="264" velocity="40" delay="14" fx="+00">A↑3</note>
+                <note row="266" velocity="40" delay="14" fx="+00">A↑3</note>
+                <note row="268" velocity="40" delay="14" fx="+00">A↑3</note>
+                <note row="270" velocity="40" delay="14" fx="+00">E↑3</note>
+                <note row="274" velocity="40" delay="14" fx="+00">E↑3</note>
+                <note row="276" velocity="40" delay="14" fx="+00">E↑3</note>
+                <note row="279" velocity="0" delay="14">OFF</note>
+            </pattern>
+        </clip>
+        <clip track="chorus3" id="clip19" name="Section 2" loop="false" length="290">
+            <pattern>
+                <note row="4" velocity="40" delay="14" fx="+00">A↑3</note>
+                <note row="6" velocity="40" delay="14" fx="+00">D-4</note>
+                <note row="10" velocity="40" delay="14" fx="+00">D-4</note>
+                <note row="12" velocity="40" delay="14" fx="+00">E↑4</note>
+                <note row="14" velocity="40" delay="14" fx="+00">F-4</note>
+                <note row="16" velocity="40" delay="14" fx="+00">E↑4</note>
+                <note row="18" velocity="40" delay="14" fx="+00">E↑4</note>
+                <note row="20" velocity="40" delay="14" fx="+00">E↑4</note>
+                <note row="24" velocity="40" delay="14" fx="+00">E↑4</note>
+                <note row="25" velocity="0" delay="206">OFF</note>
+                <note row="26" velocity="40" delay="14" fx="+00">E↑4</note>
+                <note row="30" velocity="40" delay="14" fx="+00">E↑4</note>
+                <note row="32" velocity="40" delay="14" fx="+00">D-4</note>
+                <note row="34" velocity="40" delay="14" fx="+00">B↑3</note>
+                <note row="36" velocity="40" delay="14" fx="+00">B♭↓3</note>
+                <note row="38" velocity="40" delay="14" fx="+00">A↑3</note>
+                <note row="40" velocity="40" delay="14" fx="+00">A♭3</note>
+                <note row="44" velocity="40" delay="14" fx="+00">A♭3</note>
+                <note row="45" velocity="0" delay="206">OFF</note>
+                <note row="46" velocity="40" delay="14" fx="+00">B↑3</note>
+                <note row="50" velocity="40" delay="14" fx="+00">B♭↓3</note>
+                <note row="54" velocity="40" delay="14" fx="+00">B↑3</note>
+                <note row="56" velocity="40" delay="14" fx="+00">D-4</note>
+                <note row="60" velocity="40" delay="14" fx="+00">D-4</note>
+                <note row="62" velocity="40" delay="14" fx="+00">E↑4</note>
+                <note row="64" velocity="40" delay="14" fx="+00">F-4</note>
+                <note row="66" velocity="40" delay="14" fx="+00">E↑4</note>
+                <note row="69" velocity="0" delay="206">OFF</note>
+                <note row="70" velocity="40" delay="14" fx="+00">E↑4</note>
+                <note row="72" velocity="0" delay="14">OFF</note>
+                <note row="74" velocity="40" delay="14" fx="+00">C-4</note>
+                <note row="76" velocity="40" delay="14" fx="+00">D-4</note>
+                <note row="80" velocity="40" delay="14" fx="+00">A↑3</note>
+                <note row="84" velocity="40" delay="14" fx="+00">A↑3</note>
+                <note row="85" velocity="0" delay="14">OFF</note>
+                <note row="86" velocity="40" delay="14" fx="+00">D-4</note>
+                <note row="88" velocity="40" delay="14" fx="+00">E♭↓4</note>
+                <note row="90" velocity="40" delay="14" fx="+00">D-4</note>
+                <note row="94" velocity="40" delay="14" fx="+00">B♭↓3</note>
+                <note row="96" velocity="40" delay="14" fx="+00">B↑3</note>
+                <note row="100" velocity="40" delay="14" fx="+00">D-4</note>
+                <note row="102" velocity="40" delay="14" fx="+00">A♭3</note>
+                <note row="104" velocity="40" delay="14" fx="+00">A↑3</note>
+                <note row="105" velocity="0" delay="206">OFF</note>
+                <note row="106" velocity="40" delay="14" fx="+00">D-4</note>
+                <note row="110" velocity="40" delay="14" fx="+00">B↑3</note>
+                <note row="114" velocity="40" delay="14" fx="+00">A↑3</note>
+                <note row="116" velocity="40" delay="14" fx="+00">B♭↓3</note>
+                <note row="118" velocity="40" delay="14" fx="+00">B↑3</note>
+                <note row="120" velocity="40" delay="14" fx="+00">B♭↓3</note>
+                <note row="123" velocity="0" delay="206">OFF</note>
+                <note row="124" velocity="40" delay="14" fx="+00">B♭↓3</note>
+                <note row="126" velocity="40" delay="14" fx="+00">A↑3</note>
+                <note row="130" velocity="40" delay="14" fx="+00">A↑3</note>
+                <note row="134" velocity="40" delay="14" fx="+00">A↑3</note>
+                <note row="136" velocity="40" delay="14" fx="+00">B♭↓3</note>
+                <note row="138" velocity="40" delay="14" fx="+00">A↑3</note>
+                <note row="140" velocity="40" delay="14" fx="+00">A♭3</note>
+                <note row="143" velocity="0" delay="14">OFF</note>
+                <note row="144" velocity="40" delay="14" fx="+00">A♭3</note>
+                <note row="146" velocity="40" delay="14" fx="+00">B↑3</note>
+                <note row="148" velocity="40" delay="14" fx="+00">B♭↓3</note>
+                <note row="150" velocity="40" delay="14" fx="+00">D-4</note>
+                <note row="152" velocity="40" delay="14" fx="+00">A↑3</note>
+                <note row="154" velocity="40" delay="14" fx="+00">E↑4</note>
+                <note row="156" velocity="40" delay="14" fx="+00">C-4</note>
+                <note row="160" velocity="40" delay="14" fx="+00">B↑3</note>
+                <note row="164" velocity="40" delay="14" fx="+00">C-4</note>
+                <note row="165" velocity="0" delay="206">OFF</note>
+                <note row="166" velocity="40" delay="14" fx="+00">D-4</note>
+                <note row="168" velocity="40" delay="14" fx="+00">D-4</note>
+                <note row="170" velocity="40" delay="14" fx="+00">C-4</note>
+                <note row="174" velocity="40" delay="14" fx="+00">F-3</note>
+                <note row="176" velocity="40" delay="14" fx="+00">A♭3</note>
+                <note row="178" velocity="40" delay="14" fx="+00">A↑3</note>
+                <note row="180" velocity="40" delay="14" fx="+00">B♭↓3</note>
+                <note row="184" velocity="40" delay="14" fx="+00">A↑3</note>
+                <note row="186" velocity="40" delay="14" fx="+00">A♭3</note>
+                <note row="189" velocity="0" delay="14">OFF</note>
+                <note row="190" velocity="40" delay="14" fx="+00">F-3</note>
+                <note row="192" velocity="40" delay="14" fx="+00">A♭3</note>
+                <note row="194" velocity="40" delay="14" fx="+00">A♭3</note>
+                <note row="196" velocity="40" delay="14" fx="+00">A♭3</note>
+                <note row="200" velocity="40" delay="14" fx="+00">A♭3</note>
+                <note row="202" velocity="40" delay="14" fx="+00">A↑3</note>
+                <note row="204" velocity="40" delay="14" fx="+00">B♭↓3</note>
+                <note row="206" velocity="40" delay="14" fx="+00">A↑3</note>
+                <note row="209" velocity="0" delay="206">OFF</note>
+                <note row="210" velocity="40" delay="14" fx="+00">A↑3</note>
+                <note row="212" velocity="40" delay="14" fx="+00">B♭↓3</note>
+                <note row="214" velocity="40" delay="14" fx="+00">B↑3</note>
+                <note row="216" velocity="40" delay="14" fx="+00">B♭↓3</note>
+                <note row="218" velocity="40" delay="14" fx="+00">A↑3</note>
+                <note row="220" velocity="40" delay="14" fx="+00">B♭↓3</note>
+                <note row="222" velocity="40" delay="14" fx="+00">A↑3</note>
+                <note row="224" velocity="40" delay="14" fx="+00">F-3</note>
+                <note row="225" velocity="0" delay="206">OFF</note>
+                <note row="226" velocity="40" delay="14" fx="+00">A♭3</note>
+                <note row="230" velocity="40" delay="14" fx="+00">A♭3</note>
+                <note row="232" velocity="40" delay="14" fx="+00">A↑3</note>
+                <note row="234" velocity="40" delay="14" fx="+00">B♭↓3</note>
+                <note row="236" velocity="40" delay="14" fx="+00">A↑3</note>
+                <note row="239" velocity="0" delay="14">OFF</note>
+                <note row="240" velocity="40" delay="14" fx="+00">D-4</note>
+                <note row="244" velocity="40" delay="14" fx="+00">D-4</note>
+                <note row="246" velocity="40" delay="14" fx="+00">B♭↓3</note>
+                <note row="250" velocity="40" delay="14" fx="+00">B↑3</note>
+                <note row="254" velocity="40" delay="14" fx="+00">D-4</note>
+                <note row="256" velocity="40" delay="14" fx="+00">A↑3</note>
+                <note row="260" velocity="40" delay="14" fx="+00">D-4</note>
+                <note row="262" velocity="40" delay="14" fx="+00">B↑3</note>
+                <note row="264" velocity="40" delay="14" fx="+00">B♭↓3</note>
+                <note row="265" velocity="0" delay="206">OFF</note>
+                <note row="266" velocity="40" delay="14" fx="+00">A↑3</note>
+                <note row="270" velocity="40" delay="14" fx="+00">A♭3</note>
+                <note row="274" velocity="40" delay="14" fx="+00">F-3</note>
+                <note row="276" velocity="40" delay="14" fx="+00">A♭3</note>
+                <note row="278" velocity="40" delay="14" fx="+00">A↑3</note>
+                <note row="280" velocity="40" delay="14" fx="+00">B♭↓3</note>
+                <note row="284" velocity="40" delay="14" fx="+00">A↑3</note>
+                <note row="286" velocity="40" delay="14" fx="+00">A♭3</note>
+                <note row="289" velocity="0" delay="14">OFF</note>
+            </pattern>
+        </clip>
+        <clip track="chorus3" id="clip20" name="Section 3" loop="false" length="150">
+            <pattern>
+                <note row="0" velocity="40" delay="14" fx="+00">E↑3</note>
+                <note row="2" velocity="40" delay="14" fx="+00">E↑4</note>
+                <note row="4" velocity="0" delay="14">OFF</note>
+                <note row="10" velocity="40" delay="14" fx="+00">F-4</note>
+                <note row="12" velocity="40" delay="14" fx="+00">D-4</note>
+                <note row="14" velocity="40" delay="14" fx="+00">E↑4</note>
+                <note row="16" velocity="40" delay="14" fx="+00">C-4</note>
+                <note row="20" velocity="40" delay="14" fx="+00">D-4</note>
+                <note row="24" velocity="40" delay="14" fx="+00">D-4</note>
+                <note row="26" velocity="40" delay="14" fx="+00">D-4</note>
+                <note row="30" velocity="40" delay="14" fx="+00">F-4</note>
+                <note row="32" velocity="40" delay="14" fx="+00">F-4</note>
+                <note row="34" velocity="40" delay="14" fx="+00">E↑4</note>
+                <note row="36" velocity="0" delay="14">OFF</note>
+                <note row="50" velocity="40" delay="14" fx="+00">C-4</note>
+                <note row="53" velocity="0" delay="206">OFF</note>
+                <note row="54" velocity="40" delay="14" fx="+00">D-4</note>
+                <note row="56" velocity="40" delay="14" fx="+00">D-4</note>
+                <note row="59" velocity="0" delay="206">OFF</note>
+                <note row="60" velocity="40" delay="14" fx="+00">F-4</note>
+                <note row="64" velocity="40" delay="14" fx="+00">E↑4</note>
+                <note row="66" velocity="40" delay="14" fx="+00">E↑4</note>
+                <note row="68" velocity="40" delay="14" fx="+00">F-4</note>
+                <note row="70" velocity="40" delay="14" fx="+00">D-4</note>
+                <note row="74" velocity="0" delay="14">OFF</note>
+                <note row="90" velocity="40" delay="14" fx="+00">B↑3</note>
+                <note row="92" velocity="40" delay="14" fx="+00">C-4</note>
+                <note row="94" velocity="40" delay="14" fx="+00">D-4</note>
+                <note row="96" velocity="40" delay="14" fx="+00">E↑4</note>
+                <note row="99" velocity="0" delay="206">OFF</note>
+                <note row="100" velocity="40" delay="14" fx="+00">F-4</note>
+                <note row="104" velocity="40" delay="14" fx="+00">E↑4</note>
+                <note row="106" velocity="40" delay="14" fx="+00">F-4</note>
+                <note row="108" velocity="40" delay="14" fx="+00">D-4</note>
+                <note row="110" velocity="40" delay="14" fx="+00">D-4</note>
+                <note row="112" velocity="40" delay="14" fx="+00">E↑4</note>
+                <note row="114" velocity="0" delay="14">OFF</note>
+                <note row="120" velocity="40" delay="14" fx="+00">F-4</note>
+                <note row="124" velocity="40" delay="14" fx="+00">E↑4</note>
+                <note row="126" velocity="40" delay="14" fx="+00">E↑4</note>
+                <note row="130" velocity="40" delay="14" fx="+00">B♭↓3</note>
+                <note row="132" velocity="40" delay="14" fx="+00">D-4</note>
+                <note row="133" velocity="0" delay="206">OFF</note>
+                <note row="134" velocity="40" delay="14" fx="+00">E↑4</note>
+                <note row="136" velocity="40" delay="14" fx="+00">E↑4</note>
+                <note row="140" velocity="40" delay="14" fx="+00">D-4</note>
+                <note row="144" velocity="0" delay="14">OFF</note>
+            </pattern>
+        </clip>
+        <clip track="chorus3" id="clip21" name="Section 4" loop="false" length="160">
+            <pattern>
+                <note row="0" velocity="40" delay="14" fx="+00">A↑3</note>
+                <note row="2" velocity="40" delay="14" fx="+00">F-3</note>
+                <note row="4" velocity="40" delay="14" fx="+00">A↑3</note>
+                <note row="6" velocity="40" delay="14" fx="+00">A↑3</note>
+                <note row="10" velocity="40" delay="14" fx="+00">B↑3</note>
+                <note row="12" velocity="40" delay="14" fx="+00">A↑3</note>
+                <note row="14" velocity="40" delay="14" fx="+00">B↑3</note>
+                <note row="16" velocity="40" delay="14" fx="+00">C-4</note>
+                <note row="20" velocity="40" delay="14" fx="+00">D-4</note>
+                <note row="22" velocity="40" delay="14" fx="+00">C-4</note>
+                <note row="24" velocity="0" delay="14">OFF</note>
+                <note row="38" velocity="40" delay="14" fx="+00">F-4</note>
+                <note row="40" velocity="40" delay="14" fx="+00">D-4</note>
+                <note row="42" velocity="40" delay="14" fx="+00">E↑4</note>
+                <note row="44" velocity="40" delay="14" fx="+00">F-4</note>
+                <note row="46" velocity="40" delay="14" fx="+00">E↑4</note>
+                <note row="49" velocity="0" delay="206">OFF</note>
+                <note row="50" velocity="40" delay="14" fx="+00">E↑4</note>
+                <note row="52" velocity="40" delay="14" fx="+00">E↑3</note>
+                <note row="54" velocity="40" delay="14" fx="+00">E↑4</note>
+                <note row="56" velocity="0" delay="14">OFF</note>
+                <note row="70" velocity="40" delay="14" fx="+00">B↑3</note>
+                <note row="72" velocity="40" delay="14" fx="+00">A♭3</note>
+                <note row="74" velocity="40" delay="14" fx="+00">D-4</note>
+                <note row="75" velocity="0" delay="206">OFF</note>
+                <note row="76" velocity="40" delay="14" fx="+00">D-4</note>
+                <note row="80" velocity="40" delay="14" fx="+00">F-4</note>
+                <note row="82" velocity="40" delay="14" fx="+00">F-4</note>
+                <note row="84" velocity="40" delay="14" fx="+00">E↑4</note>
+                <note row="86" velocity="40" delay="14" fx="+00">E↑4</note>
+                <note row="90" velocity="40" delay="14" fx="+00">E↑4</note>
+                <note row="94" velocity="0" delay="14">OFF</note>
+                <note row="118" velocity="40" delay="14" fx="+00">B↑3</note>
+                <note row="120" velocity="40" delay="14" fx="+00">C-4</note>
+                <note row="124" velocity="40" delay="14" fx="+00">A↑3</note>
+                <note row="126" velocity="40" delay="14" fx="+00">B↑3</note>
+                <note row="128" velocity="40" delay="14" fx="+00">C-4</note>
+                <note row="130" velocity="40" delay="14" fx="+00">D-4</note>
+                <note row="133" velocity="0" delay="206">OFF</note>
+                <note row="134" velocity="40" delay="14" fx="+00">D-4</note>
+                <note row="136" velocity="40" delay="14" fx="+00">F-4</note>
+                <note row="140" velocity="40" delay="14" fx="+00">F-4</note>
+                <note row="144" velocity="0" delay="14">OFF</note>
+            </pattern>
+        </clip>
+        <clip track="chorus3" id="clip22" name="Section 5" loop="false" length="70">
+            <pattern>
+                <note row="4" velocity="40" delay="14" fx="+00">E↑4</note>
+                <note row="6" velocity="40" delay="14" fx="+00">E↑4</note>
+                <note row="8" velocity="40" delay="14" fx="+00">F-4</note>
+                <note row="10" velocity="40" delay="14" fx="+00">G♭↓4</note>
+                <note row="12" velocity="40" delay="14" fx="+00">F-4</note>
+                <note row="14" velocity="40" delay="14" fx="+00">F-4</note>
+                <note row="16" velocity="40" delay="14" fx="+00">E↑4</note>
+                <note row="20" velocity="0" delay="14">OFF</note>
+                <note row="50" velocity="40" delay="14" fx="+00">B↑3</note>
+                <note row="52" velocity="40" delay="14" fx="+00">C-4</note>
+                <note row="54" velocity="40" delay="14" fx="+00">D-4</note>
+                <note row="56" velocity="40" delay="14" fx="+00">F-4</note>
+                <note row="60" velocity="0" delay="14">OFF</note>
+            </pattern>
+        </clip>
+        <clip track="chorus3" id="clip23" name="Fragment" loop="false" length="20">
+            <pattern>
+                <note row="4" velocity="40" delay="14" fx="+00">E↑4</note>
+                <note row="6" velocity="40" delay="14" fx="+00">E↑4</note>
+                <note row="10" velocity="40" delay="14" fx="+00">E↑4</note>
+                <note row="12" velocity="40" delay="14" fx="+00">F-4</note>
+                <note row="14" velocity="40" delay="14" fx="+00">D-4</note>
+                <note row="16" velocity="0" delay="14">OFF</note>
+            </pattern>
+        </clip>
+        <clip track="chorus3" id="clip24" name="Outro" loop="false" length="20">
+            <pattern/>
+        </clip>
+        <clip track="aulos" id="clip25" name="Intro" loop="false" length="20">
+            <pattern/>
+        </clip>
+        <clip track="aulos" id="clip26" name="Section 1" loop="false" length="280">
+            <pattern>
+                <note row="110" velocity="36" fx="+00">C-4</note>
+                <note row="114" velocity="36" fx="+00">C-4</note>
+                <note row="116" velocity="36" fx="+00">E↑4</note>
+                <note row="120" velocity="36" fx="+00">E↑4</note>
+                <note row="122" velocity="36" fx="+00">F-4</note>
+                <note row="124" velocity="36" fx="+00">F-4</note>
+                <note row="126" velocity="36" fx="+00">C-4</note>
+                <note row="129" velocity="0" delay="192">OFF</note>
+                <note row="130" velocity="36" fx="+00">C-5</note>
+                <note row="132" velocity="36" fx="+00">C-5</note>
+                <note row="134" velocity="36" fx="+00">C-5</note>
+                <note row="136" velocity="36" fx="+00">E↑5</note>
+                <note row="138" velocity="36" fx="+00">F-5</note>
+                <note row="140" velocity="36" fx="+00">E↑5</note>
+                <note row="144" velocity="36" fx="+00">C-5</note>
+                <note row="146" velocity="36" fx="+00">E↑5</note>
+                <note row="150" velocity="36" fx="+00">E↑5</note>
+                <note row="154" velocity="36" fx="+00">E↑5</note>
+                <note row="156" velocity="36" fx="+00">C-5</note>
+                <note row="160" velocity="36" fx="+00">C-5</note>
+                <note row="162" velocity="36" fx="+00">A↑4</note>
+                <note row="164" velocity="36" fx="+00">A↑4</note>
+                <note row="166" velocity="36" fx="+00">C-5</note>
+                <note row="168" velocity="36" fx="+00">C-5</note>
+                <note row="169" velocity="0" delay="192">OFF</note>
+                <note row="170" velocity="36" fx="+00">B↑4</note>
+                <note row="174" velocity="36" fx="+00">B↑4</note>
+                <note row="176" velocity="36" fx="+00">A↑4</note>
+                <note row="178" velocity="36" fx="+00">F-4</note>
+                <note row="180" velocity="0">OFF</note>
+                <note row="182" velocity="36" fx="+00">F-4</note>
+                <note row="184" velocity="36" fx="+00">A↑4</note>
+                <note row="186" velocity="36" fx="+00">A↑4</note>
+                <note row="188" velocity="36" fx="+00">F-4</note>
+                <note row="190" velocity="36" fx="+00">A↑4</note>
+                <note row="192" velocity="36" fx="+00">B↑4</note>
+                <note row="194" velocity="36" fx="+00">C-5</note>
+                <note row="196" velocity="36" fx="+00">B↑4</note>
+                <note row="198" velocity="36" fx="+00">C-5</note>
+                <note row="199" velocity="0">OFF</note>
+            </pattern>
+        </clip>
+        <clip track="aulos" id="clip27" name="Section 2" loop="false" length="290">
+            <pattern>
+                <note row="190" velocity="36" fx="+00">F-4</note>
+                <note row="192" velocity="36" fx="+00">A♭4</note>
+                <note row="194" velocity="36" fx="+00">A♭4</note>
+                <note row="196" velocity="36" fx="+00">A♭4</note>
+                <note row="200" velocity="36" fx="+00">A♭4</note>
+                <note row="202" velocity="36" fx="+00">A↑4</note>
+                <note row="204" velocity="36" fx="+00">B♭↓4</note>
+                <note row="206" velocity="36" fx="+00">A↑4</note>
+                <note row="209" velocity="0" delay="192">OFF</note>
+                <note row="210" velocity="36" fx="+00">A↑4</note>
+                <note row="212" velocity="36" fx="+00">B♭↓4</note>
+                <note row="214" velocity="36" fx="+00">B↑4</note>
+                <note row="216" velocity="36" fx="+00">B♭↓4</note>
+                <note row="218" velocity="36" fx="+00">A↑4</note>
+                <note row="220" velocity="36" fx="+00">B♭↓4</note>
+                <note row="222" velocity="36" fx="+00">A↑4</note>
+                <note row="224" velocity="36" fx="+00">F-4</note>
+                <note row="225" velocity="0" delay="192">OFF</note>
+                <note row="226" velocity="36" fx="+00">A♭4</note>
+                <note row="230" velocity="36" fx="+00">A♭4</note>
+                <note row="232" velocity="36" fx="+00">A↑4</note>
+                <note row="234" velocity="36" fx="+00">B♭↓4</note>
+                <note row="236" velocity="36" fx="+00">A↑4</note>
+                <note row="239" velocity="0">OFF</note>
+            </pattern>
+        </clip>
+        <clip track="aulos" id="clip28" name="Section 3" loop="false" length="150">
+            <pattern/>
+        </clip>
+        <clip track="aulos" id="clip29" name="Section 4" loop="false" length="160">
+            <pattern/>
+        </clip>
+        <clip track="aulos" id="clip30" name="Section 5" loop="false" length="70">
+            <pattern/>
+        </clip>
+        <clip track="aulos" id="clip31" name="Fragment" loop="false" length="20">
+            <pattern/>
+        </clip>
+        <clip track="aulos" id="clip32" name="Outro" loop="false" length="20">
+            <pattern/>
+        </clip>
+        <clip track="kithara" id="clip33" name="Intro" loop="false" length="20">
+            <pattern>
+                <note row="0" velocity="26" fx="+00">A↑2</note>
+                <note row="2" velocity="27" fx="+00">B↑2</note>
+                <note row="4" velocity="28" fx="+00">C-3</note>
+                <note row="6" velocity="29" fx="+00">D-3</note>
+                <note row="8" velocity="30" fx="+00">E↑3</note>
+                <note row="10" velocity="32" fx="+00">F-3</note>
+                <note row="12" velocity="34" fx="+00">A↑3</note>
+            </pattern>
+        </clip>
+        <clip track="kithara" id="clip34" name="Section 1" loop="false" length="280">
+            <pattern>
+                <note row="16" velocity="30" fx="+00">B↑3</note>
+                <note row="20" velocity="34" fx="+00">A↑3</note>
+                <note row="26" velocity="34" fx="+00">A↑3</note>
+                <note row="30" velocity="30" fx="+00">A↑3</note>
+                <note row="46" velocity="30" fx="+00">B↑3</note>
+                <note row="50" velocity="30" fx="+00">B↑3</note>
+                <note row="56" velocity="34" fx="+00">A↑3</note>
+                <note row="60" velocity="34" fx="+00">A↑3</note>
+                <note row="70" velocity="30" fx="+00">C-4</note>
+                <note row="76" velocity="30" fx="+00">C-4</note>
+                <note row="80" velocity="34" fx="+00">B↑3</note>
+                <note row="86" velocity="30" fx="+00">B↑3</note>
+                <note row="90" velocity="30" fx="+00">B↑3</note>
+                <note row="96" velocity="34" fx="+00">A↑3</note>
+                <note row="100" velocity="30" fx="+00">A↑3</note>
+                <note row="106" velocity="34" fx="+00">A↑3</note>
+                <note row="110" velocity="34" fx="+00">C-3</note>
+                <note row="116" velocity="34" fx="+00">E↑3</note>
+                <note row="120" velocity="30" fx="+00">E↑3</note>
+                <note row="126" velocity="34" fx="+00">C-3</note>
+                <note row="130" velocity="30" fx="+00">C-4</note>
+                <note row="136" velocity="30" fx="+00">E↑4</note>
+                <note row="140" velocity="34" fx="+00">E↑4</note>
+                <note row="146" velocity="34" fx="+00">E↑4</note>
+                <note row="150" velocity="34" fx="+00">E↑4</note>
+                <note row="156" velocity="34" fx="+00">C-4</note>
+                <note row="160" velocity="30" fx="+00">C-4</note>
+                <note row="166" velocity="30" fx="+00">C-4</note>
+                <note row="170" velocity="34" fx="+00">B↑3</note>
+                <note row="176" velocity="30" fx="+00">A↑3</note>
+                <note row="186" velocity="30" fx="+00">A↑3</note>
+                <note row="190" velocity="30" fx="+00">A↑3</note>
+                <note row="196" velocity="30" fx="+00">B↑3</note>
+                <note row="200" velocity="34" fx="+00">D-4</note>
+                <note row="206" velocity="30" fx="+00">F-4</note>
+                <note row="210" velocity="30" fx="+00">D-4</note>
+                <note row="216" velocity="34" fx="+00">E↑4</note>
+                <note row="220" velocity="34" fx="+00">E↑4</note>
+                <note row="226" velocity="30" fx="+00">D-4</note>
+                <note row="230" velocity="34" fx="+00">D-4</note>
+                <note row="236" velocity="34" fx="+00">B♭↓3</note>
+                <note row="240" velocity="34" fx="+00">A↑3</note>
+                <note row="246" velocity="30" fx="+00">A↑3</note>
+                <note row="250" velocity="30" fx="+00">A↑3</note>
+                <note row="256" velocity="30" fx="+00">A↑3</note>
+                <note row="260" velocity="30" fx="+00">C-4</note>
+                <note row="266" velocity="30" fx="+00">A↑3</note>
+                <note row="270" velocity="34" fx="+00">E↑3</note>
+                <note row="276" velocity="34" fx="+00">E↑3</note>
+            </pattern>
+        </clip>
+        <clip track="kithara" id="clip35" name="Section 2" loop="false" length="290">
+            <pattern>
+                <note row="6" velocity="34" fx="+00">D-4</note>
+                <note row="10" velocity="30" fx="+00">D-4</note>
+                <note row="16" velocity="30" fx="+00">E↑4</note>
+                <note row="20" velocity="34" fx="+00">E↑4</note>
+                <note row="26" velocity="34" fx="+00">E↑4</note>
+                <note row="30" velocity="30" fx="+00">E↑4</note>
+                <note row="36" velocity="30" fx="+00">B♭↓3</note>
+                <note row="40" velocity="34" fx="+00">A♭3</note>
+                <note row="46" velocity="34" fx="+00">B↑3</note>
+                <note row="50" velocity="34" fx="+00">B♭↓3</note>
+                <note row="56" velocity="34" fx="+00">D-4</note>
+                <note row="60" velocity="30" fx="+00">D-4</note>
+                <note row="66" velocity="34" fx="+00">E↑4</note>
+                <note row="70" velocity="30" fx="+00">E↑4</note>
+                <note row="76" velocity="34" fx="+00">D-4</note>
+                <note row="80" velocity="34" fx="+00">A↑3</note>
+                <note row="86" velocity="30" fx="+00">D-4</note>
+                <note row="90" velocity="34" fx="+00">D-4</note>
+                <note row="96" velocity="34" fx="+00">B↑3</note>
+                <note row="100" velocity="30" fx="+00">D-4</note>
+                <note row="106" velocity="34" fx="+00">D-4</note>
+                <note row="110" velocity="34" fx="+00">B↑3</note>
+                <note row="116" velocity="30" fx="+00">B♭↓3</note>
+                <note row="120" velocity="34" fx="+00">B♭↓3</note>
+                <note row="126" velocity="34" fx="+00">A↑3</note>
+                <note row="130" velocity="34" fx="+00">A↑3</note>
+                <note row="136" velocity="30" fx="+00">B♭↓3</note>
+                <note row="140" velocity="34" fx="+00">A♭3</note>
+                <note row="146" velocity="30" fx="+00">B↑3</note>
+                <note row="150" velocity="30" fx="+00">D-4</note>
+                <note row="156" velocity="34" fx="+00">C-4</note>
+                <note row="160" velocity="34" fx="+00">B↑3</note>
+                <note row="166" velocity="30" fx="+00">D-4</note>
+                <note row="170" velocity="34" fx="+00">C-4</note>
+                <note row="176" velocity="30" fx="+00">A♭3</note>
+                <note row="180" velocity="34" fx="+00">B♭↓3</note>
+                <note row="186" velocity="34" fx="+00">A♭3</note>
+                <note row="190" velocity="30" fx="+00">F-3</note>
+                <note row="196" velocity="34" fx="+00">A♭3</note>
+                <note row="200" velocity="30" fx="+00">A♭3</note>
+                <note row="206" velocity="34" fx="+00">A↑3</note>
+                <note row="210" velocity="30" fx="+00">A↑3</note>
+                <note row="216" velocity="30" fx="+00">B♭↓3</note>
+                <note row="220" velocity="30" fx="+00">B♭↓3</note>
+                <note row="226" velocity="34" fx="+00">A♭3</note>
+                <note row="230" velocity="30" fx="+00">A♭3</note>
+                <note row="236" velocity="34" fx="+00">A↑3</note>
+                <note row="240" velocity="34" fx="+00">D-4</note>
+                <note row="246" velocity="34" fx="+00">B♭↓3</note>
+                <note row="250" velocity="34" fx="+00">B↑3</note>
+                <note row="256" velocity="34" fx="+00">A↑3</note>
+                <note row="260" velocity="30" fx="+00">D-4</note>
+                <note row="266" velocity="34" fx="+00">A↑3</note>
+                <note row="270" velocity="34" fx="+00">A♭3</note>
+                <note row="276" velocity="30" fx="+00">A♭3</note>
+                <note row="280" velocity="34" fx="+00">B♭↓3</note>
+                <note row="286" velocity="34" fx="+00">A♭3</note>
+            </pattern>
+        </clip>
+        <clip track="kithara" id="clip36" name="Section 3" loop="false" length="150">
+            <pattern>
+                <note row="0" velocity="30" fx="+00">E↑3</note>
+                <note row="10" velocity="30" fx="+00">F-4</note>
+                <note row="16" velocity="34" fx="+00">C-4</note>
+                <note row="20" velocity="34" fx="+00">D-4</note>
+                <note row="26" velocity="34" fx="+00">D-4</note>
+                <note row="30" velocity="30" fx="+00">F-4</note>
+                <note row="50" velocity="34" fx="+00">C-4</note>
+                <note row="56" velocity="34" fx="+00">D-4</note>
+                <note row="60" velocity="34" fx="+00">F-4</note>
+                <note row="66" velocity="30" fx="+00">E↑4</note>
+                <note row="70" velocity="34" fx="+00">D-4</note>
+                <note row="90" velocity="30" fx="+00">B↑3</note>
+                <note row="96" velocity="34" fx="+00">E↑4</note>
+                <note row="100" velocity="34" fx="+00">F-4</note>
+                <note row="106" velocity="30" fx="+00">F-4</note>
+                <note row="110" velocity="30" fx="+00">D-4</note>
+                <note row="120" velocity="34" fx="+00">F-4</note>
+                <note row="126" velocity="34" fx="+00">E↑4</note>
+                <note row="130" velocity="30" fx="+00">B♭↓3</note>
+                <note row="136" velocity="34" fx="+00">E↑4</note>
+                <note row="140" velocity="34" fx="+00">D-4</note>
+            </pattern>
+        </clip>
+        <clip track="kithara" id="clip37" name="Section 4" loop="false" length="160">
+            <pattern>
+                <note row="0" velocity="30" fx="+00">A↑3</note>
+                <note row="6" velocity="34" fx="+00">A↑3</note>
+                <note row="10" velocity="30" fx="+00">B↑3</note>
+                <note row="16" velocity="34" fx="+00">C-4</note>
+                <note row="20" velocity="30" fx="+00">D-4</note>
+                <note row="40" velocity="30" fx="+00">D-4</note>
+                <note row="46" velocity="34" fx="+00">E↑4</note>
+                <note row="50" velocity="30" fx="+00">E↑4</note>
+                <note row="70" velocity="30" fx="+00">B↑3</note>
+                <note row="76" velocity="34" fx="+00">D-4</note>
+                <note row="80" velocity="30" fx="+00">F-4</note>
+                <note row="86" velocity="34" fx="+00">E↑4</note>
+                <note row="90" velocity="34" fx="+00">E↑4</note>
+                <note row="120" velocity="34" fx="+00">C-4</note>
+                <note row="126" velocity="30" fx="+00">B↑3</note>
+                <note row="130" velocity="34" fx="+00">D-4</note>
+                <note row="136" velocity="34" fx="+00">F-4</note>
+                <note row="140" velocity="34" fx="+00">F-4</note>
+            </pattern>
+        </clip>
+        <clip track="kithara" id="clip38" name="Section 5" loop="false" length="70">
+            <pattern>
+                <note row="6" velocity="30" fx="+00">E↑4</note>
+                <note row="10" velocity="30" fx="+00">G♭↓4</note>
+                <note row="16" velocity="34" fx="+00">E↑4</note>
+                <note row="50" velocity="30" fx="+00">B↑3</note>
+                <note row="56" velocity="34" fx="+00">F-4</note>
+            </pattern>
+        </clip>
+        <clip track="kithara" id="clip39" name="Fragment" loop="false" length="20">
+            <pattern>
+                <note row="6" velocity="34" fx="+00">E↑4</note>
+                <note row="10" velocity="30" fx="+00">E↑4</note>
+            </pattern>
+        </clip>
+        <clip track="kithara" id="clip40" name="Outro" loop="false" length="20">
+            <pattern/>
+        </clip>
+        <clip track="frame" id="clip41" name="Intro" loop="false" length="20">
+            <pattern>
+                <note row="14" velocity="44" fx="+00">A↑2</note>
+                <note row="14" column="1" velocity="44" fx="+00">E↑3</note>
+            </pattern>
+        </clip>
+        <clip track="frame" id="clip42" name="Section 1" loop="false" length="280">
+            <pattern>
+                <note row="0" velocity="56" fx="+00">A↑2</note>
+                <note row="0" column="1" velocity="56" fx="+00">E↑3</note>
+                <note row="10" velocity="50" fx="+00">A↑2</note>
+                <note row="10" column="1" velocity="50" fx="+00">E↑3</note>
+                <note row="40" velocity="50" fx="+00">A↑2</note>
+                <note row="40" column="1" velocity="50" fx="+00">E↑3</note>
+                <note row="80" velocity="50" fx="+00">A↑2</note>
+                <note row="80" column="1" velocity="50" fx="+00">E↑3</note>
+                <note row="110" velocity="50" fx="+00">A↑2</note>
+                <note row="110" column="1" velocity="50" fx="+00">E↑3</note>
+                <note row="130" velocity="50" fx="+00">A↑2</note>
+                <note row="130" column="1" velocity="50" fx="+00">E↑3</note>
+                <note row="160" velocity="50" fx="+00">A↑2</note>
+                <note row="160" column="1" velocity="50" fx="+00">E↑3</note>
+                <note row="200" velocity="50" fx="+00">A↑2</note>
+                <note row="200" column="1" velocity="50" fx="+00">E↑3</note>
+                <note row="240" velocity="50" fx="+00">A↑2</note>
+                <note row="240" column="1" velocity="50" fx="+00">E↑3</note>
+                <note row="270" velocity="50" fx="+00">A↑2</note>
+                <note row="270" column="1" velocity="50" fx="+00">E↑3</note>
+            </pattern>
+        </clip>
+        <clip track="frame" id="clip43" name="Section 2" loop="false" length="290">
+            <pattern>
+                <note row="0" velocity="56" fx="+00">A↑2</note>
+                <note row="0" column="1" velocity="56" fx="+00">E↑3</note>
+                <note row="30" velocity="50" fx="+00">A↑2</note>
+                <note row="30" column="1" velocity="50" fx="+00">E↑3</note>
+                <note row="60" velocity="50" fx="+00">A↑2</note>
+                <note row="60" column="1" velocity="50" fx="+00">E↑3</note>
+                <note row="90" velocity="50" fx="+00">A↑2</note>
+                <note row="90" column="1" velocity="50" fx="+00">E↑3</note>
+                <note row="130" velocity="50" fx="+00">A↑2</note>
+                <note row="130" column="1" velocity="50" fx="+00">E↑3</note>
+                <note row="150" velocity="50" fx="+00">A↑2</note>
+                <note row="150" column="1" velocity="50" fx="+00">E↑3</note>
+                <note row="170" velocity="50" fx="+00">A↑2</note>
+                <note row="170" column="1" velocity="50" fx="+00">E↑3</note>
+                <note row="210" velocity="50" fx="+00">A↑2</note>
+                <note row="210" column="1" velocity="50" fx="+00">E↑3</note>
+                <note row="236" velocity="50" fx="+00">A↑2</note>
+                <note row="236" column="1" velocity="50" fx="+00">E↑3</note>
+                <note row="240" velocity="50" fx="+00">A↑2</note>
+                <note row="240" column="1" velocity="50" fx="+00">E↑3</note>
+                <note row="260" velocity="50" fx="+00">A↑2</note>
+                <note row="260" column="1" velocity="50" fx="+00">E↑3</note>
+            </pattern>
+        </clip>
+        <clip track="frame" id="clip44" name="Section 3" loop="false" length="150">
+            <pattern>
+                <note row="0" velocity="56" fx="+00">A↑2</note>
+                <note row="0" column="1" velocity="56" fx="+00">E↑3</note>
+                <note row="20" velocity="50" fx="+00">A↑2</note>
+                <note row="20" column="1" velocity="50" fx="+00">E↑3</note>
+                <note row="40" velocity="50" fx="+00">A↑2</note>
+                <note row="40" column="1" velocity="50" fx="+00">E↑3</note>
+                <note row="50" velocity="50" fx="+00">A↑2</note>
+                <note row="50" column="1" velocity="50" fx="+00">E↑3</note>
+                <note row="80" velocity="50" fx="+00">A↑2</note>
+                <note row="80" column="1" velocity="50" fx="+00">E↑3</note>
+                <note row="110" velocity="50" fx="+00">A↑2</note>
+                <note row="110" column="1" velocity="50" fx="+00">E↑3</note>
+                <note row="140" velocity="50" fx="+00">A↑2</note>
+                <note row="140" column="1" velocity="50" fx="+00">E↑3</note>
+            </pattern>
+        </clip>
+        <clip track="frame" id="clip45" name="Section 4" loop="false" length="160">
+            <pattern>
+                <note row="0" velocity="56" fx="+00">A↑2</note>
+                <note row="0" column="1" velocity="56" fx="+00">E↑3</note>
+                <note row="30" velocity="50" fx="+00">A↑2</note>
+                <note row="30" column="1" velocity="50" fx="+00">E↑3</note>
+                <note row="50" velocity="50" fx="+00">A↑2</note>
+                <note row="50" column="1" velocity="50" fx="+00">E↑3</note>
+                <note row="60" velocity="50" fx="+00">A↑2</note>
+                <note row="60" column="1" velocity="50" fx="+00">E↑3</note>
+                <note row="90" velocity="50" fx="+00">A↑2</note>
+                <note row="90" column="1" velocity="50" fx="+00">E↑3</note>
+                <note row="100" velocity="50" fx="+00">A↑2</note>
+                <note row="100" column="1" velocity="50" fx="+00">E↑3</note>
+                <note row="130" velocity="50" fx="+00">A↑2</note>
+                <note row="130" column="1" velocity="50" fx="+00">E↑3</note>
+                <note row="150" velocity="50" fx="+00">A↑2</note>
+                <note row="150" column="1" velocity="50" fx="+00">E↑3</note>
+            </pattern>
+        </clip>
+        <clip track="frame" id="clip46" name="Section 5" loop="false" length="70">
+            <pattern>
+                <note row="0" velocity="56" fx="+00">A↑2</note>
+                <note row="0" column="1" velocity="56" fx="+00">E↑3</note>
+                <note row="20" velocity="50" fx="+00">A↑2</note>
+                <note row="20" column="1" velocity="50" fx="+00">E↑3</note>
+                <note row="40" velocity="50" fx="+00">A↑2</note>
+                <note row="40" column="1" velocity="50" fx="+00">E↑3</note>
+                <note row="60" velocity="50" fx="+00">A↑2</note>
+                <note row="60" column="1" velocity="50" fx="+00">E↑3</note>
+            </pattern>
+        </clip>
+        <clip track="frame" id="clip47" name="Fragment" loop="false" length="20">
+            <pattern>
+                <note row="0" velocity="56" fx="+00">A↑2</note>
+                <note row="0" column="1" velocity="56" fx="+00">E↑3</note>
+            </pattern>
+        </clip>
+        <clip track="frame" id="clip48" name="Outro" loop="false" length="20">
+            <pattern>
+                <note row="0" velocity="46" fx="+00">A↑2</note>
+                <note row="0" column="1" velocity="46" fx="+00">E↑3</note>
+            </pattern>
+        </clip>
+        <clip track="kymbala" id="clip49" name="Intro" loop="false" length="20">
+            <pattern>
+                <note row="14" velocity="34">TRM</note>
+            </pattern>
+        </clip>
+        <clip track="kymbala" id="clip50" name="Section 1" loop="false" length="280">
+            <pattern>
+                <note row="0" velocity="44">TRM</note>
+                <note row="10" velocity="32">TRM</note>
+                <note row="40" velocity="32">TRM</note>
+                <note row="80" velocity="32">TRM</note>
+                <note row="110" velocity="32">TRM</note>
+                <note row="130" velocity="32">TRM</note>
+                <note row="160" velocity="32">TRM</note>
+                <note row="200" velocity="32">TRM</note>
+                <note row="240" velocity="32">TRM</note>
+                <note row="270" velocity="32">TRM</note>
+            </pattern>
+        </clip>
+        <clip track="kymbala" id="clip51" name="Section 2" loop="false" length="290">
+            <pattern>
+                <note row="0" velocity="44">TRM</note>
+                <note row="30" velocity="32">TRM</note>
+                <note row="60" velocity="32">TRM</note>
+                <note row="90" velocity="32">TRM</note>
+                <note row="130" velocity="32">TRM</note>
+                <note row="150" velocity="32">TRM</note>
+                <note row="170" velocity="32">TRM</note>
+                <note row="210" velocity="32">TRM</note>
+                <note row="236" velocity="32">TRM</note>
+                <note row="240" velocity="32">TRM</note>
+                <note row="260" velocity="32">TRM</note>
+            </pattern>
+        </clip>
+        <clip track="kymbala" id="clip52" name="Section 3" loop="false" length="150">
+            <pattern>
+                <note row="0" velocity="44">TRM</note>
+                <note row="20" velocity="32">TRM</note>
+                <note row="40" velocity="32">TRM</note>
+                <note row="50" velocity="32">TRM</note>
+                <note row="80" velocity="32">TRM</note>
+                <note row="110" velocity="32">TRM</note>
+                <note row="140" velocity="32">TRM</note>
+            </pattern>
+        </clip>
+        <clip track="kymbala" id="clip53" name="Section 4" loop="false" length="160">
+            <pattern>
+                <note row="0" velocity="44">TRM</note>
+                <note row="30" velocity="32">TRM</note>
+                <note row="50" velocity="32">TRM</note>
+                <note row="60" velocity="32">TRM</note>
+                <note row="90" velocity="32">TRM</note>
+                <note row="100" velocity="32">TRM</note>
+                <note row="130" velocity="32">TRM</note>
+                <note row="150" velocity="32">TRM</note>
+            </pattern>
+        </clip>
+        <clip track="kymbala" id="clip54" name="Section 5" loop="false" length="70">
+            <pattern>
+                <note row="0" velocity="44">TRM</note>
+                <note row="20" velocity="32">TRM</note>
+                <note row="40" velocity="32">TRM</note>
+                <note row="60" velocity="32">TRM</note>
+            </pattern>
+        </clip>
+        <clip track="kymbala" id="clip55" name="Fragment" loop="false" length="20">
+            <pattern>
+                <note row="0" velocity="44">TRM</note>
+            </pattern>
+        </clip>
+        <clip track="kymbala" id="clip56" name="Outro" loop="false" length="20">
+            <pattern>
+                <note row="0" velocity="40">TRM</note>
+            </pattern>
+        </clip>
+    </clips>
+    <arrangement>
+        <pattern track="kymbala"/>
+        <pattern track="frame"/>
+        <pattern track="kithara"/>
+        <pattern track="aulos"/>
+        <pattern track="chorus3"/>
+        <pattern track="chorus2"/>
+        <pattern track="chorus"/>
+    </arrangement>
+</song>
