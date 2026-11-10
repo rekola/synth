@@ -1202,3 +1202,29 @@ TEST(bufferplane_zoom_is_a_cell_attribute_that_survives_composition) {
   CHECK(!CellBuffer::isBlank(blank));
 }
 
+TEST(bufferplane_text_written_in_one_call_is_one_zoom_piece_and_a_call_can_join_the_one_before) {
+  StyleProvider styles;
+  CellBuffer b(2, 12);
+  BufferPlane root(b, styles);
+  TextFace zoomed;
+  zoomed.zoom = 100;
+  root.putstr(0, 0, "abc", zoomed);  // one piece: a, then b and c joined to it
+  root.refresh();
+  CHECK(!b.at(0, 0).zoom_joined && b.at(0, 1).zoom_joined && b.at(0, 2).zoom_joined);
+  // Another call joins the piece before it only when it says so.
+  root.putstr(0, 3, "d", zoomed);
+  TextFace joined = zoomed;
+  joined.zoom_joined = true;
+  root.putstr(0, 4, "e", joined);
+  root.putstr(0, 5, "fg", joined);
+  root.refresh();
+  CHECK(!b.at(0, 3).zoom_joined);
+  CHECK(b.at(0, 4).zoom_joined && b.at(0, 5).zoom_joined && b.at(0, 6).zoom_joined);
+  // Text with no zoom joins nothing, and a double-width character takes both its cells.
+  root.putstr(1, 0, "xyz");
+  root.putstr(1, 4, "\xe3\x81\x82", zoomed);
+  root.refresh();
+  CHECK(!b.at(1, 1).zoom_joined && !b.at(1, 2).zoom_joined);
+  CHECK(!b.at(1, 4).zoom_joined && b.at(1, 5).zoom_joined);
+}
+

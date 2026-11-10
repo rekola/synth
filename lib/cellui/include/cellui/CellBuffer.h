@@ -57,6 +57,11 @@ class CellBuffer {
     // what it comes to (the GTK window scales the glyph about its cell's centre; a terminal
     // cannot and ignores it).
     uint8_t zoom = 0;
+    // Part of one piece with the cell to its left for the zoom: the piece scales about its own
+    // centre, as one, so its characters keep their places in it. Text written in one call is one
+    // piece (CellBuffer::write() joins its cells), and Style::zoom_joined joins a call's first cell
+    // to the previous call's, so a field of differently coloured parts is one piece too.
+    bool zoom_joined = false;
   };
 
   struct Style {
@@ -72,6 +77,8 @@ class CellBuffer {
     bool lift_joined = false;
     bool lift_shadow = true;
     uint8_t zoom = 0;
+    // The text continues the piece to its left, written by an earlier call (see Cell::zoom_joined).
+    bool zoom_joined = false;
   };
 
   CellBuffer(int rows, int cols);
@@ -88,7 +95,7 @@ class CellBuffer {
   // plane is drawn over another.
   static bool isBlank(const Cell & c) {
     return c.text == " " && !c.fg && !c.bg && c.weight == 400 && !c.italic && !c.underline && !c.continuation &&
-           !c.bg_blend && !c.fg_contrast && !c.image && !c.text_run && !c.zoom && !c.backdrop.active();
+           !c.bg_blend && !c.fg_contrast && !c.image && !c.text_run && !c.zoom && !c.zoom_joined && !c.backdrop.active();
   }
 
   // Writes `text` from (row, col) in `style`, clipped to the rectangle

@@ -4044,7 +4044,7 @@ PatternEditor::renderRow(const StyleProvider & styles, int heading_height, const
             } else {
 	      setFgColor(cell_fg);
 	    }
-            putstr(display_row, x, piece, StyleProvider::zoomFace(note_flash));
+            putstr(display_row, x, piece, StyleProvider::zoomFace(note_flash, at > 0)); // the pieces are one field
             x += Utf8::displayWidth(piece);
 	    at += n;
 	  }

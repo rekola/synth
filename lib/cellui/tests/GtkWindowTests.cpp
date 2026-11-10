@@ -130,6 +130,46 @@ TEST(gtk_window_draws_a_glyph_larger_by_its_cell_zoom) {
   CHECK(w->stats().glyphs_zoomed == zoomed);
 }
 
+// The cells of a zoomed piece scale about its common centre: text from one call is one piece, and
+// text written just after it joins it when it says so; a gap, or text that does not, starts another.
+TEST(gtk_window_zooms_the_cells_of_a_piece_as_one) {
+  gtk::Window * w = theWindow();
+  if (!w) return;
+  StyleProvider styles;
+  auto present = [&](const std::function<void(BufferPlane &)> & write) {
+    CellBuffer screen(w->rows(), w->cols());
+    BufferPlane root(screen, styles);
+    write(root);
+    root.refresh();
+    size_t before = w->stats().frames;
+    w->present(screen, {}, root.images());
+    CHECK(pumpUntil(*w, [&] { return w->stats().frames > before; }));
+  };
+  TextFace zoomed;
+  zoomed.zoom = 255;
+  TextFace joined = zoomed;
+  joined.zoom_joined = true;
+  size_t runs = w->stats().zoom_runs, glyphs = w->stats().glyphs_zoomed;
+  present([&](BufferPlane & p) { p.putstr(3, 4, "abc", zoomed); });
+  CHECK(w->stats().zoom_runs == runs + 1 && w->stats().glyphs_zoomed == glyphs + 3);
+  runs = w->stats().zoom_runs;
+  // A note's parts, written one at a time: the first, then two that join it.
+  present([&](BufferPlane & p) {
+    p.putstr(3, 4, "C", zoomed);
+    p.putstr(3, 5, "d", joined);
+    p.putstr(3, 6, "4", joined);
+  });
+  CHECK(w->stats().zoom_runs == runs + 1);
+  runs = w->stats().zoom_runs;
+  // Without joining, the same parts are three pieces.
+  present([&](BufferPlane & p) {
+    p.putstr(3, 4, "C", zoomed);
+    p.putstr(3, 5, "d", zoomed);
+    p.putstr(3, 6, "4", zoomed);
+  });
+  CHECK(w->stats().zoom_runs == runs + 3);
+}
+
 // A cell lit past white (an HDR colour) glows; one at or under white does not.
 TEST(gtk_window_glows_where_a_colour_is_lit_past_white) {
   gtk::Window * w = theWindow();
