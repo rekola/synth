@@ -7,6 +7,7 @@
 #include "BarGrid.h"
 #include "Clip.h"
 #include "JustIntonation.h"
+#include "SceneFollow.h"
 #include "Swing.h"
 #include "TimeSignature.h"
 #include "Tuning.h"
@@ -49,6 +50,16 @@ struct SongScalars {
 
 struct CompiledTracks;
 
+// What the audio thread needs of a scene, by position: its tempo and
+// signature (applied when a follow action launches it) and its follow action.
+struct SceneContent {
+  int tempo = 0;
+  TimeSignature time_signature;
+  FollowAction follow_action = FollowAction::NONE;
+
+  bool operator==(const SceneContent & o) const { return tempo == o.tempo && time_signature == o.time_signature && follow_action == o.follow_action; }
+};
+
 struct PlaybackContent {
   SongScalars scalars;
   // The tracks, instrument pool and bus as of this content. Shared with the
@@ -58,6 +69,9 @@ struct PlaybackContent {
   std::shared_ptr<const CompiledTracks> tracks;
   Arrangement arrangement;
   std::unordered_map<int, std::vector<Clip> > clips_by_track;
+  std::vector<SceneContent> scenes;
+  // Every playable track, so a follow action can launch a scene on all of them.
+  std::vector<int> playable_track_ids;
   uint64_t generation = 0;
 
   const std::vector<Clip> & getClips(int track_id) const {
@@ -70,7 +84,7 @@ struct PlaybackContent {
 // An order-independent hash of everything in a PlaybackContent. Comparing
 // the digest of the live model with the published copy's finds an edit that
 // never closed a Song::Edit.
-uint64_t contentDigest(const SongScalars & scalars, const Arrangement & arrangement, const std::unordered_map<int, std::vector<Clip> > & clips_by_track);
+uint64_t contentDigest(const SongScalars & scalars, const Arrangement & arrangement, const std::unordered_map<int, std::vector<Clip> > & clips_by_track, const std::vector<SceneContent> & scenes = {});
 
 // Hands the audio thread the latest published content without locks or
 // reference counts, and frees displaced content on the UI thread only.

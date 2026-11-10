@@ -183,7 +183,10 @@ paths:
   `scenename::extract()` splits "Waltz 3/4 90 BPM", "0 BPM"/"0/4" clear.
   `ClipPlayer::launchScene()` sends one `QUEUE_SCENE_CHANGE`, applied on the
   bar the clips launch on: the tempo becomes the song tempo, the signature
-  the running signature. Rhythm-library templates carry a signature that Add
+  the running signature. `followAction` on a scene (`model/SceneFollow.h`) makes
+  the audio thread launch the next scene, or stop, once the scene's longest
+  clip has played (`SongState::followScene()`); a scene change cancels it.
+  Rhythm-library templates carry a signature that Add
   to Song gives a scene that has none. `docs/scenes.md`.
 - **Bars** (`TimeSignature.h`, `BarGrid.h`, `docs/time_signatures.md`): a row
   is a sixteenth; n/d is n*16/d rows per bar and 16/d per beat, three times

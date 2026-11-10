@@ -26,7 +26,9 @@ class PlaybackControlEvent {
   // (SongState::queueSceneChange()) - parameter1 = tempo (0: none),
   // parameter2 = numerator * 100 + denominator (0: none), parameter3 =
   // flags (1: hand the bars back to the song's, 2: apply at the first row
-  // played rather than on a bar), parameter4 = the sequence number.
+  // played rather than on a bar), parameter4 = the sequence number,
+  // parameter5 = the launched scene's index + 1 (0: not a scene launch), which
+  // the scene's follow action counts from.
   //
   // BATCH_BEGIN/BATCH_END: Player holds every event between them and
   // handles them together once BATCH_END arrives, so one gesture that
@@ -141,8 +143,8 @@ class PlaybackControlEvent {
   // instead, buffer_name left empty), which simply leave it at its
   // default empty string (PREVIEW_NOTE/PREVIEW_RHYTHM always set it, just
   // not to a real buffer name).
-  PlaybackControlEvent(Type _type, std::string _buffer_name = "", int _parameter1 = 0, int _parameter2 = 0, int _parameter3 = 0, int _parameter4 = 0)
-    : type(_type), buffer_name(std::move(_buffer_name)), parameter1(_parameter1), parameter2(_parameter2), parameter3(_parameter3), parameter4(_parameter4) { }
+  PlaybackControlEvent(Type _type, std::string _buffer_name = "", int _parameter1 = 0, int _parameter2 = 0, int _parameter3 = 0, int _parameter4 = 0, int _parameter5 = 0)
+      : type(_type), buffer_name(std::move(_buffer_name)), parameter1(_parameter1), parameter2(_parameter2), parameter3(_parameter3), parameter4(_parameter4), parameter5(_parameter5) {}
 
   // BUFFER_RENAMED only: buffer_name carries the *old* name (whatever
   // Player's own live_states_/playing_buffer_name_ still call it),
@@ -159,11 +161,12 @@ class PlaybackControlEvent {
   int getParameter2() const { return parameter2; }
   int getParameter3() const { return parameter3; }
   int getParameter4() const { return parameter4; }
+  int getParameter5() const { return parameter5; }
 
  private:
   Type type;
   std::string buffer_name, new_buffer_name;
-  int parameter1 = 0, parameter2 = 0, parameter3 = 0, parameter4 = 0;
+  int parameter1 = 0, parameter2 = 0, parameter3 = 0, parameter4 = 0, parameter5 = 0;
 };
 
 #endif

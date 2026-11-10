@@ -18,6 +18,7 @@
 #include "../doc/UndoHistory.h"
 #include "Scale.h"
 #include "BarGrid.h"
+#include "SceneFollow.h"
 #include "SceneName.h"
 #include "TimeSignature.h"
 #include "Swing.h"
@@ -117,6 +118,12 @@ class Song : public SongObject {
   void setSceneName(int scene, std::string name);
   void setSceneTempo(int scene, int bpm);
   void setSceneTimeSignature(int scene, TimeSignature signature);
+  // What the scene does when it has played through (SceneFollow.h).
+  FollowAction getSceneFollowAction(int scene) const;
+  void setSceneFollowAction(int scene, FollowAction action);
+  // A reserved follow attribute's file text (followaction::kReservedAttributes), "" if none.
+  std::string getSceneReservedAttribute(int scene, const char * name) const;
+  void setSceneReservedAttribute(int scene, const char * name, std::string text);
   // Sets a scene from typed text: a "90 BPM" and a "3/4" in it become the
   // tempo and time signature (the rest the name); with none, they stay as
   // they were.
@@ -632,6 +639,7 @@ private:
    doc::set(*doc_, doc_->root(), prop, value);
   }
   int sceneCount() const;
+  bool sceneHasFollowData(int scene) const;
   void clearScenes();
   doc::NodeId sceneNode(int scene) const;
   doc::NodeId ensureSceneNode(int scene); // kNoNode for a negative scene

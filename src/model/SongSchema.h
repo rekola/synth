@@ -34,6 +34,9 @@ inline const doc::Prop<std::string> kSceneName{"name", ""};
 inline const doc::Prop<int> kSceneTempo{"tempo", 0};
 inline const doc::Prop<int> kSceneTimeNumerator{"timeNumerator", 0};
 inline const doc::Prop<int> kSceneTimeDenominator{"timeDenominator", 0};
+// A FollowAction (SceneFollow.h), 0 = none; the reserved attributes
+// (followaction::kReservedAttributes) are kept as the file's text, by name.
+inline const doc::Prop<int> kSceneFollowAction{"followAction", 0};
 
 }  // namespace songschema
 

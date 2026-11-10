@@ -394,7 +394,13 @@ class SongState : public TrackState {
 	// through - so recording mute is inaudible for anything the
 	// player is actually doing, only for the song's own old content.
 	if (getSamplePos() == 0) advanceLiveTracks(content, i);
-	if (getSamplePos() == 0 && !recording_muted_) {
+        if (stop_after_scene_) {
+          // The last scene has played through: the transport stops on this row.
+          stop_after_scene_ = false;
+          setIsPlaying(false);
+          break;
+        }
+        if (getSamplePos() == 0 && !recording_muted_) {
 	  // pending_resume_retrigger_ only actually describes the very first
 	  // row scheduled after a (re)start - once one row here has
 	  // consumed it, every later one (whether later in this same
@@ -1235,11 +1241,19 @@ class SongState : public TrackState {
   // thread's own from then on and the signature's bars count from that row;
   // the UI mirrors both from the snapshot (getSceneSeq()). A new call
   // replaces one still waiting.
-  void queueSceneChange(int tempo, TimeSignature signature, bool clear_running, bool immediate, int seq) {
-    pending_scene_ = {tempo > 0 || signature.isSet() || clear_running, tempo, signature, clear_running, immediate, seq};
+  // `scene` is the launched scene's index (-1: none), whose follow action
+  // runs once it has played for its length. Any scene change, a manual
+  // launch included, cancels the follow action still pending.
+  void queueSceneChange(int tempo, TimeSignature signature, bool clear_running, bool immediate, int seq, int scene = -1) {
+    pending_scene_ = {tempo > 0 || signature.isSet() || clear_running || scene >= 0, tempo, signature, clear_running, immediate, seq, scene};
+    current_scene_ = -1;
     if (!pending_scene_.active) scene_seq_ = std::max(scene_seq_, seq);
   }
   int getSceneSeq() const { return scene_seq_; }
+  // How many scenes a follow action has launched here.
+  int getSceneFollowSeq() const { return scene_follow_seq_; }
+  // The scene whose follow action is counting down (-1: none).
+  int getCurrentScene() const { return current_scene_; }
   // The tempo the last scene change applied set (0: none) - what the UI
   // mirrors into the song, unlike a ZTxx's.
   int getSceneTempo() const { return scene_tempo_; }
@@ -1309,6 +1323,7 @@ class SongState : public TrackState {
       if (live_track.clip_index >= 0) releaseLiveTrack(track_id, 0);
     }
     silenceLiveTracks(live_tracks_);
+    current_scene_ = -1;
     live_seq_ = std::max(live_seq_, seq);
   }
   // Moves every launched clip's playhead by `delta` rows (a paused
@@ -1420,9 +1435,16 @@ private:
     bool clear_running = false;
     bool immediate = false;
     int seq = 0;
+    int scene = -1;
   };
   PendingScene pending_scene_;
   int scene_seq_ = 0;
+  int scene_follow_seq_ = 0;
+  // The launched scene that is playing and the live clock it started on;
+  // its follow action is decided once it has played for its length.
+  int current_scene_ = -1;
+  int current_scene_start_ = 0;
+  bool stop_after_scene_ = false;
   int scene_tempo_ = 0;
   // The arrangement's bars (the song's signature and its changes), rebuilt
   // when the song structure changes.
@@ -1438,7 +1460,81 @@ private:
     else if (pending_scene_.clear_running)
       running_bars_ = {};
     scene_seq_ = std::max(scene_seq_, pending_scene_.seq);
+    current_scene_ = pending_scene_.scene;
+    current_scene_start_ = live_clock_;
     pending_scene_ = {};
+  }
+
+  // The rows the scene plays for: its longest clip.
+  static int sceneLength(const PlaybackContent & content, int scene) {
+    int length = 1;
+    for (auto & [track_id, clips] : content.clips_by_track) {
+      if (scene < static_cast<int>(clips.size()) && !clips[static_cast<size_t>(scene)].isEmpty()) length = std::max(length, clips[static_cast<size_t>(scene)].getLength());
+    }
+    return length;
+  }
+
+  static int usedSceneCount(const PlaybackContent & content) {
+    int used = 0;
+    for (auto & [track_id, clips] : content.clips_by_track) {
+      for (int i = static_cast<int>(clips.size()); i > used; i--) {
+        if (!clips[static_cast<size_t>(i - 1)].isEmpty()) {
+          used = i;
+          break;
+        }
+      }
+    }
+    return used;
+  }
+
+  // At the start of a row: a scene that has played for its length does what
+  // its follow action says, on this very row.
+  void followScene(const PlaybackContent & content, int frame) {
+    if (current_scene_ < 0 || pending_scene_.active || live_clock_ - current_scene_start_ < sceneLength(content, current_scene_)) return;
+    auto scene = current_scene_;
+    current_scene_ = -1;
+    auto action = scene < static_cast<int>(content.scenes.size()) ? content.scenes[static_cast<size_t>(scene)].follow_action : FollowAction::NONE;
+    auto result = followaction::decide(action, scene, usedSceneCount(content));
+    if (result.kind == followaction::FollowResult::STOP) {
+      // Voices are released first (a held note would otherwise sound on
+      // through the stopped transport), then the transport stops.
+      for (auto & [track_id, live_track] : live_tracks_) {
+        if (live_track.clip_index >= 0) releaseLiveTrack(track_id, frame);
+      }
+      silenceLiveTracks(live_tracks_);
+      stop_after_scene_ = true;
+    } else if (result.kind == followaction::FollowResult::LAUNCH) {
+      launchSceneNow(content, result.scene, frame);
+    }
+  }
+
+  // Launches `scene` on every track at once, with its tempo and signature,
+  // as a scene launch does but on this row and not the next bar.
+  void launchSceneNow(const PlaybackContent & content, int scene, int frame) {
+    int tempo = 0;
+    TimeSignature signature;
+    if (scene < static_cast<int>(content.scenes.size())) {
+      tempo = content.scenes[static_cast<size_t>(scene)].tempo;
+      signature = content.scenes[static_cast<size_t>(scene)].time_signature;
+    }
+    if (tempo > 0) applyTempo(tempo);
+    scene_tempo_ = tempo;
+    if (signature.isSet()) running_bars_ = {signature, absolute_pos_};
+    scene_follow_seq_++;
+    current_scene_ = scene;
+    current_scene_start_ = live_clock_;
+    for (auto track_id : content.playable_track_ids) {
+      auto & clips = content.getClips(track_id);
+      bool has_clip = scene < static_cast<int>(clips.size()) && !clips[static_cast<size_t>(scene)].isEmpty();
+      // An empty slot without a stop button leaves the track alone.
+      bool has_stop = scene >= static_cast<int>(clips.size()) || clips[static_cast<size_t>(scene)].hasStopButton();
+      if (!has_clip && !has_stop) continue;
+      auto & live_track = live_tracks_[track_id];
+      releaseLiveTrack(track_id, frame);
+      live_track.clip_index = has_clip ? scene : LiveTrackInfo::kSilent;
+      live_track.launch_clock = live_clock_;
+      live_track.queued = LiveTrackInfo::kNothingQueued;
+    }
   }
 
   LiveTracks live_tracks_;
@@ -1453,6 +1549,7 @@ private:
     // A launched scene's tempo and signature take effect on the bar (or
     // the first row played, from a stopped transport) the clips launch on.
     if (pending_scene_.active && (pending_scene_.immediate || barsAt(absolute_pos_).rowInBar(absolute_pos_) == 0)) applyPendingScene();
+    followScene(content, frame);
     bool bar_start = barsAt(absolute_pos_).rowInBar(absolute_pos_) == 0;
     for (auto it = live_tracks_.begin(); it != live_tracks_.end(); ) {
       auto track_id = it->first;

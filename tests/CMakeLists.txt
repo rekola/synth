@@ -53,6 +53,7 @@ add_executable(synth_tests
 	LaunchpadTimingTests.cpp
 	ClipPlayerTests.cpp
 	LivePlaybackTests.cpp
+	SceneFollowTests.cpp
 	TransportTimingTests.cpp
 	PercussionTrackTests.cpp
 	SF2ModulatorTests.cpp

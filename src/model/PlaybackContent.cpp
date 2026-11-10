@@ -63,7 +63,7 @@ uint64_t digestClip(const Clip & clip) {
 }  // namespace
 
 uint64_t
-contentDigest(const SongScalars & scalars, const Arrangement & arrangement, const std::unordered_map<int, std::vector<Clip> > & clips_by_track) {
+contentDigest(const SongScalars & scalars, const Arrangement & arrangement, const std::unordered_map<int, std::vector<Clip> > & clips_by_track, const std::vector<SceneContent> & scenes) {
   uint64_t total = 0;
   uint64_t s = combine(20, static_cast<uint64_t>(scalars.tempo));
   s = combine(s, static_cast<uint64_t>(scalars.swing));
@@ -82,6 +82,11 @@ contentDigest(const SongScalars & scalars, const Arrangement & arrangement, cons
     if (scalars.scale_corrections.present[index]) s = combine(s, static_cast<uint64_t>(step * 1000 + scalars.scale_corrections.cents[index] + 500));
   }
   total += s;
+  for (size_t i = 0; i < scenes.size(); i++) {
+    auto & scene = scenes[i];
+    total += combine(combine(combine(combine(16, i), static_cast<uint64_t>(scene.tempo)), static_cast<uint64_t>(scene.time_signature.numerator * 100 + scene.time_signature.denominator)),
+                     static_cast<uint64_t>(scene.follow_action));
+  }
   for (auto & [ track_id, pattern ] : arrangement.getPatternsByTrack()) total += combine(combine(10, static_cast<uint64_t>(track_id)), digestPattern(pattern));
   for (auto & [ track_id, instances ] : arrangement.getInstancesByTrack()) {
     uint64_t t = combine(11, static_cast<uint64_t>(track_id));

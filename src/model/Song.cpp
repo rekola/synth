@@ -662,6 +662,8 @@ Song::compileContent() const {
     auto & compiled = content->clips_by_track[track_id];
     for (auto clip : getClips(track_id)) compiled.push_back(clip.toClip());
   }
+  for (int scene = 0; scene < sceneCount(); scene++) content->scenes.push_back({getSceneTempo(scene), getSceneTimeSignature(scene), getSceneFollowAction(scene)});
+  content->playable_track_ids = getPlayableTrackIds();
   return content;
 }
 
@@ -727,7 +729,7 @@ bool
 Song::publishedContentIsCurrent() const {
   auto content = ContentPublisher::Reader(*content_publisher_);
   auto fresh = compileContent();
-  return contentDigest(content->scalars, content->arrangement, content->clips_by_track) == contentDigest(fresh->scalars, fresh->arrangement, fresh->clips_by_track);
+  return contentDigest(content->scalars, content->arrangement, content->clips_by_track, content->scenes) == contentDigest(fresh->scalars, fresh->arrangement, fresh->clips_by_track, fresh->scenes);
 }
 
 // Sample rate used to construct Song's own bus-slot BusEffect instances
@@ -993,6 +995,10 @@ Song::open(const std::string & filename, const InstrumentProvider & provider) {
         int numerator = 0, denominator = 0;
         if (auto text = it->Attribute("timeSignature"); text && parseSignatureText(text, numerator, denominator) && numerator > 0 && numerator <= 32 && scenename::validDenominator(denominator)) {
           setSceneTimeSignature(scene_index, {numerator, denominator});
+        }
+        setSceneFollowAction(scene_index, followaction::parse(it->Attribute("followAction")));
+        for (auto attribute : followaction::kReservedAttributes) {
+          if (auto text = it->Attribute(attribute)) setSceneReservedAttribute(scene_index, attribute, text);
         }
       }
     }
@@ -1289,7 +1295,7 @@ Song::save(const std::string & filename) const {
 
   // One <scene> per scene position, in order; trailing empty ones aren't written.
   auto named_scenes = sceneCount();
-  while (named_scenes > 0 && getSceneName(named_scenes - 1).empty() && getSceneTempo(named_scenes - 1) == 0 && !getSceneTimeSignature(named_scenes - 1).isSet()) named_scenes--;
+  while (named_scenes > 0 && getSceneName(named_scenes - 1).empty() && getSceneTempo(named_scenes - 1) == 0 && !getSceneTimeSignature(named_scenes - 1).isSet() && !sceneHasFollowData(named_scenes - 1)) named_scenes--;
   if (named_scenes > 0) {
     auto scenes = doc.NewElement("scenes");
     root->InsertEndChild(scenes);
@@ -1298,6 +1304,11 @@ Song::save(const std::string & filename) const {
       if (!getSceneName(i).empty()) scene->SetAttribute("name", getSceneName(i).c_str());
       if (getSceneTempo(i) > 0) scene->SetAttribute("tempo", getSceneTempo(i));
       if (getSceneTimeSignature(i).isSet()) scene->SetAttribute("timeSignature", getSceneTimeSignature(i).toString().c_str());
+      if (getSceneFollowAction(i) != FollowAction::NONE) scene->SetAttribute("followAction", followaction::name(getSceneFollowAction(i)));
+      for (auto attribute : followaction::kReservedAttributes) {
+        auto text = getSceneReservedAttribute(i, attribute);
+        if (!text.empty()) scene->SetAttribute(attribute, text.c_str());
+      }
       scenes->InsertEndChild(scene);
     }
   }
@@ -1505,6 +1516,37 @@ Song::setSceneTempo(int scene, int bpm) {
   if (scene < 0) return;
   Edit edit(*this, "set scene tempo");
   doc::set(*doc_, ensureSceneNode(scene), songschema::kSceneTempo, std::max(bpm, 0));
+}
+
+FollowAction
+Song::getSceneFollowAction(int scene) const {
+  auto value = doc::get(*doc_, sceneNode(scene), songschema::kSceneFollowAction);
+  return value >= 0 && value < static_cast<int>(followaction::kNames.size()) ? static_cast<FollowAction>(value) : FollowAction::NONE;
+}
+
+void Song::setSceneFollowAction(int scene, FollowAction action) {
+  if (scene < 0) return;
+  Edit edit(*this, "set scene follow action");
+  doc::set(*doc_, ensureSceneNode(scene), songschema::kSceneFollowAction, static_cast<int>(action));
+}
+
+std::string
+Song::getSceneReservedAttribute(int scene, const char * name) const {
+  return doc::getRef(*doc_, sceneNode(scene), doc::Prop<std::string>{name, ""});
+}
+
+void Song::setSceneReservedAttribute(int scene, const char * name, std::string text) {
+  if (scene < 0) return;
+  Edit edit(*this, "set scene follow attribute");
+  doc::set(*doc_, ensureSceneNode(scene), doc::Prop<std::string>{name, ""}, std::move(text));
+}
+
+bool Song::sceneHasFollowData(int scene) const {
+  if (getSceneFollowAction(scene) != FollowAction::NONE) return true;
+  for (auto attribute : followaction::kReservedAttributes) {
+    if (!getSceneReservedAttribute(scene, attribute).empty()) return true;
+  }
+  return false;
 }
 
 void

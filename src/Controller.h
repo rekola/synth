@@ -1221,6 +1221,8 @@ class Controller {
   std::map<std::string, std::shared_ptr<Song>> songs_;
   // The last scene change mirrored into each buffer's song (PlaybackInfo::getSceneSeq()).
   std::map<std::string, int> mirrored_scene_seq_;
+  // The same for scenes the audio thread launched by a follow action.
+  std::map<std::string, int> mirrored_scene_follow_seq_;
   // hasUnsavedChanges()'s baseline, one per songs_ entry rather than one
   // shared scalar - each buffer's own unsaved-changes state is independent
   // of whichever buffer happens to be active, so switching the active one

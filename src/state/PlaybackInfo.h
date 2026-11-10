@@ -104,7 +104,7 @@ class PlaybackInfo {
     scalars("transport", { static_cast<uint64_t>(is_playing_), static_cast<uint64_t>(absolute_pos_), static_cast<uint64_t>(sample_pos_), static_cast<uint64_t>(position_edit_seq_) });
     scalars("pitch", {static_cast<uint64_t>(std::llround(global_pitch_units_ * 16.0))});
     scalars("voices", { static_cast<uint64_t>(voice_count_), static_cast<uint64_t>(allocated_voice_count_) });
-    scalars("live", { static_cast<uint64_t>(live_clock_), static_cast<uint64_t>(live_start_clock_), static_cast<uint64_t>(live_seq_), static_cast<uint64_t>(scene_seq_), static_cast<uint64_t>(tempo_) });
+    scalars("live", {static_cast<uint64_t>(live_clock_), static_cast<uint64_t>(live_start_clock_), static_cast<uint64_t>(live_seq_), static_cast<uint64_t>(scene_seq_), static_cast<uint64_t>(scene_follow_seq_), static_cast<uint64_t>(tempo_)});
     scalars("latency", { static_cast<uint64_t>(getRoundTripLatencyMs()), static_cast<uint64_t>(latency_is_nominal_) }); // as the info line shows it
     // Maps are summed entry by entry, so their iteration order does not matter.
     uint64_t tracks = 0;
@@ -164,6 +164,10 @@ class PlaybackInfo {
   void setRunningBars(RunningBars running) { running_bars_ = running; }
   int getSceneSeq() const { return scene_seq_; }
   void setSceneSeq(int seq) { scene_seq_ = seq; }
+  // How many scenes the audio thread has launched on its own, by a follow
+  // action; they carry no sequence number of the UI's.
+  int getSceneFollowSeq() const { return scene_follow_seq_; }
+  void setSceneFollowSeq(int seq) { scene_follow_seq_ = seq; }
   // The last Live View change the audio thread had applied when this
   // snapshot was taken - see ClipPlayer's own prediction of it.
   int getLiveSeq() const { return live_seq_; }
@@ -197,6 +201,7 @@ private:
   int scene_tempo_ = 0;
   RunningBars running_bars_;
   int scene_seq_ = 0;
+  int scene_follow_seq_ = 0;
 
   std::unordered_map<int, TrackInfo> effect_info_;
   std::unordered_map<int, std::vector<ActiveVoiceInfo> > active_voices_;
