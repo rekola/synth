@@ -15,35 +15,46 @@
 #include <charconv>
 #include <vector>
 
-// One cell of a pattern. A cell with a velocity is a note-on, an OFF or
-// aftertouch: an OFF is its own flag, never inferred from the velocity, and
-// otherwise whether the cell has a value decides between a note-on and
-// aftertouch (pressure on whatever sounds in the column). Velocity 0 is a real
-// note-on, one that starts from silence. There is one 7-bit velocity: the
-// strike velocity of a note-on, the release velocity (the "lift") of an OFF, the
-// pressure of aftertouch. A cell with no velocity holds at most fx.
+// One cell of a pattern. Its type is held in its value: a note-on has the
+// note's value, and the three largest values mean aftertouch (pressure on
+// whatever sounds in the column), an OFF, and undefined (an empty cell, or one
+// with only fx). Never the velocity: velocity 0 is a real note-on, one that
+// starts from silence. There is one 7-bit velocity, always present on a
+// note-on, an OFF and aftertouch: the strike velocity, the release velocity
+// (the "lift") and the pressure.
 class Note {
  public:
   Note() = default;
-  // A note-on, or aftertouch for a negative value (no value). The velocity is
-  // 7-bit.
+  // A note-on; aftertouch for a negative value (no value). The velocity is 7-bit.
   explicit Note(int _value, int _velocity = constants::NEUTRAL_VELOCITY, int _delay = 0)
-      : packed_(pack(false, _value, _velocity)), delay_(clampDelay(_delay)) {}
+      : packed_(pack(_value < 0 ? kAftertouch : clampValue(_value), _velocity)), delay_(clampDelay(_delay)) {}
   // A note-on, or an OFF for the text "off"/"OFF" (the velocity is then its lift).
   explicit Note(std::string_view input_value, Tuning tuning, int _velocity = constants::NEUTRAL_VELOCITY, int _delay = 0, int default_octave = 4)
-      : packed_(pack(input_value == "off" || input_value == "OFF", stringToKey(tuning, input_value, default_octave), _velocity)),
+      : packed_(pack(input_value == "off" || input_value == "OFF" ? kOff : clampValue(stringToKey(tuning, input_value, default_octave)), _velocity)),
         delay_(clampDelay(_delay)) {}
 
-  // An OFF with release velocity `lift` (7-bit); `value` names the note it
-  // releases where that is known (a step grid), 0 otherwise.
-  static Note off(int lift = constants::NEUTRAL_VELOCITY, int delay = 0, int value = 0) {
+  // An OFF with release velocity `lift` (7-bit).
+  static Note off(int lift = constants::NEUTRAL_VELOCITY, int delay = 0) {
     Note n;
-    n.packed_ = pack(true, value, lift);
+    n.packed_ = pack(kOff, lift);
     n.delay_ = clampDelay(delay);
     return n;
   }
   // Pressure on whatever sounds in the column: a velocity and no value.
   static Note aftertouch(int pressure, int delay = 0) { return Note(-1, pressure, delay); }
+
+  // The value as one int, for storing: a note's value, or -1 undefined, -2
+  // aftertouch, -3 OFF. fromCode() is its inverse.
+  int toCode() const { return isNoteOn() ? getValue() : isAftertouch() ? -2
+                                                    : isOff()          ? -3
+                                                                       : -1; }
+  static Note fromCode(int code, int velocity, int delay) {
+    Note n = code >= 0 ? Note(code, velocity, delay) : code == -2 ? aftertouch(velocity, delay)
+                                                   : code == -3   ? off(velocity, delay)
+                                                                  : Note();
+    if (!n.isDefined()) n.setVelocity(velocity);
+    return n;
+  }
 
   // int, not short: value is stored as int (transpose() can legitimately
   // grow it well past SHRT_MAX for a high-EDO tuning many octaves up -
@@ -51,7 +62,8 @@ class Note {
   // int (getFrequencyFor(Tuning, int)/noteOn's int note_value/...) -
   // returning short here was pure incidental narrowing on the way out,
   // not something any caller actually needed.
-  int getValue() const { return (packed_ & kValueMask) == kNoValue ? -1 : static_cast<int>(packed_ & kValueMask); }
+  // -1 unless the cell is a note-on.
+  int getValue() const { return isNoteOn() ? static_cast<int>(packed_ & kValueMask) : -1; }
   short getVelocity() const { return static_cast<short>((packed_ >> kVelocityShift) & velocity::kMax7); }
   // 0-1. A note-on at velocity 0 is exactly 0: the voice starts silent.
   float getVelocityAsFloat() const { return velocity::toFloat(getVelocity()); }
@@ -117,23 +129,22 @@ class Note {
     fx[2] = kHex[magnitude & 15];
   }
   float getDelayAsFloat() const { return delay_ / 255.0f; }
-  // Whether the cell has a velocity: a note-on, an OFF or aftertouch.
-  bool isDefined() const { return (packed_ & kHasVelocityBit) != 0; }
+  // A note-on, an OFF or aftertouch (not an empty cell or one with only fx).
+  bool isDefined() const { return value() != kUndefined; }
   // A cell worth keeping: a note, or only fx (a command for the column, such
   // as 0Gxx's glide rate or a retrigger, with no note of its own). Storage and
   // display go by this; playback and editing of notes by isDefined().
   bool hasContent() const { return isDefined() || hasFx(); }
-  bool isNoteOn() const { return isDefined() && !isOff() && getValue() >= 0; }
-  bool isOff() const { return (packed_ & kOffBit) != 0 && isDefined(); }
-  bool isAftertouch() const { return isDefined() && !isOff() && getValue() < 0; }
+  bool isNoteOn() const { return value() < kAftertouch; }
+  bool isOff() const { return value() == kOff; }
+  bool isAftertouch() const { return value() == kAftertouch; }
 
   // Held to 0-127.
-  // On a cell with none, this makes it aftertouch.
-  void setVelocity(int v) { packed_ = (packed_ & ~(static_cast<uint32_t>(velocity::kMax7) << kVelocityShift)) | (clampVelocity(v) << kVelocityShift) | kHasVelocityBit; }
+  void setVelocity(int v) { packed_ = (packed_ & ~(static_cast<uint32_t>(velocity::kMax7) << kVelocityShift)) | (clampVelocity(v) << kVelocityShift); }
   void setDelay(int d) { delay_ = clampDelay(d); }
 
   void clear() {
-    packed_ = kNoValue;
+    packed_ = pack(kUndefined, constants::NEUTRAL_VELOCITY);
     delay_ = 0;
     clearFx();
   }
@@ -153,7 +164,7 @@ class Note {
   void transpose(int delta) {
     if (!isNoteOn()) return;
     auto next = static_cast<int64_t>(getValue()) + delta;
-    packed_ = pack(false, static_cast<int>(std::clamp<int64_t>(next, 0, kMaxValue)), getVelocity());
+    packed_ = pack(clampValue(static_cast<int>(std::clamp<int64_t>(next, 0, kMaxValue))), getVelocity());
   }
 
   std::string toString(Tuning tuning) const {
@@ -534,23 +545,21 @@ class Note {
   }
 
  private:
-  // 8 bytes: one word holding the value (23 bits, kNoValue for none), the
-  // velocity (7) and the has-velocity and OFF flags, then the delay and the
-  // three fx characters.
-  static constexpr int kVelocityShift = 23;
+  // 8 bytes: one word holding the value (25 bits) and the velocity (7), then the
+  // delay and the three fx characters. The top three values are the other types.
+  static constexpr int kVelocityShift = 25;
   static constexpr uint32_t kValueMask = (1u << kVelocityShift) - 1;
-  static constexpr uint32_t kNoValue = kValueMask;
-  static constexpr uint32_t kMaxValue = kValueMask - 1;
-  static constexpr uint32_t kHasVelocityBit = 1u << 30, kOffBit = 1u << 31;
-  static constexpr uint32_t pack(bool off, int value, int velocity) {
-    uint32_t v = value < 0 ? kNoValue : static_cast<uint32_t>(std::clamp<int64_t>(value, 0, kMaxValue));
-    uint32_t vel = static_cast<uint32_t>(std::clamp(velocity, 0, 127));
-    return (off ? kOffBit : 0u) | kHasVelocityBit | (vel << kVelocityShift) | v;
+  static constexpr uint32_t kUndefined = kValueMask, kOff = kValueMask - 1, kAftertouch = kValueMask - 2;
+  static constexpr uint32_t kMaxValue = kValueMask - 3;
+  static constexpr uint32_t clampValue(int value) { return static_cast<uint32_t>(std::clamp<int64_t>(value, 0, kMaxValue)); }
+  static constexpr uint32_t pack(uint32_t value, int velocity) {
+    return (static_cast<uint32_t>(std::clamp(velocity, 0, 127)) << kVelocityShift) | value;
   }
+  uint32_t value() const { return packed_ & kValueMask; }
   static uint32_t clampVelocity(int v) { return static_cast<uint32_t>(std::clamp(v, 0, velocity::kMax7)); }
   static uint8_t clampDelay(int d) { return static_cast<uint8_t>(std::clamp(d, 0, 255)); }
 
-  uint32_t packed_ = kNoValue; // no velocity, no value
+  uint32_t packed_ = pack(kUndefined, constants::NEUTRAL_VELOCITY);
   uint8_t delay_ = 0;
   static int hexDigit(char c) {
     if (c >= '0' && c <= '9') return c - '0';

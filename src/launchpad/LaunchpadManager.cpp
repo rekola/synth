@@ -2296,7 +2296,7 @@ void LaunchpadManager::handleStepGridPadEvent(const LaunchpadPadEvent & ev, Cont
       edit_target.pattern->deleteNote(edit_target.effective_row, existing_column);
       if (off_target.pattern) {
         auto next = off_target.pattern->getNotes(off_target.effective_row);
-        if (existing_column < static_cast<int>(next.size()) && next[static_cast<size_t>(existing_column)].isOff() && next[static_cast<size_t>(existing_column)].getValue() == note) {
+        if (existing_column < static_cast<int>(next.size()) && next[static_cast<size_t>(existing_column)].isOff()) {
           off_target.pattern->deleteNote(off_target.effective_row, existing_column);
         }
       }
@@ -2307,7 +2307,7 @@ void LaunchpadManager::handleStepGridPadEvent(const LaunchpadPadEvent & ev, Cont
       if (off_target.pattern) {
         auto next = off_target.pattern->getNotes(off_target.effective_row);
         if (column >= static_cast<int>(next.size()) || !next[static_cast<size_t>(column)].isDefined()) {
-          off_target.pattern->setNote(off_target.effective_row, column, Note::off(constants::NEUTRAL_VELOCITY, 0, note));
+          off_target.pattern->setNote(off_target.effective_row, column, Note::off());
         }
       }
     }

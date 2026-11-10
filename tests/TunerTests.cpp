@@ -20,7 +20,7 @@ TEST(tuner_12edo_octave_doubles_frequency) {
 }
 
 TEST(tuner_note_off_and_undefined_have_no_frequency) {
-  auto off = Note::off(constants::NEUTRAL_VELOCITY, 0, 60);
+  auto off = Note::off();
   CHECK(off.isOff());
   CHECK_NEAR(getFrequencyFor(Tuning::EDO12, off), 0.0f, 1e-6f);
 
