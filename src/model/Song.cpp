@@ -153,7 +153,7 @@ static bool parsePatternContent(XMLElement & pattern_element, Pattern & pattern,
       int velocity = velocity_text ? atoi(velocity_text) : constants::NEUTRAL_VELOCITY;
       int delay = delay_text ? atoi(delay_text) : 0;
 
-      auto notes = Note::createFromString(value_text, static_cast<short>(velocity), static_cast<short>(delay), tuning);
+      auto notes = Note::createFromString(value_text, velocity, delay, tuning);
       for (int i = 0; i < static_cast<int>(notes.size()); i++) {
         auto note = notes[static_cast<size_t>(i)];
         if (fx_text) note.setFx(fx_text);
@@ -162,7 +162,7 @@ static bool parsePatternContent(XMLElement & pattern_element, Pattern & pattern,
     } else if (velocity_text || fx_text) {
       // No note: aftertouch when it has a velocity (its pressure), else a cell that only carries fx.
       Note cell;
-      if (velocity_text) cell = Note::aftertouch(static_cast<short>(atoi(velocity_text)), static_cast<short>(delay_text ? atoi(delay_text) : 0));
+      if (velocity_text) cell = Note::aftertouch(atoi(velocity_text), delay_text ? atoi(delay_text) : 0);
       if (!fx_text || cell.setFx(fx_text)) pattern.setNote(row_text ? atoi(row_text) : 0, column_text ? atoi(column_text) : 0, cell);
     }
   }

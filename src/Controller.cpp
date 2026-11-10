@@ -1658,7 +1658,7 @@ Controller::writeReleaseOff(std::set<std::pair<int, int>> & cleared_rows, bool a
   auto song = getCurrentSong();
   auto target = resolveEditTarget(*song, track_id, row, getFocusedClip());
   Song::Edit edit(*song, "release note");
-  target.pattern->setNote(target.effective_row, note_column, Note::off(constants::NEUTRAL_VELOCITY, static_cast<short>(delay)));
+  target.pattern->setNote(target.effective_row, note_column, Note::off(constants::NEUTRAL_VELOCITY, delay));
 }
 
 void
@@ -1676,7 +1676,7 @@ Controller::applyNotePressure(int row, int track_id, int note_column, short velo
   auto note = target.pattern->getNote(target.effective_row, note_column);
   if (note.isDefined() && !note.isAftertouch()) return; // never overwrite a real note
   if (!note.isDefined()) note = Note::aftertouch(velocity);
-  note.setDelay(static_cast<short>(delay));
+  note.setDelay(delay);
   note.setVelocity(velocity);
   target.pattern->setNote(target.effective_row, note_column, note);
 }

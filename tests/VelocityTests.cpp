@@ -110,9 +110,23 @@ TEST(a_note_is_8_bytes_and_keeps_its_kind) {
   CHECK(Note(60).getVelocity() == constants::NEUTRAL_VELOCITY);
   CHECK(Note("off", Tuning::EDO12).isOff());
   CHECK(Note("C-4", Tuning::EDO12).isNoteOn());
+  // Out-of-range ints are held to the range, not wrapped through a narrower type.
   Note held(60, 100);
   held.setVelocity(300);
   CHECK(held.getVelocity() == 127);
+  held.setVelocity(65536 + 5);
+  CHECK(held.getVelocity() == 127);
+  held.setVelocity(-70000);
+  CHECK(held.getVelocity() == 0);
+  CHECK(Note(60, 65536 + 5).getVelocity() == 127);
+  CHECK(Note::off(1000).getVelocity() == 127);
+  CHECK(Note(60, 100, 65536 + 5).getDelay() == 255);
+  // No value: aftertouch. No velocity: an empty cell, or fx only.
+  CHECK(Note(-1, 50).isAftertouch() && !Note(-1, 50).isNoteOn());
+  Note empty;
+  CHECK(!empty.isDefined() && !empty.isAftertouch() && empty.getValue() == -1);
+  empty.setVelocity(0);
+  CHECK(empty.isAftertouch() && empty.getVelocity() == 0);
 }
 
 TEST(a_velocity_0_note_on_is_a_real_note_that_starts_silent) {

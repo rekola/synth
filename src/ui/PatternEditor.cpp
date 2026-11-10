@@ -1971,11 +1971,11 @@ PatternEditor::commitPendingValue() {
   if (p.type == ColumnType::VELOCITY) {
     // A velocity on an empty cell is aftertouch (pressure 0 there is nothing).
     if (note.isDefined())
-      note.setVelocity(static_cast<short>(p.value));
+      note.setVelocity(p.value);
     else if (p.value > 0)
       note = Note::aftertouch(static_cast<short>(p.value));
   } else {
-    note.setDelay(static_cast<short>(p.value));
+    note.setDelay(p.value);
   }
   Song::Edit edit(song, "edit velocity or delay", Song::Edit::Kind::CONTENT, Song::Edit::Origin::USER, true);
   edit_target.pattern->setNote(edit_target.effective_row, p.note_column, note);
