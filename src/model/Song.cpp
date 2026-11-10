@@ -159,10 +159,11 @@ static bool parsePatternContent(XMLElement & pattern_element, Pattern & pattern,
         if (fx_text) note.setFx(fx_text);
 	pattern.setNote(row, start_column + i, note);
       }
-    } else if (fx_text) {
-      // No note: a cell that only carries fx.
-      Note fx_only;
-      if (fx_only.setFx(fx_text)) pattern.setNote(row_text ? atoi(row_text) : 0, column_text ? atoi(column_text) : 0, fx_only);
+    } else if (velocity_text || fx_text) {
+      // No note: aftertouch when it has a velocity (its pressure), else a cell that only carries fx.
+      Note cell;
+      if (velocity_text) cell = Note::aftertouch(static_cast<short>(atoi(velocity_text)), static_cast<short>(delay_text ? atoi(delay_text) : 0));
+      if (!fx_text || cell.setFx(fx_text)) pattern.setNote(row_text ? atoi(row_text) : 0, column_text ? atoi(column_text) : 0, cell);
     }
   }
 
@@ -334,16 +335,14 @@ static void storePatternContent(XMLDocument & doc, XMLElement * pattern_element,
       if (col > 0) note_element->SetAttribute("column", static_cast<int>(col));
       if (note.isDefined()) {
         // A note-on's velocity, an OFF's lift, or the pressure of aftertouch;
-        // neutral is left out.
-        if (note.getVelocity() != constants::NEUTRAL_VELOCITY) note_element->SetAttribute("velocity", note.getVelocity());
+        // neutral is left out, except for aftertouch: with no text and no value
+        // its velocity is what tells it from a cell with only fx.
+        if (note.isAftertouch() || note.getVelocity() != constants::NEUTRAL_VELOCITY) note_element->SetAttribute("velocity", note.getVelocity());
         if (note.getDelay() > 0) note_element->SetAttribute("delay", note.getDelay());
       }
       if (note.hasFx()) note_element->SetAttribute("fx", std::string(note.getFx()).c_str());
-      // The text is the note, OFF, or AFT for aftertouch (toString() is for display).
-      if (note.isAftertouch())
-        note_element->SetText("AFT");
-      else if (note.isDefined())
-        note_element->SetText(note.toString(tuning).c_str());
+      // The text is the note or OFF; aftertouch has none, like its empty note column.
+      if (note.isDefined() && !note.isAftertouch()) note_element->SetText(note.toString(tuning).c_str());
       pattern_element->InsertEndChild(note_element);
     }
   }

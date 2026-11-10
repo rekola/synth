@@ -229,6 +229,10 @@ TEST(velocities_lifts_and_aftertouch_survive_a_save_and_reload) {
   song.getArrangement().setNote(4, id, 0, Note::off(127, 9));
   song.getArrangement().setNote(5, id, 0, Note::aftertouch(90, 7));
   song.getArrangement().setNote(6, id, 0, Note::aftertouch(0));
+  song.getArrangement().setNote(7, id, 0, Note::aftertouch(constants::NEUTRAL_VELOCITY));
+  Note fx_only;
+  fx_only.setFx("P80");
+  song.getArrangement().setNote(8, id, 0, fx_only);
   song.save(path);
 
   auto text = slurp(path);
@@ -249,6 +253,9 @@ TEST(velocities_lifts_and_aftertouch_survive_a_save_and_reload) {
   CHECK(at(4).isOff() && at(4).getVelocity() == 127 && at(4).getDelay() == 9);
   CHECK(at(5).isAftertouch() && at(5).getVelocity() == 90 && at(5).getDelay() == 7);
   CHECK(at(6).isAftertouch() && at(6).getVelocity() == 0);
+  CHECK(at(7).isAftertouch() && at(7).getVelocity() == constants::NEUTRAL_VELOCITY);
+  CHECK(!at(8).isDefined() && at(8).getFx() == "P80"); // fx only stays fx only
+  CHECK(text.find("AFT") == std::string::npos);
 }
 
 TEST(a_song_file_off_without_a_velocity_has_the_neutral_lift) {

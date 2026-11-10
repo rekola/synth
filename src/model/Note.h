@@ -528,8 +528,6 @@ class Note {
 	auto s = line.substr(pos0, pos1 - pos0);
 	if (s == "off" || s == "OFF") {
           r.push_back(off(velocity, delay));
-        } else if (s == "aft" || s == "AFT") {
-          r.push_back(aftertouch(velocity, delay));
         } else {
           r.emplace_back(s, tuning, velocity, delay);
         }
