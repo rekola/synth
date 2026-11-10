@@ -346,7 +346,7 @@ bool
 PatternView::hasSoundingNote() const {
   for (auto child : ids(kNotesSlot)) {
     auto note = noteOf(child);
-    if (note.isDefined() && !note.isOff() && !note.isAftertouch()) return true;
+    if (note.isNoteOn()) return true;
   }
   return false;
 }

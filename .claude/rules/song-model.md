@@ -172,7 +172,8 @@ paths:
   (`VoiceState::setReleaseVelocity()`), where it scales release times. File:
   `<note>`'s `velocity` attribute is the note-on's velocity, the OFF's lift or
   the aftertouch pressure (neutral 64 omitted, except for aftertouch); the text
-  is the note or `OFF`, and aftertouch has none, like its empty note column.
+  is the note, `OFF` or `???` (a lost note: it began here but its pitch is
+  gone; it makes no sound), and aftertouch has none, like its empty note column.
 - A track names its pool instrument by id (`instrument="i1"`); the
   arrangement places a clip with `<instance track row clip/>`, a stop being
   an instance with no `clip`. There is no reader for earlier file forms: the

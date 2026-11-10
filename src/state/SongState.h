@@ -633,6 +633,7 @@ class SongState : public TrackState {
             for (size_t j = 0; j < notes.size(); j++) {
 	      if (notes[j].isDefined()) {
 		auto & note = notes[j];
+                if (note.isLost()) continue; // a note with no known pitch makes no sound
                 float velocity = note.getVelocityAsFloat();
                 auto delay_samples = int((note.getDelayAsFloat() + swing::offsetRows(swing_row, swing_)) * getChannelConfiguration().getSampleInterval(tempo_));
 		int note_value = (note.isAftertouch() || note.isOff()) ? -1 : note.getValue();
