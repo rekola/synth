@@ -87,6 +87,18 @@ class StyleProvider : public cellui::StyleProvider {
     return c * (1.0f + (scale - 1.0f) * flash);
   }
 
+  // The face a note is written in at `flash` (0 to 1): its zoom (Cell::zoom) follows the flash, so it
+  // grows with the light and falls back with it; how much larger that is, and whether at all, is the
+  // display's to decide.
+  // `joined` continues the piece written just before it, to its left: the parts of one field, such
+  // as the coloured accidental of a note, scale as one.
+  static cellui::TextFace zoomFace(float flash, bool joined = false) {
+    cellui::TextFace face;
+    face.zoom = static_cast<uint8_t>(std::lround(std::clamp(flash, 0.0f, 1.0f) * 255.0f));
+    face.zoom_joined = joined;
+    return face;
+  }
+
   // The clip grid header's track flags when on: Mute, Solo, and a Monitor
   // set to In (Auto shows in window_fg_color, Off in window_border_color).
   Color mute_color;

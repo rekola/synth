@@ -20,6 +20,11 @@ constexpr int kWeightNormal = 400, kWeightBold = 700;
 struct TextFace {
   int weight = kWeightNormal;
   TextSlant slant = TextSlant::UPRIGHT;
+  // How much larger the text is drawn, 0 to 255 of what the display allows (Cell::zoom). The text
+  // of one call scales as one piece; `zoom_joined` makes it one piece with the text written just
+  // before it, to its left (Cell::zoom_joined).
+  uint8_t zoom = 0;
+  bool zoom_joined = false;
 };
 constexpr TextFace kPlainFace{};
 constexpr TextFace kBoldFace{ kWeightBold, TextSlant::UPRIGHT };

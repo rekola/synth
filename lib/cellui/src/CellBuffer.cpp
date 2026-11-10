@@ -41,6 +41,7 @@ void CellBuffer::write(int row, int col, const std::string & text, const Style &
   int col_lo = std::max(clip_col, 0), col_hi = std::min(clip_col + clip_cols, cols_);
   if (row < row_lo || row >= row_hi) return;
   int last_col = -1;  // the cell the last glyph started in, for combining marks
+  bool wrote = false;  // after the first glyph, the cells of a zoomed text join the one before
   for (size_t i = 0; i < text.size();) {
     uint32_t cp = decode(text, i);
     if (cp < 0x20 || cp == 0x7F) continue;
@@ -52,10 +53,12 @@ void CellBuffer::write(int row, int col, const std::string & text, const Style &
     }
     if (col >= col_lo && col + width <= col_hi) {
       Cell & cell = cells_[index(row, col)];
-      cell = Cell{glyph, style.fg, style.bg, style.weight, style.italic, style.underline, false, style.bg_blend, style.fg_contrast, 0, style.backdrop, style.lift, style.lift_joined, style.lift_shadow};
+      bool joined = wrote ? style.zoom > 0 : style.zoom_joined;
+      cell = Cell{glyph, style.fg, style.bg, style.weight, style.italic, style.underline, false, style.bg_blend, style.fg_contrast, 0, style.backdrop, style.lift, style.lift_joined, style.lift_shadow, 0, style.zoom, joined};
       if (width == 2) {
-        cells_[index(row, col + 1)] = Cell{"", style.fg, style.bg, style.weight, style.italic, style.underline, true, style.bg_blend, style.fg_contrast, 0, style.backdrop, style.lift, style.lift_joined, style.lift_shadow};
+        cells_[index(row, col + 1)] = Cell{"", style.fg, style.bg, style.weight, style.italic, style.underline, true, style.bg_blend, style.fg_contrast, 0, style.backdrop, style.lift, style.lift_joined, style.lift_shadow, 0, style.zoom, style.zoom > 0};
       }
+      wrote = true;
       last_col = col;
     } else {
       last_col = -1;

@@ -95,6 +95,8 @@ void BufferPlane::putstr(int y, int x, const std::string & s, const TextFace & f
   CellBuffer::Style style = style_;
   style.weight = static_cast<uint16_t>(std::clamp(face.weight, 100, 900));
   style.italic = face.slant == TextSlant::ITALIC;
+  style.zoom = face.zoom;
+  style.zoom_joined = face.zoom_joined;
   local_.write(y, x, s, style);
 }
 

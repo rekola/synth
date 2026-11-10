@@ -100,29 +100,74 @@ TEST(gtk_bench_glow) {
   run("no glow (control)", 0);
 }
 
-// A lit glyph is drawn larger, the more the more it is lit; one at white or less is not.
-TEST(gtk_window_draws_a_lit_glyph_larger) {
+// A glyph is drawn larger by its cell's zoom, whatever its brightness: a lit glyph with none is not.
+TEST(gtk_window_draws_a_glyph_larger_by_its_cell_zoom) {
   gtk::Window * w = theWindow();
   if (!w) return;
   StyleProvider styles;
-  auto present = [&](const Color & fg) {
+  auto present = [&](const Color & fg, uint8_t zoom) {
     CellBuffer screen(w->rows(), w->cols());
     BufferPlane root(screen, styles);
     root.setFgColor(fg);
-    root.putstr(3, 4, "Q");
+    TextFace face;
+    face.zoom = zoom;
+    root.putstr(3, 4, "Q", face);
     root.refresh();
     size_t before = w->stats().frames;
     w->present(screen, {}, root.images());
     CHECK(pumpUntil(*w, [&] { return w->stats().frames > before; }));
   };
   size_t none = w->stats().glyphs_zoomed;
-  present(Color::linear(0.9f, 0.9f, 0.9f));
+  present(Color::linear(2.5f, 2.5f, 2.5f), 0);  // lit, but no zoom asked for
   CHECK(w->stats().glyphs_zoomed == none);
-  present(Color::linear(2.5f, 2.5f, 2.5f));
+  present(Color::linear(0.9f, 0.9f, 0.9f), 255);  // not lit, but zoomed
   size_t zoomed = w->stats().glyphs_zoomed;
   CHECK(zoomed > none);
-  present(Color::linear(1.0f, 1.0f, 1.0f));
+  present(Color::linear(0.9f, 0.9f, 0.9f), 128);  // a different zoom is a new picture
+  CHECK(w->stats().glyphs_zoomed > zoomed);
+  zoomed = w->stats().glyphs_zoomed;
+  present(Color::linear(0.9f, 0.9f, 0.9f), 0);
   CHECK(w->stats().glyphs_zoomed == zoomed);
+}
+
+// The cells of a zoomed piece scale about its common centre: text from one call is one piece, and
+// text written just after it joins it when it says so; a gap, or text that does not, starts another.
+TEST(gtk_window_zooms_the_cells_of_a_piece_as_one) {
+  gtk::Window * w = theWindow();
+  if (!w) return;
+  StyleProvider styles;
+  auto present = [&](const std::function<void(BufferPlane &)> & write) {
+    CellBuffer screen(w->rows(), w->cols());
+    BufferPlane root(screen, styles);
+    write(root);
+    root.refresh();
+    size_t before = w->stats().frames;
+    w->present(screen, {}, root.images());
+    CHECK(pumpUntil(*w, [&] { return w->stats().frames > before; }));
+  };
+  TextFace zoomed;
+  zoomed.zoom = 255;
+  TextFace joined = zoomed;
+  joined.zoom_joined = true;
+  size_t runs = w->stats().zoom_runs, glyphs = w->stats().glyphs_zoomed;
+  present([&](BufferPlane & p) { p.putstr(3, 4, "abc", zoomed); });
+  CHECK(w->stats().zoom_runs == runs + 1 && w->stats().glyphs_zoomed == glyphs + 3);
+  runs = w->stats().zoom_runs;
+  // A note's parts, written one at a time: the first, then two that join it.
+  present([&](BufferPlane & p) {
+    p.putstr(3, 4, "C", zoomed);
+    p.putstr(3, 5, "d", joined);
+    p.putstr(3, 6, "4", joined);
+  });
+  CHECK(w->stats().zoom_runs == runs + 1);
+  runs = w->stats().zoom_runs;
+  // Without joining, the same parts are three pieces.
+  present([&](BufferPlane & p) {
+    p.putstr(3, 4, "C", zoomed);
+    p.putstr(3, 5, "d", zoomed);
+    p.putstr(3, 6, "4", zoomed);
+  });
+  CHECK(w->stats().zoom_runs == runs + 3);
 }
 
 // A cell lit past white (an HDR colour) glows; one at or under white does not.
