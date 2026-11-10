@@ -239,3 +239,18 @@ TEST(note_flash_is_stronger_for_a_louder_note) {
   CHECK(StyleProvider::velocityFlash(0x28) < StyleProvider::velocityFlash(0x60));
   CHECK_NEAR(StyleProvider::velocityFlash(500), 1.0f, 1e-6f);
 }
+
+TEST(note_flash_zoom_follows_the_flash_in_the_face) {
+  CHECK(StyleProvider::zoomFace(0.0f).zoom == 0);
+  CHECK(StyleProvider::zoomFace(1.0f).zoom == 255);
+  CHECK(StyleProvider::zoomFace(2.0f).zoom == 255);
+  CHECK(StyleProvider::zoomFace(-1.0f).zoom == 0);
+  uint8_t last = 0;
+  for (int i = 0; i <= 100; i++) {
+    uint8_t z = StyleProvider::zoomFace(static_cast<float>(i) / 100.0f).zoom;
+    CHECK(z >= last);
+    last = z;
+  }
+  // Only the zoom: a face for a flash is otherwise the plain one.
+  CHECK(StyleProvider::zoomFace(0.5f).weight == cellui::kWeightNormal);
+}

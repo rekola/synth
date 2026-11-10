@@ -3975,7 +3975,7 @@ PatternEditor::renderRow(const StyleProvider & styles, int heading_height, const
           setFgColor(cell_fg);
 	  setBgColor(cell_bg);
 	  auto s = to_string(command);
-          putstr(display_row, current_pos, s);
+          putstr(display_row, current_pos, s, StyleProvider::zoomFace(flash));
           if (column_highlighted) {
 	    setUnderline(true);
 	    putstr(display_row, current_pos + new_cursor.subcol, s[static_cast<size_t>(new_cursor.subcol)]);
@@ -4001,7 +4001,7 @@ PatternEditor::renderRow(const StyleProvider & styles, int heading_height, const
           cell_fg = StyleProvider::lit(cell_fg, flash);
           setFgColor(cell_fg);
 	  setBgColor(cell_bg);
-          putstr(display_row, current_pos, shown);
+          putstr(display_row, current_pos, shown, StyleProvider::zoomFace(flash));
           if (column_highlighted) {
 	    setUnderline(true);
 	    putstr(display_row, current_pos + new_cursor.subcol, glyph(s[static_cast<size_t>(new_cursor.subcol)]));
@@ -4044,7 +4044,7 @@ PatternEditor::renderRow(const StyleProvider & styles, int heading_height, const
             } else {
 	      setFgColor(cell_fg);
 	    }
-            putstr(display_row, x, piece);
+            putstr(display_row, x, piece, StyleProvider::zoomFace(note_flash));
             x += Utf8::displayWidth(piece);
 	    at += n;
 	  }
@@ -4081,7 +4081,7 @@ PatternEditor::renderRow(const StyleProvider & styles, int heading_height, const
           setFgColor(cell_fg);
 	  setBgColor(cell_bg);
 
-          putstr(display_row, current_pos, s);
+          putstr(display_row, current_pos, s, StyleProvider::zoomFace(flash));
           if (column_highlighted) {
 	    setUnderline(true);
 	    putstr(display_row, current_pos + new_cursor.subcol, s[static_cast<size_t>(new_cursor.subcol)]);

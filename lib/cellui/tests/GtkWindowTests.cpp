@@ -100,28 +100,33 @@ TEST(gtk_bench_glow) {
   run("no glow (control)", 0);
 }
 
-// A lit glyph is drawn larger, the more the more it is lit; one at white or less is not.
-TEST(gtk_window_draws_a_lit_glyph_larger) {
+// A glyph is drawn larger by its cell's zoom, whatever its brightness: a lit glyph with none is not.
+TEST(gtk_window_draws_a_glyph_larger_by_its_cell_zoom) {
   gtk::Window * w = theWindow();
   if (!w) return;
   StyleProvider styles;
-  auto present = [&](const Color & fg) {
+  auto present = [&](const Color & fg, uint8_t zoom) {
     CellBuffer screen(w->rows(), w->cols());
     BufferPlane root(screen, styles);
     root.setFgColor(fg);
-    root.putstr(3, 4, "Q");
+    TextFace face;
+    face.zoom = zoom;
+    root.putstr(3, 4, "Q", face);
     root.refresh();
     size_t before = w->stats().frames;
     w->present(screen, {}, root.images());
     CHECK(pumpUntil(*w, [&] { return w->stats().frames > before; }));
   };
   size_t none = w->stats().glyphs_zoomed;
-  present(Color::linear(0.9f, 0.9f, 0.9f));
+  present(Color::linear(2.5f, 2.5f, 2.5f), 0);  // lit, but no zoom asked for
   CHECK(w->stats().glyphs_zoomed == none);
-  present(Color::linear(2.5f, 2.5f, 2.5f));
+  present(Color::linear(0.9f, 0.9f, 0.9f), 255);  // not lit, but zoomed
   size_t zoomed = w->stats().glyphs_zoomed;
   CHECK(zoomed > none);
-  present(Color::linear(1.0f, 1.0f, 1.0f));
+  present(Color::linear(0.9f, 0.9f, 0.9f), 128);  // a different zoom is a new picture
+  CHECK(w->stats().glyphs_zoomed > zoomed);
+  zoomed = w->stats().glyphs_zoomed;
+  present(Color::linear(0.9f, 0.9f, 0.9f), 0);
   CHECK(w->stats().glyphs_zoomed == zoomed);
 }
 

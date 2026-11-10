@@ -1178,3 +1178,27 @@ TEST(bufferplane_put_text_cells_fallback_uses_bold_from_600) {
   // A weight between the two keeps its value in the cell.
   CHECK(!b.at(0, 4).bold() && b.at(0, 4).weight == 500);
 }
+
+TEST(bufferplane_zoom_is_a_cell_attribute_that_survives_composition) {
+  StyleProvider styles;
+  CellBuffer b(3, 8);
+  BufferPlane root(b, styles);
+  TextFace zoomed;
+  zoomed.zoom = 200;
+  root.putstr(1, 1, "ab", zoomed);
+  root.putstr(1, 3, "c");
+  auto child = root.createChild();
+  child->resize(1, 3);
+  child->move(2, 0);
+  child->putstr(0, 1, "z", zoomed);
+  root.refresh();
+  CHECK(b.at(1, 1).zoom == 200 && b.at(1, 2).zoom == 200);
+  CHECK(b.at(1, 3).zoom == 0);
+  CHECK(b.at(2, 1).zoom == 200);  // through a child plane too
+  // A zoom is not nothing: a blank cell that has one is drawn.
+  CellBuffer::Cell blank;
+  CHECK(CellBuffer::isBlank(blank));
+  blank.zoom = 1;
+  CHECK(!CellBuffer::isBlank(blank));
+}
+
