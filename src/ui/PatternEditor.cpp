@@ -2456,6 +2456,7 @@ bool PatternEditor::keyDown(const cellui::KeyDown & e) {
 
         bool is_off = e.key == 'a';
         bool is_lost = e.key == '?'; // a note whose pitch is gone
+        bool is_lacuna = e.key == '~'; // a span of missing notes
         bool is_delete = e.key == Key::Delete || e.key == Key::Backspace;
         auto note_column = track_info.getNoteNumber(new_cursor.col);
         // A cursor that neither follows the transport nor a playing clip's
@@ -2471,7 +2472,7 @@ bool PatternEditor::keyDown(const cellui::KeyDown & e) {
         bool is_repeat = e.repeat;
 
         int midi_note = -1;
-        if (!is_off && !is_lost) {
+        if (!is_off && !is_lost && !is_lacuna) {
           auto track = song.getMasterTrack().getChildByInternalId(track_id);
 	  auto tuning = track ? song.getTuningForTrack(*track) : song.getTuning();
           if (auto input_note = keyToMidiNote(e.key, tuning, song.getScale()); !input_note.empty()) {
@@ -2506,13 +2507,15 @@ bool PatternEditor::keyDown(const cellui::KeyDown & e) {
 	// The group of a chord opens before the first write, not inside it.
         if (midi_note >= 0 && !is_delete && !is_off && e.release_reported && active_keyboard_notes_.empty()) getController().setNoteHeld(true);
 
-        if (is_delete || midi_note >= 0 || is_off || is_lost) {
+        if (is_delete || midi_note >= 0 || is_off || is_lost || is_lacuna) {
           // Typed notes, offs and deletes undo as a run, like typed digits; the keys of a chord are
 	  // already one group, which joins the run when it ends.
 	  Song::Edit edit(song, "enter note", Song::Edit::Kind::CONTENT, Song::Edit::Origin::USER, !song.document().inGroup());
 	  if (is_delete) {
 	    edit_target.pattern->deleteNote(edit_target.effective_row, note_column);
 	    event_queue.push(make_unique<PlaybackControlEvent>(PlaybackControlEvent::STOP_NOTE, getController().getActiveBufferName(), track_id, note_column));
+          } else if (is_lacuna) {
+            edit_target.pattern->setNote(edit_target.effective_row, note_column, Note::lacuna(constants::DEFAULT_NOTE_ON_VELOCITY, current_delay));
           } else if (is_lost) {
             edit_target.pattern->setNote(edit_target.effective_row, note_column, Note::lost(constants::DEFAULT_NOTE_ON_VELOCITY, current_delay));
           } else if (is_off) {

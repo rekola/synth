@@ -348,3 +348,49 @@ TEST(a_lost_note_is_saved_as_three_question_marks) {
   auto note = reloaded.getArrangement().getNote(3, reloaded_track->getInternalId(), 0);
   CHECK(note.isLost() && note.getVelocity() == 70 && note.getDelay() == 4);
 }
+
+TEST(a_lacuna_marks_missing_notes_and_ends_the_previous_note) {
+  auto lacuna = Note::lacuna(90, 5);
+  CHECK(lacuna.isDefined() && lacuna.isLacuna());
+  CHECK(!lacuna.isNoteOn() && !lacuna.isLost() && !lacuna.isOff() && !lacuna.isAftertouch());
+  CHECK(lacuna.getValue() == -1 && lacuna.getVelocity() == 90 && lacuna.getDelay() == 5);
+  CHECK(lacuna.toString(Tuning::EDO53) == "~~~");
+  CHECK(getFrequencyFor(Tuning::EDO53, lacuna) == 0.0f);
+  CHECK(Note("~~~", Tuning::EDO53).isLacuna());
+  CHECK(Note::createFromString("~~~", 80, 0, Tuning::EDO53)[0].isLacuna());
+  auto back = Note::fromCode(lacuna.toCode(), lacuna.getVelocity(), lacuna.getDelay());
+  CHECK(back.isLacuna() && !back.isLost() && back.getVelocity() == 90);
+  Pattern pattern;
+  pattern.setNote(0, 0, lacuna);
+  CHECK(!pattern.isEmpty() && !pattern.hasSoundingNote());
+
+  auto render = [](Note second) {
+    Song song(Tuning::EDO12);
+    song.addInstrument(std::make_unique<Oscillator>(WaveformType::SINE));
+    auto & track = song.addTrack(std::make_unique<InstrumentTrack>(0));
+    auto id = track.getInternalId();
+    song.getArrangement().setNote(0, id, 0, Note(60, 100));
+    song.getArrangement().setNote(4, id, 0, second);
+    return renderSongOffline(song, ChannelConfiguration(44100, 1)).interleaved;
+  };
+  CHECK(render(Note::lacuna()) == render(Note::off()));
+}
+
+TEST(a_lacuna_is_saved_as_three_tildes) {
+  auto path = (std::filesystem::path(TESTS_SCRATCH_DIR) / "velocity_lacuna_scratch.xml").string();
+  Song song(Tuning::EDO53);
+  auto track_to_add = std::make_unique<InstrumentTrack>(0);
+  track_to_add->setId("t");
+  auto & track = song.addTrack(std::move(track_to_add));
+  song.getArrangement().setNote(3, track.getInternalId(), 0, Note::lacuna(70, 4));
+  song.save(path);
+  CHECK(slurp(path).find(">~~~</note>") != std::string::npos);
+  InstrumentProvider provider;
+  Song reloaded(Tuning::EDO53);
+  CHECK(reloaded.open(path, provider));
+  auto reloaded_track = reloaded.getMasterTrack().getChildById("t");
+  CHECK(reloaded_track != nullptr);
+  if (!reloaded_track) return;
+  auto note = reloaded.getArrangement().getNote(3, reloaded_track->getInternalId(), 0);
+  CHECK(note.isLacuna() && note.getVelocity() == 70 && note.getDelay() == 4);
+}

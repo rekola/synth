@@ -16,14 +16,15 @@
 #include <vector>
 
 // One cell of a pattern. Its type is held in its value: a note-on has the
-// note's value, and the four largest values mean a lost note (a note began on
-// this row but its pitch is gone, shown ???), aftertouch (pressure on whatever
-// sounds in the column), an OFF, and undefined (an empty cell, or one with only
-// fx). A lost note makes no sound but ends the previous note in its column, as
-// an OFF does. Never the velocity: velocity 0 is a real note-on, one that
-// starts from silence. There is one 7-bit velocity, always present on a
-// note-on, a lost note, an OFF and aftertouch: the strike velocity, the release
-// velocity (the "lift") and the pressure.
+// note's value, and the five largest values mean a lacuna (a span of missing
+// notes, shown ~~~), a lost note (a note began on this row but its pitch is gone,
+// shown ???), aftertouch (pressure on whatever sounds in the column), an OFF,
+// and undefined (an empty cell, or one with only fx). A lost note and a lacuna
+// make no sound but end the previous note in their column, as an OFF does. Never
+// the velocity: velocity 0 is a real note-on, one that starts from silence.
+// There is one 7-bit velocity, always present on a note-on, a lost note, a
+// lacuna, an OFF and aftertouch: the strike velocity, the release velocity (the
+// "lift") and the pressure.
 class Note {
  public:
   Note() = default;
@@ -33,6 +34,7 @@ class Note {
   // A note-on, or an OFF for the text "off"/"OFF" (the velocity is then its lift).
   explicit Note(std::string_view input_value, Tuning tuning, int _velocity = constants::NEUTRAL_VELOCITY, int _delay = 0, int default_octave = 4)
       : packed_(pack(input_value == "off" || input_value == "OFF" ? kOff : input_value == "???" ? kLost
+                                                                       : input_value == "~~~"   ? kLacuna
                                                                                                 : clampValue(stringToKey(tuning, input_value, default_octave)),
                      _velocity)),
         delay_(clampDelay(_delay)) {}
@@ -52,16 +54,25 @@ class Note {
     n.delay_ = clampDelay(delay);
     return n;
   }
+  // A span of missing notes, from this row until the column's next cell; it makes
+  // no sound but ends the previous note in its column.
+  static Note lacuna(int velocity = constants::DEFAULT_NOTE_ON_VELOCITY, int delay = 0) {
+    Note n;
+    n.packed_ = pack(kLacuna, velocity);
+    n.delay_ = clampDelay(delay);
+    return n;
+  }
   // Pressure on whatever sounds in the column: a velocity and no value.
   static Note aftertouch(int pressure, int delay = 0) { return Note(-1, pressure, delay); }
 
   // The value as one int, for storing: a note's value, or -1 undefined, -2
-  // aftertouch, -3 OFF, -4 lost. fromCode() is its inverse.
+  // aftertouch, -3 OFF, -4 lost, -5 lacuna. fromCode() is its inverse.
   int toCode() const {
     if (isNoteOn()) return getValue();
-    return isAftertouch() ? -2 : isOff() ? -3
-                             : isLost()  ? -4
-                                         : -1;
+    return isAftertouch() ? -2 : isOff()  ? -3
+                             : isLost()   ? -4
+                             : isLacuna() ? -5
+                                          : -1;
   }
   static Note fromCode(int code, int velocity, int delay) {
     Note n;
@@ -73,6 +84,8 @@ class Note {
       n = off(velocity, delay);
     else if (code == -4)
       n = lost(velocity, delay);
+    else if (code == -5)
+      n = lacuna(velocity, delay);
     if (!n.isDefined()) n.setVelocity(velocity);
     return n;
   }
@@ -156,8 +169,9 @@ class Note {
   // as 0Gxx's glide rate or a retrigger, with no note of its own). Storage and
   // display go by this; playback and editing of notes by isDefined().
   bool hasContent() const { return isDefined() || hasFx(); }
-  bool isNoteOn() const { return value() < kLost; }
+  bool isNoteOn() const { return value() < kLacuna; }
   bool isLost() const { return value() == kLost; }
+  bool isLacuna() const { return value() == kLacuna; }
   bool isOff() const { return value() == kOff; }
   bool isAftertouch() const { return value() == kAftertouch; }
 
@@ -191,7 +205,9 @@ class Note {
 
   std::string toString(Tuning tuning) const {
     if (isDefined() && !isAftertouch()) {
-      if (isLost()) {
+      if (isLacuna()) {
+        return "~~~";
+      } else if (isLost()) {
         return "???";
       } else if (isOff()) {
         return "OFF";
@@ -555,7 +571,9 @@ class Note {
 
       if (pos0 < pos1) {
 	auto s = line.substr(pos0, pos1 - pos0);
-        if (s == "???") {
+        if (s == "~~~") {
+          r.push_back(lacuna(velocity, delay));
+        } else if (s == "???") {
           r.push_back(lost(velocity, delay));
         } else if (s == "off" || s == "OFF") {
           r.push_back(off(velocity, delay));
@@ -572,11 +590,12 @@ class Note {
 
  private:
   // 8 bytes: one word holding the value (25 bits) and the velocity (7), then the
-  // delay and the three fx characters. The top four values are the other types.
+  // delay and the three fx characters. The top five values are the other types.
   static constexpr int kVelocityShift = 25;
   static constexpr uint32_t kValueMask = (1u << kVelocityShift) - 1;
-  static constexpr uint32_t kUndefined = kValueMask, kOff = kValueMask - 1, kAftertouch = kValueMask - 2, kLost = kValueMask - 3;
-  static constexpr uint32_t kMaxValue = kValueMask - 4;
+  static constexpr uint32_t kUndefined = kValueMask, kOff = kValueMask - 1, kAftertouch = kValueMask - 2, kLost = kValueMask - 3,
+                            kLacuna = kValueMask - 4;
+  static constexpr uint32_t kMaxValue = kValueMask - 5;
   static constexpr uint32_t clampValue(int value) { return static_cast<uint32_t>(std::clamp<int64_t>(value, 0, kMaxValue)); }
   static constexpr uint32_t pack(uint32_t value, int velocity) {
     return (static_cast<uint32_t>(std::clamp(velocity, 0, 127)) << kVelocityShift) | value;
