@@ -87,7 +87,7 @@ and B-flat-down.</notes>
         </pattern>
         <pattern track="aulosdrone">
             <note row="12" velocity="26" fx="+00">C-3</note>
-            <note row="140" velocity="0">OFF</note>
+            <note row="140">OFF</note>
         </pattern>
         <pattern track="aulos2">
             <note row="24" velocity="44" delay="10" fx="+00">C-4</note>
@@ -97,7 +97,7 @@ and B-flat-down.</notes>
             <note row="38" velocity="44" delay="10" fx="+00">F-4</note>
             <note row="40" velocity="44" delay="10" fx="+00">G-4</note>
             <note row="42" velocity="44" delay="10" fx="+00">F-4</note>
-            <note row="47" velocity="0">OFF</note>
+            <note row="47">OFF</note>
             <note row="48" velocity="44" delay="10" fx="+00">E↑4</note>
             <note row="52" velocity="44" delay="10" fx="+00">F-4</note>
             <note row="54" velocity="44" delay="10" fx="+00">G-4</note>
@@ -107,7 +107,7 @@ and B-flat-down.</notes>
             <note row="62" velocity="44" delay="10" fx="+00">C-4</note>
             <note row="66" velocity="44" delay="10" fx="+00">D-4</note>
             <note row="68" velocity="44" delay="10" fx="+00">B𝄭3</note>
-            <note row="71" velocity="0">OFF</note>
+            <note row="71">OFF</note>
             <note row="72" velocity="44" delay="10" fx="+00">C-4</note>
             <note row="74" velocity="44" delay="10" fx="+00">E↑4</note>
             <note row="76" velocity="44" delay="10" fx="+00">G-4</note>
@@ -118,7 +118,7 @@ and B-flat-down.</notes>
             <note row="86" velocity="44" delay="10" fx="+00">C-4</note>
             <note row="90" velocity="44" delay="10" fx="+00">D-4</note>
             <note row="92" velocity="44" delay="10" fx="+00">B𝄭3</note>
-            <note row="95" velocity="0">OFF</note>
+            <note row="95">OFF</note>
             <note row="96" velocity="44" delay="10" fx="+00">C-4</note>
             <note row="98" velocity="44" delay="10" fx="+00">E↑4</note>
             <note row="100" velocity="44" delay="10" fx="+00">D-4</note>
@@ -130,7 +130,7 @@ and B-flat-down.</notes>
             <note row="114" velocity="44" delay="10" fx="+00">C-4</note>
             <note row="116" velocity="44" delay="10" fx="+00">A↑3</note>
             <note row="118" velocity="44" delay="10" fx="+00">G-3</note>
-            <note row="125" velocity="0">OFF</note>
+            <note row="125">OFF</note>
         </pattern>
         <pattern track="aulos">
             <note row="24" velocity="56" fx="+00">C-4</note>
@@ -140,7 +140,7 @@ and B-flat-down.</notes>
             <note row="38" velocity="56" fx="+00">F-4</note>
             <note row="40" velocity="56" fx="+00">G-4</note>
             <note row="42" velocity="56" fx="+00">F-4</note>
-            <note row="47" velocity="0">OFF</note>
+            <note row="47">OFF</note>
             <note row="48" velocity="56" fx="+00">E↑4</note>
             <note row="52" velocity="56" fx="+00">F-4</note>
             <note row="54" velocity="56" fx="+00">G-4</note>
@@ -150,7 +150,7 @@ and B-flat-down.</notes>
             <note row="62" velocity="56" fx="+00">C-4</note>
             <note row="66" velocity="56" fx="+00">D-4</note>
             <note row="68" velocity="56" fx="+00">B𝄭3</note>
-            <note row="71" velocity="0">OFF</note>
+            <note row="71">OFF</note>
             <note row="72" velocity="56" fx="+00">C-4</note>
             <note row="74" velocity="56" fx="+00">E↑4</note>
             <note row="76" velocity="56" fx="+00">G-4</note>
@@ -161,7 +161,7 @@ and B-flat-down.</notes>
             <note row="86" velocity="56" fx="+00">C-4</note>
             <note row="90" velocity="56" fx="+00">D-4</note>
             <note row="92" velocity="56" fx="+00">B𝄭3</note>
-            <note row="95" velocity="0">OFF</note>
+            <note row="95">OFF</note>
             <note row="96" velocity="56" fx="+00">C-4</note>
             <note row="98" velocity="56" fx="+00">E↑4</note>
             <note row="100" velocity="56" fx="+00">D-4</note>
@@ -173,7 +173,7 @@ and B-flat-down.</notes>
             <note row="114" velocity="56" fx="+00">C-4</note>
             <note row="116" velocity="56" fx="+00">A↑3</note>
             <note row="118" velocity="56" fx="+00">G-3</note>
-            <note row="125" velocity="0">OFF</note>
+            <note row="125">OFF</note>
         </pattern>
         <pattern track="drone">
             <note row="12" velocity="80" fx="+00">C-3</note>

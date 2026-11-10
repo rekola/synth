@@ -3,45 +3,21 @@
 
 #include <algorithm>
 #include <cmath>
-#include <cstdint>
 
-// Velocities are stored at 16 bits (the MIDI 2.0 width) and shown and edited
-// at 7 bits (the MIDI 1.0 width). The two scales meet at the centre: 64 is
-// exactly 0x8000, and 127 is exactly 0xFFFF.
+// Velocities are 7-bit, 0-127. Velocity 0 is a real note-on that starts from
+// silence.
 namespace velocity {
 
 constexpr int kMax7 = 127;
-constexpr uint16_t kMax16 = 0xFFFF;
 
-// The smallest level a note-on sounds at: a velocity 0 note-on is a real
-// note, at this level, so later rows can swell it.
-constexpr float kMinSoundingLevel = 1.0f / 127.0f;
+// The note gain, in dB, of a velocity-0 note-on: low enough that the linear gain
+// is exactly zero in float. The note starts from true silence.
+constexpr float kSilentGainDb = -1000.0f;
 
-// 7 to 16 bits by min-center-max upscaling: the bits are shifted up and, above
-// the centre, the low bits repeat the value's own so 127 reaches 0xFFFF.
-constexpr uint16_t from7(int v7) {
-  const unsigned v = static_cast<unsigned>(std::clamp(v7, 0, kMax7));
-  unsigned out = v << 9;
-  if (v <= 64) return static_cast<uint16_t>(out);
-  unsigned repeat = (v & 63u) << 3;
-  while (repeat != 0) {
-    out |= repeat;
-    repeat >>= 6;
-  }
-  return static_cast<uint16_t>(out);
-}
+constexpr float toFloat(int v7) { return static_cast<float>(std::clamp(v7, 0, kMax7)) / 127.0f; }
 
-// 16 to 7 bits: the top seven bits, so to7(from7(v)) == v for every v.
-constexpr int to7(uint16_t v16) { return v16 >> 9; }
-
-constexpr float toFloat(uint16_t v16) { return static_cast<float>(v16) / 65535.0f; }
-
-// A level in [0,1] back to the 16-bit scale.
-inline uint16_t fromFloat(float level) {
-  return static_cast<uint16_t>(std::lround(std::clamp(level, 0.0f, 1.0f) * 65535.0f));
-}
 // A level in [0,1] to its 7-bit velocity (what a velocity zone is chosen by).
-inline int floatTo7(float level) { return to7(fromFloat(level)); }
+inline int floatTo7(float level) { return static_cast<int>(std::lround(std::clamp(level, 0.0f, 1.0f) * 127.0f)); }
 
 // The release velocity ("lift") scales the release time, fixed when the OFF
 // arrives: 64 leaves it alone, 0 makes it four times longer, 127 about four

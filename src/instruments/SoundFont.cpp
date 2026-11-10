@@ -1040,7 +1040,7 @@ class SoundFontVoice : public InstrumentVoice {
       modenv_ = EnvelopeState(outSampleRate, voiceRegion_->modenv, midiKey, midiVelocity, false);
     }
 
-    setGainDB(- voiceRegion_->attenuation - gainToDecibels(1.0f / velocity));
+    setGainDB(velocity > 0.0f ? -voiceRegion_->attenuation - gainToDecibels(1.0f / velocity) : velocity::kSilentGainDb);
     calcPitchRatio(0);
   }
 

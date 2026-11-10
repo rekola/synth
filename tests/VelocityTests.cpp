@@ -7,6 +7,7 @@
 #include "../src/instruments/Additive.h"
 #include "../src/instruments/InstrumentProvider.h"
 #include "../src/instruments/Oscillator.h"
+#include "../src/instruments/OscillatorVoice.h"
 #include "../src/instruments/PadSynth.h"
 #include "../src/instruments/SoundFont.h"
 #include "../src/instruments/WaveformType.h"
@@ -69,18 +70,11 @@ void checkReleaseScaling(const std::function<int(int)> & frames_for) {
 
 } // namespace
 
-TEST(velocity_scales_between_7_and_16_bits) {
-  CHECK(velocity::from7(0) == 0);
-  CHECK(velocity::from7(64) == 0x8000); // the centre stays the centre
-  CHECK(velocity::from7(127) == 0xFFFF);
-  for (int v = 0; v <= 127; v++) CHECK(velocity::to7(velocity::from7(v)) == v);
-  for (int v = 1; v <= 127; v++) CHECK(velocity::from7(v) > velocity::from7(v - 1));
-  CHECK(velocity::from7(500) == 0xFFFF);
-  CHECK(velocity::from7(-3) == 0);
-  CHECK(velocity::to7(0xFFFF) == 127);
-  CHECK(velocity::floatTo7(0.5f) == 64);
-  CHECK(velocity::floatTo7(1.0f) == 127);
+TEST(velocity_converts_between_7_bits_and_a_level) {
   CHECK(velocity::floatTo7(0.0f) == 0);
+  CHECK(velocity::floatTo7(1.0f) == 127);
+  CHECK(velocity::floatTo7(2.0f) == 127);
+  for (int v = 0; v <= 127; v++) CHECK(velocity::floatTo7(velocity::toFloat(v)) == v);
 }
 
 TEST(release_time_factor_follows_the_lift) {
@@ -116,28 +110,31 @@ TEST(a_note_is_at_most_16_bytes_and_keeps_its_kind) {
   CHECK(Note(60).getVelocity() == constants::NEUTRAL_VELOCITY);
   CHECK(Note("off", Tuning::EDO12).isOff());
   CHECK(Note("C-4", Tuning::EDO12).isNoteOn());
-  Note wide(60, 100);
-  wide.setVelocity16(0x1234);
-  CHECK(wide.getVelocity16() == 0x1234);
-  CHECK(wide.getVelocity() == 0x1234 >> 9);
+  Note held(60, 100);
+  held.setVelocity(300);
+  CHECK(held.getVelocity() == 127);
 }
 
-TEST(a_velocity_0_note_on_is_a_real_quiet_note) {
+TEST(a_velocity_0_note_on_is_a_real_note_that_starts_silent) {
   Note note(60, 0);
   CHECK(note.isDefined());
   CHECK(note.isNoteOn());
   CHECK(!note.isOff());
   CHECK(!note.isAftertouch());
   CHECK(note.getVelocity() == 0);
-  CHECK(note.getVelocityAsFloat() > 0.0f); // sounds, at the minimum level
-  CHECK_NEAR(note.getVelocityAsFloat(), velocity::kMinSoundingLevel, 1e-6f);
+  CHECK(note.getVelocityAsFloat() == 0.0f);
+  // A voice started on it is alive, and silent.
+  OscillatorVoice voice(ChannelConfiguration(44100), SphericalPosition{}, 1.0f, WaveformType::SINE, 1.0f, 0.5f);
+  voice.playNote(440.0f, note.getVelocityAsFloat(), 42);
+  CHECK(voice.isActive());
+  CHECK(voice.getLoudness() == 0.0f);
   // And it is not an OFF to the event the player builds.
   TrackEvent event(0, Tuning::EDO12, note.getVelocityAsFloat(), note.getValue());
   CHECK(!event.isOff());
   CHECK(!event.isAftertouch());
 }
 
-TEST(a_velocity_0_note_on_starts_a_voice_when_rendered) {
+TEST(a_velocity_0_note_on_renders_silent_without_being_an_off) {
   auto render_peak = [](int velocity_value) {
     Song song(Tuning::EDO12);
     song.addInstrument(std::make_unique<Oscillator>(WaveformType::SINE));
@@ -149,9 +146,9 @@ TEST(a_velocity_0_note_on_starts_a_voice_when_rendered) {
     for (auto v : result.interleaved) peak = std::max(peak, std::fabs(v));
     return peak;
   };
-  auto quiet = render_peak(0);
-  CHECK(quiet > 0.0f);
-  CHECK(render_peak(100) > quiet);
+  auto silent = render_peak(0);
+  CHECK(silent == 0.0f);
+  CHECK(render_peak(100) > 0.0f);
 }
 
 TEST(envelope_release_scales_with_the_lift) {
@@ -201,7 +198,7 @@ TEST(soundfont_release_scales_with_the_lift) {
 
 TEST(an_off_event_carries_its_release_velocity) {
   RenderContext context(ChannelConfiguration(44100));
-  context.addPendingOff(1, 0, 0, Tuning::EDO12, velocity::toFloat(velocity::from7(20)));
+  context.addPendingOff(1, 0, 0, Tuning::EDO12, velocity::toFloat(20));
   auto & event = context.getPendingEvents(1)[0][0];
   CHECK(event.isOff());
   CHECK(velocity::floatTo7(event.getVelocity()) == 20);
@@ -218,24 +215,24 @@ std::string slurp(const std::string & path) {
 
 } // namespace
 
-TEST(velocities_and_lifts_survive_a_save_and_reload) {
+TEST(velocities_lifts_and_aftertouch_survive_a_save_and_reload) {
   auto path = (std::filesystem::path(TESTS_SCRATCH_DIR) / "velocity_round_trip_scratch.xml").string();
   Song song(Tuning::EDO12);
   auto track_to_add = std::make_unique<InstrumentTrack>(0);
   track_to_add->setId("t");
   auto & track = song.addTrack(std::move(track_to_add));
   auto id = track.getInternalId();
-  Note wide(62, 100);
-  wide.setVelocity16(0x1234);
-  Note wide_off = Note::off(64, 0, 0);
-  wide_off.setVelocity16(0x0777);
   song.getArrangement().setNote(0, id, 0, Note(60, 0));
   song.getArrangement().setNote(1, id, 0, Note::off(0));
   song.getArrangement().setNote(2, id, 0, Note(60, 100));
   song.getArrangement().setNote(3, id, 0, Note::off());
-  song.getArrangement().setNote(4, id, 0, wide);
-  song.getArrangement().setNote(5, id, 0, wide_off);
+  song.getArrangement().setNote(4, id, 0, Note::off(127, 9));
+  song.getArrangement().setNote(5, id, 0, Note::aftertouch(90, 7));
+  song.getArrangement().setNote(6, id, 0, Note::aftertouch(0));
   song.save(path);
+
+  auto text = slurp(path);
+  CHECK(text.find("\u00b7") == std::string::npos); // no placeholder dots in the file
 
   InstrumentProvider provider;
   Song reloaded(Tuning::EDO12);
@@ -249,35 +246,20 @@ TEST(velocities_and_lifts_survive_a_save_and_reload) {
   CHECK(at(1).isOff() && at(1).getVelocity() == 0);
   CHECK(at(2).isNoteOn() && at(2).getVelocity() == 100);
   CHECK(at(3).isOff() && at(3).getVelocity() == constants::NEUTRAL_VELOCITY);
-  CHECK(at(4).getVelocity16() == 0x1234);
-  CHECK(at(5).isOff() && at(5).getVelocity16() == 0x0777);
+  CHECK(at(4).isOff() && at(4).getVelocity() == 127 && at(4).getDelay() == 9);
+  CHECK(at(5).isAftertouch() && at(5).getVelocity() == 90 && at(5).getDelay() == 7);
+  CHECK(at(6).isAftertouch() && at(6).getVelocity() == 0);
 }
 
-TEST(an_older_file_off_without_a_lift_gets_the_neutral_one) {
-  auto path = (std::filesystem::path(TESTS_SCRATCH_DIR) / "velocity_legacy_scratch.xml").string();
+TEST(a_song_file_off_without_a_velocity_has_the_neutral_lift) {
+  auto path = (std::filesystem::path(TESTS_SCRATCH_DIR) / "velocity_plain_off_scratch.xml").string();
   Song song(Tuning::EDO12);
   auto track_to_add = std::make_unique<InstrumentTrack>(0);
   track_to_add->setId("t");
   auto & track = song.addTrack(std::move(track_to_add));
-  auto id = track.getInternalId();
-  song.getArrangement().setNote(0, id, 0, Note(60, 100));
-  song.getArrangement().setNote(4, id, 0, Note::off());
+  song.getArrangement().setNote(4, track.getInternalId(), 0, Note::off());
   song.save(path);
-
-  // Older files marked every OFF with velocity="0".
   auto text = slurp(path);
-  auto at = text.find(">OFF</note>");
-  CHECK(at != std::string::npos);
-  text.insert(at, " velocity=\"0\"");
-  std::ofstream(path) << text;
-
-  InstrumentProvider provider;
-  Song reloaded(Tuning::EDO12);
-  CHECK(reloaded.open(path, provider));
-  auto reloaded_track = reloaded.getMasterTrack().getChildById("t");
-  CHECK(reloaded_track != nullptr);
-  if (!reloaded_track) return;
-  auto off = reloaded.getArrangement().getNote(4, reloaded_track->getInternalId(), 0);
-  CHECK(off.isOff());
-  CHECK(off.getVelocity() == constants::NEUTRAL_VELOCITY);
+  CHECK(text.find("OFF") != std::string::npos);
+  CHECK(text.find("velocity") == std::string::npos); // neutral is left out
 }

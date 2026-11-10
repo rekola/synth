@@ -141,11 +141,6 @@ static bool parsePatternContent(XMLElement & pattern_element, Pattern & pattern,
     auto row_text = it->Attribute("row");
     auto column_text = it->Attribute("column");
     auto velocity_text = it->Attribute("velocity");
-    auto velocity16_text = it->Attribute("velocity16");
-    // An OFF's velocity is its lift. Older files wrote velocity="0" on every OFF
-    // (it was how an OFF was told from a note), so only `lift`/`lift16` count.
-    auto lift_text = it->Attribute("lift");
-    auto lift16_text = it->Attribute("lift16");
     auto delay_text = it->Attribute("delay");
     auto fx_text = it->Attribute("fx");
 
@@ -156,18 +151,11 @@ static bool parsePatternContent(XMLElement & pattern_element, Pattern & pattern,
       int row = row_text ? atoi(row_text) : 0;
       int start_column = column_text ? atoi(column_text) : 0;
       int velocity = velocity_text ? atoi(velocity_text) : constants::NEUTRAL_VELOCITY;
-      int lift = lift_text ? atoi(lift_text) : constants::NEUTRAL_VELOCITY;
       int delay = delay_text ? atoi(delay_text) : 0;
 
-      auto notes = Note::createFromString(value_text, static_cast<short>(velocity), static_cast<short>(delay), tuning, static_cast<short>(lift));
+      auto notes = Note::createFromString(value_text, static_cast<short>(velocity), static_cast<short>(delay), tuning);
       for (int i = 0; i < static_cast<int>(notes.size()); i++) {
-	auto note = notes[static_cast<size_t>(i)];
-        // Older files marked an OFF as a note with velocity="0", which is
-        // read that way still (with the neutral lift); a velocity 0 note-on is
-        // written velocity16="0".
-        if (velocity_text && velocity == 0 && !velocity16_text && note.isNoteOn()) note = Note::off(static_cast<short>(lift), static_cast<short>(delay), note.getValue());
-        // The 16-bit attribute, written when the velocity is not a 7-bit one, wins.
-        if (auto text16 = note.isOff() ? lift16_text : velocity16_text) note.setVelocity16(static_cast<uint16_t>(std::clamp(atoi(text16), 0, 0xFFFF)));
+        auto note = notes[static_cast<size_t>(i)];
         if (fx_text) note.setFx(fx_text);
 	pattern.setNote(row, start_column + i, note);
       }
@@ -345,19 +333,17 @@ static void storePatternContent(XMLDocument & doc, XMLElement * pattern_element,
       note_element->SetAttribute("row", static_cast<int>(row));
       if (col > 0) note_element->SetAttribute("column", static_cast<int>(col));
       if (note.isDefined()) {
-        // The velocity as the 7-bit number when that says all of it, else the 16-bit one.
-        // An OFF's is its lift; neutral is left out.
-        const char * name = note.isOff() ? "lift" : "velocity";
-        // (Velocity 0 is always the 16-bit form: velocity="0" is an older file's OFF.)
-        if (note.getVelocity16() != velocity::from7(note.getVelocity()) || (note.isNoteOn() && note.getVelocity16() == 0)) {
-          note_element->SetAttribute((std::string(name) + "16").c_str(), static_cast<int>(note.getVelocity16()));
-        } else if (note.getVelocity() != constants::NEUTRAL_VELOCITY) {
-          note_element->SetAttribute(name, note.getVelocity());
-        }
+        // A note-on's velocity, an OFF's lift, or the pressure of aftertouch;
+        // neutral is left out.
+        if (note.getVelocity() != constants::NEUTRAL_VELOCITY) note_element->SetAttribute("velocity", note.getVelocity());
         if (note.getDelay() > 0) note_element->SetAttribute("delay", note.getDelay());
       }
       if (note.hasFx()) note_element->SetAttribute("fx", std::string(note.getFx()).c_str());
-      if (note.isDefined()) note_element->SetText(note.toString(tuning).c_str());
+      // The text is the note, OFF, or AFT for aftertouch (toString() is for display).
+      if (note.isAftertouch())
+        note_element->SetText("AFT");
+      else if (note.isDefined())
+        note_element->SetText(note.toString(tuning).c_str());
       pattern_element->InsertEndChild(note_element);
     }
   }

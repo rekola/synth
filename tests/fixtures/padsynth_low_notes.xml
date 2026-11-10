@@ -28,33 +28,33 @@
   <arrangement>
     <pattern track="0">
       <note row="0" velocity="100" value="C-2" />
-      <note row="5" velocity="0" value="off" />
+      <note row="5" value="OFF" />
       <note row="6" velocity="100" value="C-3" />
-      <note row="11" velocity="0" value="off" />
+      <note row="11" value="OFF" />
     </pattern>
     <pattern track="1">
       <note row="12" velocity="100" value="C-2" />
-      <note row="17" velocity="0" value="off" />
+      <note row="17" value="OFF" />
       <note row="18" velocity="100" value="C-3" />
-      <note row="23" velocity="0" value="off" />
+      <note row="23" value="OFF" />
     </pattern>
     <pattern track="2">
       <note row="24" velocity="100" value="C-2" />
-      <note row="29" velocity="0" value="off" />
+      <note row="29" value="OFF" />
       <note row="30" velocity="100" value="C-3" />
-      <note row="35" velocity="0" value="off" />
+      <note row="35" value="OFF" />
     </pattern>
     <pattern track="3">
       <note row="36" velocity="100" value="C-2" />
-      <note row="41" velocity="0" value="off" />
+      <note row="41" value="OFF" />
       <note row="42" velocity="100" value="C-3" />
-      <note row="47" velocity="0" value="off" />
+      <note row="47" value="OFF" />
     </pattern>
     <pattern track="4">
       <note row="48" velocity="100" value="C-2" />
-      <note row="53" velocity="0" value="off" />
+      <note row="53" value="OFF" />
       <note row="54" velocity="100" value="C-3" />
-      <note row="59" velocity="0" value="off" />
+      <note row="59" value="OFF" />
     </pattern>
   </arrangement>
 </song>
