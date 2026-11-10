@@ -70,10 +70,10 @@ ClipPlayer::shiftLaunchedClips(int delta_rows) {
   controller_.setPlaybackInfo(info);
 }
 
-void ClipPlayer::queueSceneChange(int tempo, TimeSignature signature, bool clear_running) {
+void ClipPlayer::queueSceneChange(int tempo, TimeSignature signature, bool clear_running, int scene) {
   auto flags = (clear_running ? 1 : 0) | (controller_.getPlaybackInfo().isPlaying() ? 0 : 2);
   controller_.getPlaybackEventQueue().push(make_unique<PlaybackControlEvent>(
-      PlaybackControlEvent::QUEUE_SCENE_CHANGE, controller_.getActiveBufferName(), tempo, signature.numerator * 100 + signature.denominator, flags, ++scene_seq_));
+      PlaybackControlEvent::QUEUE_SCENE_CHANGE, controller_.getActiveBufferName(), tempo, signature.numerator * 100 + signature.denominator, flags, ++scene_seq_, scene + 1));
 }
 
 void
@@ -213,7 +213,7 @@ ClipPlayer::launchScene(int clip_index, const vector<int> & track_ids) {
   auto & events = controller_.getPlaybackEventQueue();
   events.push(make_unique<PlaybackControlEvent>(PlaybackControlEvent::BATCH_BEGIN, controller_.getActiveBufferName()));
   if (!track_ids.empty()) {
-    queueSceneChange(song.getSceneTempo(clip_index), song.getSceneTimeSignature(clip_index), false);
+    queueSceneChange(song.getSceneTempo(clip_index), song.getSceneTimeSignature(clip_index), false, clip_index);
   }
   for (auto track_id : track_ids) triggerClip(track_id, clip_index);
   // A scene starts the transport even when every slot in it is empty.

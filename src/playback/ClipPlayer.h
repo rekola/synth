@@ -172,7 +172,7 @@ class ClipPlayer {
   // Sends a launched scene's tempo and time signature (or `clear_running`)
   // to the audio thread, which applies them on the bar - see
   // SongState::queueSceneChange().
-  void queueSceneChange(int tempo, TimeSignature signature, bool clear_running);
+  void queueSceneChange(int tempo, TimeSignature signature, bool clear_running, int scene = -1);
   int scene_seq_ = 0;
   int assign_row_ = 0;
   std::function<void()> assign_playback_starter_;

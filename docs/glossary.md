@@ -220,6 +220,11 @@ A row of the clip grid: the clips at one position across every track's clip
 list, launched together. It has no object of its own beyond an optional
 name, tempo and time signature stored by position. See scenes.md.
 
+**Follow action**
+What a scene does once it has played for its length: `none` (wait for the
+operator), `next` (launch the following scene on that very row) or `stop`. Set
+in the file as `followAction` on `<scene>`. See scenes.md.
+
 **Tempo change and signature change**
 Arrangement objects, like a clip instance: from their row on, the tempo
 (bpm) or the time signature (bars counted from that row) is the change's, until

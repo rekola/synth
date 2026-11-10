@@ -857,8 +857,10 @@ Controller::receivePlaybackSnapshot(const string & buffer_name, const PlaybackIn
 // only then, so a tempo edited since isn't overwritten by an older snapshot.
 void Controller::mirrorSceneChange(const string & buffer_name, const PlaybackInfo & info) {
   auto & mirrored = mirrored_scene_seq_[buffer_name];
-  if (info.getSceneSeq() <= mirrored) return;
-  mirrored = info.getSceneSeq();
+  auto & mirrored_follow = mirrored_scene_follow_seq_[buffer_name];
+  if (info.getSceneSeq() <= mirrored && info.getSceneFollowSeq() <= mirrored_follow) return;
+  mirrored = std::max(mirrored, info.getSceneSeq());
+  mirrored_follow = std::max(mirrored_follow, info.getSceneFollowSeq());
   auto song = getSongByName(buffer_name);
   if (!song) return;
   song->setRunningBars(info.getRunningBars());

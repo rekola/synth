@@ -80,6 +80,36 @@ scene that repeats the current meter adds nothing. While recording, the scene's
 tempo does not replace the song's own tempo, which stays the starting tempo
 the changes are counted from.
 
+## 3a. Follow actions
+
+A scene can say what happens when it has played through, so a song laid out in
+scenes plays on unattended. One attribute on `<scene>`:
+
+```xml
+<scene name="Section 1" tempo="92" timeSignature="5/8" followAction="next"/>
+```
+
+| `followAction` | When the scene has played for its length |
+|---|---|
+| absent, `none` | Nothing: the clips loop or stop as their `loop` says, until the operator launches something. |
+| `next` | The following scene launches on that row: no gap, no wait for the bar, and its tempo and signature apply from its first row. On the last scene, `next` stops (Ableton wraps to the first; this does not, for now). |
+| `stop` | The transport stops on that row. |
+
+The scene's length is its longest clip, counted from the row the scene started
+on. Launching a scene by hand cancels the follow action still pending; the
+launched scene's own action then applies. Sustained notes at the boundary are
+released, plucked tails ring out; a clip shorter than its scene behaves as it
+always does.
+
+The format has room for the rest of Ableton's follow actions. `again`,
+`previous`, `first`, `last`, `any`, `other` and `jump` are read and written
+back but act as `none`, and so do the reserved attributes `followActionB`,
+`followActionChanceA`, `followActionChanceB`, `followActionTime`
+(bars.beats.sixteenths), `followActionJumpTarget` and `followActionEnabled`,
+which are kept verbatim. There is no editor for the attribute yet; it is set
+in the file. The decision lives in `followaction::decide()`
+(`src/model/SceneFollow.h`).
+
 ## 4. The rhythm library
 
 Each rhythm in the Library carries its time signature (Waltz and Jazz Waltz

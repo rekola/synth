@@ -403,7 +403,7 @@ Player::handlePlaybackControlEvent(PlaybackControlEvent & ev) {
     break;
 
   case PlaybackControlEvent::QUEUE_SCENE_CHANGE:
-    state.queueSceneChange(ev.getParameter1(), {ev.getParameter2() / 100, ev.getParameter2() % 100}, (ev.getParameter3() & 1) != 0, (ev.getParameter3() & 2) != 0, ev.getParameter4());
+    state.queueSceneChange(ev.getParameter1(), {ev.getParameter2() / 100, ev.getParameter2() % 100}, (ev.getParameter3() & 1) != 0, (ev.getParameter3() & 2) != 0, ev.getParameter4(), ev.getParameter5() - 1);
     break;
 
   case PlaybackControlEvent::SET_PERFORMANCE:
@@ -1058,6 +1058,7 @@ Player::createPlaybackEvent(const string & buffer_name, const Song & song, const
   info.setTempo(state.getTempo());
   info.setRunningBars(state.getRunningBars());
   info.setSceneSeq(state.getSceneSeq());
+  info.setSceneFollowSeq(state.getSceneFollowSeq());
   info.setSceneTempo(state.getSceneTempo());
   info.setVoiceCount(state.getVoiceCount());
   info.setRoundTripLatency(latency_frames_, latency_nominal_);
