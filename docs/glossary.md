@@ -307,3 +307,17 @@ instrument's `<envelope>` (which also releases PadSynth and Additive notes) scal
 release time; a SoundFont adds `(64 - lift) * 37.5` timecents to both its volume and
 modulation envelope releases, held to the range the SF2 specification allows. In a
 song file it is the `velocity` attribute of an OFF note.
+
+**Lost note**
+A note that began on this row whose pitch is gone, written `???` (typed with `?` in
+the note column). It has a velocity and a delay like any note but no value, and it
+makes no sound, but it ends the previous note in its column, as an OFF does. It is for transcriptions of music that survives
+incompletely, such as the Delphic Paean of Athenaeus, where some of the notes are
+unknown.
+
+**Lacuna**
+A span of missing notes, written `~~~` (typed with `~` in the note column), from its
+row until the next cell in the column. Like a lost note it has a velocity and a delay
+but no value, makes no sound and ends the previous note in its column, as an OFF does.
+Where a lost note stands for one note whose pitch is gone, a lacuna stands for a stretch
+where the source is broken off and the notes are not known at all.

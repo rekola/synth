@@ -551,7 +551,7 @@ bool barHasBackgroundContent(const ArrangementView & arrangement, int track_id, 
     for (auto & note : arrangement.getNotes(effective_row, track_id)) {
       if (note.isDefined()) {
         has_any = true;
-        if (!note.isOff() && !note.isAftertouch()) has_sounding_note = true;
+        if (note.isNoteOn()) has_sounding_note = true;
       }
     }
     if (arrangement.getCommand(effective_row, track_id).isDefined()) has_any = true;

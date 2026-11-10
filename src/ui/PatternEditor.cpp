@@ -2455,6 +2455,8 @@ bool PatternEditor::keyDown(const cellui::KeyDown & e) {
 	}
 
         bool is_off = e.key == 'a';
+        bool is_lost = e.key == '?'; // a note whose pitch is gone
+        bool is_lacuna = e.key == '~'; // a span of missing notes
         bool is_delete = e.key == Key::Delete || e.key == Key::Backspace;
         auto note_column = track_info.getNoteNumber(new_cursor.col);
         // A cursor that neither follows the transport nor a playing clip's
@@ -2470,15 +2472,15 @@ bool PatternEditor::keyDown(const cellui::KeyDown & e) {
         bool is_repeat = e.repeat;
 
         int midi_note = -1;
-	if (!is_off) {
-	  auto track = song.getMasterTrack().getChildByInternalId(track_id);
+        if (!is_off && !is_lost && !is_lacuna) {
+          auto track = song.getMasterTrack().getChildByInternalId(track_id);
 	  auto tuning = track ? song.getTuningForTrack(*track) : song.getTuning();
           if (auto input_note = keyToMidiNote(e.key, tuning, song.getScale()); !input_note.empty()) {
             midi_note = Note(input_note, tuning, 0x28, 0, getController().getGlobalOctave()).getValue();
           }
         }
 
-	if (is_repeat && midi_note >= 0) return true; // already sounding - nothing to redo
+        if (is_repeat && midi_note >= 0) return true; // already sounding - nothing to redo
 
 	// Without key releases a chord can't be told from quick taps by hold
 	// state, but its keys arrive together: one that does goes onto the
@@ -2505,17 +2507,21 @@ bool PatternEditor::keyDown(const cellui::KeyDown & e) {
 	// The group of a chord opens before the first write, not inside it.
         if (midi_note >= 0 && !is_delete && !is_off && e.release_reported && active_keyboard_notes_.empty()) getController().setNoteHeld(true);
 
-        if (is_delete || midi_note >= 0 || is_off) {
-	  // Typed notes, offs and deletes undo as a run, like typed digits; the keys of a chord are
+        if (is_delete || midi_note >= 0 || is_off || is_lost || is_lacuna) {
+          // Typed notes, offs and deletes undo as a run, like typed digits; the keys of a chord are
 	  // already one group, which joins the run when it ends.
 	  Song::Edit edit(song, "enter note", Song::Edit::Kind::CONTENT, Song::Edit::Origin::USER, !song.document().inGroup());
 	  if (is_delete) {
 	    edit_target.pattern->deleteNote(edit_target.effective_row, note_column);
 	    event_queue.push(make_unique<PlaybackControlEvent>(PlaybackControlEvent::STOP_NOTE, getController().getActiveBufferName(), track_id, note_column));
-	  } else if (is_off) {
+          } else if (is_lacuna) {
+            edit_target.pattern->setNote(edit_target.effective_row, note_column, Note::lacuna(constants::DEFAULT_NOTE_ON_VELOCITY, current_delay));
+          } else if (is_lost) {
+            edit_target.pattern->setNote(edit_target.effective_row, note_column, Note::lost(constants::DEFAULT_NOTE_ON_VELOCITY, current_delay));
+          } else if (is_off) {
             edit_target.pattern->setNote(edit_target.effective_row, note_column, Note::off(constants::NEUTRAL_VELOCITY, current_delay));
             event_queue.push(make_unique<PlaybackControlEvent>(PlaybackControlEvent::STOP_NOTE, getController().getActiveBufferName(), track_id, note_column));
-	  } else {
+          } else {
             Note note(midi_note, constants::DEFAULT_NOTE_ON_VELOCITY, current_delay);
             tuneNewNote(song, track_id, note);
 
@@ -2566,9 +2572,9 @@ bool PatternEditor::keyDown(const cellui::KeyDown & e) {
 	    }
             if (has_hold_info) active_keyboard_notes_[e.key] = {note_column, info.getAbsolutePosition(), track_id};
             hold_tracked_note = has_hold_info;
-	  }
+          }
 
-	  row_edited = true;
+          row_edited = true;
 
 	  if (!transport_owns_row) {
 	    int n = 0;
