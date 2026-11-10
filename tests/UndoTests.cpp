@@ -480,7 +480,7 @@ TEST(chords_and_single_notes_typed_in_a_row_undo_as_one_step) {
   controller.setNoteHeld(false);
   {
     Song::Edit edit(song, "enter note", Song::Edit::Kind::CONTENT, Song::Edit::Origin::USER, true); // a typed off
-    song.getArrangement().setNote(32, track_id, 0, Note(0, 0));
+    song.getArrangement().setNote(32, track_id, 0, Note::off());
   }
   controller.setNoteHeld(true);
   song.getArrangement().setNote(33, track_id, 0, Note(64, 100));

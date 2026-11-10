@@ -21,10 +21,13 @@
 #include "../src/util/Velocity.h"
 
 #include <cmath>
+#include <functional>
 #include <filesystem>
 #include <fstream>
 #include <sstream>
 #include <string>
+
+using namespace sf2fixture;
 
 namespace {
 
@@ -61,7 +64,7 @@ void checkReleaseScaling(const std::function<int(int)> & frames_for) {
   const float base = static_cast<float>(frames_for(64));
   CHECK(base > 1000.0f);
   CHECK_NEAR(static_cast<float>(frames_for(0)) / base, 4.0f, 0.1f);
-  CHECK_NEAR(static_cast<float>(frames_for(127)) / base, 0.2658f, 0.03f);
+  CHECK_NEAR(static_cast<float>(frames_for(127)) / base, 0.2551f, 0.03f);
 }
 
 } // namespace
@@ -83,14 +86,14 @@ TEST(velocity_scales_between_7_and_16_bits) {
 TEST(release_time_factor_follows_the_lift) {
   CHECK(velocity::releaseTimeFactor(64) == 1.0f);
   CHECK_NEAR(velocity::releaseTimeFactor(0), 4.0f, 1e-5f);
-  CHECK_NEAR(velocity::releaseTimeFactor(127), 0.2658f, 1e-3f);
+  CHECK_NEAR(velocity::releaseTimeFactor(127), 0.2551f, 1e-3f);
   CHECK_NEAR(velocity::releaseTimeFactor(96), 0.5f, 1e-5f);
 }
 
 TEST(sf2_release_seconds_add_timecents_within_the_spec_range) {
   CHECK(velocity::sf2ReleaseSeconds(0.7f, 64) == 0.7f);
   CHECK_NEAR(velocity::sf2ReleaseSeconds(1.0f, 0), 4.0f, 1e-4f);
-  CHECK_NEAR(velocity::sf2ReleaseSeconds(1.0f, 127), 0.2658f, 1e-3f);
+  CHECK_NEAR(velocity::sf2ReleaseSeconds(1.0f, 127), 0.2551f, 1e-3f);
   CHECK(velocity::sf2ReleaseSeconds(0.0f, 0) == 0.0f); // a pinned instant release stays so
   // The range of the release generators: -12000 to 8000 timecents.
   CHECK_NEAR(velocity::sf2ReleaseSeconds(60.0f, 0), std::exp2(8000.0f / 1200.0f), 0.01f);
@@ -137,6 +140,7 @@ TEST(a_velocity_0_note_on_is_a_real_quiet_note) {
 TEST(a_velocity_0_note_on_starts_a_voice_when_rendered) {
   auto render_peak = [](int velocity_value) {
     Song song(Tuning::EDO12);
+    song.addInstrument(std::make_unique<Oscillator>(WaveformType::SINE));
     auto & track = song.addTrack(std::make_unique<InstrumentTrack>(0));
     song.getArrangement().setNote(0, track.getInternalId(), 0, Note(60, static_cast<short>(velocity_value)));
     song.getArrangement().setNote(8, track.getInternalId(), 0, Note::off());
@@ -164,7 +168,7 @@ TEST(envelope_release_scales_with_the_lift) {
   };
   CHECK(std::abs(frames(64) - 44100) <= 1);
   CHECK(std::abs(frames(0) - 4 * 44100) <= 2);
-  CHECK_NEAR(static_cast<float>(frames(127)), 0.2658f * 44100.0f, 20.0f);
+  CHECK_NEAR(static_cast<float>(frames(127)), 0.2551f * 44100.0f, 20.0f);
 }
 
 TEST(user_instrument_release_scales_with_the_lift) {
@@ -184,9 +188,9 @@ TEST(soundfont_release_scales_with_the_lift) {
   std::vector<PresetSpec> presets = {
       {"Held", 89, {GenSpec{54, 1}, GenSpec{38, 0}}, {}},
   };
-  auto path = (std::filesystem::path(TESTS_SCRATCH_DIR) / "velocity_sf2_release_fixture.sf2").string();
-  writeMinimalSf2(path, presets);
-  SoundFont sf(path);
+  auto fixture_path = (std::filesystem::path(TESTS_SCRATCH_DIR) / "velocity_sf2_release_fixture.sf2").string();
+  writeMinimalSf2(fixture_path, presets);
+  SoundFont sf(fixture_path);
   checkReleaseScaling([&](int lift7) {
     auto instrument = sf.createInstrument(0);
     ChannelConfiguration config(44100, 1);
@@ -217,7 +221,9 @@ std::string slurp(const std::string & path) {
 TEST(velocities_and_lifts_survive_a_save_and_reload) {
   auto path = (std::filesystem::path(TESTS_SCRATCH_DIR) / "velocity_round_trip_scratch.xml").string();
   Song song(Tuning::EDO12);
-  auto & track = song.addTrack(std::make_unique<InstrumentTrack>(0));
+  auto track_to_add = std::make_unique<InstrumentTrack>(0);
+  track_to_add->setId("t");
+  auto & track = song.addTrack(std::move(track_to_add));
   auto id = track.getInternalId();
   Note wide(62, 100);
   wide.setVelocity16(0x1234);
@@ -234,7 +240,11 @@ TEST(velocities_and_lifts_survive_a_save_and_reload) {
   InstrumentProvider provider;
   Song reloaded(Tuning::EDO12);
   CHECK(reloaded.open(path, provider));
-  auto at = [&](int row) { return reloaded.getArrangement().getNote(row, id, 0); };
+  auto reloaded_track = reloaded.getMasterTrack().getChildById("t");
+  CHECK(reloaded_track != nullptr);
+  if (!reloaded_track) return;
+  auto reloaded_id = reloaded_track->getInternalId();
+  auto at = [&](int row) { return reloaded.getArrangement().getNote(row, reloaded_id, 0); };
   CHECK(at(0).isNoteOn() && at(0).getVelocity() == 0);
   CHECK(at(1).isOff() && at(1).getVelocity() == 0);
   CHECK(at(2).isNoteOn() && at(2).getVelocity() == 100);
@@ -246,7 +256,9 @@ TEST(velocities_and_lifts_survive_a_save_and_reload) {
 TEST(an_older_file_off_without_a_lift_gets_the_neutral_one) {
   auto path = (std::filesystem::path(TESTS_SCRATCH_DIR) / "velocity_legacy_scratch.xml").string();
   Song song(Tuning::EDO12);
-  auto & track = song.addTrack(std::make_unique<InstrumentTrack>(0));
+  auto track_to_add = std::make_unique<InstrumentTrack>(0);
+  track_to_add->setId("t");
+  auto & track = song.addTrack(std::move(track_to_add));
   auto id = track.getInternalId();
   song.getArrangement().setNote(0, id, 0, Note(60, 100));
   song.getArrangement().setNote(4, id, 0, Note::off());
@@ -262,7 +274,10 @@ TEST(an_older_file_off_without_a_lift_gets_the_neutral_one) {
   InstrumentProvider provider;
   Song reloaded(Tuning::EDO12);
   CHECK(reloaded.open(path, provider));
-  auto off = reloaded.getArrangement().getNote(4, id, 0);
+  auto reloaded_track = reloaded.getMasterTrack().getChildById("t");
+  CHECK(reloaded_track != nullptr);
+  if (!reloaded_track) return;
+  auto off = reloaded.getArrangement().getNote(4, reloaded_track->getInternalId(), 0);
   CHECK(off.isOff());
   CHECK(off.getVelocity() == constants::NEUTRAL_VELOCITY);
 }

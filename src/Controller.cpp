@@ -1675,7 +1675,8 @@ Controller::applyNotePressure(int row, int track_id, int note_column, short velo
   auto target = resolveEditTarget(*song, track_id, row, getFocusedClip());
   auto note = target.pattern->getNote(target.effective_row, note_column);
   if (note.isDefined() && !note.isAftertouch()) return; // never overwrite a real note
-  note.setDelay(delay);
+  if (!note.isDefined()) note = Note::aftertouch(velocity);
+  note.setDelay(static_cast<short>(delay));
   note.setVelocity(velocity);
   target.pattern->setNote(target.effective_row, note_column, note);
 }

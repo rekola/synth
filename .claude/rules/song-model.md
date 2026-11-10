@@ -165,6 +165,14 @@ paths:
 
 ## Song file, scenes, bars
 
+- A `Note` is a `Kind` (none, on, off, aftertouch) plus one 16-bit velocity
+  (`util/Velocity.h`; the UI shows 7 bits). **Never tell an OFF by velocity 0**:
+  velocity 0 is a real note-on. An OFF's velocity is its *lift*, fixed when the
+  OFF arrives and handed to the voices (`VoiceState::setReleaseVelocity()`),
+  where it scales release times. File: `velocity`/`lift` (7-bit, neutral 64
+  omitted), `velocity16`/`lift16` otherwise; a velocity 0 note-on is written
+  `velocity16="0"` because an older file's `velocity="0"` on a note is an OFF.
+
 - A track names its pool instrument by id (`instrument="i1"`); the
   arrangement places a clip with `<instance track row clip/>`, a stop being
   an instance with no `clip`. There is no reader for earlier file forms: the

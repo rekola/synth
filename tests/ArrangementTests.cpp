@@ -44,14 +44,14 @@ TEST(pattern_has_sounding_note_with_a_note_on) {
 
 TEST(pattern_has_no_sounding_note_with_only_a_note_off) {
   Pattern p;
-  p.setNote(0, 0, Note(60, 0)); // value defined, velocity 0 - a note-off
+  p.setNote(0, 0, Note::off(constants::NEUTRAL_VELOCITY, 0, 60));
   CHECK(!p.isEmpty());
   CHECK(!p.hasSoundingNote());
 }
 
 TEST(pattern_has_no_sounding_note_with_only_aftertouch) {
   Pattern p;
-  p.setNote(0, 0, Note(-1, 100)); // no value, velocity - aftertouch
+  p.setNote(0, 0, Note::aftertouch(100));
   CHECK(!p.isEmpty());
   CHECK(!p.hasSoundingNote());
 }

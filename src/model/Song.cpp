@@ -162,6 +162,10 @@ static bool parsePatternContent(XMLElement & pattern_element, Pattern & pattern,
       auto notes = Note::createFromString(value_text, static_cast<short>(velocity), static_cast<short>(delay), tuning, static_cast<short>(lift));
       for (int i = 0; i < static_cast<int>(notes.size()); i++) {
 	auto note = notes[static_cast<size_t>(i)];
+        // Older files marked an OFF as a note with velocity="0", which is
+        // read that way still (with the neutral lift); a velocity 0 note-on is
+        // written velocity16="0".
+        if (velocity_text && velocity == 0 && !velocity16_text && note.isNoteOn()) note = Note::off(static_cast<short>(lift), static_cast<short>(delay), note.getValue());
         // The 16-bit attribute, written when the velocity is not a 7-bit one, wins.
         if (auto text16 = note.isOff() ? lift16_text : velocity16_text) note.setVelocity16(static_cast<uint16_t>(std::clamp(atoi(text16), 0, 0xFFFF)));
         if (fx_text) note.setFx(fx_text);
@@ -344,7 +348,8 @@ static void storePatternContent(XMLDocument & doc, XMLElement * pattern_element,
         // The velocity as the 7-bit number when that says all of it, else the 16-bit one.
         // An OFF's is its lift; neutral is left out.
         const char * name = note.isOff() ? "lift" : "velocity";
-        if (note.getVelocity16() != velocity::from7(note.getVelocity())) {
+        // (Velocity 0 is always the 16-bit form: velocity="0" is an older file's OFF.)
+        if (note.getVelocity16() != velocity::from7(note.getVelocity()) || (note.isNoteOn() && note.getVelocity16() == 0)) {
           note_element->SetAttribute((std::string(name) + "16").c_str(), static_cast<int>(note.getVelocity16()));
         } else if (note.getVelocity() != constants::NEUTRAL_VELOCITY) {
           note_element->SetAttribute(name, note.getVelocity());

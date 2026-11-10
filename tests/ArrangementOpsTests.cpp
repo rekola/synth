@@ -730,7 +730,7 @@ TEST(quantize_clip_snaps_each_note_to_its_closest_row_and_clears_the_delay) {
   clip.setLooping(true);
   clip.getLeafPattern().setNote(2, 0, Note(60, 100, 40));   // early in its row: stays
   clip.getLeafPattern().setNote(4, 0, Note(62, 100, 200));  // late: next row
-  clip.getLeafPattern().setNote(5, 0, Note(0, 0, 100));     // its off, snaps back onto row 5
+  clip.getLeafPattern().setNote(5, 0, Note::off(constants::NEUTRAL_VELOCITY, 100)); // its off, snaps back onto row 5
   clip.getLeafPattern().setNote(15, 0, Note(64, 100, 128)); // past the end: wraps
   song.addClip(move(clip));
 
