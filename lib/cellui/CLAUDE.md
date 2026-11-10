@@ -158,7 +158,12 @@ carries the app's object as an opaque `getAppContext()`.
   (`Cell::weight`, `italic`), so the windows draw any weight in cell text as in
   a `TextRun` and the terminal writes SGR bold from 600 (`Cell::bold()`). The face also
   carries a `zoom` (`TextFace::zoom`, `Cell::zoom`, 0 to 255 of what the display allows): how much
-  larger the text is drawn, which a display scales (the GTK window) or ignores (a terminal). A display with `DisplayInfo::proportional_text`
+  larger the text is drawn, which a display scales (the GTK window) or ignores (a terminal). The cells
+  of a zoomed text scale as one piece about its common centre: text written in one call is one piece
+  (`CellBuffer::write()` marks its cells after the first `Cell::zoom_joined`, as `Cell::lift_joined`
+  joins lifted cells), and `TextFace::zoom_joined` joins a call's first cell to the call before it,
+  so a field of differently coloured parts (a note with a coloured accidental) is one piece with each
+  part keeping its own colour. A display with `DisplayInfo::proportional_text`
   (the GTK window; Win32 with DirectWrite, unrun) marks the box's cells
   (`Cell::text_run`) and reports `FrameInfo::text_runs`, set in the system UI
   font sized to the cell height; any other display, or a `MONOSPACE` request,
@@ -290,9 +295,10 @@ reaching 0.75 cell heights past its cell), then a textured quad each frame, in t
 colour and strength through a colour matrix, so the glow takes any colour with no steps and
 no texture of its own (this assumes a GL renderer). No blur runs on the GPU, so a frame
 costs what a few hundred small quads do. A glyph is drawn larger by its cell's zoom
-(`Cell::zoom`, up to `kZoomMax` more): a transform about the glyph's cell centre on its cached
-node and on its glow's quad, so no node or texture is made again (the band's cache print holds
-the zoom). The zoom is the writer's, not tied to the light. A background never glows. A band with no such
+(`Cell::zoom`, up to `kZoomMax` more): a transform on its cached node and on its glow's quad,
+so no node or texture is made again (the band's cache print holds the zoom), about the centre
+of its piece (`zoomRun()`: the cells joined to each other), so its characters keep their places
+in it. The zoom is the writer's, not tied to the light. A background never glows. A band with no such
 glyph keeps no glow node, and the glow's cache print holds the strengths, since
 the cells' own prints are of the colours scaled to white. An app only says how
 bright; this window decides that bright means light around it. Not done yet:

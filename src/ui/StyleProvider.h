@@ -90,9 +90,12 @@ class StyleProvider : public cellui::StyleProvider {
   // The face a note is written in at `flash` (0 to 1): its zoom (Cell::zoom) follows the flash, so it
   // grows with the light and falls back with it; how much larger that is, and whether at all, is the
   // display's to decide.
-  static cellui::TextFace zoomFace(float flash) {
+  // `joined` continues the piece written just before it, to its left: the parts of one field, such
+  // as the coloured accidental of a note, scale as one.
+  static cellui::TextFace zoomFace(float flash, bool joined = false) {
     cellui::TextFace face;
     face.zoom = static_cast<uint8_t>(std::lround(std::clamp(flash, 0.0f, 1.0f) * 255.0f));
+    face.zoom_joined = joined;
     return face;
   }
 
