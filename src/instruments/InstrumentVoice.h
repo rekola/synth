@@ -3,6 +3,7 @@
 
 #include "../state/PositionedVoice.h"
 #include "../dsp/HashField.h"
+#include "../util/Velocity.h"
 
 #include <cmath>
 
@@ -57,7 +58,7 @@ class InstrumentVoice : public PositionedVoice {
     VoiceState::playNote(frequency, velocity, note_value);
 
     if (freq_ == 0.0f) {
-      setGainDB(-gainToDecibels(1.0f / velocity));
+      setGainDB(velocity > 0.0f ? -gainToDecibels(1.0f / velocity) : velocity::kSilentGainDb);
     }
     freq_ = frequency * detune_;
     note_value_ = note_value;

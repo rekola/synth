@@ -150,19 +150,20 @@ static bool parsePatternContent(XMLElement & pattern_element, Pattern & pattern,
     if (value_text) {
       int row = row_text ? atoi(row_text) : 0;
       int start_column = column_text ? atoi(column_text) : 0;
-      int velocity = velocity_text ? atoi(velocity_text) : constants::DEFAULT_VELOCITY;
+      int velocity = velocity_text ? atoi(velocity_text) : constants::NEUTRAL_VELOCITY;
       int delay = delay_text ? atoi(delay_text) : 0;
 
       auto notes = Note::createFromString(value_text, velocity, delay, tuning);
       for (int i = 0; i < static_cast<int>(notes.size()); i++) {
-	auto note = notes[static_cast<size_t>(i)];
-	if (fx_text) note.setFx(fx_text);
+        auto note = notes[static_cast<size_t>(i)];
+        if (fx_text) note.setFx(fx_text);
 	pattern.setNote(row, start_column + i, note);
       }
-    } else if (fx_text) {
-      // No note: a cell that only carries fx.
-      Note fx_only;
-      if (fx_only.setFx(fx_text)) pattern.setNote(row_text ? atoi(row_text) : 0, column_text ? atoi(column_text) : 0, fx_only);
+    } else if (velocity_text || fx_text) {
+      // No note: aftertouch when it has a velocity (its pressure), else a cell that only carries fx.
+      Note cell;
+      if (velocity_text) cell = Note::aftertouch(atoi(velocity_text), delay_text ? atoi(delay_text) : 0);
+      if (!fx_text || cell.setFx(fx_text)) pattern.setNote(row_text ? atoi(row_text) : 0, column_text ? atoi(column_text) : 0, cell);
     }
   }
 
@@ -333,11 +334,15 @@ static void storePatternContent(XMLDocument & doc, XMLElement * pattern_element,
       note_element->SetAttribute("row", static_cast<int>(row));
       if (col > 0) note_element->SetAttribute("column", static_cast<int>(col));
       if (note.isDefined()) {
-        if (note.getVelocity() != constants::DEFAULT_VELOCITY) note_element->SetAttribute("velocity", note.getVelocity());
+        // A note-on's velocity, an OFF's lift, or the pressure of aftertouch;
+        // neutral is left out, except for aftertouch: with no text and no value
+        // its velocity is what tells it from a cell with only fx.
+        if (note.isAftertouch() || note.getVelocity() != constants::NEUTRAL_VELOCITY) note_element->SetAttribute("velocity", note.getVelocity());
         if (note.getDelay() > 0) note_element->SetAttribute("delay", note.getDelay());
       }
       if (note.hasFx()) note_element->SetAttribute("fx", std::string(note.getFx()).c_str());
-      if (note.isDefined()) note_element->SetText(note.toString(tuning).c_str());
+      // The text is the note or OFF; aftertouch has none, like its empty note column.
+      if (note.isDefined() && !note.isAftertouch()) note_element->SetText(note.toString(tuning).c_str());
       pattern_element->InsertEndChild(note_element);
     }
   }

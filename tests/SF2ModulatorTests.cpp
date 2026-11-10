@@ -476,8 +476,8 @@ TEST(sf2_instrument_track_state_reclaims_looping_multi_region_voice) {
     CHECK(state.isActive());
   }
 
-  // Note-off: velocity 0.0f => TrackEvent::isOff() => stopVoices(0).
-  context.addPendingEvent(0, 0, 0, Tuning::EDO12, 0.0f, -1);
+  // Note-off: an OFF event => stopVoices(0).
+  context.addPendingOff(0, 0, 0, Tuning::EDO12, 0.5f);
 
   bool became_inactive = false;
   for (int i = 0; i < 20 && !became_inactive; i++) {

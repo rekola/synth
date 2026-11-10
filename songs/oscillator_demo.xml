@@ -177,7 +177,7 @@
     <track id="20" name="PadSynth Synth Brass" instrument="i21"/>
   </tracks>
 
-  <locators>
+  <arrangement>
     <locator row="0">PadSynth keyboard - single note</locator>
     <locator row="8">PadSynth keyboard - sustained fifth</locator>
     <locator row="16">PadSynth keyboard - 31-EDO C-E-G triad</locator>

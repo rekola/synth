@@ -283,3 +283,22 @@ timing and decay. Here it appears as:
   2.5 cents in the `piano` preset. Their beating and their slightly different
   decay rates give a piano note its shimmer and its double decay; see
   additive.md.
+
+**Velocity**
+How hard a note is struck, 0 to 127 (two hex digits, `00` to `7f`). One field per
+note: on a note-on the strike velocity, on an OFF the *lift*, on aftertouch the
+pressure. Velocity 0 is a real note-on that starts from silence; an OFF is its own
+kind of cell and is never told by its velocity. 64 is *neutral velocity*, what code
+gives a note made without one and what a song file leaves out; the editor and the
+pad controllers give a new note-on 100 (the *default note-on velocity*) and a new
+OFF the neutral one.
+
+**Lift**
+An OFF's velocity: how fast the key is let go. It scales the release time of
+every envelope the note has, fixed when the OFF arrives:
+`release = instrument release * 2^((64 - lift) / 32)`. Lift 64 leaves the release as
+authored, 0 makes it four times longer, 127 about four times shorter. A user
+instrument's `<envelope>` (which also releases PadSynth and Additive notes) scales its
+release time; a SoundFont adds `(64 - lift) * 37.5` timecents to both its volume and
+modulation envelope releases, held to the range the SF2 specification allows. In a
+song file it is the `velocity` attribute of an OFF note.

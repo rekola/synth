@@ -1968,8 +1968,15 @@ PatternEditor::commitPendingValue() {
   auto notes = edit_target.pattern->getNotes(edit_target.effective_row);
   Note note;
   if (p.note_column < static_cast<int>(notes.size())) note = notes[static_cast<size_t>(p.note_column)];
-  if (p.type == ColumnType::VELOCITY) note.setVelocity(p.value);
-  else note.setDelay(p.value);
+  if (p.type == ColumnType::VELOCITY) {
+    // A velocity on an empty cell is aftertouch (pressure 0 there is nothing).
+    if (note.isDefined())
+      note.setVelocity(p.value);
+    else if (p.value > 0)
+      note = Note::aftertouch(static_cast<short>(p.value));
+  } else {
+    note.setDelay(p.value);
+  }
   Song::Edit edit(song, "edit velocity or delay", Song::Edit::Kind::CONTENT, Song::Edit::Origin::USER, true);
   edit_target.pattern->setNote(edit_target.effective_row, p.note_column, note);
   row_edited = true;
@@ -2506,10 +2513,10 @@ bool PatternEditor::keyDown(const cellui::KeyDown & e) {
 	    edit_target.pattern->deleteNote(edit_target.effective_row, note_column);
 	    event_queue.push(make_unique<PlaybackControlEvent>(PlaybackControlEvent::STOP_NOTE, getController().getActiveBufferName(), track_id, note_column));
 	  } else if (is_off) {
-	    edit_target.pattern->setNote(edit_target.effective_row, note_column, Note(0, 0, current_delay));
-	    event_queue.push(make_unique<PlaybackControlEvent>(PlaybackControlEvent::STOP_NOTE, getController().getActiveBufferName(), track_id, note_column));
+            edit_target.pattern->setNote(edit_target.effective_row, note_column, Note::off(constants::NEUTRAL_VELOCITY, current_delay));
+            event_queue.push(make_unique<PlaybackControlEvent>(PlaybackControlEvent::STOP_NOTE, getController().getActiveBufferName(), track_id, note_column));
 	  } else {
-	    Note note(midi_note, 0x28, current_delay);
+            Note note(midi_note, constants::DEFAULT_NOTE_ON_VELOCITY, current_delay);
             tuneNewNote(song, track_id, note);
 
             // A terminal that never negotiated the Kitty keyboard protocol
@@ -3990,7 +3997,7 @@ PatternEditor::renderRow(const StyleProvider & styles, int heading_height, const
           float flash = 0.0f;
           if (!note.hasFx()) cell_fg = cell_fg.blend(0.5f, cell_bg);
           else if (!cell_is_selected && track_dim <= 0.0f)
-            flash = noteFlashOf(track_id, note.getDelay()) * StyleProvider::velocityFlash(note.getVelocity());
+            flash = noteFlashOf(track_id, note.getDelay()) * StyleProvider::velocityFlash(note.isOff() ? 0 : note.getVelocity());
           cell_fg = StyleProvider::lit(cell_fg, flash);
           setFgColor(cell_fg);
 	  setBgColor(cell_bg);
@@ -4010,7 +4017,7 @@ PatternEditor::renderRow(const StyleProvider & styles, int heading_height, const
 	  cell_bg = cell_is_selected ? cur_bg : tintForPlayhead(bg);
 	  if (!note.isDefined()) cell_fg = cell_fg.blend(0.5f, cell_bg);
           // A note that has just started is lit past white.
-          float note_flash = !cell_is_selected && track_dim <= 0.0f && note.isDefined() ? noteFlashOf(track_id, note.getDelay()) * StyleProvider::velocityFlash(note.getVelocity()) : 0.0f;
+          float note_flash = !cell_is_selected && track_dim <= 0.0f && note.isDefined() ? noteFlashOf(track_id, note.getDelay()) * StyleProvider::velocityFlash(note.isOff() ? 0 : note.getVelocity()) : 0.0f;
           cell_fg = StyleProvider::lit(cell_fg, note_flash);
           setFgColor(cell_fg);
 	  setBgColor(cell_bg);
@@ -4051,12 +4058,9 @@ PatternEditor::renderRow(const StyleProvider & styles, int heading_height, const
 	      source_->trackAddress(track_id, pending_.at) == own_address) {
             s = fmt::format("{:02x}", pending_.value);
           } else if (note.isDefined()) {
-	    if (column_type == ColumnType::VELOCITY && note.isOff()) {
-	      s = "  ";
-	    } else {
-              s = fmt::format("{:02x}", column_type == ColumnType::VELOCITY ? note.getVelocity() : note.getDelay());
-            }
-	  } else {
+            // An OFF shows its release velocity here, like a note-on its own.
+            s = fmt::format("{:02x}", column_type == ColumnType::VELOCITY ? note.getVelocity() : note.getDelay());
+          } else {
 	    s = "--";
 	  }
 
@@ -4072,7 +4076,7 @@ PatternEditor::renderRow(const StyleProvider & styles, int heading_height, const
 	  if (!note.isDefined()) cell_fg = cell_fg.blend(0.5f, cell_bg);
           // Lit with its note, when it has a value to show.
           float flash = 0.0f;
-          if (!cell_is_selected && track_dim <= 0.0f && note.isDefined() && !(column_type == ColumnType::VELOCITY && note.isOff())) flash = noteFlashOf(track_id, note.getDelay()) * StyleProvider::velocityFlash(note.getVelocity());
+          if (!cell_is_selected && track_dim <= 0.0f && note.isDefined()) flash = noteFlashOf(track_id, note.getDelay()) * StyleProvider::velocityFlash(note.isOff() ? 0 : note.getVelocity());
           cell_fg = StyleProvider::lit(cell_fg, flash);
           setFgColor(cell_fg);
 	  setBgColor(cell_bg);

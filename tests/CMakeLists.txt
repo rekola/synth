@@ -60,6 +60,7 @@ add_executable(synth_tests
 	GeneratorOverrideTests.cpp
 	EnvelopeFilterTests.cpp
 	VoiceLoudnessTests.cpp
+	VelocityTests.cpp
 	AmbisonicEncodingTests.cpp
 	AmbisonicMagLSDecoderTests.cpp
 	ChorusEngineTests.cpp

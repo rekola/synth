@@ -32,50 +32,50 @@
             <note row="0" column="3" velocity="40">C-3</note>
             <note row="0" column="4" velocity="40">C-2</note>
             <note row="1" velocity="40">E𝄫4</note>
-            <note row="2" velocity="0">OFF</note>
+            <note row="2">OFF</note>
             <note row="4" velocity="40">C-4</note>
-            <note row="4" column="1" velocity="0">OFF</note>
+            <note row="4" column="1">OFF</note>
             <note row="4" column="2" velocity="40">G-4</note>
             <note row="8" velocity="40">C-4</note>
             <note row="8" column="1" velocity="40">E♭4</note>
-            <note row="12" velocity="0">OFF</note>
-            <note row="12" column="1" velocity="0">OFF</note>
+            <note row="12">OFF</note>
+            <note row="12" column="1">OFF</note>
             <note row="12" column="2" velocity="40">G-4</note>
             <note row="16" velocity="40">G-4</note>
             <note row="16" column="1" velocity="40">E𝄫3</note>
             <note row="16" column="2" velocity="40">C-4</note>
-            <note row="16" column="3" velocity="0">OFF</note>
+            <note row="16" column="3">OFF</note>
             <note row="16" column="4" velocity="40">G-2</note>
             <note row="20" velocity="40">G-4</note>
             <note row="20" column="1" velocity="40">E𝄫4</note>
             <note row="24" velocity="40">E𝄫4</note>
-            <note row="24" column="1" velocity="0">OFF</note>
+            <note row="24" column="1">OFF</note>
             <note row="24" column="2" velocity="40">C-4</note>
             <note row="28" velocity="40">F-4</note>
-            <note row="28" column="1" velocity="0">OFF</note>
+            <note row="28" column="1">OFF</note>
             <note row="28" column="2" velocity="40">E𝄫4</note>
-            <note row="28" column="3" velocity="0">OFF</note>
+            <note row="28" column="3">OFF</note>
             <note row="28" column="4" velocity="40">C-4</note>
             <note row="32" velocity="40">A♭3</note>
-            <note row="32" column="1" velocity="0">OFF</note>
+            <note row="32" column="1">OFF</note>
             <note row="32" column="2" velocity="40">C-4</note>
-            <note row="32" column="3" velocity="0">OFF</note>
+            <note row="32" column="3">OFF</note>
             <note row="32" column="4" velocity="40">A♭2</note>
             <note row="36" velocity="40">A♭3</note>
-            <note row="36" column="1" velocity="0">OFF</note>
+            <note row="36" column="1">OFF</note>
             <note row="40" velocity="40">B♭4</note>
-            <note row="40" column="1" velocity="0">OFF</note>
+            <note row="40" column="1">OFF</note>
             <note row="40" column="2" velocity="40">B♭5</note>
             <note row="40" column="3" velocity="40">C-4</note>
             <note row="44" velocity="40">A♭4</note>
-            <note row="44" column="1" velocity="0">OFF</note>
+            <note row="44" column="1">OFF</note>
             <note row="44" column="2" velocity="40">E𝄫3</note>
-            <note row="44" column="3" velocity="0">OFF</note>
+            <note row="44" column="3">OFF</note>
             <note row="44" column="4" velocity="40">C-5</note>
             <note row="45" velocity="40">C-5</note>
             <note row="46" velocity="40">A♭4</note>
             <note row="48" velocity="40">G-4</note>
-            <note row="48" column="1" velocity="0">OFF</note>
+            <note row="48" column="1">OFF</note>
             <note row="48" column="2" velocity="40">C-5</note>
             <note row="48" column="3" velocity="40">E𝄫4</note>
             <note row="48" column="4" velocity="40">G-2</note>
@@ -85,82 +85,82 @@
             <note row="64" column="3" velocity="40">C-3</note>
             <note row="64" column="4" velocity="40">C-2</note>
             <note row="68" velocity="40">C-4</note>
-            <note row="68" column="1" velocity="0">OFF</note>
+            <note row="68" column="1">OFF</note>
             <note row="68" column="2" velocity="40">G-4</note>
             <note row="72" velocity="40">C-4</note>
             <note row="72" column="1" velocity="40">E♭4</note>
-            <note row="76" velocity="0">OFF</note>
-            <note row="76" column="1" velocity="0">OFF</note>
+            <note row="76">OFF</note>
+            <note row="76" column="1">OFF</note>
             <note row="76" column="2" velocity="40">G-4</note>
             <note row="80" velocity="40">G-4</note>
             <note row="80" column="1" velocity="40">E𝄫3</note>
             <note row="80" column="2" velocity="40">C-4</note>
-            <note row="80" column="3" velocity="0">OFF</note>
+            <note row="80" column="3">OFF</note>
             <note row="84" velocity="40">G-4</note>
             <note row="84" column="1" velocity="40">E𝄫4</note>
             <note row="88" velocity="40">E𝄫4</note>
-            <note row="88" column="1" velocity="0">OFF</note>
+            <note row="88" column="1">OFF</note>
             <note row="88" column="2" velocity="40">C-4</note>
             <note row="92" velocity="40">F-4</note>
-            <note row="92" column="1" velocity="0">OFF</note>
+            <note row="92" column="1">OFF</note>
             <note row="92" column="2" velocity="40">E𝄫4</note>
-            <note row="92" column="3" velocity="0">OFF</note>
+            <note row="92" column="3">OFF</note>
             <note row="92" column="4" velocity="40">C-4</note>
             <note row="96" velocity="40">A♭3</note>
-            <note row="96" column="1" velocity="0">OFF</note>
+            <note row="96" column="1">OFF</note>
             <note row="96" column="2" velocity="40">C-4</note>
-            <note row="96" column="3" velocity="0">OFF</note>
+            <note row="96" column="3">OFF</note>
             <note row="96" column="4" velocity="40">A♭2</note>
             <note row="100" velocity="40">A♭3</note>
-            <note row="100" column="1" velocity="0">OFF</note>
+            <note row="100" column="1">OFF</note>
             <note row="104" velocity="40">B♭4</note>
-            <note row="104" column="1" velocity="0">OFF</note>
+            <note row="104" column="1">OFF</note>
             <note row="104" column="2" velocity="40">B♭5</note>
             <note row="104" column="3" velocity="40">C-4</note>
             <note row="108" velocity="40">A♭4</note>
-            <note row="108" column="1" velocity="0">OFF</note>
+            <note row="108" column="1">OFF</note>
             <note row="108" column="2" velocity="40">E𝄫3</note>
-            <note row="108" column="3" velocity="0">OFF</note>
+            <note row="108" column="3">OFF</note>
             <note row="108" column="4" velocity="40">C-5</note>
             <note row="109" velocity="40">C-5</note>
             <note row="110" velocity="40">A♭4</note>
             <note row="112" velocity="40">G-4</note>
-            <note row="112" column="1" velocity="0">OFF</note>
+            <note row="112" column="1">OFF</note>
             <note row="112" column="2" velocity="40">C-5</note>
             <note row="112" column="3" velocity="40">E𝄫4</note>
             <note row="112" column="4" velocity="40">G-2</note>
         </pattern>
         <pattern track="pad">
-            <note row="0" velocity="0">OFF</note>
-            <note row="0" column="1" velocity="0">OFF</note>
-            <note row="0" column="2" velocity="0">OFF</note>
+            <note row="0">OFF</note>
+            <note row="0" column="1">OFF</note>
+            <note row="0" column="2">OFF</note>
             <note row="24" velocity="16">E𝄫3</note>
-            <note row="24" column="1" velocity="0">OFF</note>
+            <note row="24" column="1">OFF</note>
             <note row="28" velocity="40">F-3</note>
             <note row="32" velocity="40">A♭2</note>
             <note row="32" column="1" velocity="40">A♭1</note>
-            <note row="40" velocity="0">OFF</note>
+            <note row="40">OFF</note>
             <note row="40" column="1" velocity="40">B♭3</note>
             <note row="44" velocity="40">A♭3</note>
             <note row="44" column="1" velocity="40">E𝄫2</note>
             <note row="48" velocity="40">G-3</note>
-            <note row="48" column="1" velocity="0">OFF</note>
-            <note row="60" velocity="0">OFF</note>
-            <note row="64" velocity="0">OFF</note>
-            <note row="64" column="1" velocity="0">OFF</note>
-            <note row="64" column="2" velocity="0">OFF</note>
+            <note row="48" column="1">OFF</note>
+            <note row="60">OFF</note>
+            <note row="64">OFF</note>
+            <note row="64" column="1">OFF</note>
+            <note row="64" column="2">OFF</note>
             <note row="88" velocity="16">E𝄫3</note>
-            <note row="88" column="1" velocity="0">OFF</note>
+            <note row="88" column="1">OFF</note>
             <note row="92" velocity="40">F-3</note>
             <note row="96" velocity="40">A♭2</note>
             <note row="96" column="1" velocity="40">A♭1</note>
-            <note row="104" velocity="0">OFF</note>
+            <note row="104">OFF</note>
             <note row="104" column="1" velocity="40">B♭3</note>
             <note row="108" velocity="40">A♭3</note>
             <note row="108" column="1" velocity="40">E𝄫2</note>
             <note row="112" velocity="40">G-3</note>
-            <note row="112" column="1" velocity="0">OFF</note>
-            <note row="124" velocity="0">OFF</note>
+            <note row="112" column="1">OFF</note>
+            <note row="124">OFF</note>
         </pattern>
         <pattern track="perc">
             <note row="12" velocity="22">OH </note>

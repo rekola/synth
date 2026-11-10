@@ -30,16 +30,16 @@ Command commandAt(const PatternGrid & grid, int track_id, int row) {
 }
 
 void humanizeNote(Note & note, const HumanizeAmount & amount, NoiseGenerator & rng) {
-  if (!note.isDefined() || note.isOff() || note.isAftertouch()) return;
+  if (!note.isNoteOn()) return;
   auto velocity = note.getVelocity() + static_cast<int>(lround(rng.next() * static_cast<float>(amount.velocity)));
   auto delay = note.getDelay() + static_cast<int>(lround((rng.next() + 1.0f) * 0.5f * static_cast<float>(amount.delay)));
-  note.setVelocity(static_cast<short>(clamp(velocity, 1, 127)));
+  note.setVelocity(static_cast<short>(clamp(velocity, 0, 127)));
   note.setDelay(static_cast<short>(clamp(delay, 0, 255)));
 }
 
 
 bool isPitched(const Note & note) {
-  return note.isDefined() && !note.isOff() && !note.isAftertouch();
+  return note.isNoteOn();
 }
 
 bool untuneNote(Note & note) {
@@ -471,7 +471,8 @@ Note convertNoteTuning(const Note & note, Tuning from, Tuning to, int from_ancho
   if (from == to || from_edo <= 0 || to_edo <= 0 || note.getValue() < 0) return note;
   double interval = (note.getValue() - from_anchor) * 1200.0 / from_edo + note.getTuningCorrectionCents();
   int steps = nearestStep(interval, to_edo);
-  Note moved(std::max(to_anchor + steps, 0), note.getVelocity(), note.getDelay());
+  auto value = std::max(to_anchor + steps, 0);
+  Note moved(value, note.getVelocity(), note.getDelay());
   moved.setFx(note.getFx());
   if (note.hasTuningCorrection()) moved.setTuningCorrection(static_cast<int>(std::lround(interval - steps * 1200.0 / to_edo)));
   return moved;

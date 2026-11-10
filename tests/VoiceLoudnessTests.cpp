@@ -32,7 +32,7 @@ TEST(track_event_and_render_context_carry_note_value) {
   CHECK(on.getNoteValue() == 60);
   CHECK(!on.isOff());
 
-  TrackEvent off(0, Tuning::EDO12, 0.0f); // default note_value, matching an off event
+  TrackEvent off(0, Tuning::EDO12, 0.5f, -1, {}, {}, TrackEvent::Kind::OFF);
   CHECK(off.isOff());
   CHECK(off.getNoteValue() == -1);
 

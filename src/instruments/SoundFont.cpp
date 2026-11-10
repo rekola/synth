@@ -41,6 +41,7 @@
 #include "../dsp/HashField.h"
 
 #include "../util/constants.h"
+#include "../util/Velocity.h"
 
 using namespace std;
 
@@ -1030,8 +1031,7 @@ class SoundFontVoice : public InstrumentVoice {
     if (first_play) {
       // use correctly rounded midiKey for envelopes (should we use detune?)
       auto midiKey = int(round(log2(frequency / kNominalStandardPitchHz) * 12 + 69));
-      auto midiVelocity = (short)(velocity * 127);
-      if (midiVelocity > 127) midiVelocity = 127;
+      auto midiVelocity = static_cast<short>(velocity::floatTo7(velocity));
 
       auto outSampleRate = getChannelConfiguration().getAudioOutSampleRate();
 
@@ -1040,7 +1040,7 @@ class SoundFontVoice : public InstrumentVoice {
       modenv_ = EnvelopeState(outSampleRate, voiceRegion_->modenv, midiKey, midiVelocity, false);
     }
 
-    setGainDB(- voiceRegion_->attenuation - gainToDecibels(1.0f / velocity));
+    setGainDB(velocity > 0.0f ? -voiceRegion_->attenuation - gainToDecibels(1.0f / velocity) : velocity::kSilentGainDb);
     calcPitchRatio(0);
   }
 
@@ -1088,6 +1088,11 @@ class SoundFontVoice : public InstrumentVoice {
     killChildren();
   }
 
+  void setReleaseVelocity(int lift7) override {
+    lift7_ = lift7;
+    VoiceState::setReleaseVelocity(lift7);
+  }
+
   void stopNote() override {
     // EnvelopeState::nextSegment(SUSTAIN) unconditionally forces segment
     // to RELEASE, regardless of the envelope's actual current segment -
@@ -1103,8 +1108,10 @@ class SoundFontVoice : public InstrumentVoice {
     // stop a second stopNote() from reaching an already-done region here.
     // Guarding per-envelope, not just at the call site, is what actually
     // prevents the revival.
-    if (!ampenv_.isDone()) ampenv_.nextSegment(EnvelopeState::SUSTAIN);
-    if (!modenv_.isDone()) modenv_.nextSegment(EnvelopeState::SUSTAIN);
+    // The lift lengthens or shortens both releases (SF2 timecents, held to the
+    // spec's range); 64 leaves them as authored.
+    if (!ampenv_.isDone()) ampenv_.beginRelease(velocity::sf2ReleaseSeconds(ampenv_.parameters.release_, lift7_));
+    if (!modenv_.isDone()) modenv_.beginRelease(velocity::sf2ReleaseSeconds(modenv_.parameters.release_, lift7_));
 
     if (voiceRegion_->loop_mode == TSF_LOOPMODE_SUSTAIN) {
       // Continue playing, but stop looping.
@@ -1135,14 +1142,8 @@ class SoundFontVoice : public InstrumentVoice {
   // chokeExclusiveClasses()'s own comment on why that's fine), and an
   // unconditional nextSegment(SUSTAIN) would resurrect it.
   void fastRelease() override {
-    if (!ampenv_.isDone()) {
-      ampenv_.parameters.release_ = 0.0f;
-      ampenv_.nextSegment(EnvelopeState::SUSTAIN);
-    }
-    if (!modenv_.isDone()) {
-      modenv_.parameters.release_ = 0.0f;
-      modenv_.nextSegment(EnvelopeState::SUSTAIN);
-    }
+    if (!ampenv_.isDone()) ampenv_.beginRelease(0.0f);
+    if (!modenv_.isDone()) modenv_.beginRelease(0.0f);
 
     if (voiceRegion_->loop_mode == TSF_LOOPMODE_SUSTAIN) {
       // Continue playing, but stop looping - same as stopNote() above.
@@ -1250,6 +1251,7 @@ private:
   shared_ptr<SoundFontFile> sf_;
   std::unordered_map<SF2Generator, float> generator_overrides_;
   EnvelopeState ampenv_, modenv_;
+  int lift7_ = constants::NEUTRAL_VELOCITY; // the OFF's release velocity, see setReleaseVelocity()
   vector<float> dry_;
 
   // Per-voice chorus realization of this region's chorusEffectsSend
@@ -1879,8 +1881,7 @@ public:
       // scale-step index, not a MIDI key, and still needs the real Hz
       // round-trip to find the nearest 12-EDO-mapped SF2 sample key.
       int midiKey = (tuning == Tuning::PERCUSSION) ? note_value : int(round(log2(frequency / kNominalStandardPitchHz) * 12 + 69));
-      auto midiVelocity = (short)(velocity * 127);
-      if (midiVelocity > 127) midiVelocity = 127;
+      auto midiVelocity = static_cast<short>(velocity::floatTo7(velocity));
 
       // Play all matching regions.
 

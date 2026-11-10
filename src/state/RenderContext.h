@@ -44,10 +44,18 @@ struct NoteOverride {
 // A pattern note's own on/off, resolved (tuning/velocity/note_value)
 // by the caller before queuing - see NoteCoordinate.h for why this stays
 // separate from the coordinate itself.
+//
+// What an event is (a note-on, an OFF, aftertouch) is its kind, never read
+// from the velocity: a note-on at velocity 0 is a real, quiet note. The velocity
+// is a level in [0,1]; an OFF's is its release velocity (the lift).
 class TrackEvent {
  public:
-  TrackEvent(short _id, Tuning _tuning, float _velocity, int _note_value = -1, const NoteCoordinate & _note_coord = {}, const NoteOverride & _note_override = {})
-    : id(_id), tuning(_tuning), velocity(_velocity), note_value(_note_value), note_coord(_note_coord), note_override(_note_override) { }
+  enum class Kind { NOTE_ON,
+                    OFF,
+                    AFTERTOUCH };
+
+  TrackEvent(short _id, Tuning _tuning, float _velocity, int _note_value = -1, const NoteCoordinate & _note_coord = {}, const NoteOverride & _note_override = {}, Kind _kind = Kind::NOTE_ON)
+      : id(_id), tuning(_tuning), velocity(_velocity), note_value(_note_value), note_coord(_note_coord), note_override(_note_override), kind(_kind) {}
 
   // A clip ending or giving way: every voice of the track released (no
   // column's id is negative).
@@ -56,11 +64,8 @@ class TrackEvent {
   short getId() const { return id; }
 
   bool isStopAll() const { return id == kStopAll; }
-  // note_value is -1 for both of these (the caller never has a real
-  // scale-degree/MIDI key for either) - velocity is what actually tells
-  // them apart.
-  bool isAftertouch() const { return note_value == -1 && velocity > 0.0f; }
-  bool isOff() const { return velocity == 0.0f; }
+  bool isAftertouch() const { return kind == Kind::AFTERTOUCH; }
+  bool isOff() const { return kind == Kind::OFF; }
 
   Tuning getTuning() const { return tuning; }
   float getVelocity() const { return velocity; }
@@ -75,6 +80,7 @@ class TrackEvent {
   int note_value;
   NoteCoordinate note_coord;
   NoteOverride note_override;
+  Kind kind;
 };
 
 // A SampleTrack content start or stop, due at a specific within-block
@@ -127,7 +133,16 @@ class RenderContext {
   void addPendingEvent(int track_id, int frame, short id, Tuning tuning, float velocity, int note_value = -1, const NoteCoordinate & note_coord = {}, const NoteOverride & note_override = {}) {
     pending_events_[track_id][frame].push_back(TrackEvent(id, tuning, velocity, note_value, note_coord, note_override));
   }
-  
+
+  // The release of column `id`'s voices at `frame`; `lift` is the OFF's release
+  // velocity as a level in [0,1].
+  void addPendingOff(int track_id, int frame, short id, Tuning tuning, float lift) {
+    pending_events_[track_id][frame].push_back(TrackEvent(id, tuning, lift, -1, {}, {}, TrackEvent::Kind::OFF));
+  }
+  void addPendingAftertouch(int track_id, int frame, short id, Tuning tuning, float pressure) {
+    pending_events_[track_id][frame].push_back(TrackEvent(id, tuning, pressure, -1, {}, {}, TrackEvent::Kind::AFTERTOUCH));
+  }
+
   // Every voice of `track_id` released at `frame` - the transition's own
   // sample, like a note-off, not wherever its render block starts. The
   // tuning argument is never read for a stop-all event (isStopAll() short-

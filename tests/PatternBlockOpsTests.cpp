@@ -533,7 +533,7 @@ TEST(humanize_varies_velocity_and_delay_within_bounds_and_spares_offs) {
   ArrangementBackgroundGrid p_grid(p);
   int track_id = 10;
   for (int row = 0; row < 32; row++) p.setNote(row, track_id, 0, Note(60, 100));
-  p.setNote(40, track_id, 0, Note(0, 0)); // off
+  p.setNote(40, track_id, 0, Note::off()); // off
 
   NoiseGenerator rng(1);
   HumanizeAmount amount;

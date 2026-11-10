@@ -59,7 +59,7 @@
         <clip track="guitar" stop="false"/>
         <clip track="pad" id="pad1" name="Scene 1" length="60">
             <pattern>
-                <note row="0" velocity="0">OFF</note>
+                <note row="0">OFF</note>
                 <command row="59" data="ZB00"/>
             </pattern>
         </clip>

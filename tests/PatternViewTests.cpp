@@ -61,7 +61,8 @@ bool agree(const Pair & p) {
 Note randomNote(TestRng & rng) {
   switch (rng() % 5) {
     case 0: return Note(static_cast<int>(rng() % 40), 0, static_cast<short>(rng() % 4)); // off
-    case 1: return Note(-1, static_cast<short>(1 + rng() % 127)); // aftertouch
+    case 1:
+      return Note::aftertouch(static_cast<short>(1 + rng() % 127));
     default: return Note(static_cast<int>(rng() % 40), static_cast<short>(1 + rng() % 127), static_cast<short>(rng() % 200));
   }
 }

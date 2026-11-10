@@ -1907,8 +1907,7 @@ void LaunchpadManager::handlePadEvent(const LaunchpadPadEvent & ev, Controller &
       note_column++;
     }
 
-    auto velocity = LaunchpadProtocol::getModelInfo(ev.getModel()).velocity_sensitive ?
-      static_cast<short>(ev.getVelocity()) : static_cast<short>(0x28); // same default as keyboard entry
+    auto velocity = LaunchpadProtocol::getModelInfo(ev.getModel()).velocity_sensitive ? static_cast<short>(ev.getVelocity()) : static_cast<short>(constants::DEFAULT_NOTE_ON_VELOCITY); // same default as keyboard entry
 
     recordActiveNote(device_id, ev.getX(), ev.getY(), {note_column, row, track_id});
 
@@ -2014,7 +2013,7 @@ void LaunchpadManager::handlePadEvent(const LaunchpadPadEvent & ev, Controller &
             clip_index >= 0 && clip_index < static_cast<int>(clips.size())) {
           auto clip = clips[static_cast<size_t>(clip_index)];
           Song::Edit edit(song, "record note release");
-          clip.getLeafPattern().setNote(release_row % std::max(1, clip.getLength()), held.note_column, Note(0, 0, static_cast<short>(take_step.delay)));
+          clip.getLeafPattern().setNote(release_row % std::max(1, clip.getLength()), held.note_column, Note::off(constants::NEUTRAL_VELOCITY, static_cast<short>(take_step.delay)));
         }
       } else if (state.capture_enabled && info.isPlaying()) {
         // Live performance recording: write an explicit OFF at the row the
@@ -2297,18 +2296,18 @@ void LaunchpadManager::handleStepGridPadEvent(const LaunchpadPadEvent & ev, Cont
       edit_target.pattern->deleteNote(edit_target.effective_row, existing_column);
       if (off_target.pattern) {
         auto next = off_target.pattern->getNotes(off_target.effective_row);
-        if (existing_column < static_cast<int>(next.size()) && next[static_cast<size_t>(existing_column)].isOff() && next[static_cast<size_t>(existing_column)].getValue() == note) {
+        if (existing_column < static_cast<int>(next.size()) && next[static_cast<size_t>(existing_column)].isOff()) {
           off_target.pattern->deleteNote(off_target.effective_row, existing_column);
         }
       }
     } else {
-      Note step_note(note, static_cast<short>(constants::DEFAULT_VELOCITY));
+      Note step_note(note, static_cast<short>(constants::DEFAULT_NOTE_ON_VELOCITY));
       if (pitched) tuneNewNote(controller.getSong(), track_id, step_note);
       auto column = edit_target.pattern->pushNote(edit_target.effective_row, step_note);
       if (off_target.pattern) {
         auto next = off_target.pattern->getNotes(off_target.effective_row);
         if (column >= static_cast<int>(next.size()) || !next[static_cast<size_t>(column)].isDefined()) {
-          off_target.pattern->setNote(off_target.effective_row, column, Note(note, 0));
+          off_target.pattern->setNote(off_target.effective_row, column, Note::off());
         }
       }
     }
@@ -2316,7 +2315,7 @@ void LaunchpadManager::handleStepGridPadEvent(const LaunchpadPadEvent & ev, Cont
     // Only a step just set is auditioned - one being removed has nothing
     // left to want to hear. Fixed velocity: no per-step velocity here.
     if (!was_hit) {
-      auto velocity = static_cast<short>(constants::DEFAULT_VELOCITY);
+      auto velocity = static_cast<short>(constants::DEFAULT_NOTE_ON_VELOCITY);
       event_queue.push(make_unique<PlaybackControlEvent>(PlaybackControlEvent::PLAY_NOTE, controller.getActiveBufferName(), track_id, note, note, velocity));
     }
   } else if (ev.getKind() == LaunchpadPadEvent::RELEASE) {
