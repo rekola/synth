@@ -94,8 +94,8 @@ TEST(sf2_release_seconds_add_timecents_within_the_spec_range) {
   CHECK_NEAR(velocity::sf2ReleaseSeconds(0.002f, 127), std::exp2(-12000.0f / 1200.0f), 1e-6f);
 }
 
-TEST(a_note_is_at_most_16_bytes_and_keeps_its_kind) {
-  static_assert(sizeof(Note) <= 16);
+TEST(a_note_is_8_bytes_and_keeps_its_kind) {
+  static_assert(sizeof(Note) == 8);
   CHECK(!Note().isDefined());
   Note on(60, 100, 3);
   CHECK(on.isNoteOn() && !on.isOff() && !on.isAftertouch());

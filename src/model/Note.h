@@ -30,30 +30,25 @@ class Note {
   Note() = default;
   // A note-on (NONE for a negative value). The velocity is on the 7-bit scale.
   explicit Note(int _value, short _velocity = constants::NEUTRAL_VELOCITY, short _delay = 0)
-      : value(_value), velocity(clampVelocity(_velocity)), delay(clampDelay(_delay)), kind(_value >= 0 ? Kind::ON : Kind::NONE) {}
+      : packed_(pack(_value >= 0 ? Kind::ON : Kind::NONE, _value, _velocity)), delay_(clampDelay(_delay)) {}
   // A note-on, or an OFF for the text "off"/"OFF" (the velocity is then its lift).
   explicit Note(std::string_view input_value, Tuning tuning, short _velocity = constants::NEUTRAL_VELOCITY, short _delay = 0, int default_octave = 4)
-      : value(stringToKey(tuning, input_value, default_octave)),
-        velocity(clampVelocity(_velocity)),
-        delay(clampDelay(_delay)),
-        kind(input_value == "off" || input_value == "OFF" ? Kind::OFF : Kind::ON) {}
+      : packed_(pack(input_value == "off" || input_value == "OFF" ? Kind::OFF : Kind::ON, stringToKey(tuning, input_value, default_octave), _velocity)),
+        delay_(clampDelay(_delay)) {}
 
   // An OFF with release velocity `lift` (7-bit); `value` names the note it
   // releases where that is known (a step grid), 0 otherwise.
   static Note off(short lift = constants::NEUTRAL_VELOCITY, short delay = 0, int value = 0) {
     Note n;
-    n.kind = Kind::OFF;
-    n.value = value;
-    n.velocity = clampVelocity(lift);
-    n.delay = clampDelay(delay);
+    n.packed_ = pack(Kind::OFF, value, lift);
+    n.delay_ = clampDelay(delay);
     return n;
   }
   // Pressure on whatever sounds in the column, with no note of its own.
   static Note aftertouch(short pressure, short delay = 0) {
     Note n;
-    n.kind = Kind::AFTERTOUCH;
-    n.velocity = clampVelocity(pressure);
-    n.delay = clampDelay(delay);
+    n.packed_ = pack(Kind::AFTERTOUCH, 0, pressure);
+    n.delay_ = clampDelay(delay);
     return n;
   }
 
@@ -63,12 +58,12 @@ class Note {
   // int (getFrequencyFor(Tuning, int)/noteOn's int note_value/...) -
   // returning short here was pure incidental narrowing on the way out,
   // not something any caller actually needed.
-  int getValue() const { return value; }
-  Kind getKind() const { return kind; }
-  short getVelocity() const { return velocity; }
+  int getValue() const { return isNoteOn() || isOff() ? static_cast<int>(packed_ & kValueMask) : -1; }
+  Kind getKind() const { return static_cast<Kind>(packed_ >> kKindShift); }
+  short getVelocity() const { return static_cast<short>((packed_ >> kVelocityShift) & velocity::kMax7); }
   // 0-1. A note-on at velocity 0 is exactly 0: the voice starts silent.
-  float getVelocityAsFloat() const { return velocity::toFloat(velocity); }
-  short getDelay() const { return delay; }
+  float getVelocityAsFloat() const { return velocity::toFloat(getVelocity()); }
+  short getDelay() const { return delay_; }
 
   // The note's local effect: three characters, a mnemonic and a two-digit hex
   // argument (`Command` without its leading chain digit), "..." when unset.
@@ -129,25 +124,23 @@ class Note {
     fx[1] = kHex[magnitude >> 4];
     fx[2] = kHex[magnitude & 15];
   }
-  float getDelayAsFloat() const { return delay / 255.0f; }
-  bool isDefined() const { return kind != Kind::NONE; }
+  float getDelayAsFloat() const { return delay_ / 255.0f; }
+  bool isDefined() const { return getKind() != Kind::NONE; }
   // A cell worth keeping: a note, or only fx (a command for the column, such
   // as 0Gxx's glide rate or a retrigger, with no note of its own). Storage and
   // display go by this; playback and editing of notes by isDefined().
   bool hasContent() const { return isDefined() || hasFx(); }
-  bool isNoteOn() const { return kind == Kind::ON; }
-  bool isOff() const { return kind == Kind::OFF; }
-  bool isAftertouch() const { return kind == Kind::AFTERTOUCH; }
+  bool isNoteOn() const { return getKind() == Kind::ON; }
+  bool isOff() const { return getKind() == Kind::OFF; }
+  bool isAftertouch() const { return getKind() == Kind::AFTERTOUCH; }
 
   // Held to 0-127.
-  void setVelocity(short v) { velocity = clampVelocity(v); }
-  void setDelay(short d) { delay = clampDelay(d); }
+  void setVelocity(short v) { packed_ = (packed_ & ~(static_cast<uint32_t>(velocity::kMax7) << kVelocityShift)) | (clampVelocity(v) << kVelocityShift); }
+  void setDelay(short d) { delay_ = clampDelay(d); }
 
   void clear() {
-    value = -1;
-    velocity = constants::NEUTRAL_VELOCITY;
-    delay = 0;
-    kind = Kind::NONE;
+    packed_ = pack(Kind::NONE, 0, constants::NEUTRAL_VELOCITY);
+    delay_ = 0;
     clearFx();
   }
 
@@ -165,8 +158,8 @@ class Note {
   // octaves up), so this just stops at whatever `value` itself can hold.
   void transpose(int delta) {
     if (!isNoteOn()) return;
-    auto next = static_cast<int64_t>(value) + delta;
-    value = static_cast<int>(std::clamp<int64_t>(next, 0, std::numeric_limits<int>::max()));
+    auto next = static_cast<int64_t>(getValue()) + delta;
+    packed_ = pack(Kind::ON, static_cast<int>(std::clamp<int64_t>(next, 0, kMaxValue)), getVelocity());
   }
 
   std::string toString(Tuning tuning) const {
@@ -549,13 +542,21 @@ class Note {
   }
 
  private:
-  static uint8_t clampVelocity(int v) { return static_cast<uint8_t>(std::clamp(v, 0, velocity::kMax7)); }
-  static short clampDelay(int d) { return static_cast<short>(std::clamp(d, 0, 255)); }
+  // 8 bytes: the kind (2 bits), the velocity (7) and the value (23) in one word,
+  // then the delay and the three fx characters.
+  static constexpr int kVelocityShift = 23, kKindShift = 30;
+  static constexpr uint32_t kValueMask = (1u << kVelocityShift) - 1;
+  static constexpr uint32_t kMaxValue = kValueMask;
+  static constexpr uint32_t pack(Kind kind, int value, int velocity) {
+    uint32_t v = static_cast<uint32_t>(std::clamp<int64_t>(value, 0, kMaxValue));
+    uint32_t vel = static_cast<uint32_t>(std::clamp(velocity, 0, 127));
+    return (static_cast<uint32_t>(kind) << kKindShift) | (vel << kVelocityShift) | v;
+  }
+  static uint32_t clampVelocity(int v) { return static_cast<uint32_t>(std::clamp(v, 0, velocity::kMax7)); }
+  static uint8_t clampDelay(int d) { return static_cast<uint8_t>(std::clamp(d, 0, 255)); }
 
-  int value = -1; // the note's value, or -1 for none and aftertouch
-  uint8_t velocity = constants::NEUTRAL_VELOCITY;
-  short delay = 0;
-  Kind kind = Kind::NONE;
+  uint32_t packed_ = pack(Kind::NONE, 0, constants::NEUTRAL_VELOCITY);
+  uint8_t delay_ = 0;
   static int hexDigit(char c) {
     if (c >= '0' && c <= '9') return c - '0';
     if (c >= 'A' && c <= 'F') return c - 'A' + 10;
@@ -565,8 +566,8 @@ class Note {
   char fx[3] = { kFxEmpty, kFxEmpty, kFxEmpty };
 };
 
-// Notes are copied around by value, in registers; keep one to 16 bytes.
-static_assert(sizeof(Note) <= 16, "Note must stay at most 16 bytes");
+// Notes are copied around by value, in registers; keep one at 8 bytes.
+static_assert(sizeof(Note) == 8, "Note must stay 8 bytes");
 
 // The Note-taking overload of getFrequencyFor() (Tuning.h) lives here
 // rather than there, since Tuning.h is included by Note.h and can't
