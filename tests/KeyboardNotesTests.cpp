@@ -3,6 +3,7 @@
 #include "../src/playback/KeyboardNotes.h"
 #include "../src/model/Note.h"
 
+#include <algorithm>
 #include <set>
 #include <string>
 
@@ -18,28 +19,23 @@ TEST(keyboard_notes_31edo_utonal) {
   CHECK(keyToMidiNote(key('c'), Tuning::EDO31, Scale::UTONAL) == "E♭");
 }
 
-// Every diamond note has a key, and every key plays a diamond note (or the
-// octave above one), in the same spelling the scale uses.
-TEST(keyboard_notes_diamond7_has_a_key_for_each_note) {
-  std::set<std::string> played;
-  for (int id = 32; id < 127; id++) {
-    std::string name(keyToMidiNote(key(id), Tuning::EDO31, Scale::DIAMOND7));
-    if (name.empty()) continue;
-    while (!name.empty() && name.back() == '\'') name.pop_back();
-    bool in_diamond = false;
-    for (auto & note : gamut::kDiamond7) in_diamond = in_diamond || note.spelling == name;
-    CHECK(in_diamond);
-    played.insert(name);
+// All ten notes of otonal and utonal are on keys, and every key plays a note of
+// the scale (or the octave above one), in the spelling the scale uses.
+TEST(keyboard_notes_otonal_and_utonal_have_a_key_for_each_note) {
+  for (auto scale : {Scale::OTONAL, Scale::UTONAL}) {
+    auto names = scaleDegreeNames(scale);
+    std::set<std::string> played;
+    for (int id = 32; id < 127; id++) {
+      std::string name(keyToMidiNote(key(id), Tuning::EDO31, scale));
+      if (name.empty()) continue;
+      while (!name.empty() && name.back() == '\'') name.pop_back();
+      CHECK(std::find(names.begin(), names.end(), name) != names.end());
+      played.insert(name);
+    }
+    CHECK(played.size() == 10);
   }
-  CHECK(played.size() == gamut::kDiamond7.size());
-  CHECK(keyToMidiNote(key('f'), Tuning::EDO53, Scale::DIAMOND7) == "F♯↑");
-  CHECK(keyToMidiNote(key('g'), Tuning::EDO53, Scale::DIAMOND7) == "G♭↓");
-  // The tritones are the two free steps: 31-EDO 15 and 16, 53-EDO 26 and 27.
-  auto steps = [](Tuning tuning, char k) {
-    return Note::stringToKey(tuning, keyToMidiNote(key(k), tuning, Scale::DIAMOND7)) - Note::stringToKey(tuning, "C");
-  };
-  CHECK(steps(Tuning::EDO31, 'f') == 15 && steps(Tuning::EDO31, 'g') == 16);
-  CHECK(steps(Tuning::EDO53, 'f') == 26 && steps(Tuning::EDO53, 'g') == 27);
+  CHECK(keyToMidiNote(key('g'), Tuning::EDO53, Scale::OTONAL) == "F♯↑");
+  CHECK(keyToMidiNote(key('g'), Tuning::EDO53, Scale::UTONAL) == "G♭↓");
 }
 
 TEST(keyboard_notes_scale_with_the_edo_per_octave) {
