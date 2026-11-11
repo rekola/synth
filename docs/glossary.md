@@ -23,6 +23,22 @@ The grid of clips inside Live View: one column per track, one row per scene,
 each slot triggered on the next bar. On a Launchpad it is the pad grid in the
 Live mode (the device's Session button). See launchpad.md and scenes.md.
 
+**Extended diamond**
+The gamut of the otonal and utonal scales: seventeen just ratios, the
+thirteen of the 7-limit tonality diamond (every ratio between two of 1, 3, 5
+and 7, octave-reduced: 1/1 8/7 7/6 6/5 5/4 4/3 7/5 10/7 3/2 8/5 5/3 12/7
+7/4) and four more, the pairs 15/14 and 16/15 above the tonic and 15/8 and
+28/15 below its octave. On C: C D♭↓ E𝄫 D♯ E♭ E F F♯↑ G♭↓ G A♭ A B𝄫 A♯↑ B,
+fifteen keys, of which D♭↓ and B each carry two ratios 8 cents apart: 15/14
+and 15/8 in the otonal scale, 16/15 and 28/15 in the utonal. The diamond is
+four harmonic seventh chords (4:5:6:7) and their four mirrors, all
+containing the tonic; the added ratios bring two more that do not,
+D♭↓ E G B and D♭↓ F A♭ B. A chord in this gamut is any set of notes whose
+intervals are all ratios of the gamut. The gamut mirrors itself around the
+tonic and has no D. The diamond is Max Meyer's (1929), and Harry Partch's
+is its 11-limit form; the extension is the author's own. See
+extended-diamond.md.
+
 **Gamut**
 The complete set of notes available to a system of music, from which
 its scales are drawn. The word is Guido of Arezzo’s (c. 991–after
@@ -42,8 +58,8 @@ just-intonation tuner tunes any gamut note a song uses, whether or not it is
 in the scale, and the scale decides the keys where two gamut notes share a
 step. Keys with no gamut note stay tempered, and a scale with no gamut is
 tempered throughout. The duodene (Ellis's twelve 5-limit notes) is the gamut of
-major and minor; the superparticular gamut (see otonal and utonal) is
-generated in rounds of division and is just; the quartertone gamut (see
+major and minor; the extended diamond (above) is the gamut of the otonal and
+utonal scales and is just; the quartertone gamut (see
 maqāmāt) is 24-EDO and has no ratios, so the maqamat have none to tune.
 
 **Groove**
@@ -78,8 +94,8 @@ fifth. No tuning of a fixed set of notes avoids a comma somewhere.
 The otonal and utonal scales (below) are different. They have no D to argue
 over, so one fixed pitch per note serves: the scale gives it (otonal 1/1 7/6
 5/4 4/3 3/2 5/3 7/4, utonal 1/1 8/7 6/5 4/3 3/2 8/5 12/7), whatever the chord,
-and a song in either scale is tuned with both, so the two can be played
-together.
+and a song in either scale is tuned with the whole extended diamond, so the
+two can be played together.
 
 **Adaptive just intonation**
 Just intonation that follows the music instead of returning to the key; also
@@ -136,37 +152,41 @@ subminor third (7/6) and a supermajor second (8/7), with the larger
 interval on the bottom in narrow major and on top in narrow minor, as
 with major and minor. Neither has a fifth: the outer interval is a
 fourth, so they cannot be mistaken for incomplete seventh chords. In
-the otonal and utonal scales they fill the degrees that have no major
-or minor triad. C otonal has narrow major on C (C D♯ F) and G (G A♯ C)
-and narrow minor on A♯ (A♯ C D♯); C utonal mirrors this with narrow
-minor on C (C E𝄫 G) and F (F B𝄫 C) and narrow major on B𝄫 (B𝄫 C
-E𝄫). Narrow major is otonal and narrow minor utonal, in Partch’s
-sense. The names are the author’s own; the chords have no settled
-name in the just-intonation literature. See otonal and utonal.
+the otonal and utonal scales they are three notes of a seventh chord,
+as major and minor are. C otonal has narrow major on C (C D♯ F) and G
+(G A♯↑ C) and narrow minor on A♯↑ (A♯↑ C D♯). C utonal mirrors this
+with narrow minor on C (C E𝄫 F) and G (G B𝄫 C) and narrow major on B𝄫
+(B𝄫 C E𝄫). Narrow major is otonal and narrow minor utonal, in
+Partch’s sense. The names are the author’s own; the chords have no
+settled name in the just-intonation literature. See otonal and utonal.
 
 **Otonal and utonal**
-Two scales that mirror each other around the tonic, built by dividing
-intervals at their arithmetic and harmonic means. Both are given here
-on C. Dividing the octave C–C′ gives G (arithmetic mean) and F
-(harmonic mean); dividing each new note’s interval to the nearer of C
-and C′ gives four notes a step, of which the superparticular results
-are kept. Otonal keeps the arithmetic means. Its 7-note form is 1/1
-7/6 5/4 4/3 3/2 5/3 7/4, on C: C D♯ E F G A A♯↑, all harmonics (12,
-14, 15, 16, 18, 20, 21) of one fundamental, so the scale is otonal in
-Harry Partch’s sense; the fundamental is not the tonic but the note a
-fifth below it (F for C otonal), the tonic sitting on identity 3. Its
-chords are the two 4:5:6:7 chords C E G A♯↑ and F A C D♯, each read
-from every one of its notes, so that every degree has a chord and
-every chord contains the tonic; the major triad 4:5:6 and the narrow
-major triad 6:7:8 are these chords with a note removed. Utonal keeps
-the harmonic means and is the otonal scale turned upside down: 1/1 8/7
-6/5 4/3 3/2 8/5 12/7, on C: C E𝄫 E♭ F G A♭ B𝄫, undertones of the note
-a twelfth above the tonic (G for C utonal). Its chords are the
-mirrors, E𝄫 F A♭ C and B𝄫 C E♭ G (1/7:1/6:1/5:1/4), with the minor and
-narrow minor triads as their subsets. A further step of divisions
-extends both scales to 11 notes. Partch’s Otonalities and Utonalities
-are chords, not scales; these scales and their chords are the author’s
-own. Their chords are tabled in otonal-and-utonal.md.
+Two scales that mirror each other around the tonic (r → 2/r), drawn
+from the extended diamond. Both are given here on C. Otonal’s 7-note
+form is 1/1 7/6 5/4 4/3 3/2 5/3 7/4, on C: C D♯ E F G A A♯↑, all
+harmonics (12, 14, 15, 16, 18, 20, 21) of one fundamental, so the
+scale is otonal in Harry Partch’s sense; the fundamental is not the
+tonic but the note a fifth below it (F for C otonal), the tonic
+sitting on identity 3. It is the two 4:5:6:7 chords C E G A♯↑ and
+F A C D♯ put together. Utonal is the otonal scale turned upside down:
+1/1 8/7 6/5 4/3 3/2 8/5 12/7, on C: C E𝄫 E♭ F G A♭ B𝄫, undertones of
+the note a fifth above the tonic (G for C utonal), the chords
+E𝄫 F A♭ C and B𝄫 C E♭ G (1/7:1/6:1/5:1/4) put together. A chord uses
+only intervals that are ratios of the gamut, and every note of a
+scale has a seventh chord of the scale’s notes, read upward from the
+degree; its fourth note is often dropped. Each scale has four sizes.
+The 10-note form makes two additions to the 7: the scale’s tritone
+(otonal F♯↑, utonal G♭↓), with a third seventh chord (C D♯ F♯↑ A♯↑,
+in utonal E𝄫 G♭↓ B𝄫 C), and the semitones either side of the tonic,
+D♭↓ and B (15/14 and 15/8 in otonal, 16/15 and 28/15 in utonal), with
+a seventh chord that does not contain the tonic (D♭↓ E G B, in utonal
+D♭↓ F A♭ B). The 8-note form takes only the tritone, the 9-note form
+only the semitones. Only the 7-note forms are a
+single series. Each scale contains a septimal pentatonic as a melodic
+subscale (otonal C D♯ F G A♯↑, utonal C E𝄫 F G B𝄫). Partch’s
+Otonalities and Utonalities are chords, not scales; these scales and
+their chords are the author’s own. Their chords are tabled in
+extended-diamond.md.
 
 **Performance effect**
 An effect held on a track from the Launchpad's Custom grid (stutter,
