@@ -19,7 +19,7 @@ TEST(keyboard_notes_31edo_utonal) {
   CHECK(keyToMidiNote(key('c'), Tuning::EDO31, Scale::UTONAL) == "E♭");
 }
 
-// All ten notes of otonal and utonal are on keys, and every key plays a note of
+// All eighteen notes of otonal and utonal are on keys, and every key plays a note of
 // the scale (or the octave above one), in the spelling the scale uses.
 TEST(keyboard_notes_otonal_and_utonal_have_a_key_for_each_note) {
   for (auto scale : {Scale::OTONAL, Scale::UTONAL}) {
@@ -32,10 +32,21 @@ TEST(keyboard_notes_otonal_and_utonal_have_a_key_for_each_note) {
       CHECK(std::find(names.begin(), names.end(), name) != names.end());
       played.insert(name);
     }
-    CHECK(played.size() == 10);
+    CHECK(played.size() == 18);
+    CHECK(played == std::set<std::string>(names.begin(), names.end()));
   }
   CHECK(keyToMidiNote(key('g'), Tuning::EDO53, Scale::OTONAL) == "F♯↑");
   CHECK(keyToMidiNote(key('g'), Tuning::EDO53, Scale::UTONAL) == "G♭↓");
+  // Every note is a different key of 53-EDO, and the keys are the scale's.
+  for (auto scale : {Scale::OTONAL, Scale::UTONAL}) {
+    std::set<int> keys;
+    for (int id = 32; id < 127; id++) {
+      std::string name(keyToMidiNote(key(id), Tuning::EDO53, scale));
+      if (name.empty() || name.back() == '\'') continue;
+      keys.insert(Note::stringToKey(Tuning::EDO53, name) - Note::stringToKey(Tuning::EDO53, "C"));
+    }
+    CHECK(keys.size() == 18);
+  }
 }
 
 TEST(keyboard_notes_scale_with_the_edo_per_octave) {

@@ -69,10 +69,10 @@ TEST(scale_corrections_give_each_degree_its_exact_ratio_in_every_tuning) {
   };
   const std::vector<Row> rows = {
       // Where two degrees of a scale share a step (12 and 19-EDO), the closer wins.
-      {Tuning::EDO12, {0, 19, -33, -14, -2, -17, 2, -16, -31, -12}, {0, 12, 31, 16, -2, 17, 2, 14, 33, -19}},
-      {Tuning::EDO19, {0, -7, 14, 7, -7, 14, 7, 0, 21, 15}, {0, -15, -21, 0, -7, -14, 7, -7, -14, 7}},
-      {Tuning::EDO31, {0, 3, -4, -1, -5, 2, 5, -6, 1, 4}, {0, -4, -1, 6, -5, -2, 5, 1, 4, -3}},
-      {Tuning::EDO53, {0, 6, -5, 1, 0, -6, 0, 1, -5, 1}, {0, -1, 5, -1, 0, 6, 0, -1, 5, -6}},
+      {Tuning::EDO12, {0, 0, 19, 4, -33, -14, -14, -14, -2, -17, 2, 2, 49, -16, 18, 18, -12, 0}, {0, 0, 12, -18, -18, 16, -49, -2, -2, 17, 2, 14, 14, 14, 33, -4, -19, 0}},
+      {Tuning::EDO19, {0, -27, -7, 14, 14, 7, 7, -7, -7, 14, 22, 7, 28, 0, 21, 7, 15, 28}, {0, -28, -15, -7, -21, 0, -28, -7, -22, -14, 7, 7, -7, -7, -14, -14, 7, 27}},
+      {Tuning::EDO31, {0, -3, 3, 10, -4, 3, -1, 9, -5, 2, -5, 5, -2, -6, 1, 11, 4, 4}, {0, -4, -4, -11, -1, 6, 2, -5, 5, -2, 5, -9, 1, -3, 4, -10, -3, 3}},
+      {Tuning::EDO53, {0, -10, 6, 0, -5, -11, 1, 5, 0, -6, -3, 0, -11, 1, -5, -1, 1, 10}, {0, -10, -1, 1, 5, -1, 11, 0, 3, 6, 0, -5, -1, 11, 5, 0, -6, 10}},
   };
   for (auto & row : rows) {
     for (auto scale : {Scale::OTONAL, Scale::UTONAL}) {
@@ -88,13 +88,13 @@ TEST(scale_corrections_give_each_degree_its_exact_ratio_in_every_tuning) {
 }
 
 TEST(otonal_and_utonal_are_tuned_together) {
-  // The keys of the whole gamut are tuned in either scale: fifteen in 31 and 53-EDO.
-  for (auto tuning : {Tuning::EDO31, Tuning::EDO53}) {
+  // The keys of the whole gamut are tuned in either scale: 29 in 53-EDO, 25 in 31.
+  for (auto [tuning, expected] : {std::pair{Tuning::EDO31, 25}, std::pair{Tuning::EDO53, 29}}) {
     for (auto scale : {Scale::OTONAL, Scale::UTONAL}) {
       auto corrections = scaleCorrectionsFor(tuning, scale, 0);
       int present = 0;
       for (int step = 0; step < corrections.edo; step++) present += corrections.forNote(step) ? 1 : 0;
-      CHECK(present == 15);
+      CHECK(present == expected);
     }
   }
   // An otonal song's utonal notes carry the utonal ratios.

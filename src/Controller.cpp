@@ -208,10 +208,10 @@ Controller::Controller(ChannelConfiguration _channel_config) : channel_config(_c
   // thread's first render() of it - table generation is ~10-16ms, easily
   // enough to glitch a real-time audio callback; reported in practice as
   // an audible click the first time a Library pad is previewed. Only
-  // covers 31-EDO (a fresh song's own default tuning) at a middle
+  // covers 53-EDO (a fresh song's own default tuning) at a middle
   // register - a song in a different tuning, or a note far from that
   // register, still builds lazily on first use, same as before.
-  prewarmLibraryInstruments(instrument_provider, channel_config, Tuning::EDO31);
+  prewarmLibraryInstruments(instrument_provider, channel_config, Tuning::EDO53);
 
   // MixerFactory falls back to AMBISONIC_STEREO at actual mixer-
   // construction time if no SOFA file resolves (or libmysofa isn't

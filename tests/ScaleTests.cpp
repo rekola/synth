@@ -57,45 +57,42 @@ TEST(scale_major_12edo_transposed_to_key) {
   for (size_t i = 0; i < expected.size(); i++) CHECK(degrees[i] == expected[i]);
 }
 
-// The two scales, 1/1 15/14 7/6 5/4 4/3 7/5 3/2 5/3 7/4 15/8 (OTONAL) and
-// 1/1 16/15 8/7 6/5 4/3 10/7 3/2 8/5 12/7 28/15 (UTONAL), in 31-EDO:
-// C D♭↓ D♯ E F F♯↑ G A A♯↑ B and C D♭↓ E𝄫 E♭ F G♭↓ G A♭ B𝄫 B; the 11th row
-// is the tonic an octave up.
+// The two 18-note scales (docs/extended-diamond.md) in 31-EDO; the 19th row
+// is the tonic an octave up. Several degrees share a step in 31-EDO.
 TEST(scale_otonal_31edo) {
   Song song(Tuning::EDO31, -1);
   song.setScale(Scale::OTONAL);
-  CHECK(song.getScaleDegreesWindow(0, 11) == (vector<int>{0, 3, 7, 10, 13, 15, 18, 23, 25, 28, 31}));
+  CHECK(song.getScaleDegreesWindow(0, 19) == (vector<int>{0, 1, 3, 5, 7, 9, 10, 11, 13, 15, 17, 18, 22, 23, 25, 26, 28, 30, 31}));
 }
 
 TEST(scale_utonal_31edo) {
   Song song(Tuning::EDO31, -1);
   song.setScale(Scale::UTONAL);
-  CHECK(song.getScaleDegreesWindow(0, 11) == (vector<int>{0, 3, 6, 8, 13, 16, 18, 21, 24, 28, 31}));
+  CHECK(song.getScaleDegreesWindow(0, 19) == (vector<int>{0, 1, 3, 5, 6, 8, 9, 13, 14, 16, 18, 20, 21, 22, 24, 26, 28, 30, 31}));
 }
 
-// The same spellings in 53-EDO land on the same ratios
-// (docs/53edo_note_numbers.txt): 7:4 is A♯↑, 43 steps (A♯ would be 42).
+// 53-EDO gives every degree a key of its own.
 TEST(scale_otonal_utonal_53edo) {
   Song song(Tuning::EDO53, -1);
   song.setScale(Scale::OTONAL);
-  CHECK(song.getScaleDegreesWindow(0, 11) == (vector<int>{0, 5, 12, 17, 22, 26, 31, 39, 43, 48, 53}));
+  CHECK(song.getScaleDegreesWindow(0, 19) == (vector<int>{0, 2, 5, 9, 12, 16, 17, 19, 22, 26, 29, 31, 38, 39, 43, 45, 48, 51, 53}));
   song.setScale(Scale::UTONAL);
-  CHECK(song.getScaleDegreesWindow(0, 11) == (vector<int>{0, 5, 10, 14, 22, 27, 31, 36, 41, 48, 53}));
+  CHECK(song.getScaleDegreesWindow(0, 19) == (vector<int>{0, 2, 5, 8, 10, 14, 15, 22, 24, 27, 31, 34, 36, 37, 41, 44, 48, 51, 53}));
 }
 
-// 12- and 19-EDO have no steps of their own for the septimal ratios; the
-// spellings land on the nearest ones.
+// 12- and 19-EDO have no keys of their own for most of them; the spellings
+// land on the nearest ones and several degrees share a key.
 TEST(scale_otonal_utonal_12edo_19edo) {
   Song song12(Tuning::EDO12, -1);
   song12.setScale(Scale::OTONAL);
-  CHECK(song12.getScaleDegreesWindow(0, 10) == (vector<int>{0, 1, 3, 4, 5, 6, 7, 9, 10, 11}));
+  CHECK(song12.getScaleDegreesWindow(0, 18) == (vector<int>{0, 0, 1, 2, 3, 4, 4, 4, 5, 6, 7, 7, 8, 9, 10, 10, 11, 12}));
   song12.setScale(Scale::UTONAL);
-  CHECK(song12.getScaleDegreesWindow(0, 10) == (vector<int>{0, 1, 2, 3, 5, 6, 7, 8, 9, 11}));
+  CHECK(song12.getScaleDegreesWindow(0, 18) == (vector<int>{0, 0, 1, 2, 2, 3, 4, 5, 5, 6, 7, 8, 8, 8, 9, 10, 11, 12}));
   Song song19(Tuning::EDO19, -1);
   song19.setScale(Scale::OTONAL);
-  CHECK(song19.getScaleDegreesWindow(0, 10) == (vector<int>{0, 2, 4, 6, 8, 9, 11, 14, 15, 17}));
+  CHECK(song19.getScaleDegreesWindow(0, 18) == (vector<int>{0, 1, 2, 3, 4, 6, 6, 7, 8, 9, 10, 11, 13, 14, 15, 16, 17, 18}));
   song19.setScale(Scale::UTONAL);
-  CHECK(song19.getScaleDegreesWindow(0, 10) == (vector<int>{0, 2, 4, 5, 8, 10, 11, 13, 15, 17}));
+  CHECK(song19.getScaleDegreesWindow(0, 18) == (vector<int>{0, 1, 2, 3, 4, 5, 6, 8, 9, 10, 11, 12, 13, 13, 15, 16, 17, 18}));
 }
 
 // 53-EDO's natural notes are the just major scale, so major and minor come

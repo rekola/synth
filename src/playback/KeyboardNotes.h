@@ -88,35 +88,55 @@ inline const std::string_view keyToMidiNote(int key, Tuning tuning, Scale scale)
         return "D'";
     }
   } else if (scale == Scale::OTONAL || scale == Scale::UTONAL) {
-    // The scale's ten notes: the lower row z x c v b n m has the seven of the
-    // core (F and G, with the tritone on g between them), the
-    // upper row's w/s and p the semitones either side of the tonic. The two
-    // layouts mirror each other; the tonic and two more notes an octave up are
-    // on , . and -.
+    // The scale's eighteen notes. The lower row z x c v b n m has the seven of
+    // the core and the home row, staggered between them, the notes that lie
+    // between neighbouring core notes: s D (D↓), d D𝄪, f F♭ (F𝄫), g the tritone,
+    // h G𝄪 (G♯), j A♭↑ (utonal), k B♭ (B♭↓). The upper row has the notes
+    // clustered around the tonic and the tritone: q D𝄫, w D♭↓, y F𝄪 (t G𝄫),
+    // and p B and o B♯. The two layouts mirror each other; the tonic and two
+    // more notes an octave up are on , . and -.
     const bool otonal = scale == Scale::OTONAL;
     switch (key) {
       case 'z':
         return "C";
+      case 'q':
+        return "D𝄫";
       case 'w':
-        return otonal ? "D♭↓" : "";
+        return "D♭↓";
       case 's':
-        return otonal ? "" : "D♭↓";
+        return otonal ? "D" : "D↓";
       case 'x':
         return otonal ? "D♯" : "E𝄫";
+      case 'd':
+        return otonal ? "D𝄪" : "";
       case 'c':
         return otonal ? "E" : "E♭";
+      case 'f':
+        return otonal ? "F♭" : "F𝄫";
       case 'v':
         return "F";
+      case 't':
+        return otonal ? "" : "G𝄫";
       case 'g':
         return otonal ? "F♯↑" : "G♭↓";
+      case 'y':
+        return otonal ? "F𝄪" : "";
       case 'b':
         return "G";
+      case 'h':
+        return otonal ? "G𝄪" : "G♯";
       case 'n':
         return otonal ? "A" : "A♭";
+      case 'j':
+        return otonal ? "" : "A♭↑";
       case 'm':
         return otonal ? "A♯↑" : "B𝄫";
+      case 'k':
+        return otonal ? "B♭" : "B♭↓";
       case 'p':
         return "B";
+      case 'o':
+        return "B♯";
       case ',':
         return "C'";
       case '.':

@@ -189,7 +189,7 @@ static bool parsePatternContent(XMLElement & pattern_element, Pattern & pattern,
   return true;
 }
 
-static Tuning parse_tuning(string_view tuning_text, Tuning default_tuning = Tuning::EDO31) {
+static Tuning parse_tuning(string_view tuning_text, Tuning default_tuning = Tuning::EDO53) {
   if (tuning_text == "12edo") return Tuning::EDO12;
   else if (tuning_text == "31edo") return Tuning::EDO31;
   else if (tuning_text == "19edo") return Tuning::EDO19;
@@ -810,7 +810,7 @@ static void storeBusConfig(const Song & song, XMLDocument & doc, XMLElement * ro
   if (!b_none) storeBusSlotChild(song, 1, doc, bus);
 }
 
-static_assert(static_cast<int>(Tuning::EDO31) == 3, "songschema::kTuning's default is Tuning::EDO31");
+static_assert(static_cast<int>(Tuning::EDO53) == 4, "songschema::kTuning's default is Tuning::EDO53");
 static_assert(static_cast<int>(Scale::NONE) == 0, "songschema::kScale's default is Scale::NONE");
 
 Song::Song(Tuning tuning, short key) {
@@ -1404,7 +1404,7 @@ void
 Song::loadParameters(const ParameterSource & input) {
   SongObject::loadParameters(input);
 
-  auto song_tuning = parse_tuning(input.get<std::string>("temperament"), Tuning::EDO31);
+  auto song_tuning = parse_tuning(input.get<std::string>("temperament"), Tuning::EDO53);
   setTuning(song_tuning);
 
   auto key_text = input.get<std::string>("key");

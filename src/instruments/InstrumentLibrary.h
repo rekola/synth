@@ -37,7 +37,7 @@ void registerLibraryInstruments(InstrumentProvider & provider);
 // far from that register, still builds lazily on first use exactly as
 // before - a real, accepted limitation, not a full fix for every
 // possible first-note stall, just the overwhelmingly common preview case
-// (auditioning a Library pad at a default pitch, default 31-EDO tuning).
+// (auditioning a Library pad at a default pitch, default 53-EDO tuning).
 void prewarmLibraryInstruments(InstrumentProvider & provider, const ChannelConfiguration & config, Tuning tuning);
 
 // The single-instrument sibling of prewarmLibraryInstruments() above -

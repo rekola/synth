@@ -163,10 +163,12 @@ static inline Scale scaleFromString(const std::string & text) {
 // Babylonian modes the Pythagorean gamut. The maqamat and NONE have none: they
 // are tempered and get no tuning corrections. The scale itself is a selection
 // from its gamut. Otonal is the extended diamond's notes of its side (or of
-// both), ten of them:
-// 1/1 15/14 7/6 5/4 4/3 7/5 3/2 5/3 7/4 15/8 (C D♭↓ D♯ E F F♯↑ G A A♯↑ B);
-// utonal is its mirror image, 1/1 16/15 8/7 6/5 4/3 10/7 3/2 8/5 12/7 28/15
-// (C D♭↓ E𝄫 E♭ F G♭↓ G A♭ B𝄫 B). The terms are Partch's, though his otonalities
+// both), eighteen of them:
+// 1/1 49/48 15/14 9/8 7/6 49/40 5/4 9/7 4/3 7/5 35/24 3/2 49/30 5/3 7/4 9/5 15/8 49/25
+// (C D𝄫 D♭↓ D D♯ D𝄪 E F♭ F F♯↑ F𝄪 G G𝄪 A A♯↑ B♭ B B♯); utonal is its mirror
+// image, 1/1 50/49 16/15 10/9 8/7 6/5 60/49 4/3 48/35 10/7 3/2 14/9 8/5 80/49 12/7
+// 16/9 28/15 96/49 (C D𝄫 D♭↓ D↓ E𝄫 E♭ F𝄫 F G𝄫 G♭↓ G G♯ A♭ A♭↑ B𝄫 B♭↓ B B♯).
+// The terms are Partch's, though his otonalities
 // are chords, not these scales. Each Babylonian mode is seven notes of the
 // Pythagorean gamut, 3-limit and meant for 53-EDO only (scaleSupportsTuning());
 // išartum is the gamut's default. Major and minor are seven of the duodene's

@@ -10,14 +10,14 @@
 
 // A gamut is a set of just ratios above the tonic that scales (Scale.h) are
 // selections from, and that the tuner (JustIntonation.h) tunes from whatever
-// scale a song is in. There are four: the extended diamond below (kExtendedDiamond),
+// scale a song is in. There are three: the extended diamond below (kExtendedDiamond),
 // which the otonal and utonal scales select from, Ellis's duodene (kDuodene),
 // and the Pythagorean gamut (kPythagorean), a chain of fifths.
 //
 // The extended diamond is the 7-limit tonality diamond (every ratio between two
-// of 1, 3, 5 and 7, octave-reduced) plus 16/15, 15/14, 15/8 and 28/15: seventeen
-// ratios on fifteen keys of 31 and 53-EDO. 16/15 and 15/14 share a key, as do
-// 28/15 and 15/8 (225/224 apart); the song's scale decides which one the key
+// of 1, 3, 5 and 7, octave-reduced) plus sixteen more ratios of the pairs the
+// docs describe: 33 ratios, 29 keys of 53-EDO. Four keys (2, 5, 48 and 51)
+// carry two ratios, one per scale; the song's scale decides which one the key
 // carries. The gamut is closed under the mirror r -> 2/r, which swaps the sides.
 // docs/extended-diamond.md has the construction.
 enum class GamutSide {
@@ -40,26 +40,43 @@ struct GamutNote {
 namespace gamut {
 inline constexpr std::size_t kNoMirror = static_cast<std::size_t>(-1);
 
-// By ascending ratio. The otonal scale is the BOTH and OTONAL notes, the utonal
-// scale the BOTH and UTONAL ones.
-inline constexpr std::array<GamutNote, 17> kExtendedDiamond = {{
+// By ascending ratio, so the mirror of index i is 33 - i (1/1 is its own). The
+// otonal scale is the BOTH and OTONAL notes, the utonal scale the BOTH and
+// UTONAL ones: eighteen each.
+inline constexpr std::array<GamutNote, 33> kExtendedDiamond = {{
     {Ratio{1, 1}, GamutSide::BOTH, "C", 0},
-    {Ratio{16, 15}, GamutSide::UTONAL, "D♭↓", 16},
-    {Ratio{15, 14}, GamutSide::OTONAL, "D♭↓", 15},
-    {Ratio{8, 7}, GamutSide::UTONAL, "E𝄫", 14},
-    {Ratio{7, 6}, GamutSide::OTONAL, "D♯", 13},
-    {Ratio{6, 5}, GamutSide::UTONAL, "E♭", 12},
-    {Ratio{5, 4}, GamutSide::OTONAL, "E", 11},
-    {Ratio{4, 3}, GamutSide::BOTH, "F", 10},
-    {Ratio{7, 5}, GamutSide::OTONAL, "F♯↑", 9},
-    {Ratio{10, 7}, GamutSide::UTONAL, "G♭↓", 8},
-    {Ratio{3, 2}, GamutSide::BOTH, "G", 7},
-    {Ratio{8, 5}, GamutSide::UTONAL, "A♭", 6},
-    {Ratio{5, 3}, GamutSide::OTONAL, "A", 5},
-    {Ratio{12, 7}, GamutSide::UTONAL, "B𝄫", 4},
-    {Ratio{7, 4}, GamutSide::OTONAL, "A♯↑", 3},
-    {Ratio{28, 15}, GamutSide::UTONAL, "B", 2},
-    {Ratio{15, 8}, GamutSide::OTONAL, "B", 1},
+    {Ratio{50, 49}, GamutSide::UTONAL, "D𝄫", 32},
+    {Ratio{49, 48}, GamutSide::OTONAL, "D𝄫", 31},
+    {Ratio{16, 15}, GamutSide::UTONAL, "D♭↓", 30},
+    {Ratio{15, 14}, GamutSide::OTONAL, "D♭↓", 29},
+    {Ratio{10, 9}, GamutSide::UTONAL, "D↓", 28},
+    {Ratio{9, 8}, GamutSide::OTONAL, "D", 27},
+    {Ratio{8, 7}, GamutSide::UTONAL, "E𝄫", 26},
+    {Ratio{7, 6}, GamutSide::OTONAL, "D♯", 25},
+    {Ratio{6, 5}, GamutSide::UTONAL, "E♭", 24},
+    {Ratio{60, 49}, GamutSide::UTONAL, "F𝄫", 23},
+    {Ratio{49, 40}, GamutSide::OTONAL, "D𝄪", 22},
+    {Ratio{5, 4}, GamutSide::OTONAL, "E", 21},
+    {Ratio{9, 7}, GamutSide::OTONAL, "F♭", 20},
+    {Ratio{4, 3}, GamutSide::BOTH, "F", 19},
+    {Ratio{48, 35}, GamutSide::UTONAL, "G𝄫", 18},
+    {Ratio{7, 5}, GamutSide::OTONAL, "F♯↑", 17},
+    {Ratio{10, 7}, GamutSide::UTONAL, "G♭↓", 16},
+    {Ratio{35, 24}, GamutSide::OTONAL, "F𝄪", 15},
+    {Ratio{3, 2}, GamutSide::BOTH, "G", 14},
+    {Ratio{14, 9}, GamutSide::UTONAL, "G♯", 13},
+    {Ratio{8, 5}, GamutSide::UTONAL, "A♭", 12},
+    {Ratio{80, 49}, GamutSide::UTONAL, "A♭↑", 11},
+    {Ratio{49, 30}, GamutSide::OTONAL, "G𝄪", 10},
+    {Ratio{5, 3}, GamutSide::OTONAL, "A", 9},
+    {Ratio{12, 7}, GamutSide::UTONAL, "B𝄫", 8},
+    {Ratio{7, 4}, GamutSide::OTONAL, "A♯↑", 7},
+    {Ratio{16, 9}, GamutSide::UTONAL, "B♭↓", 6},
+    {Ratio{9, 5}, GamutSide::OTONAL, "B♭", 5},
+    {Ratio{28, 15}, GamutSide::UTONAL, "B", 4},
+    {Ratio{15, 8}, GamutSide::OTONAL, "B", 3},
+    {Ratio{96, 49}, GamutSide::UTONAL, "B♯", 2},
+    {Ratio{49, 25}, GamutSide::OTONAL, "B♯", 1},
 }};
 
 // The Pythagorean gamut: thirteen notes of the chain of fifths, six below the

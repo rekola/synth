@@ -225,12 +225,12 @@ nothing else:
 | Scale | Gamut |
 | --- | --- |
 | major, minor | duodene (Ellis's 12 notes: 1/1 16/15 9/8 6/5 5/4 4/3 45/32 3/2 8/5 5/3 9/5 15/8) |
-| otonal, utonal | the extended diamond (17 ratios; [extended-diamond.md](extended-diamond.md)) |
+| otonal, utonal | the extended diamond (33 ratios; [extended-diamond.md](extended-diamond.md)) |
 | the seven Babylonian modes (nīš tuḫrim, išartum, embūbum, nīd qablim, qablītum, kitmum, pītum) | Pythagorean (53-EDO only) |
 | none, the maqamat | no gamut: tempered, no corrections |
 
 Each key, a step above the song's key, gets the gamut note whose nearest step
-in the song's tuning is that key. Where several notes have the same key (31 and 53-EDO's 16/15 and 15/14, 28/15 and 15/8; 12 and 19-EDO's several), the one in the song's scale has it,
+in the song's tuning is that key. Where several notes have the same key (53-EDO's keys 2, 5, 48 and 51, which carry one ratio of each scale; 12, 19 and 31-EDO's several), the one in the song's scale has it,
 else the one closer to the key in cents. A key no gamut note is nearest to
 stays tempered (`+00`). The rule looks at the key and the note alone, never at
 the chord, so a note sounds the same whatever else is playing, and it sounds
@@ -303,20 +303,24 @@ See `launchpad.md` for the gestures.
 ### Note keyboard
 
 The laptop/PC keyboard plays notes on the lower row `z x c v b n m , . -` and
-the rows above it. In an otonal or utonal song all ten notes of the scale are
-on keys, with the same layout shape in both (spellings as in
-[extended-diamond.md](extended-diamond.md)):
+the rows above it. In an otonal or utonal song all eighteen notes of the scale
+are on keys, with the same layout shape in both (spellings as in
+[extended-diamond.md](extended-diamond.md)). The keys are staggered, so a key
+on the home row sits between two keys of the lower row, and the note on it
+lies between theirs:
 
-| Key | `z` | `w` | `s` | `x` | `c` | `v` | `g` | `b` | `n` | `m` | `p` | `,` | `.` | `-` |
-| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| otonal | C | D♭↓ | | D♯ | E | F | F♯↑ | G | A | A♯↑ | B | C′ | D♯′ | E′ |
-| utonal | C | | D♭↓ | E𝄫 | E♭ | F | G♭↓ | G | A♭ | B𝄫 | B | C′ | E𝄫′ | E♭′ |
+| Key | `z` | `q` | `w` | `s` | `x` | `d` | `c` | `f` | `v` | `t` | `g` | `y` | `b` | `h` | `n` | `j` | `m` | `k` | `o` | `p` | `,` | `.` | `-` |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| otonal | C | D𝄫 | D♭↓ | D | D♯ | D𝄪 | E | F♭ | F | | F♯↑ | F𝄪 | G | G𝄪 | A | | A♯↑ | B♭ | B♯ | B | C′ | D♯′ | E′ |
+| utonal | C | D𝄫 | D♭↓ | D↓ | E𝄫 | | E♭ | F𝄫 | F | G𝄫 | G♭↓ | | G | G♯ | A♭ | A♭↑ | B𝄫 | B♭↓ | B♯ | B | C′ | E𝄫′ | E♭′ |
 
-The seven core notes are on the lower row, the tritone (`g`, which sits between `v` and `b` on the staggered rows),
-and the two semitones either side of the tonic (D♭↓ and B) on the upper row
-where the earlier layouts had D♭ and B. A song with any other scale (or none)
-keeps its own layouts, which do not follow the scale; the Babylonian modes and
-the maqām Rāst have theirs.
+The seven core notes (the 7-note step of the scale) are on the lower row, the
+notes between them on the home row (the tritone on `g`, between F and G), and
+the notes that cluster round the tonic and the tritone on the upper row. The
+`[` and `]` keys are octave down and up, so B♯ is on `o`. A song with any
+other scale (or none) keeps its own layouts, which do not follow the scale;
+the Babylonian modes and the maqām Rāst have theirs. The Launchpad's step view
+steps through all eighteen notes of the scale.
 
 ## Terminal
 
