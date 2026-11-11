@@ -558,7 +558,7 @@ constexpr double kGlowStrength = 0.6;
 // How much larger a glyph with the full zoom (Cell::zoom of 255) is drawn, and the factor for a
 // zoom. A transform about the cell's centre on the glyph's cached node and its glow's quad, so no
 // node or texture is made again.
-constexpr double kZoomMax = 0.5;
+constexpr double kZoomMax = 0.25;
 double zoomFactor(uint8_t zoom) { return 1.0 + kZoomMax * static_cast<double>(zoom) / 255.0; }
 // The piece of cells that zoom as one with the cell at (row, col): from the cell that is not
 // joined to the one before it, through the joined cells after it. Its zoom is the first cell's.
