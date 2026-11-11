@@ -34,8 +34,8 @@ TEST(keyboard_notes_otonal_and_utonal_have_a_key_for_each_note) {
     }
     CHECK(played.size() == 10);
   }
-  CHECK(keyToMidiNote(key('f'), Tuning::EDO53, Scale::OTONAL) == "F♯↑");
-  CHECK(keyToMidiNote(key('f'), Tuning::EDO53, Scale::UTONAL) == "G♭↓");
+  CHECK(keyToMidiNote(key('g'), Tuning::EDO53, Scale::OTONAL) == "F♯↑");
+  CHECK(keyToMidiNote(key('g'), Tuning::EDO53, Scale::UTONAL) == "G♭↓");
 }
 
 TEST(keyboard_notes_scale_with_the_edo_per_octave) {

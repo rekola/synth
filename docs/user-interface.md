@@ -307,12 +307,12 @@ the rows above it. In an otonal or utonal song all ten notes of the scale are
 on keys, with the same layout shape in both (spellings as in
 [extended-diamond.md](extended-diamond.md)):
 
-| Key | `z` | `w` | `s` | `x` | `c` | `v` | `f` | `b` | `n` | `m` | `p` | `,` | `.` | `-` |
+| Key | `z` | `w` | `s` | `x` | `c` | `v` | `g` | `b` | `n` | `m` | `p` | `,` | `.` | `-` |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
 | otonal | C | D♭↓ | | D♯ | E | F | F♯↑ | G | A | A♯↑ | B | C′ | D♯′ | E′ |
 | utonal | C | | D♭↓ | E𝄫 | E♭ | F | G♭↓ | G | A♭ | B𝄫 | B | C′ | E𝄫′ | E♭′ |
 
-The seven core notes are on the lower row, the tritone (`f`) between F and G,
+The seven core notes are on the lower row, the tritone (`g`, which sits between `v` and `b` on the staggered rows),
 and the two semitones either side of the tonic (D♭↓ and B) on the upper row
 where the earlier layouts had D♭ and B. A song with any other scale (or none)
 keeps its own layouts, which do not follow the scale; the Babylonian modes and

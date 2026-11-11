@@ -101,8 +101,9 @@ The application draws on several traditions.
   mode), minor (the Aeolian mode), otonal or utonal. Each is written once
   as note names: major and minor come out meantone in 12, 19 and 31-EDO and
   just in 53-EDO. The scale decides which
-  notes the Launchpad's step view steps through; it does not change the
-  playing keyboard.
+  notes the Launchpad's step view steps through. It does not change the
+  Launchpad's Notes view, which is always the isometric layout, and the
+  laptop/PC note keyboard has a layout of its own for otonal and utonal.
 - **Otonal and utonal.** Two 10-note scales that mirror each other around the
   tonic, drawn from one gamut of seventeen just ratios: the 7-limit tonality
   diamond (every ratio between two of 1, 3, 5 and 7; Max Meyer, 1929, the
@@ -120,7 +121,7 @@ The application draws on several traditions.
   wolf fifth D–A nor comma drift can occur. Partch's own otonalities and
   utonalities are chords, not scales; the scales, the extension and their
   chords are the author's own. The notes are spelled so that 31 and 53-EDO
-  both come within 6.2 cents of every ratio; 12 and 19-EDO only approximate
+  both come within 7 cents of every ratio; 12 and 19-EDO only approximate
   the septimal ones. The 7:4 is A♯↑ because 53-EDO's A♯ is 26:15; the other
   tunings read it as A♯. [extended-diamond.md](docs/extended-diamond.md) has
   the gamut, the scales, their subsets and their chords.

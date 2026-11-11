@@ -89,7 +89,7 @@ inline const std::string_view keyToMidiNote(int key, Tuning tuning, Scale scale)
     }
   } else if (scale == Scale::OTONAL || scale == Scale::UTONAL) {
     // The scale's ten notes: the lower row z x c v b n m has the seven of the
-    // core (with F and G, F's neighbours f/g between them for the tritone), the
+    // core (F and G, with the tritone on g between them), the
     // upper row's w/s and p the semitones either side of the tonic. The two
     // layouts mirror each other; the tonic and two more notes an octave up are
     // on , . and -.
@@ -107,7 +107,7 @@ inline const std::string_view keyToMidiNote(int key, Tuning tuning, Scale scale)
         return otonal ? "E" : "E♭";
       case 'v':
         return "F";
-      case 'f':
+      case 'g':
         return otonal ? "F♯↑" : "G♭↓";
       case 'b':
         return "G";

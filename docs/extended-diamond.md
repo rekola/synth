@@ -213,7 +213,7 @@ note of the gamut sounds at its exact ratio to the tonic
 from the other scale is tuned as well. In 31 and 53-EDO every gamut note has
 a key of its own, at the steps in the table above, except that D♭↓ and B
 each carry the ratio of the song's scale: 15/14 and 15/8 in otonal, 16/15
-and 28/15 in utonal. Without correction both tunings come within 6.2 cents
+and 28/15 in utonal. Without correction both tunings come within 7 cents
 of every ratio. 12 and 19-EDO only approximate the septimal ratios, and
 there more gamut notes share a key; the song's scale decides which one the
 key carries.

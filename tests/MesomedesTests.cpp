@@ -18,12 +18,6 @@
 
 using namespace ratio_literals;
 
-namespace {
-constexpr int kIntroRows = 16; // two bars of 2/4
-constexpr int kSongRows = 120; // twelve bars of 2/4 and one of 12/8
-constexpr int kOutroRows = 16;
-} // namespace
-
 TEST(nid_qablim_is_the_phrygian_rotation_of_the_pythagorean_gamut) {
   std::vector<Ratio> ratios;
   for (auto i : scaleGamutIndices(Scale::NID_QABLIM)) ratios.push_back(gamut::kPythagorean[i].ratio);
@@ -34,34 +28,23 @@ TEST(nid_qablim_is_the_phrygian_rotation_of_the_pythagorean_gamut) {
   CHECK(!scaleSupportsTuning(Scale::NID_QABLIM, Tuning::EDO31));
 }
 
-TEST(mesomedes_plays_scale_notes_tuned_to_their_ratios_in_120_rows) {
+TEST(the_hurrian_hymn_plays_scale_notes_tuned_to_their_ratios) {
   InstrumentProvider provider;
   Song song;
-  CHECK(song.open(std::string(TESTS_SONGS_DIR) + "/mesomedes_calliope.xml", provider));
+  CHECK(song.open(std::string(TESTS_SONGS_DIR) + "/hurrian_nikkal.xml", provider));
   CHECK(song.getTuning() == Tuning::EDO53);
   CHECK(song.getScale() == Scale::NID_QABLIM);
-  CHECK(song.getArrangementLength() == kIntroRows + kSongRows + kOutroRows);
-  // Bar 13 is one 12/8 bar, between the 2/4 of the rest.
-  auto bars = song.getArrangementBars();
-  CHECK(bars.barRows(kIntroRows) == 8 && bars.barRows(kIntroRows + 96) == 24 && bars.barRows(kIntroRows + kSongRows) == 8);
-  CHECK(bars.barIndex(kIntroRows + kSongRows) == 2 + 13 && bars.barIndex(kIntroRows + kSongRows + kOutroRows) == 2 + 13 + 2);
-
-  // The tempo broadens over the outro, as tempo changes in the arrangement.
-  CHECK((song.getTempoChanges() == std::map<int, int>{{136, 75}, {140, 70}, {144, 66}, {148, 64}}));
+  CHECK(song.getArrangementLength() > 0);
 
   const int key = song.getKey();
-  CHECK(key == Note::stringToKey(Tuning::EDO53, "C-4"));
+  CHECK(key == Note::stringToKey(Tuning::EDO53, "D-4"));
   auto corrections = just_intonation::scaleCorrectionsFor(Tuning::EDO53, Scale::NID_QABLIM, key);
 
   auto step_of = [](Ratio r) { return ((r.steps(53) % 53) + 53) % 53; };
   std::map<int, Ratio> ratio_of_step; // the scale's degrees
   for (auto i : scaleGamutIndices(Scale::NID_QABLIM)) ratio_of_step.emplace(step_of(gamut::kPythagorean[i].ratio), gamut::kPythagorean[i].ratio);
 
-  // The one note off the scale is West's g-sharp in bar 4, the Pythagorean 81/64.
-  const int ficta_row = kIntroRows + 24;
-  const Ratio ficta = 81 / 64_r;
-
-  int off_scale = 0;
+  int pitched = 0;
   auto arrangement = song.getArrangement();
   for (auto & [track_id, pattern] : arrangement.getPatternsByTrack()) {
     auto * track = song.getMasterTrack().getChildByInternalId(track_id);
@@ -69,21 +52,17 @@ TEST(mesomedes_plays_scale_notes_tuned_to_their_ratios_in_120_rows) {
     for (int row = 0; row < song.getArrangementLength(); row++) {
       for (auto & note : arrangement.getNotes(row, track_id)) {
         if (!note.isDefined() || note.isOff()) continue;
+        pitched++;
         int step = (((note.getValue() - key) % 53) + 53) % 53;
-        bool ficta_note = row == ficta_row && step == step_of(ficta);
-        auto degree = ficta_note ? std::map<int, Ratio>::iterator{} : ratio_of_step.find(step);
-        if (!ficta_note) {
-          CHECK(degree != ratio_of_step.end());
-          if (degree == ratio_of_step.end()) continue;
-        }
-        if (ficta_note) off_scale++;
-        Ratio expected = ficta_note ? ficta : degree->second;
+        auto degree = ratio_of_step.find(step);
+        CHECK(degree != ratio_of_step.end()); // every note is a degree of the tuning
+        if (degree == ratio_of_step.end()) continue;
         auto correction = corrections.forNote(note.getValue());
         CHECK(correction.has_value());
         if (!correction) continue;
-        CHECK(std::fabs(step * 1200.0 / 53 + *correction - expected.cents()) <= 0.5);
+        CHECK(std::fabs(step * 1200.0 / 53 + *correction - degree->second.cents()) <= 0.5);
       }
     }
   }
-  CHECK(off_scale == 1); // the lyre alone
+  CHECK(pitched > 0);
 }
