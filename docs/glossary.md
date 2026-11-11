@@ -161,32 +161,33 @@ Partch’s sense. The names are the author’s own; the chords have no
 settled name in the just-intonation literature. See otonal and utonal.
 
 **Otonal and utonal**
-Two scales that mirror each other around the tonic (r → 2/r), drawn
-from the extended diamond. Both are given here on C. Otonal’s 7-note
-form is 1/1 7/6 5/4 4/3 3/2 5/3 7/4, on C: C D♯ E F G A A♯↑, all
-harmonics (12, 14, 15, 16, 18, 20, 21) of one fundamental, so the
-scale is otonal in Harry Partch’s sense; the fundamental is not the
-tonic but the note a fifth below it (F for C otonal), the tonic
-sitting on identity 3. It is the two 4:5:6:7 chords C E G A♯↑ and
-F A C D♯ put together. Utonal is the otonal scale turned upside down:
-1/1 8/7 6/5 4/3 3/2 8/5 12/7, on C: C E𝄫 E♭ F G A♭ B𝄫, undertones of
-the note a fifth above the tonic (G for C utonal), the chords
-E𝄫 F A♭ C and B𝄫 C E♭ G (1/7:1/6:1/5:1/4) put together. A chord uses
-only intervals that are ratios of the gamut, and every note of a
-scale has a seventh chord of the scale’s notes, read upward from the
-degree; its fourth note is often dropped. Each scale has four sizes.
-The 10-note form makes two additions to the 7: the scale’s tritone
-(otonal F♯↑, utonal G♭↓), with a third seventh chord (C D♯ F♯↑ A♯↑,
-in utonal E𝄫 G♭↓ B𝄫 C), and the semitones either side of the tonic,
-D♭↓ and B (15/14 and 15/8 in otonal, 16/15 and 28/15 in utonal), with
-a seventh chord that does not contain the tonic (D♭↓ E G B, in utonal
-D♭↓ F A♭ B). The 8-note form takes only the tritone, the 9-note form
-only the semitones. Only the 7-note forms are a
-single series. Each scale contains a septimal pentatonic as a melodic
-subscale (otonal C D♯ F G A♯↑, utonal C E𝄫 F G B𝄫). Partch’s
-Otonalities and Utonalities are chords, not scales; these scales and
-their chords are the author’s own. Their chords are tabled in
-extended-diamond.md.
+Two 10-note scales that mirror each other around the tonic (r → 2/r),
+drawn from the extended diamond. Both are given here on C. Otonal is
+C D♭↓ D♯ E F F♯↑ G A A♯↑ B. Its core is the seven notes 1/1 7/6 5/4
+4/3 3/2 5/3 7/4, on C: C D♯ E F G A A♯↑, all harmonics (12, 14, 15,
+16, 18, 20, 21) of one fundamental, so the core is otonal in Harry
+Partch’s sense; the fundamental is not the tonic but the note a fifth
+below it (F for C otonal), the tonic sitting on identity 3. The core
+is the two 4:5:6:7 chords C E G A♯↑ and F A C D♯ put together. To it
+the scale makes two additions: the tritone F♯↑ (7/5), with a third
+seventh chord (C D♯ F♯↑ A♯↑), and the semitones either side of the
+tonic, D♭↓ (15/14) and B (15/8), with a seventh chord that does not
+contain the tonic (D♭↓ E G B). Utonal is the otonal scale turned
+upside down: C D♭↓ E𝄫 E♭ F G♭↓ G A♭ B𝄫 B, with the core 1/1 8/7 6/5
+4/3 3/2 8/5 12/7, on C: C E𝄫 E♭ F G A♭ B𝄫, undertones of the note a
+fifth above the tonic (G for C utonal), the chords E𝄫 F A♭ C and
+B𝄫 C E♭ G (1/7:1/6:1/5:1/4) put together; its additions are G♭↓
+(10/7), with E𝄫 G♭↓ B𝄫 C, and D♭↓ (16/15) and B (28/15), with
+D♭↓ F A♭ B. A chord uses only intervals that are ratios of the gamut,
+and every note of a scale has a seventh chord of the scale’s notes,
+read upward from the degree; its fourth note is often dropped.
+Keeping to the core, or to the core with one of the additions, gives
+subsets of 7, 8 and 9 notes with fewer chords; these are the player’s
+choice, not separate scales. Only the cores are a single series. Each
+scale contains a septimal pentatonic as a melodic subscale (otonal
+C D♯ F G A♯↑, utonal C E𝄫 F G B𝄫). Partch’s Otonalities and
+Utonalities are chords, not scales; these scales and their chords are
+the author’s own. Their chords are tabled in extended-diamond.md.
 
 **Performance effect**
 An effect held on a track from the Launchpad's Custom grid (stutter,

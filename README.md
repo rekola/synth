@@ -98,34 +98,32 @@ The application draws on several traditions.
   "Ben Johnston's Extended Just Intonation: A Guide for Interpreters",
   *Perspectives of New Music* 29/2 (1991).
 - **Scales.** A song has a key and an optional scale: major (the Ionian
-  mode), minor (the Aeolian mode), otonal or utonal, the last two in 7 to 10
-  notes. Each is written once as note names: major and minor come out
-  meantone in 12, 19 and 31-EDO and just in 53-EDO. The scale decides which
+  mode), minor (the Aeolian mode), otonal or utonal. Each is written once
+  as note names: major and minor come out meantone in 12, 19 and 31-EDO and
+  just in 53-EDO. The scale decides which
   notes the Launchpad's step view steps through; it does not change the
-  playing keyboard.  
-- **Otonal and utonal.** Two scales that mirror each other around the
-  tonic, drawn from one gamut of seventeen just ratios: the 7-limit
-  tonality diamond (every ratio between two of 1, 3, 5 and 7; Max
-  Meyer, 1929, the smaller form of Harry Partch's diamond in *Genesis
-  of a Music*, 1949) extended by 15/14, 16/15, 15/8 and
-  28/15. **Otonal** is C D♯ E F G A A♯↑ = 1/1 7/6 5/4 4/3 3/2 5/3 7/4,
-  harmonics 12, 14, 15, 16, 18, 20 and 21 of the F a fifth below the
-  tonic: the 4:5:6:7 chords C E G A♯↑ and F A C D♯ put
-  together. **Utonal** is the same scale turned upside down: C E𝄫 E♭ F
-  G A♭ B𝄫 = 1/1 8/7 6/5 4/3 3/2 8/5 12/7. The full 10-note form adds
-  the tritone (otonal F♯↑, utonal G♭↓) and the semitones either side
-  of the tonic, D♭↓ and B (15/14 and 15/8 in otonal, 16/15 and 28/15
-  in utonal); the 8- and 9-note forms take one of the two. A chord
-  uses only intervals that are ratios of the gamut, and every note of
-  a scale has a seventh chord. There is no D, so neither the wolf
-  fifth D–A nor comma drift can occur. Partch's own otonalities and
-  utonalities are chords, not scales; the scales, the extension and
-  their chords are the author's own. The notes are spelled so that 31
-  and 53-EDO both come within 6.2 cents of every ratio; 12 and 19-EDO
-  only approximate the septimal ones. The 7:4 is A♯↑ because 53-EDO's
-  A♯ is 26:15; the other tunings read it as
-  A♯. [extended-diamond.md](docs/extended-diamond.md) has the gamut,
-  the scales and their chords.
+  playing keyboard.
+- **Otonal and utonal.** Two 10-note scales that mirror each other around the
+  tonic, drawn from one gamut of seventeen just ratios: the 7-limit tonality
+  diamond (every ratio between two of 1, 3, 5 and 7; Max Meyer, 1929, the
+  smaller form of Harry Partch's diamond in *Genesis of a Music*, 1949)
+  extended by 15/14, 16/15, 15/8 and 28/15. **Otonal** is C D♭↓ D♯ E F F♯↑ G
+  A A♯↑ B. Its core, C D♯ E F G A A♯↑ = 1/1 7/6 5/4 4/3 3/2 5/3 7/4, is
+  harmonics 12, 14, 15, 16, 18, 20 and 21 of the F a fifth below the tonic:
+  the 4:5:6:7 chords C E G A♯↑ and F A C D♯ put together. To the core the
+  scale adds the tritone F♯↑ (7/5) and the semitones either side of the
+  tonic, D♭↓ (15/14) and B (15/8). **Utonal** is the same scale turned
+  upside down: C D♭↓ E𝄫 E♭ F G♭↓ G A♭ B𝄫 B, with the core C E𝄫 E♭ F G A♭ B𝄫
+  = 1/1 8/7 6/5 4/3 3/2 8/5 12/7, the tritone G♭↓ (10/7), D♭↓ (16/15) and B
+  (28/15). A chord uses only intervals that are ratios of the gamut, and
+  every note of a scale has a seventh chord. There is no D, so neither the
+  wolf fifth D–A nor comma drift can occur. Partch's own otonalities and
+  utonalities are chords, not scales; the scales, the extension and their
+  chords are the author's own. The notes are spelled so that 31 and 53-EDO
+  both come within 6.2 cents of every ratio; 12 and 19-EDO only approximate
+  the septimal ones. The 7:4 is A♯↑ because 53-EDO's A♯ is 26:15; the other
+  tunings read it as A♯. [extended-diamond.md](docs/extended-diamond.md) has
+  the gamut, the scales, their subsets and their chords.
 
 ### Pianos and Just Intervals
 

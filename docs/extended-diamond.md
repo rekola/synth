@@ -5,21 +5,25 @@
 Otonal and utonal are the application's two default scales. Both are drawn
 from one gamut of seventeen just ratios, the extended diamond, and each is
 the other turned upside down (r → 2/r). They are given here on C and can be
-built on any tonic. Each has four sizes:
+built on any tonic. Each has ten notes:
 
-| Size | Otonal | Utonal | What it is |
-|---|---|---|---|
-| 7 | C D♯ E F G A A♯↑ | C E𝄫 E♭ F G A♭ B𝄫 | one harmonic (undertone) series, two seventh chords |
-| 8 | C D♯ E F F♯↑ G A A♯↑ | C E𝄫 E♭ F G♭↓ G A♭ B𝄫 | the 7 with the tritone |
-| 9 | C D♭↓ D♯ E F G A A♯↑ B | C D♭↓ E𝄫 E♭ F G A♭ B𝄫 B | the 7 with the semitones either side of the tonic |
-| 10 | C D♭↓ D♯ E F F♯↑ G A A♯↑ B | C D♭↓ E𝄫 E♭ F G♭↓ G A♭ B𝄫 B | the full scale, four seventh chords |
+| Scale | Notes on C |
+|---|---|
+| otonal | C D♭↓ D♯ E F F♯↑ G A A♯↑ B |
+| utonal | C D♭↓ E𝄫 E♭ F G♭↓ G A♭ B𝄫 B |
+
+Each grows from a core of seven notes, one harmonic (undertone) series, by
+two additions. The core and the forms with one addition are subsets of 7, 8
+and 9 notes. They matter for the chords, and keeping to one is the player's
+choice; the application has only the 10-note scales.
 
 Three things set them apart from the major and minor scales they resemble:
 
 1. **Chords use only the gamut's intervals.** Every interval between two
    notes of a chord is itself a ratio of the gamut, so a chord never contains
    an interval the scales do not have (9/7, for one).
-2. **Every note has a seventh chord.** In every scale each degree belongs to
+2. **Every note has a seventh chord.** In the scales and their subsets each
+   degree belongs to
    a harmonic seventh, 4:5:6:7, or its mirror, made of the scale's own
    notes.
 3. **Nothing drifts.** Every note has one fixed ratio to the tonic. There is
@@ -44,25 +48,24 @@ fractions is the same chord as the whole numbers beside it.
 | Note | Ratio | Cents | 31-EDO | 53-EDO | Scale |
 |---|---|---|---|---|---|
 | C | 1/1 | 0.0 | 0 | 0 | both |
-| D♭↓ | 16/15 | 111.7 | 3 | 5 | utonal 9 |
-| D♭↓ | 15/14 | 119.4 | 3 | 5 | otonal 9 |
+| D♭↓ | 16/15 | 111.7 | 3 | 5 | utonal |
+| D♭↓ | 15/14 | 119.4 | 3 | 5 | otonal |
 | E𝄫 | 8/7 | 231.2 | 6 | 10 | utonal |
 | D♯ | 7/6 | 266.9 | 7 | 12 | otonal |
 | E♭ | 6/5 | 315.6 | 8 | 14 | utonal |
 | E | 5/4 | 386.3 | 10 | 17 | otonal |
 | F | 4/3 | 498.0 | 13 | 22 | both |
-| F♯↑ | 7/5 | 582.5 | 15 | 26 | otonal 8 |
-| G♭↓ | 10/7 | 617.5 | 16 | 27 | utonal 8 |
+| F♯↑ | 7/5 | 582.5 | 15 | 26 | otonal |
+| G♭↓ | 10/7 | 617.5 | 16 | 27 | utonal |
 | G | 3/2 | 702.0 | 18 | 31 | both |
 | A♭ | 8/5 | 813.7 | 21 | 36 | utonal |
 | A | 5/3 | 884.4 | 23 | 39 | otonal |
 | B𝄫 | 12/7 | 933.1 | 24 | 41 | utonal |
 | A♯↑ | 7/4 | 968.8 | 25 | 43 | otonal |
-| B | 28/15 | 1080.6 | 28 | 48 | utonal 9 |
-| B | 15/8 | 1088.3 | 28 | 48 | otonal 9 |
+| B | 28/15 | 1080.6 | 28 | 48 | utonal |
+| B | 15/8 | 1088.3 | 28 | 48 | otonal |
 
-The Scale column gives the scale a ratio belongs to, with the smallest size
-that has it when that is not 7. The seventeen ratios lie on fifteen keys: the
+The seventeen ratios lie on fifteen keys: the
 two ratios of D♭↓ share a key, as do the two of B, 8 cents apart (225/224),
 and the scale decides which one the key carries. The gamut mirrors itself
 around the tonic: in 53-EDO step n ↔ 53 − n.
@@ -75,7 +78,7 @@ their arithmetic and harmonic means.
 2. Divide C–F, C–G, F–C′ and G–C′: the pairs (7/6, 8/7), (5/4, 6/5),
    (5/3, 8/5) and (7/4, 12/7). The larger of each pair, the arithmetic mean,
    is otonal; the smaller, the harmonic mean, utonal. These eleven notes are
-   the two 7-note scales.
+   the two 7-note cores.
 3. Divide the remaining fifths inside each scale and keep the means that are
    new and are ratios between two of 1, 3, 5 and 7. There is one for each:
    7/5 divides D♯–A♯↑ and joins otonal, 10/7 divides E𝄫–B𝄫 and joins
@@ -88,16 +91,17 @@ their arithmetic and harmonic means.
 
 ## The scales
 
-**7 notes.** Otonal is harmonics 12, 14, 15, 16, 18, 20 and 21 of the F a
-fifth below the tonic, and is the two harmonic seventh chords C E G A♯↑ and
-F A C D♯ put together. Utonal is the same run of undertones of the G a fifth
-above the tonic, the chords E𝄫 F A♭ C and B𝄫 C E♭ G.
+**The core.** Seven notes. Otonal's core, C D♯ E F G A A♯↑, is harmonics 12,
+14, 15, 16, 18, 20 and 21 of the F a fifth below the tonic, and is the two
+harmonic seventh chords C E G A♯↑ and F A C D♯ put together. Utonal's core,
+C E𝄫 E♭ F G A♭ B𝄫, is the same run of undertones of the G a fifth above the
+tonic, the chords E𝄫 F A♭ C and B𝄫 C E♭ G.
 
-**10 notes.** The full scale makes two additions to the 7, each bringing a
-seventh chord, so that every note still has one.
+**The two additions.** Each brings a seventh chord, so that every note of
+the scale still has one.
 
 - *The tritone.* F♯↑ in otonal, G♭↓ in utonal, with a chord made of notes
-  the scale already has: C D♯ F♯↑ A♯↑ in otonal, E𝄫 G♭↓ B𝄫 C in utonal. It
+  the core already has: C D♯ F♯↑ A♯↑ in otonal, E𝄫 G♭↓ B𝄫 C in utonal. It
   is a chord of the other kind (a mirror chord in otonal, a harmonic seventh
   in utonal) and holds a new triad, the minor D♯ F♯↑ A♯↑ (in utonal the
   major E𝄫 G♭↓ B𝄫). With the tritone the scale's pentatonic becomes a blues
@@ -109,13 +113,12 @@ seventh chord, so that every note still has one.
   it. It also gives E a pure fifth and the minor triad E G B (in utonal
   D♭↓ F A♭, major).
 
-**8 and 9 notes.** Each takes one of the two additions: the 8-note scale
-the tritone, the 9-note scale the semitones. They have nothing the 10-note
-scale lacks. What sets them apart is what they leave out: in the 8-note
-scale every seventh chord still contains the tonic, as in the 7, which
-suits music over a drone; the 9-note scale has harmony that leaves the
-tonic but not the cluster of small steps around the tritone. They are
-there for the Launchpad's step view, which steps through the scale's notes.
+**Subsets.** A piece need not use all ten notes, and which it uses decides
+its chords. The core alone is the strict series, with two seventh chords.
+The core with the tritone (8 notes) keeps the tonic in every seventh chord,
+which suits music over a drone. The core with the semitones (9 notes) has
+harmony that leaves the tonic, without the cluster of small steps around
+the tritone. None of them has anything the full scale lacks.
 
 **Pentatonic subscales.** Each scale contains a pentatonic with steps of
 7/6, 8/7 and 9/8 and no semitone, which may be useful for melody. Otonal has
@@ -139,8 +142,7 @@ A degree's chord is a seventh chord it belongs to, read upward from the
 degree. In practice the fourth note is often dropped, which also keeps two
 degrees of one seventh chord from sounding alike.
 
-The tables are for the 10-note scales. A smaller scale has the rows of its
-own notes and the chords made of them: a chord with F♯↑ (in utonal G♭↓)
+A subset has the rows of its own notes and the chords made of them: a chord with F♯↑ (in utonal G♭↓)
 needs the tritone, one with D♭↓ or B the semitones. The last column is the
 major, minor or narrow triad the degree roots, where it has one.
 
@@ -170,17 +172,17 @@ major, minor or narrow triad the degree roots, where it has one.
 | B𝄫 | B𝄫 C′ E♭′ G′ | 1/7:1/6:1/5:1/4 | B𝄫 C′ E𝄫′ G♭↓′ (6:7:8:10) | B𝄫 C E𝄫, narrow major |
 | B | B D♭↓′ F′ A♭′ | 7:8:10:12 | | |
 
-**Triads.** The named triads; (8) marks one that needs the tritone, (9) one
+**Triads.** The named triads; (t) marks one that needs the tritone, (s) one
 that needs the semitones:
 
 | Triad | Proportion | In C otonal | In C utonal |
 |---|---|---|---|
-| major | 4:5:6 | C E G, F A C | A♭ C E♭, E𝄫 G♭↓ B𝄫 (8), D♭↓ F A♭ (9) |
-| minor | 10:12:15 = 1/6:1/5:1/4 | A C E, D♯ F♯↑ A♯↑ (8), E G B (9) | C E♭ G, F A♭ C |
-| narrow major | 6:7:8 | C D♯ F, G A♯↑ C | B𝄫 C E𝄫, A♭ B D♭↓ (9) |
-| narrow minor | 21:24:28 = 1/8:1/7:1/6 | A♯↑ C D♯, B D♭↓ E (9) | C E𝄫 F, G B𝄫 C |
-| septimal diminished | 5:6:7 | E G A♯↑, A C D♯ | G♭↓ B𝄫 C (8), F A♭ B (9) |
-| its mirror | 1/7:1/6:1/5 | C D♯ F♯↑ (8), D♭↓ E G (9) | E𝄫 F A♭, B𝄫 C E♭ |
+| major | 4:5:6 | C E G, F A C | A♭ C E♭, E𝄫 G♭↓ B𝄫 (t), D♭↓ F A♭ (s) |
+| minor | 10:12:15 = 1/6:1/5:1/4 | A C E, D♯ F♯↑ A♯↑ (t), E G B (s) | C E♭ G, F A♭ C |
+| narrow major | 6:7:8 | C D♯ F, G A♯↑ C | B𝄫 C E𝄫, A♭ B D♭↓ (s) |
+| narrow minor | 21:24:28 = 1/8:1/7:1/6 | A♯↑ C D♯, B D♭↓ E (s) | C E𝄫 F, G B𝄫 C |
+| septimal diminished | 5:6:7 | E G A♯↑, A C D♯ | G♭↓ B𝄫 C (t), F A♭ B (s) |
+| its mirror | 1/7:1/6:1/5 | C D♯ F♯↑ (t), D♭↓ E G (s) | E𝄫 F A♭, B𝄫 C E♭ |
 
 Major and minor divide the fifth at its arithmetic and harmonic means;
 narrow major and narrow minor do the same for the fourth. The subminor and
@@ -190,7 +192,7 @@ ratio of the gamut.
 **Other chords.** Beyond the seventh chords, the rule admits chords that
 contain a semitone, 15/14 or 16/15. The otonal scales have the major
 seventh chord F A C E (8:10:12:15) and, with B, C E G B as well; utonal has
-their mirrors. Two chords of the 7-note otonal scale sound D♯ (7/6) against E (5/4), a
+their mirrors. Two chords of the otonal core sound D♯ (7/6) against E (5/4), a
 15/14 apart:
 
 - C D♯ E A♯↑ (12:14:15:21) is the harmonic seventh without its fifth, with
@@ -231,13 +233,13 @@ contain the tonic. Partch's 43-note scale has two of the four, 16/15 and
 
 **Chord counts.** The gamut has 54 four-note chords and ten five-note ones,
 each of the ten a four-note chord without the tonic and the tonic itself;
-there is no six-note chord. The 7-note scales hold seven four-note chords
-each, the 10-note scales seventeen.
+there is no six-note chord. The cores hold seven four-note chords each, the
+full scales seventeen.
 
-**Series.** Every note of the 7-note otonal scale is a harmonic of the F a
+**Series.** Every note of the otonal core is a harmonic of the F a
 fifth below the tonic, and the tonic is harmonic 12, identity 3, not the
 fundamental. B (15/8) is harmonic 45 of that F; the tritone and D♭↓ are not
-in the series. In Partch's terms the 7-note scale is the Otonalities on 1/1
+in the series. In Partch's terms the core is the Otonalities on 1/1
 and 4/3 put together; his own Otonalities and Utonalities are chords.
 
 **Sources.** The means are Zarlino's (1558), told for the present day in Kyle
