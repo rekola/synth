@@ -61,15 +61,19 @@ The application draws on several traditions.
 ## Scales and Tunings
 
 - **Tunings.** A song is tuned to 12, 19, 24, 31 or 53 equal divisions of the
-  octave (EDO); a new song starts in 31-EDO, which Christiaan Huygens described
-  in 1691 and Adriaan Fokker revived: his 31-tone organ, built by Bernard Pels,
-  stood in Teylers Museum, Haarlem, from 1950 and is now in the Muziekgebouw
-  aan 't IJ, Amsterdam. Drum tracks have no tuning: a note is a General MIDI drum.
+  octave (EDO); a new song starts in 53-EDO, whose fifths are almost pure.
+  Jing Fang noted in the first century BC that 53 fifths nearly make 31
+  octaves, Nicholas Mercator worked the division out in the 17th century, and
+  R. H. M. Bosanquet built a 53-tone harmonium in the 1870s. 31-EDO is the
+  meantone tuning that Christiaan Huygens described in 1691 and Adriaan
+  Fokker revived: his 31-tone organ, built by Bernard Pels, stood in Teylers
+  Museum, Haarlem, from 1950 and is now in the Muziekgebouw aan 't IJ,
+  Amsterdam. Drum tracks have no tuning: a note is a General MIDI drum.
   Notes are spelled with sharps, flats, double sharps and double flats
   (plus a comma `↑`/`↓` in 53-EDO, below), and a tuning can spell the same pitch
   in several ways. In 12-EDO, E♯ is F. In 31-EDO, E♯ and F are different pitches,
   but D𝄪 and F𝄫 are the same one. Note numbers for each tuning are in `docs/`,
-  for example [31edo_note_numbers.txt](docs/31edo_note_numbers.txt).  
+  for example [53edo_note_numbers.txt](docs/53edo_note_numbers.txt).
 - **Notation.** In 12, 19 and 31-EDO the note names are a chain of fifths: the seven
   natural notes C D E F G A B are the usual seven consecutive fifths
   (F C G D A E B), and each further fifth up adds a sharp, each fifth down a
@@ -83,12 +87,15 @@ The application draws on several traditions.
   and the Thirty-one-keyed Organ", *The Scientific Monthly* 81 (1955).
 - **53-EDO notation.** Four 53-EDO fifths make the Pythagorean third, a comma
   above 5:4, so its names follow Ben Johnston's just-intonation notation
-  instead: the natural notes are the just major scale, a sharp or flat is
+  instead: the natural notes C D E F G A B are 1/1 9/8 5/4 4/3 3/2 5/3 15/8, a
+  sharp or flat is
   25:24 (3 steps) and a `↑` or `↓` after an accidental raises or lowers by the
   syntonic comma 81:80 (1 step), as in A♯↑ (the app draws the combined
   accidental as a single glyph, and the pattern editor colours the comma: one
-  hue up, another down). The plain D–A is therefore 40:27, a comma short of
-  a fifth; the pure fifth above D is A↑. The other tunings ignore the
+  hue up, another down). A ratio is spelled by the key nearest it: 7:4 is
+  A♯↑ and not A♯, because the tempered A♯↑ lies 5 cents from it and the
+  tempered A♯ 18. With these naturals the plain D–A is 40:27, a comma
+  short of a fifth; the pure fifth above D is A↑. The other tunings ignore the
   `↑`/`↓`, so a 53-EDO spelling still names the right note in 31-EDO. A
   double sharp or flat is 35:32, 7 steps, not two sharps (6 steps, as
   Johnston has it; C♯ sharpened again is D♭): 35:32 is 31-EDO's double
@@ -97,34 +104,27 @@ The application draws on several traditions.
   [53edo_note_numbers.txt](docs/53edo_note_numbers.txt); see John Fonville,
   "Ben Johnston's Extended Just Intonation: A Guide for Interpreters",
   *Perspectives of New Music* 29/2 (1991).
-- **Scales.** A song has a key and an optional scale: major (the Ionian
-  mode), minor (the Aeolian mode), otonal or utonal. Each is written once
-  as note names: major and minor come out meantone in 12, 19 and 31-EDO and
-  just in 53-EDO. The scale decides which
-  notes the Launchpad's step view steps through. It does not change the
-  Launchpad's Notes view, which is always the isometric layout, and the
-  laptop/PC note keyboard has a layout of its own for otonal and utonal.
-- **Otonal and utonal.** Two 10-note scales that mirror each other around the
-  tonic, drawn from one gamut of seventeen just ratios: the 7-limit tonality
-  diamond (every ratio between two of 1, 3, 5 and 7; Max Meyer, 1929, the
-  smaller form of Harry Partch's diamond in *Genesis of a Music*, 1949)
-  extended by 15/14, 16/15, 15/8 and 28/15. **Otonal** is C D♭↓ D♯ E F F♯↑ G
-  A A♯↑ B. Its core, C D♯ E F G A A♯↑ = 1/1 7/6 5/4 4/3 3/2 5/3 7/4, is
-  harmonics 12, 14, 15, 16, 18, 20 and 21 of the F a fifth below the tonic:
-  the 4:5:6:7 chords C E G A♯↑ and F A C D♯ put together. To the core the
-  scale adds the tritone F♯↑ (7/5) and the semitones either side of the
-  tonic, D♭↓ (15/14) and B (15/8). **Utonal** is the same scale turned
-  upside down: C D♭↓ E𝄫 E♭ F G♭↓ G A♭ B𝄫 B, with the core C E𝄫 E♭ F G A♭ B𝄫
-  = 1/1 8/7 6/5 4/3 3/2 8/5 12/7, the tritone G♭↓ (10/7), D♭↓ (16/15) and B
-  (28/15). A chord uses only intervals that are ratios of the gamut, and
-  every note of a scale has a seventh chord. There is no D, so neither the
-  wolf fifth D–A nor comma drift can occur. Partch's own otonalities and
-  utonalities are chords, not scales; the scales, the extension and their
-  chords are the author's own. The notes are spelled so that 31 and 53-EDO
-  both come within 7 cents of every ratio; 12 and 19-EDO only approximate
-  the septimal ones. The 7:4 is A♯↑ because 53-EDO's A♯ is 26:15; the other
-  tunings read it as A♯. [extended-diamond.md](docs/extended-diamond.md) has
-  the gamut, the scales, their subsets and their chords.
+- **Otonal and utonal.** The application's two default scales. They mirror
+  each other around the tonic and are drawn from one gamut of 33 just
+  ratios: the 7-limit tonality diamond (every ratio between two of 1, 3, 5
+  and 7; Max Meyer, 1929, the smaller form of Harry Partch's diamond in
+  *Genesis of a Music*, 1949) and its extension. Each scale is a ladder of complete steps, and an artist can stay
+  on a small one or move up and down, even within a song. The smallest is one
+  seventh chord: C E G A♯↑ = 4:5:6:7 in **otonal**, C E𝄫 F A♭ in **utonal**,
+  its mirror. A second chord gives the 7-note core, C D♯ E F G A A♯↑ = 1/1
+  7/6 5/4 4/3 3/2 5/3 7/4 (harmonics 12, 14, 15, 16, 18, 20 and 21 of the F
+  a fifth below the tonic), in utonal C E𝄫 E♭ F G A♭ B𝄫. Further steps of 8,
+  10, 13 and 18 notes each add a seventh chord or two: the tritone, the
+  semitones either side of the tonic, the second degree, and a last pair 35
+  cents from the tonic. A chord uses only intervals that are ratios of the
+  gamut, and on every step every note has a seventh chord. Nothing drifts:
+  each note has one fixed ratio, and no chord holds a near-pure interval.
+  Partch's own otonalities and utonalities are chords, not scales; the
+  scales, the extension and their chords are the author's own. With just
+  intonation every note sounds at its exact ratio; without it, 53-EDO is
+  within 7 cents up to 13 notes.
+  [extended-diamond.md](docs/extended-diamond.md) has the steps, their
+  chords and the gamut.
 
 ### Pianos and Just Intervals
 

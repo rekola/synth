@@ -2,6 +2,26 @@
 
 Terms with a specific meaning in this project.
 
+**Adaptive just intonation**
+Just intonation that follows the music instead of holding every note at one
+ratio to the key; also called adaptive tuning. It tunes each note against
+what is sounding, or has only just sounded, so a melody over a bass line is
+pure against that bass line, and an arpeggio hangs together although its
+notes never sound at once. It is meant for music where no single pitch per
+note suits every chord: in a major scale the D wants to differ between a G
+major chord and a D minor chord (see just intonation). The application does
+not have it. Its just intonation gives every note one fixed ratio to the
+tonic, and the otonal and utonal scales are built so that this is enough.
+
+The price of adaptive tuning is *drift*. A pure interval is exact only
+against its own reference, and the reference may itself have been tuned
+against an earlier note, so errors accumulate along a progression. Four pure
+fifths stacked from C reach an E about 21.5 cents above the pure major third
+over C, and a song that keeps every chord pure can end up noticeably higher
+or lower than where it began. This is not a defect: pure fifths, pure thirds
+and a closed circle of keys cannot all be had at once. Tuning every note
+against the key, as the application does, never drifts.
+
 **Aftersound**
 The slow tail after a piano note's fast first decay, from the strings'
 out-of-phase motion draining the bridge more slowly.
@@ -24,27 +44,34 @@ each slot triggered on the next bar. On a Launchpad it is the pad grid in the
 Live mode (the device's Session button). See launchpad.md and scenes.md.
 
 **Extended diamond**
-The gamut of the otonal and utonal scales: seventeen just ratios, the
-thirteen of the 7-limit tonality diamond (every ratio between two of 1, 3, 5
-and 7, octave-reduced: 1/1 8/7 7/6 6/5 5/4 4/3 7/5 10/7 3/2 8/5 5/3 12/7
-7/4) and four more, the pairs 15/14 and 16/15 above the tonic and 15/8 and
-28/15 below its octave. On C: C D♭↓ E𝄫 D♯ E♭ E F F♯↑ G♭↓ G A♭ A B𝄫 A♯↑ B,
-fifteen keys, of which D♭↓ and B each carry two ratios 8 cents apart: 15/14
-and 15/8 in the otonal scale, 16/15 and 28/15 in the utonal. The diamond is
-four harmonic seventh chords (4:5:6:7) and their four mirrors, all
-containing the tonic; the added ratios bring two more that do not,
-D♭↓ E G B and D♭↓ F A♭ B. A chord in this gamut is any set of notes whose
-intervals are all ratios of the gamut. The gamut mirrors itself around the
-tonic and has no D. The diamond is Max Meyer's (1929), and Harry Partch's
-is its 11-limit form; the extension is the author's own. See
-extended-diamond.md.
+The gamut of the otonal and utonal scales: 33 just ratios. Its first
+thirteen are the 7-limit tonality diamond (every ratio between two of 1, 3,
+5 and 7, octave-reduced: 1/1 8/7 7/6 6/5 5/4 4/3 7/5 10/7 3/2 8/5 5/3 12/7
+7/4). The rest come from the pairs that dividing an interval at its two
+means gives, the larger otonal and the smaller utonal: (9/8, 10/9),
+(15/14, 16/15) and (49/48, 50/49), each with its mirror, which with (3/2,
+4/3), (5/4, 6/5) and (7/6, 8/7) are the only six pairs with no prime above
+7. Ten further notes are dissonant by design, the tritones 7/5 and 10/7
+among them; each gives a pair its seventh chord. A chord in this gamut is
+any set of notes whose intervals are all ratios of the gamut. The gamut
+mirrors itself around the tonic. In 53-EDO its ratios lie on 29 keys, four
+of which carry one ratio of each scale. The diamond is Max Meyer's (1929),
+and Harry Partch's is its 11-limit form; the extension is the author's own.
+See extended-diamond.md.
+
+**Follow action**
+What a scene does once it has played for its length: `none` (wait for the
+operator), `next` (launch the following scene on that very row) or `stop`. Set
+in the file as `followAction` on `<scene>`. See scenes.md.
 
 **Gamut**
 The complete set of notes available to a system of music, from which
-its scales are drawn. The word is Guido of Arezzo’s (c. 991–after
-1033), who named the lowest note of his system Γ, gamma, and sang it
-as ut; the whole range from gamma-ut upward became the gamut, first
-the full scale of medieval music and then any complete range. The
+its scales are drawn. The word comes from the lowest note of the
+medieval scale, Γ, gamma, which appears in the *Dialogus de musica*
+(c. 1000) and was taken up by Guido of Arezzo (c. 991–after 1033), in
+whose syllables it was sung as ut; the whole range from gamma-ut
+upward became the gamut, first the full scale of medieval music and
+then any complete range. The
 twelve chromatic notes are the gamut behind the tempered major and
 minor scales, the 22 śruti behind the scales of Indian music, the 24
 quarter-tones behind the maqāmāt. A gamut may be fixed, every note
@@ -91,31 +118,30 @@ that suits a G major chord is a little too high for a D minor chord, and one
 fixed D has to be a compromise: in C major D-A is 40/27, a comma flat of the
 fifth. No tuning of a fixed set of notes avoids a comma somewhere.
 
-The otonal and utonal scales (below) are different. They have no D to argue
-over, so one fixed pitch per note serves: the scale gives it (otonal 1/1 7/6
-5/4 4/3 3/2 5/3 7/4, utonal 1/1 8/7 6/5 4/3 3/2 8/5 12/7), whatever the chord,
-and a song in either scale is tuned with the whole extended diamond, so the
-two can be played together.
+The otonal and utonal scales (below) are different. Their chords use only
+intervals that are ratios of the gamut, so no chord asks a note to be two
+pitches: D and A, for one, never share a chord. One fixed pitch per note
+therefore serves, whatever the chord (the cores are otonal 1/1 7/6 5/4 4/3
+3/2 5/3 7/4 and utonal 1/1 8/7 6/5 4/3 3/2 8/5 12/7), and a song in either
+scale is tuned with the whole extended diamond, so the two can be played
+together.
 
-**Adaptive just intonation**
-Just intonation that follows the music instead of returning to the key; also
-called adaptive tuning. It is for music where no single pitch per note suits
-every chord, such as the major scale above, where the D wants to differ
-between a G major chord and a D minor chord. The adaptive kind tunes each note against what is sounding, or has
-only just sounded, in any track, so a melody over a bass line is pure against
-that bass line, and an arpeggio hangs together although its notes never sound
-at once. It is planned, not yet available; when it comes it shifts the whole scale by a
-comma on a switch, which is not tuning a chord against its bass. The otonal
-and utonal scales do not need it.
+**Lacuna**
+A span of missing notes, written `~~~` (typed with `~` in the note column), from its
+row until the next cell in the column. Like a lost note it has a velocity and a delay
+but no value, makes no sound and ends the previous note in its column, as an OFF does.
+Where a lost note stands for one note whose pitch is gone, a lacuna stands for a stretch
+where the source is broken off and the notes are not known at all.
 
-The price is *drift*. A pure interval is exact only against its own reference,
-and the reference may itself have been tuned against an earlier note, so errors
-accumulate along a progression. Four pure fifths stacked from C reach an E about
-21.5 cents above the pure major third over C, and a song that keeps every chord
-pure can end up noticeably higher or lower than where it began. This is not a
-defect: pure fifths, pure thirds and a closed circle of keys cannot all be had
-at once. Drift is fine in an arrangement, where the music is free to wander.
-Tuning against the key every bar never drifts.
+**Lift**
+An OFF's velocity: how fast the key is let go. It scales the release time of
+every envelope the note has, fixed when the OFF arrives:
+`release = instrument release * 2^((64 - lift) / 32)`. Lift 64 leaves the release as
+authored, 0 makes it four times longer, 127 about four times shorter. A user
+instrument's `<envelope>` (which also releases PadSynth and Additive notes) scales its
+release time; a SoundFont adds `(64 - lift) * 37.5` timecents to both its volume and
+modulation envelope releases, held to the range the SF2 specification allows. In a
+song file it is the `velocity` attribute of an OFF note.
 
 **Live sequencer**
 A tool used to program, trigger and manipulate musical patterns, notes and
@@ -128,6 +154,17 @@ can also be placed into the arrangement.
 The view with the clip launcher, the outline panel and the pattern editor
 showing each track's own clip; Tab switches to and from the arrangement
 view. The Launchpad's Live mode shows the same clip grid on the pads.
+
+**Locator**
+A named marker at an absolute row of the arrangement, shown in the pattern
+editor and the arrangement grid's header. It is an arrangement object too.
+
+**Lost note**
+A note that began on this row whose pitch is gone, written `???` (typed with `?` in
+the note column). It has a velocity and a delay like any note but no value, and it
+makes no sound, but it ends the previous note in its column, as an OFF does. It is for transcriptions of music that survives
+incompletely, such as the Delphic Paean of Athenaeus, where some of the notes are
+unknown.
 
 **Maqāmāt**
 The scales of the quartertone gamut, the modern Arabic system of 24
@@ -151,40 +188,38 @@ note at the arithmetic mean of the fourth, a narrow minor triad
 subminor third (7/6) and a supermajor second (8/7), with the larger
 interval on the bottom in narrow major and on top in narrow minor, as
 with major and minor. Neither has a fifth: the outer interval is a
-fourth, so they cannot be mistaken for incomplete seventh chords. In
-the otonal and utonal scales they are three notes of a seventh chord,
-as major and minor are. C otonal has narrow major on C (C D♯ F) and G
-(G A♯↑ C) and narrow minor on A♯↑ (A♯↑ C D♯). C utonal mirrors this
-with narrow minor on C (C E𝄫 F) and G (G B𝄫 C) and narrow major on B𝄫
-(B𝄫 C E𝄫). Narrow major is otonal and narrow minor utonal, in
-Partch’s sense. The names are the author’s own; the chords have no
-settled name in the just-intonation literature. See otonal and utonal.
+fourth. In the otonal and utonal scales each is three notes of a
+seventh chord. C otonal has narrow major on C (C D♯ F) and G
+(G A♯↑ C) and narrow minor on A♯↑ (A♯↑ C D♯) and, with the semitones,
+on B (B D♭↓ E). C utonal mirrors this with narrow minor on C (C E𝄫 F)
+and G (G B𝄫 C) and narrow major on B𝄫 (B𝄫 C E𝄫) and, with the
+semitones, on A♭ (A♭ B D♭↓). The larger steps add more. Narrow major
+is otonal and narrow minor utonal, in Partch’s sense. The names are
+the author’s own; the chords have no settled name in the
+just-intonation literature. See otonal and utonal.
 
 **Otonal and utonal**
-Two 10-note scales that mirror each other around the tonic (r → 2/r),
-drawn from the extended diamond. Both are given here on C. Otonal is
-C D♭↓ D♯ E F F♯↑ G A A♯↑ B. Its core is the seven notes 1/1 7/6 5/4
-4/3 3/2 5/3 7/4, on C: C D♯ E F G A A♯↑, all harmonics (12, 14, 15,
-16, 18, 20, 21) of one fundamental, so the core is otonal in Harry
-Partch’s sense; the fundamental is not the tonic but the note a fifth
-below it (F for C otonal), the tonic sitting on identity 3. The core
-is the two 4:5:6:7 chords C E G A♯↑ and F A C D♯ put together. To it
-the scale makes two additions: the tritone F♯↑ (7/5), with a third
-seventh chord (C D♯ F♯↑ A♯↑), and the semitones either side of the
-tonic, D♭↓ (15/14) and B (15/8), with a seventh chord that does not
-contain the tonic (D♭↓ E G B). Utonal is the otonal scale turned
-upside down: C D♭↓ E𝄫 E♭ F G♭↓ G A♭ B𝄫 B, with the core 1/1 8/7 6/5
-4/3 3/2 8/5 12/7, on C: C E𝄫 E♭ F G A♭ B𝄫, undertones of the note a
-fifth above the tonic (G for C utonal), the chords E𝄫 F A♭ C and
-B𝄫 C E♭ G (1/7:1/6:1/5:1/4) put together; its additions are G♭↓
-(10/7), with E𝄫 G♭↓ B𝄫 C, and D♭↓ (16/15) and B (28/15), with
-D♭↓ F A♭ B. A chord uses only intervals that are ratios of the gamut,
-and every note of a scale has a seventh chord of the scale’s notes,
-read upward from the degree; its fourth note is often dropped.
-Keeping to the core, or to the core with one of the additions, gives
-subsets of 7, 8 and 9 notes with fewer chords; these are the player’s
-choice, not separate scales. Only the cores are a single series. Each
-scale contains a septimal pentatonic as a melodic subscale (otonal
+Two scales that mirror each other around the tonic (r → 2/r), drawn
+from the extended diamond. Both are given here on C. Each is a ladder
+of complete steps: on every step each note has a seventh chord made
+of the step’s notes, a harmonic seventh 4:5:6:7 or its mirror
+1/7:1/6:1/5:1/4, read upward from the degree; its fourth note is
+often dropped. The smallest step is one chord, C E G A♯↑ in otonal
+and C E𝄫 F A♭ in utonal. A second chord, F A C D♯, gives the 7-note
+core: otonal 1/1 7/6 5/4 4/3 3/2 5/3 7/4, on C: C D♯ E F G A A♯↑, all
+harmonics (12, 14, 15, 16, 18, 20, 21) of one fundamental, so the
+core is otonal in Harry Partch’s sense; the fundamental is not the
+tonic but the note a fifth below it (F for C otonal), the tonic
+sitting on identity 3. The utonal core is the same turned upside
+down: 1/1 8/7 6/5 4/3 3/2 8/5 12/7, on C: C E𝄫 E♭ F G A♭ B𝄫,
+undertones of the note a fifth above the tonic. The steps above add
+the tritone (8 notes: F♯↑, in utonal G♭↓), the semitones either side
+of the tonic (10 notes: D♭↓ and B), the second degree (13 notes: D,
+F♭ and B♭, in utonal D↓, G♯ and B♭↓) and a last pair 35 cents from
+the tonic (18 notes). The application’s scale is the full 18 notes;
+which step a piece uses, and when it moves up or down, is the
+artist’s choice. Only the cores are a single series. Each core
+contains a septimal pentatonic as a melodic subscale (otonal
 C D♯ F G A♯↑, utonal C E𝄫 F G B𝄫). Partch’s Otonalities and
 Utonalities are chords, not scales; these scales and their chords are
 the author’s own. Their chords are tabled in extended-diamond.md.
@@ -197,11 +232,14 @@ launchpad.md.
 
 **Pythagorean gamut and the Babylonian modes**
 The Pythagorean gamut is thirteen notes of the chain of fifths, six below
-the tonic and six above, octave-reduced (all 3-limit). Pythagorean Mixolydian
-has seven modes, each a rotation of one seven-note pattern and named after
+the tonic and six above, octave-reduced (all 3-limit). Its scale has
+seven modes, each a rotation of one seven-note pattern and named after
 the Babylonian tuning text (the table below; išartum, the "normal" scale, is
-the gamut's default). The gamut is for 53-EDO only: its fifth is almost exact and its spellings write
-the Pythagorean E, A and B♭ as E↑, A↑ and B♭↓. 31-EDO cannot tune it under
+the gamut's default). The gamut is for 53-EDO only: its fifth is almost
+exact, and its spellings put a comma arrow on every note of the chain beyond
+F, C, G and D: E↑, A↑ and B↑ above, B♭↓, E♭↓ and A♭↓ below. The ends of the
+chain lie two commas from their plain names and are respelled: D♭ as C♯↑,
+G♭ as F♯↑ and F♯ as G♭↓. The table gives the conventional names. 31-EDO cannot tune it under
 any spelling (81/64 lies between its steps 10 and 11), and 12 and 19-EDO
 approximate it as they do every just ratio.
 
@@ -241,22 +279,6 @@ A row of the clip grid: the clips at one position across every track's clip
 list, launched together. It has no object of its own beyond an optional
 name, tempo and time signature stored by position. See scenes.md.
 
-**Follow action**
-What a scene does once it has played for its length: `none` (wait for the
-operator), `next` (launch the following scene on that very row) or `stop`. Set
-in the file as `followAction` on `<scene>`. See scenes.md.
-
-**Tempo change and signature change**
-Arrangement objects, like a clip instance: from their row on, the tempo
-(bpm) or the time signature (bars counted from that row) is the change's, until
-the next. The song's own tempo and signature hold before the first. A
-live recording writes them when a launched scene has either. See
-time_signatures.md.
-
-**Locator**
-A named marker at an absolute row of the arrangement, shown in the pattern
-editor and the arrangement grid's header. It is an arrangement object too.
-
 **Song notes**
 Free text saved with a song as its `<notes>` element: where the music comes
 from, what was chosen in realising it. It has no effect on playback.
@@ -289,6 +311,13 @@ never do. A song-level setting (`Song::getSwing()`, `<song swing="">`)
 applied at playback time to everything scheduled against it, not baked into
 note data.
 
+**Tempo change and signature change**
+Arrangement objects, like a clip instance: from their row on, the tempo
+(bpm) or the time signature (bars counted from that row) is the change's, until
+the next. The song's own tempo and signature hold before the first. A
+live recording writes them when a launched scene has either. See
+time_signatures.md.
+
 **Tuning correction**
 A note's pitch offset in cents, stored in its fx as `+hh` or `-hh`
 (commands.md). Not the song's tuning, which always means the EDO
@@ -318,27 +347,3 @@ kind of cell and is never told by its velocity. 64 is *neutral velocity*, what c
 gives a note made without one and what a song file leaves out; the editor and the
 pad controllers give a new note-on 100 (the *default note-on velocity*) and a new
 OFF the neutral one.
-
-**Lift**
-An OFF's velocity: how fast the key is let go. It scales the release time of
-every envelope the note has, fixed when the OFF arrives:
-`release = instrument release * 2^((64 - lift) / 32)`. Lift 64 leaves the release as
-authored, 0 makes it four times longer, 127 about four times shorter. A user
-instrument's `<envelope>` (which also releases PadSynth and Additive notes) scales its
-release time; a SoundFont adds `(64 - lift) * 37.5` timecents to both its volume and
-modulation envelope releases, held to the range the SF2 specification allows. In a
-song file it is the `velocity` attribute of an OFF note.
-
-**Lost note**
-A note that began on this row whose pitch is gone, written `???` (typed with `?` in
-the note column). It has a velocity and a delay like any note but no value, and it
-makes no sound, but it ends the previous note in its column, as an OFF does. It is for transcriptions of music that survives
-incompletely, such as the Delphic Paean of Athenaeus, where some of the notes are
-unknown.
-
-**Lacuna**
-A span of missing notes, written `~~~` (typed with `~` in the note column), from its
-row until the next cell in the column. Like a lost note it has a velocity and a delay
-but no value, makes no sound and ends the previous note in its column, as an OFF does.
-Where a lost note stands for one note whose pitch is gone, a lacuna stands for a stretch
-where the source is broken off and the notes are not known at all.
