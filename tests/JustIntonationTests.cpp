@@ -69,10 +69,10 @@ TEST(scale_corrections_give_each_degree_its_exact_ratio_in_every_tuning) {
   };
   const std::vector<Row> rows = {
       // Where two degrees of a scale share a step (12 and 19-EDO), the closer wins.
-      {Tuning::EDO12, {0, 39, 4, -33, -14, -2, 2, -16, -31, -31, -12}, {0, 12, 31, 31, 16, -2, 2, 14, 33, -4, -39}},
-      {Tuning::EDO19, {0, 12, 14, 14, 7, -7, 7, 0, 21, 15, 15}, {0, -15, -15, -21, 0, -7, 7, -7, -14, -14, -12}},
-      {Tuning::EDO31, {0, -16, 10, -4, -1, -5, 5, -6, 1, 4, 4}, {0, -4, -4, -1, 6, -5, 5, 1, 4, -10, 16}},
-      {Tuning::EDO53, {0, 3, 0, -5, 1, 0, 0, 1, -5, 8, 1}, {0, -1, -8, 5, -1, 0, 0, -1, 5, 0, -3}},
+      {Tuning::EDO12, {0, 19, -33, -14, -2, -17, 2, -16, -31, -12}, {0, 12, 31, 16, -2, 17, 2, 14, 33, -19}},
+      {Tuning::EDO19, {0, -7, 14, 7, -7, 14, 7, 0, 21, 15}, {0, -15, -21, 0, -7, -14, 7, -7, -14, 7}},
+      {Tuning::EDO31, {0, 3, -4, -1, -5, 2, 5, -6, 1, 4}, {0, -4, -1, 6, -5, -2, 5, 1, 4, -3}},
+      {Tuning::EDO53, {0, 6, -5, 1, 0, -6, 0, 1, -5, 1}, {0, -1, 5, -1, 0, 6, 0, -1, 5, -6}},
   };
   for (auto & row : rows) {
     for (auto scale : {Scale::OTONAL, Scale::UTONAL}) {
@@ -88,14 +88,13 @@ TEST(scale_corrections_give_each_degree_its_exact_ratio_in_every_tuning) {
 }
 
 TEST(otonal_and_utonal_are_tuned_together) {
-  // The steps of both scales together: 31-EDO has one step for each pair of
-  // degrees a syntonic comma apart, 53-EDO two.
-  for (auto [tuning, expected] : {std::pair{Tuning::EDO31, 17}, std::pair{Tuning::EDO53, 19}}) {
+  // The keys of the whole gamut are tuned in either scale: fifteen in 31 and 53-EDO.
+  for (auto tuning : {Tuning::EDO31, Tuning::EDO53}) {
     for (auto scale : {Scale::OTONAL, Scale::UTONAL}) {
       auto corrections = scaleCorrectionsFor(tuning, scale, 0);
       int present = 0;
       for (int step = 0; step < corrections.edo; step++) present += corrections.forNote(step) ? 1 : 0;
-      CHECK(present == expected);
+      CHECK(present == 15);
     }
   }
   // An otonal song's utonal notes carry the utonal ratios.
@@ -160,9 +159,8 @@ TEST(major_and_minor_are_selections_from_the_duodene) {
 }
 
 TEST(the_gamut_of_each_scale) {
-  CHECK(scaleGamut(Scale::OTONAL).data() == gamut::kSuperparticular.data());
-  CHECK(scaleGamut(Scale::UTONAL).data() == gamut::kSuperparticular.data());
-  CHECK(scaleGamut(Scale::DIAMOND7).data() == gamut::kDiamond7.data());
+  CHECK(scaleGamut(Scale::OTONAL).data() == gamut::kExtendedDiamond.data());
+  CHECK(scaleGamut(Scale::UTONAL).data() == gamut::kExtendedDiamond.data());
   CHECK(scaleGamut(Scale::KITMUM).data() == gamut::kPythagorean.data());
   for (auto scale : {Scale::NONE, Scale::RAST, Scale::BAYATI, Scale::HIJAZ, Scale::NAHAWAND, Scale::KURD, Scale::AJAM, Scale::SABA, Scale::SIKAH}) {
     CHECK(scaleGamut(scale).empty());
@@ -204,22 +202,20 @@ TEST(a_scale_without_a_gamut_applies_no_correction) {
 }
 
 TEST(a_shared_key_goes_to_the_scales_note_else_the_closer) {
-  // 31-EDO key 4: 13/12 (D♭) and 12/11 (C𝄪). Both are in the superparticular
-  // gamut; each scale has its own.
-  CHECK(scaleCorrectionsFor(Tuning::EDO31, Scale::OTONAL, 0).forNote(4) == std::optional<int>(-16));
-  CHECK(scaleCorrectionsFor(Tuning::EDO31, Scale::UTONAL, 0).forNote(4) == std::optional<int>(-4));
+  // 31-EDO key 3: 16/15 (utonal) and 15/14 (otonal).
+  CHECK(scaleCorrectionsFor(Tuning::EDO31, Scale::OTONAL, 0).forNote(3) == std::optional<int>(3));
+  CHECK(scaleCorrectionsFor(Tuning::EDO31, Scale::UTONAL, 0).forNote(3) == std::optional<int>(-4));
   // 12-EDO key 3: 7/6 (otonal) and 6/5 (utonal).
   CHECK(scaleCorrectionsFor(Tuning::EDO12, Scale::OTONAL, 0).forNote(3) == std::optional<int>(-33));
   CHECK(scaleCorrectionsFor(Tuning::EDO12, Scale::UTONAL, 0).forNote(3) == std::optional<int>(16));
-  // The same key in a scale of neither note: the closer one. 12-EDO key 2 holds
-  // 9/8 (+4), 12/11 (-49) and 8/7 (+31); a song in the diamond has 8/7 and
-  // takes it, while major has 9/8.
-  CHECK(scaleCorrectionsFor(Tuning::EDO12, Scale::DIAMOND7, 0).forNote(2) == std::optional<int>(31));
+  // A key of neither scale's note in a major song: the closer. 12-EDO key 1
+  // holds 16/15 (+12) and 15/14 (+19); major has 16/15.
+  CHECK(scaleCorrectionsFor(Tuning::EDO12, Scale::MAJOR, 0).forNote(1) == std::optional<int>(12));
   CHECK(scaleCorrectionsFor(Tuning::EDO12, Scale::MAJOR, 0).forNote(2) == std::optional<int>(4));
 }
 
 TEST(every_correction_is_a_gamut_ratios_cents_minus_its_steps) {
-  for (auto scale : {Scale::MAJOR, Scale::MINOR, Scale::OTONAL, Scale::UTONAL, Scale::DIAMOND7}) {
+  for (auto scale : {Scale::MAJOR, Scale::MINOR, Scale::OTONAL, Scale::UTONAL}) {
     for (auto tuning : {Tuning::EDO12, Tuning::EDO19, Tuning::EDO31, Tuning::EDO53}) {
       int edo = edoStepsFor(tuning);
       auto corrections = scaleCorrectionsFor(tuning, scale, 0);

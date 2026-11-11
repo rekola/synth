@@ -87,86 +87,46 @@ inline const std::string_view keyToMidiNote(int key, Tuning tuning, Scale scale)
       case '.':
         return "D'";
     }
-  } else if (scale == Scale::UTONAL) {
+  } else if (scale == Scale::OTONAL || scale == Scale::UTONAL) {
+    // The scale's ten notes: the lower row z x c v b n m has the seven of the
+    // core (with F and G, F's neighbours f/g between them for the tritone), the
+    // upper row's w/s and p the semitones either side of the tonic. The two
+    // layouts mirror each other; the tonic and two more notes an octave up are
+    // on , . and -.
+    const bool otonal = scale == Scale::OTONAL;
     switch (key) {
       case 'z':
         return "C";
+      case 'w':
+        return otonal ? "D♭↓" : "";
       case 's':
-        return "D♭↓";
-      case 'e':
-        return "C𝄪";
+        return otonal ? "" : "D♭↓";
       case 'x':
-        return "E𝄫";
+        return otonal ? "D♯" : "E𝄫";
       case 'c':
-        return "E♭";
+        return otonal ? "E" : "E♭";
       case 'v':
         return "F";
+      case 'f':
+        return otonal ? "F♯↑" : "G♭↓";
       case 'b':
         return "G";
       case 'n':
-        return "A♭";
+        return otonal ? "A" : "A♭";
       case 'm':
-        return "B𝄫";
-      case 'o':
-        return "B♭↓";
+        return otonal ? "A♯↑" : "B𝄫";
       case 'p':
-        return "B↓";
+        return "B";
       case ',':
         return "C'";
       case '.':
-        return "E𝄫'";
+        return otonal ? "D♯'" : "E𝄫'";
       case '-':
-        return "E♭'";
-
-        // The otonal notes are also available
-      case 'd':
-        return "D♯";
-      case 'f':
-        return "E";
-      case 'j':
-        return "A";
-      case 'k':
-        return "A♯";
-    }
-  } else if (scale == Scale::DIAMOND7) {
-    // The tonality diamond on C: the otonal layout's lower row with the
-    // utonal notes above it, and the two tritones, 7/5 and 10/7, between F and G.
-    switch (key) {
-      case 'z':
-        return "C";
-      case 's':
-        return "E𝄫";
-      case 'x':
-        return "D♯";
-      case 'd':
-        return "E♭";
-      case 'c':
-        return "E";
-      case 'v':
-        return "F";
-      case 'f':
-        return "F♯↑";
-      case 'g':
-        return "G♭↓";
-      case 'b':
-        return "G";
-      case 'h':
-        return "A♭";
-      case 'n':
-        return "A";
-      case 'j':
-        return "B𝄫";
-      case 'm':
-        return "A♯↑";
-      case ',':
-        return "C'";
-      case '.':
-        return "D♯'";
-      case '-':
-        return "E'";
+        return otonal ? "E'" : "E♭'";
     }
   } else {
-    // A scale with no layout of its own plays the otonal one.
+    // A scale with no layout of its own plays this one (the layout the earlier
+    // otonal scale had).
     switch (key) {
       case 'z':
         return "C";
