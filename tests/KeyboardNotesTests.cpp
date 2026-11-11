@@ -15,7 +15,8 @@ cellui::Input key(int id) {
 
 TEST(keyboard_notes_31edo_utonal) {
   CHECK(keyToMidiNote(key('z'), Tuning::EDO31, Scale::UTONAL) == "C");
-  CHECK(keyToMidiNote(key('s'), Tuning::EDO31, Scale::UTONAL) == "D♭↓");
+  CHECK(keyToMidiNote(key('w'), Tuning::EDO31, Scale::UTONAL) == "D♭↓");
+  CHECK(keyToMidiNote(key('s'), Tuning::EDO31, Scale::UTONAL) == "D↓");
   CHECK(keyToMidiNote(key('c'), Tuning::EDO31, Scale::UTONAL) == "E♭");
 }
 

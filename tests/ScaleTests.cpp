@@ -57,8 +57,9 @@ TEST(scale_major_12edo_transposed_to_key) {
   for (size_t i = 0; i < expected.size(); i++) CHECK(degrees[i] == expected[i]);
 }
 
-// The two 18-note scales (docs/extended-diamond.md) in 31-EDO; the 19th row
-// is the tonic an octave up. Several degrees share a step in 31-EDO.
+// The two 18-note scales (docs/extended-diamond.md) in 31-EDO, where the
+// spellings (arrows ignored) give the keys, so utonal's A♭↑ is A♭'s; the 19th
+// row is the tonic an octave up. Several degrees share a step in 31-EDO.
 TEST(scale_otonal_31edo) {
   Song song(Tuning::EDO31, -1);
   song.setScale(Scale::OTONAL);
@@ -68,7 +69,7 @@ TEST(scale_otonal_31edo) {
 TEST(scale_utonal_31edo) {
   Song song(Tuning::EDO31, -1);
   song.setScale(Scale::UTONAL);
-  CHECK(song.getScaleDegreesWindow(0, 19) == (vector<int>{0, 1, 3, 5, 6, 8, 9, 13, 14, 16, 18, 20, 21, 22, 24, 26, 28, 30, 31}));
+  CHECK(song.getScaleDegreesWindow(0, 19) == (vector<int>{0, 1, 3, 5, 6, 8, 9, 13, 14, 16, 18, 20, 21, 21, 24, 26, 28, 30, 31}));
 }
 
 // 53-EDO gives every degree a key of its own.
@@ -85,12 +86,12 @@ TEST(scale_otonal_utonal_53edo) {
 TEST(scale_otonal_utonal_12edo_19edo) {
   Song song12(Tuning::EDO12, -1);
   song12.setScale(Scale::OTONAL);
-  CHECK(song12.getScaleDegreesWindow(0, 18) == (vector<int>{0, 0, 1, 2, 3, 4, 4, 4, 5, 6, 7, 7, 8, 9, 10, 10, 11, 12}));
+  CHECK(song12.getScaleDegreesWindow(0, 18) == (vector<int>{0, 0, 1, 2, 3, 4, 4, 4, 5, 6, 7, 7, 9, 9, 10, 10, 11, 12}));
   song12.setScale(Scale::UTONAL);
-  CHECK(song12.getScaleDegreesWindow(0, 18) == (vector<int>{0, 0, 1, 2, 2, 3, 4, 5, 5, 6, 7, 8, 8, 8, 9, 10, 11, 12}));
+  CHECK(song12.getScaleDegreesWindow(0, 18) == (vector<int>{0, 0, 1, 2, 2, 3, 3, 5, 5, 6, 7, 8, 8, 8, 9, 10, 11, 12}));
   Song song19(Tuning::EDO19, -1);
   song19.setScale(Scale::OTONAL);
-  CHECK(song19.getScaleDegreesWindow(0, 18) == (vector<int>{0, 1, 2, 3, 4, 6, 6, 7, 8, 9, 10, 11, 13, 14, 15, 16, 17, 18}));
+  CHECK(song19.getScaleDegreesWindow(0, 18) == (vector<int>{0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 13, 14, 15, 16, 17, 18}));
   song19.setScale(Scale::UTONAL);
   CHECK(song19.getScaleDegreesWindow(0, 18) == (vector<int>{0, 1, 2, 3, 4, 5, 6, 8, 9, 10, 11, 12, 13, 13, 15, 16, 17, 18}));
 }

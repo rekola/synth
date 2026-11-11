@@ -69,7 +69,7 @@ const std::vector<Row> kTable = {
     {14 / 9_r, GamutSide::UTONAL, "G♯", 20, 34},
     {8 / 5_r, GamutSide::UTONAL, "A♭", 21, 36},
     {80 / 49_r, GamutSide::UTONAL, "A♭↑", 22, 37},
-    {49 / 30_r, GamutSide::OTONAL, "G𝄪", 23, 38},
+    {49 / 30_r, GamutSide::OTONAL, "G𝄪", 22, 38},
     {5 / 3_r, GamutSide::OTONAL, "A", 23, 39},
     {12 / 7_r, GamutSide::UTONAL, "B𝄫", 24, 41},
     {7 / 4_r, GamutSide::OTONAL, "A♯↑", 25, 43},

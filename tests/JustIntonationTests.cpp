@@ -185,7 +185,7 @@ TEST(scale_corrections_follow_the_key_and_ignore_octaves) {
   auto corrections = scaleCorrectionsFor(Tuning::EDO31, Scale::OTONAL, key);
   CHECK(corrections.forNote(key + 25) == std::optional<int>(1)); // 7/4 above F
   CHECK(corrections.forNote(key + 25 - 31 * 2) == std::optional<int>(1));
-  CHECK(!corrections.forNote(key + 1)); // no gamut note has this key
+  CHECK(!corrections.forNote(key + 2)); // no gamut note has this key
   // No key reads as C.
   CHECK(scaleCorrectionsFor(Tuning::EDO31, Scale::OTONAL, -1) == scaleCorrectionsFor(Tuning::EDO31, Scale::OTONAL, 0));
 }
