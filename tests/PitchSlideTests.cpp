@@ -27,7 +27,7 @@ TEST(pitch_slide_command_parses_direction_and_sixteenths) {
 namespace {
 // Zero crossings of the left channel in the row after a slide row.
 int crossingsAfterSlide(const char * cmd) {
-  Song song;
+  Song song(Tuning::EDO31);
   song.addInstrument(make_unique<Oscillator>(WaveformType::SINE));
   auto & track = song.addTrack(make_unique<InstrumentTrack>(0));
   auto arrangement = song.getArrangement();
@@ -59,7 +59,7 @@ TEST(pitch_slide_up_and_down_shift_the_held_note_by_the_given_steps) {
   int base = crossingsAfterSlide(nullptr);
   int up = crossingsAfterSlide("0U80");
   int down = crossingsAfterSlide("0D80");
-  int edo = 31; // a fresh song's tuning
+  int edo = 31; // the song's tuning, set below
   // 80 is eight steps.
   float expected = exp2f(8.0f / static_cast<float>(edo));
   CHECK(base > 0);
@@ -111,7 +111,7 @@ TEST(pitch_ramp_end_is_the_offset_at_the_chunk_end) {
 // jump): the local frequency follows the glide and ends where it should.
 TEST(pitch_slide_is_smooth_within_one_chunk) {
   for (const char * cmd : {"0UFF", "0DFF"}) {
-    Song song;
+    Song song(Tuning::EDO31);
     song.addInstrument(make_unique<Oscillator>(WaveformType::SINE));
     auto & track = song.addTrack(make_unique<InstrumentTrack>(0));
     auto arrangement = song.getArrangement();
@@ -192,7 +192,7 @@ TEST(fm_pitch_ramp_is_continuous_across_chunks) {
 // A slide ends where its row does, even inside a longer block: the glide
 // must not stretch to the end of the block.
 TEST(pitch_slide_ends_at_the_end_of_its_row_inside_a_longer_block) {
-  Song song;
+  Song song(Tuning::EDO31);
   song.addInstrument(make_unique<Oscillator>(WaveformType::SINE));
   auto & track = song.addTrack(make_unique<InstrumentTrack>(0));
   auto arrangement = song.getArrangement();
@@ -228,7 +228,7 @@ TEST(pitch_slide_ends_at_the_end_of_its_row_inside_a_longer_block) {
 // A note delayed into the slide's row glides at the row's rate from its own
 // pitch, so it gets only the rest of the amount (half, for a half-row delay).
 TEST(pitch_slide_gives_a_delayed_note_only_the_rest_of_the_row) {
-  Song song;
+  Song song(Tuning::EDO31);
   song.addInstrument(make_unique<Oscillator>(WaveformType::SINE));
   auto & track = song.addTrack(make_unique<InstrumentTrack>(0));
   auto arrangement = song.getArrangement();
@@ -265,7 +265,7 @@ TEST(pitch_slide_gives_a_delayed_note_only_the_rest_of_the_row) {
 
 // A seek ends a slide in flight: the first notes after the jump don't glide.
 TEST(pitch_slide_does_not_survive_a_seek) {
-  Song song;
+  Song song(Tuning::EDO31);
   song.addInstrument(make_unique<Oscillator>(WaveformType::SINE));
   auto & track = song.addTrack(make_unique<InstrumentTrack>(0));
   auto arrangement = song.getArrangement();
@@ -307,7 +307,7 @@ TEST(pitch_slide_does_not_survive_a_seek) {
 // key has no scale step of its own).
 TEST(pitch_slide_moves_a_percussion_hit) {
   InstrumentProvider provider;
-  Song song;
+  Song song(Tuning::EDO31);
   CHECK(song.open(string(TESTS_FIXTURES_DIR) + "/percussion_retrigger.xml", provider));
   int track_id = song.getRootTrackIds()[0];
   auto arrangement = song.getArrangement();
@@ -381,7 +381,7 @@ double frequencyBetween(const AudioBuffer & out, int from, int to) {
 // Four rows of a sine: row 0 note 240 (31-EDO A6); the others from `setup`.
 template <typename F>
 AudioBuffer renderGlideRows(F setup, int & row_samples) {
-  Song song;
+  Song song(Tuning::EDO31);
   song.addInstrument(make_unique<Oscillator>(WaveformType::SINE));
   auto & track = song.addTrack(make_unique<InstrumentTrack>(0));
   auto arrangement = song.getArrangement();
@@ -521,7 +521,7 @@ double powerAt(const AudioBuffer & out, int from, int to, double hz) {
 // Two note columns an octave-and-a-bit apart: 240 (1760 Hz) and 271 (3520 Hz).
 template <typename F>
 AudioBuffer renderTwoColumns(F setup, int & row_samples) {
-  Song song;
+  Song song(Tuning::EDO31);
   song.addInstrument(make_unique<Oscillator>(WaveformType::SINE));
   auto & track = song.addTrack(make_unique<InstrumentTrack>(0));
   auto arrangement = song.getArrangement();
@@ -589,7 +589,7 @@ TEST(pitch_glide_g00_repeats_each_columns_own_rate) {
 #endif
 
 TEST(a_cell_with_only_fx_is_kept_and_survives_a_save_and_load) {
-  Song song;
+  Song song(Tuning::EDO31);
   song.addInstrument(make_unique<Oscillator>(WaveformType::SINE));
   auto & track = song.addTrack(make_unique<InstrumentTrack>(0));
   int id = track.getInternalId();

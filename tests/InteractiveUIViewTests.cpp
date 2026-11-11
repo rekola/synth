@@ -1966,8 +1966,8 @@ TEST(terminal_ui_yank_into_a_song_in_another_tuning_converts_by_pitch) {
   auto first_track = [&] { return f.controller->getSong().getPlayableTrackIds().at(0); };
   {
     auto & song = f.controller->getSong();
-    CHECK(song.getTuning() == Tuning::EDO31);
     Song::Edit edit(song, "test notes");
+    song.setTuning(Tuning::EDO31);                                              // a new song is 53-EDO; the yank converts from 31
     song.getArrangement().setNote(0, first_track(), 0, Note(31 * 5 + 25, 100)); // A♯4, the otonal 7:4
   }
   f.ui->step();
@@ -1997,6 +1997,7 @@ TEST(terminal_ui_clip_yank_into_a_song_in_another_tuning_converts_by_pitch) {
   {
     auto & song = f.controller->getSong();
     Song::Edit edit(song, "test clip");
+    song.setTuning(Tuning::EDO31); // a new song is 53-EDO; the yank converts from 31
     Clip clip(first_track());
     clip.setLength(4);
     clip.getLeafPattern().setNote(0, 0, Note(31 * 5 + 10, 100)); // E4, 5:4

@@ -43,7 +43,7 @@ class TrackCompiler;
 
 class Song : public SongObject {
  public:
-  Song(Tuning tuning = Tuning::EDO31, short key = -1);
+  Song(Tuning tuning = Tuning::EDO53, short key = -1);
 
   // Free text about the song (its source, choices made), saved as <notes>;
   // not its musical notes, which are the pattern's.

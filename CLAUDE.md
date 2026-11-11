@@ -101,7 +101,7 @@ the rules files above.
   `~/.config/synth/devices.conf`, never in a song (`docs/devices.md`).
 - With no file, `songs/welcome.xml` is opened (cwd-relative, then the
   installed copy, else an empty buffer). The UI starts in Live View on the
-  clip grid; a new buffer defaults to 31-EDO. SIGINT/SIGTERM/SIGHUP end any
+  clip grid; a new buffer defaults to 53-EDO. SIGINT/SIGTERM/SIGHUP end any
   UI mode cleanly.
 
 ## Tests

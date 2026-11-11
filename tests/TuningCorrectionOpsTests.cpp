@@ -367,7 +367,7 @@ TEST(a_new_note_of_a_just_scale_is_written_with_its_correction) {
   Note utonal(kKey + 8, 100);
   tuneNewNote(song, pitched, utonal);
   CHECK(utonal.getFx() == "+06"); // 6/5, borrowed from the utonal side of the gamut
-  Note outside(kKey + 1, 100);
+  Note outside(kKey + 2, 100);
   tuneNewNote(song, pitched, outside);
   CHECK(!outside.hasFx());
   Note drum(kKey + 7, 100);
