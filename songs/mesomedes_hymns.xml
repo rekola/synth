@@ -1,0 +1,1049 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<song key="C" scale="nidqablim" temperament="53edo" tempo="80" timeSignature="2/4">
+    <instruments from="kit">
+        <instrument id="i1" from="string.plucked.harp"/>
+        <instrument id="i2" from="string.plucked.harp" detune="4"/>
+    </instruments>
+    <tracks id="master" collapsed="false">
+        <track id="lyre" sendA="-36" azimuth="-10" distance="1" elevation="0" instrument="i1"/>
+        <track id="kithara" sendA="-36" azimuth="18" distance="1.1" elevation="0" instrument="i2"/>
+    </tracks>
+    <notes>The Hymns of Mesomedes
+Four pieces by (or transmitted with) Mesomedes of Crete, citharode at the court of
+Hadrian, c. 130 AD, as one song in scenes: Muse, Calliope, Helios, Nemesis.
+Source: M. L. West, Ancient Greek Music (Oxford 1992), ch. 10, nos. 16-19, pp. 302-8,
+in his transcription a tone above the manuscripts' pitch; E. Pöhlmann, Denkmäler
+altgriechischer Musik (DAM), nos. 1, 2, 4, 5. The manuscripts transmit nos. 16-18 as
+one sequence, two short proems and then the Hymn to the Sun, and no. 19 as its
+companion piece; all four are in the Lydian notation and are played here in one tuning.
+The English versions below are ours, not West's; see his pages for his translations.
+
+SCENES
+Intro (looped) - Muse - Interlude 1 (looped) - Calliope - Interlude 2 (looped) -
+Helios - Interlude 3 (looped) - Nemesis - Outro. The four named scenes play once; the
+Intro and the Interludes loop until the operator moves on, and any of them can be
+skipped. Tempo is quarter = 80 throughout (2 rows per eighth) and broadens only in the
+Outro (66).
+
+MUSE - Invocation of the Muse. West no. 16, p. 302; DAM 1. E mode. 12/8, one bar a line.
+  Áeide Moûsá moi phílē, / molpês d' emês katárchou;
+  aúrē dè sôn ap' alséōn / emàs phrénas doneítō.
+"Sing to me, dear Muse, and lead off my song; let a breeze from your groves set my
+mind stirring."
+Begins and ends on C (West's e); range B-flat to A-flat. West prints 12/8 with a
+quadruplet (two quarters in the time of three eighths, here 3 rows each) at the start
+of lines 2 and 3. Conjecture: the first, second and fourth notes of line 2 (C, F, F on
+mol-, -pês, -mês) are missing in the manuscripts and supplied by West. Lines 3-4 have
+West's g-sharp three times (ap' al-, and in the melisma on -mâs): an accidental foreign
+to the Lydian key whose reading West calls not wholly certain; he follows the usual
+view, and it is played here as E-up (81/64), outside the scale, as in Calliope bar 4.
+
+CALLIOPE - Invocation of Calliope and Apollo. West no. 17, p. 303; DAM 2. E mode. 2/4.
+  Kalliópeia sophā́, Mousôn prokathāgéti terpnôn,
+  kaì sophè mystodóta, Lātoûs góne, Dḗlie Paiā́n,
+  eumeneîs páresté moi.
+"Wise Calliope, who lead the delightful Muses, and you, wise giver of the mysteries,
+Leto's son, Delian Paian: be kind and stand by me."
+Copied from mesomedes_calliope.xml (melody and second kithara, its rows 16-135), with
+one correction: bar 10 (-toûs góne) is a c' b in West, F A-flat G, where the earlier
+file has F G F; West's prose confirms it (the line climbs the scale from c to c').
+The earlier file is left as it was. Bar 4 keeps West's g-sharp as E-up (Winnington-
+Ingram reads g, E-flat). The last line is one 12/8 bar in West; scenes carry one time
+signature, so it lies across three 2/4 bars here. The second kithara moves to the
+A-flat-E-flat frame for line 2 (West's "C major") and back.
+
+HELIOS - Hymn to the Sun. West no. 18, pp. 304-6; DAM 4. E mode. 15/8 (West: 8+7 over
+8), one bar a line, 19 lines.
+  1 Chionoblephárou páter Āoûs,         2 rhodóessan hòs ántyga pṓlōn
+  3 ptānoîs hyp' íchnessi diṓkeis,      4 chryséaisin agallómenos kómais,
+  5 perì nôton apeíriton ouranoû        6 aktîna polýstrophon amplékōn,
+  7 aíglās polyderkéa pāgā̀n             8 perì gaîan hápāsan helíssōn;
+  9 potamoì dè séthen pyròs ambrótou   10 tíktousin epḗraton hāmérān.
+ 11 soì mèn choròs eúdios astérōn      12 kat' Ólympon ánakta choreúei,
+ 13 áneton mélos aièn aeídōn,          14 Phoibēḯdi terpómenos lýrāi,
+ 15 glaukà dè pároithe Selā́nā          16 chrónon hṓrion hāgemoneúei
+ 17 leukôn hypò sýrmasi móschōn;       18 gánytai dé té soi nóos eumenḕs
+ 19 polyeímona kósmon helíssōn.
+"Father of Dawn with her snow-white eyelids, you who drive your rose-red chariot
+behind the winged tread of your horses, exulting in your golden hair, plaiting your
+ever-turning ray across the boundless back of heaven, winding the far-seen spring of
+your radiance about the whole earth; and rivers of your deathless fire give birth to
+the lovely day. For you the calm chorus of the stars dances over Olympus its lord,
+singing for ever its unfettered song, delighting in Phoebus' lyre; and before you the
+pale Moon leads on the season's time, drawn by white heifers; and your kindly mind is
+glad as it turns the many-robed world."
+Begins and ends on C (West's e); range A-flat 3 to A-flat 4, the outer notes only in
+passing. Lacuna: line 10, the syllable -mé- of hāméran has no note (an eighth rest).
+Line-end rhythms follow West: where two long syllables close the line he gives a dotted
+quarter and a quarter, and divided long syllables as printed.
+
+NEMESIS - Hymn to Nemesis. West no. 19, pp. 306-8; DAM 5. G mode on the same notes:
+the tonic is West's g, E-flat, with A-flat and B-flat as secondary centres; the song's
+key stays C. 15/8, one bar a line, 20 lines.
+  1 Némesi pteróessa, bíou rhopā́,       2 kyanôpi theā́, thýgater Díkās,
+  3 hā̀ koûpha phryágmata thnātôn        4 epécheis adámanti chalīnôi,
+  5 échthousa d' hýbrin oloā̀n brotôn    6 mélana phthónon ektòs elaúneis.
+  7 hypò sòn trochòn ástaton astibê     8 charopà merópōn stréphetai týchā,
+  9 lḗthousa dè pàr póda baíneis,      10 gauroúmenon auchéna klī́neis,
+ 11 hypò pêchyn aeì bíoton metreîs,    12 neúeis d' hypò kólpon ophrỳn aeí,
+ 13 zygòn metà cheîra kratoûsa.        14 hī́lēthi mákaira dikaspóle,
+ 15 Némesi pteróessa, bíou rhopā́.
+ 16 Némesin theòn āídomen aphthítān,   17 Nī́kēn tanysípteron obrímān
+ 18 nēmertéa kaì páredron Díkās,       19 hā̀ tā̀n megalānoríān brotôn
+ 20 nemesôsa phéreis katà Tartárou.
+"Nemesis, winged tilter of the scale of life, dark-eyed goddess, daughter of Justice,
+you who rein in the empty snortings of mortals with a bridle of adamant and, hating
+men's ruinous pride, drive black envy out: beneath your wheel, never still and leaving
+no track, the bright fortune of men turns. Unnoticed you walk at their heel; you bow
+the neck that is held too high; under your forearm you always measure out life, and
+always you bend your brow toward your breast, the balance held in your hand. Be
+gracious, blessed giver of justice, Nemesis, winged tilter of the scale of life.
+We sing Nemesis, the imperishable goddess, mighty Victory of the spreading wings, the
+unerring one who sits beside Justice: you who resent the overweening of mortals and
+bear it down to Tartarus."
+Begins on F (West's a, leading to the tonic); range A-flat 3 to B-flat 4. Lacunae
+(rests; the second kithara keeps the frame through them): line 6, the last five
+syllables (ek-tòs e-laú-neis); line 7, -chòn; line 8, -ró- and -phe-; line 20,
+everything after the first note (G on ne-). Conjecture: the final E-flat on -rou is
+not in the manuscript; West's diagram of line-ends (Ex. 10.2) gives g there with a
+question mark, and it is supplied so that the hymn closes on its tonic. Our padding:
+West prints line 13 as 13 eighths and line 14 as 14 (a single short first syllable,
+a short last syllable); an eighth rest before and after line 13 and after line 14
+keeps the 15/8 bars aligned.
+
+REALISATION
+The manuscripts give pitch and rhythm. Ours are the tempo, the instruments, the
+anabolai, intro, interludes and outro. This is Apollo's music, sung by a citharode to
+his own kithara: no aulos, no percussion. Without a singer the first kithara carries
+the sung line, long notes struck harder than short; the second kithara (detuned 4)
+does what the citharode's left hand did: the frame, tonic and fifth of the current
+centre (C-G; E-flat-B-flat for Nemesis), struck at each line's start and again at the
+caesura, with a short plectrum run into each line. Each scene opens with a one-bar
+anabole; the Intro is the old two-bar run up the seven strings, made loopable; each
+Interlude is one bar of the C-G frame held; the Outro runs down the strings to the
+E-flat-B-flat frame while the first kithara echoes the rhopā́ cadence.
+
+The scale is nīd qablim, the Phrygian mode on C of the Pythagorean gamut:
+C D-flat E-flat F G A-flat B-flat = 1/1 256/243 32/27 4/3 3/2 128/81 16/9, West's
+e f g a b c' d' (his c d below are A-flat B-flat). In 53-EDO's notation the gamut
+spells these C-sharp-up, E-flat-down, A-flat-down and B-flat-down.</notes>
+    <scenes>
+        <scene name="Intro" tempo="80" timeSignature="2/4" followAction="next" />
+        <scene name="Muse" tempo="80" timeSignature="12/8" followAction="next" />
+        <scene name="Interlude 1" tempo="80" timeSignature="12/8" followAction="next"/>
+        <scene name="Calliope" tempo="80" timeSignature="2/4" followAction="next"/>
+        <scene name="Interlude 2" tempo="80" timeSignature="12/8" followAction="next"/>
+        <scene name="Helios" tempo="80" timeSignature="15/8" followAction="next"/>
+        <scene name="Interlude 3" tempo="80" timeSignature="15/8" followAction="next"/>
+        <scene name="Nemesis" tempo="80" timeSignature="15/8" followAction="next"/>
+        <scene name="Outro" tempo="66" timeSignature="2/4" followAction="next"/>
+    </scenes>
+    <clips>
+        <clip track="lyre" id="clip1" name="Intro" length="32">
+            <pattern/>
+        </clip>
+        <clip track="lyre" id="clip2" name="Muse" loop="false" length="120">
+            <pattern>
+                <note row="24" velocity="42" fx="+00">C-4</note>
+                <note row="26" velocity="50" fx="+00">G-4</note>
+                <note row="30" velocity="42" fx="+00">G-4</note>
+                <note row="32" velocity="50" fx="+00">B♭↓3</note>
+                <note row="36" velocity="42" fx="+00">B♭↓3</note>
+                <note row="38" velocity="50" fx="+00">B♭↓3</note>
+                <note row="42" velocity="42" fx="+00">C-4</note>
+                <note row="44" velocity="50" fx="+00">C-4</note>
+                <note row="48" velocity="50" fx="+00">C-4</note>
+                <note row="51" velocity="50" fx="+00">F-4</note>
+                <note row="54" velocity="42" fx="+00">F-4</note>
+                <note row="56" velocity="50" fx="+00">F-4</note>
+                <note row="60" velocity="42" fx="+00">B♭↓3</note>
+                <note row="62" velocity="50" fx="+00">E♭↓4</note>
+                <note row="66" velocity="50" fx="+00">E♭↓4</note>
+                <note row="72" velocity="50" fx="+00">G-4</note>
+                <note row="75" velocity="50" fx="+00">G-4</note>
+                <note row="78" velocity="42" fx="+00">G-4</note>
+                <note row="80" velocity="42" fx="+00">A♭↓4</note>
+                <note row="82" velocity="42" fx="+00">G-4</note>
+                <note row="84" velocity="42" fx="+00">E↑4</note>
+                <note row="86" velocity="50" fx="+00">E↑4</note>
+                <note row="90" velocity="42" fx="+00">F-4</note>
+                <note row="92" velocity="50" fx="+00">F-4</note>
+                <note row="96" velocity="42" fx="+00">E♭↓4</note>
+                <note row="98" velocity="42" fx="+00">G-4</note>
+                <note row="100" velocity="42" fx="+00">E↑4</note>
+                <note row="102" velocity="42" fx="+00">F-4</note>
+                <note row="104" velocity="42" fx="+00">B♭↓3</note>
+                <note row="106" velocity="42" fx="+00">C-4</note>
+                <note row="108" velocity="42" fx="+00">C♯↑4</note>
+                <note row="110" velocity="50" fx="+00">E♭↓4</note>
+                <note row="114" velocity="42" fx="+00">B♭↓3</note>
+                <note row="116" velocity="50" fx="+00">C-4</note>
+            </pattern>
+        </clip>
+        <clip track="lyre" id="clip3" name="Interlude 1" length="24">
+            <pattern/>
+        </clip>
+        <clip track="lyre" id="clip4" name="Calliope" loop="false" length="128">
+            <pattern>
+                <note row="8" velocity="50" fx="+00">C-4</note>
+                <note row="12" velocity="42" fx="+00">C♯↑4</note>
+                <note row="14" velocity="42" fx="+00">E♭↓4</note>
+                <note row="16" velocity="50" fx="+00">C♯↑4</note>
+                <note row="20" velocity="42" fx="+00">C-4</note>
+                <note row="22" velocity="42" fx="+00">B♭↓3</note>
+                <note row="24" velocity="50" fx="+00">C-4</note>
+                <note row="28" velocity="50" fx="+00">B♭↓3</note>
+                <note row="32" velocity="42" fx="+00">E↑4</note>
+                <note row="34" velocity="42" fx="+00">C-4</note>
+                <note row="36" velocity="42" fx="+00">C-4</note>
+                <note row="38" velocity="42" fx="+00">C-4</note>
+                <note row="40" velocity="50" fx="+00">C-4</note>
+                <note row="44" velocity="42" fx="+00">C-4</note>
+                <note row="46" velocity="42" fx="+00">G-3</note>
+                <note row="48" velocity="50" fx="+00">A♭↓3</note>
+                <note row="52" velocity="50" fx="+00">B♭↓3</note>
+                <note row="56" velocity="50" fx="+00">A♭↓3</note>
+                <note row="60" velocity="42" fx="+00">B♭↓3</note>
+                <note row="62" velocity="42" fx="+00">C-4</note>
+                <note row="64" velocity="50" fx="+00">C♯↑4</note>
+                <note row="68" velocity="42" fx="+00">E♭↓4</note>
+                <note row="70" velocity="42" fx="+00">F-4</note>
+                <note row="72" velocity="50" fx="+00">E♭↓4</note>
+                <note row="76" velocity="50" fx="+00">E♭↓4</note>
+                <note row="80" velocity="50" fx="+00">F-4</note>
+                <note row="84" velocity="42" fx="+00">A♭↓4</note>
+                <note row="86" velocity="42" fx="+00">G-4</note>
+                <note row="88" velocity="50" fx="+00">F-4</note>
+                <note row="92" velocity="42" fx="+00">E♭↓4</note>
+                <note row="94" velocity="42" fx="+00">C♯↑4</note>
+                <note row="96" velocity="50" fx="+00">C-4</note>
+                <note row="100" velocity="42" fx="+00">E♭↓4</note>
+                <note row="102" velocity="42" fx="+00">F-4</note>
+                <note row="104" velocity="50" fx="+00">E♭↓4</note>
+                <note row="108" velocity="42" fx="+00">F-4</note>
+                <note row="110" velocity="42" fx="+00">G-4</note>
+                <note row="112" velocity="42" fx="+00">E♭↓4</note>
+                <note row="114" velocity="42" fx="+00">F-4</note>
+                <note row="116" velocity="50" fx="+00">B♭↓3</note>
+                <note row="120" velocity="42" fx="+00">C-4</note>
+                <note row="122" velocity="50" fx="+00">C-4</note>
+            </pattern>
+        </clip>
+        <clip track="lyre" id="clip5" name="Interlude 2" length="24">
+            <pattern/>
+        </clip>
+        <clip track="lyre" id="clip6" name="Helios" loop="false" length="600">
+            <pattern>
+                <note row="30" velocity="42" fx="+00">C-4</note>
+                <note row="32" velocity="42" fx="+00">C-4</note>
+                <note row="34" velocity="50" fx="+00">C-4</note>
+                <note row="38" velocity="42" fx="+00">C-4</note>
+                <note row="40" velocity="42" fx="+00">F-4</note>
+                <note row="42" velocity="50" fx="+00">C-4</note>
+                <note row="46" velocity="42" fx="+00">C♯↑4</note>
+                <note row="48" velocity="42" fx="+00">C-4</note>
+                <note row="50" velocity="50" fx="+00">B♭↓3</note>
+                <note row="56" velocity="50" fx="+00">C-4</note>
+                <note row="60" velocity="42" fx="+00">B♭↓3</note>
+                <note row="62" velocity="42" fx="+00">E♭↓4</note>
+                <note row="64" velocity="50" fx="+00">E♭↓4</note>
+                <note row="68" velocity="42" fx="+00">E♭↓4</note>
+                <note row="70" velocity="42" fx="+00">E♭↓4</note>
+                <note row="72" velocity="50" fx="+00">F-4</note>
+                <note row="76" velocity="42" fx="+00">C-4</note>
+                <note row="78" velocity="42" fx="+00">B♭↓3</note>
+                <note row="80" velocity="42" fx="+00">E♭↓4</note>
+                <note row="82" velocity="50" fx="+00">F-4</note>
+                <note row="86" velocity="50" fx="+00">E♭↓4</note>
+                <note row="90" velocity="50" fx="+00">E♭↓4</note>
+                <note row="94" velocity="42" fx="+00">F-4</note>
+                <note row="96" velocity="42" fx="+00">E♭↓4</note>
+                <note row="98" velocity="42" fx="+00">F-4</note>
+                <note row="100" velocity="42" fx="+00">F-4</note>
+                <note row="102" velocity="50" fx="+00">C♯↑4</note>
+                <note row="106" velocity="42" fx="+00">E♭↓4</note>
+                <note row="108" velocity="42" fx="+00">F-4</note>
+                <note row="110" velocity="50" fx="+00">G-4</note>
+                <note row="116" velocity="50" fx="+00">G-4</note>
+                <note row="120" velocity="42" fx="+00">E♭↓4</note>
+                <note row="122" velocity="42" fx="+00">G-4</note>
+                <note row="124" velocity="50" fx="+00">E♭↓4</note>
+                <note row="128" velocity="42" fx="+00">G-4</note>
+                <note row="130" velocity="42" fx="+00">F-4</note>
+                <note row="132" velocity="50" fx="+00">E♭↓4</note>
+                <note row="136" velocity="42" fx="+00">F-4</note>
+                <note row="138" velocity="42" fx="+00">F-4</note>
+                <note row="140" velocity="50" fx="+00">E♭↓4</note>
+                <note row="144" velocity="42" fx="+00">G-4</note>
+                <note row="146" velocity="50" fx="+00">F-4</note>
+                <note row="150" velocity="42" fx="+00">E♭↓4</note>
+                <note row="152" velocity="42" fx="+00">F-4</note>
+                <note row="154" velocity="50" fx="+00">G-4</note>
+                <note row="158" velocity="42" fx="+00">F-4</note>
+                <note row="160" velocity="42" fx="+00">E♭↓4</note>
+                <note row="162" velocity="50" fx="+00">F-4</note>
+                <note row="166" velocity="42" fx="+00">C♯↑4</note>
+                <note row="168" velocity="42" fx="+00">B♭↓3</note>
+                <note row="170" velocity="50" fx="+00">C-4</note>
+                <note row="174" velocity="42" fx="+00">C♯↑4</note>
+                <note row="176" velocity="42" fx="+00">C♯↑4</note>
+                <note row="178" velocity="42" fx="+00">C-4</note>
+                <note row="180" velocity="42" fx="+00">C-4</note>
+                <note row="182" velocity="42" fx="+00">C♯↑4</note>
+                <note row="184" velocity="50" fx="+00">E♭↓4</note>
+                <note row="188" velocity="42" fx="+00">C-4</note>
+                <note row="190" velocity="42" fx="+00">E♭↓4</note>
+                <note row="192" velocity="50" fx="+00">E♭↓4</note>
+                <note row="196" velocity="42" fx="+00">E♭↓4</note>
+                <note row="198" velocity="42" fx="+00">E♭↓4</note>
+                <note row="200" velocity="50" fx="+00">E♭↓4</note>
+                <note row="204" velocity="42" fx="+00">F-4</note>
+                <note row="206" velocity="50" fx="+00">E♭↓4</note>
+                <note row="210" velocity="50" fx="+00">F-4</note>
+                <note row="214" velocity="50" fx="+00">E♭↓4</note>
+                <note row="218" velocity="42" fx="+00">C♯↑4</note>
+                <note row="220" velocity="42" fx="+00">E♭↓4</note>
+                <note row="222" velocity="50" fx="+00">F-4</note>
+                <note row="226" velocity="42" fx="+00">G-4</note>
+                <note row="228" velocity="42" fx="+00">F-4</note>
+                <note row="230" velocity="42" fx="+00">E♭↓4</note>
+                <note row="232" velocity="50" fx="+00">C♯↑4</note>
+                <note row="236" velocity="42" fx="+00">C♯↑4</note>
+                <note row="238" velocity="42" fx="+00">C-4</note>
+                <note row="240" velocity="42" fx="+00">C-4</note>
+                <note row="242" velocity="42" fx="+00">C♯↑4</note>
+                <note row="244" velocity="50" fx="+00">E♭↓4</note>
+                <note row="248" velocity="42" fx="+00">E♭↓4</note>
+                <note row="250" velocity="42" fx="+00">E♭↓4</note>
+                <note row="252" velocity="50" fx="+00">C-4</note>
+                <note row="256" velocity="42" fx="+00">A♭↓3</note>
+                <note row="258" velocity="42" fx="+00">B♭↓3</note>
+                <note row="260" velocity="50" fx="+00">E♭↓4</note>
+                <note row="266" velocity="50" fx="+00">E♭↓4</note>
+                <note row="270" velocity="42" fx="+00">E♭↓4</note>
+                <note row="272" velocity="42" fx="+00">F-4</note>
+                <note row="274" velocity="50" fx="+00">G-4</note>
+                <note row="278" velocity="42" fx="+00">G-4</note>
+                <note row="280" velocity="42" fx="+00">G-4</note>
+                <note row="282" velocity="50" fx="+00">G-4</note>
+                <note row="286" velocity="42" fx="+00">G-4</note>
+                <note row="288" velocity="42" fx="+00">A♭↓4</note>
+                <note row="290" velocity="50" fx="+00">F-4</note>
+                <note row="294" velocity="42" fx="+00">A♭↓4</note>
+                <note row="296" velocity="50" fx="+00">G-4</note>
+                <note row="300" velocity="50" fx="+00">C♯↑4</note>
+                <note row="304" velocity="50" fx="+00">E♭↓4</note>
+                <note row="308" velocity="42" fx="+00">F-4</note>
+                <note row="310" velocity="42" fx="+00">G-4</note>
+                <note row="312" velocity="50" fx="+00">G-4</note>
+                <note row="316" velocity="42" fx="+00">F-4</note>
+                <note row="318" velocity="42" fx="+00">E♭↓4</note>
+                <note row="320" velocity="50" fx="+00">C♯↑4</note>
+                <note row="326" velocity="50" fx="+00">C-4</note>
+                <note row="330" velocity="50" fx="+00">C-4</note>
+                <note row="334" velocity="50" fx="+00">B♭↓3</note>
+                <note row="338" velocity="42" fx="+00">C-4</note>
+                <note row="340" velocity="42" fx="+00">C♯↑4</note>
+                <note row="342" velocity="50" fx="+00">E♭↓4</note>
+                <note row="346" velocity="42" fx="+00">E♭↓4</note>
+                <note row="348" velocity="42" fx="+00">E♭↓4</note>
+                <note row="350" velocity="50" fx="+00">C♯↑4</note>
+                <note row="354" velocity="42" fx="+00">C♯↑4</note>
+                <note row="356" velocity="50" fx="+00">C-4</note>
+                <note row="360" velocity="42" fx="+00">E♭↓4</note>
+                <note row="362" velocity="42" fx="+00">F-4</note>
+                <note row="364" velocity="50" fx="+00">E♭↓4</note>
+                <note row="368" velocity="42" fx="+00">E♭↓4</note>
+                <note row="370" velocity="42" fx="+00">F-4</note>
+                <note row="372" velocity="50" fx="+00">C♯↑4</note>
+                <note row="376" velocity="42" fx="+00">E♭↓4</note>
+                <note row="378" velocity="42" fx="+00">F-4</note>
+                <note row="380" velocity="50" fx="+00">G-4</note>
+                <note row="386" velocity="50" fx="+00">G-4</note>
+                <note row="390" velocity="42" fx="+00">G-4</note>
+                <note row="392" velocity="42" fx="+00">G-4</note>
+                <note row="394" velocity="50" fx="+00">E♭↓4</note>
+                <note row="398" velocity="42" fx="+00">G-4</note>
+                <note row="400" velocity="42" fx="+00">G-4</note>
+                <note row="402" velocity="50" fx="+00">E♭↓4</note>
+                <note row="406" velocity="42" fx="+00">G-4</note>
+                <note row="408" velocity="42" fx="+00">F-4</note>
+                <note row="410" velocity="50" fx="+00">A♭↓4</note>
+                <note row="416" velocity="50" fx="+00">G-4</note>
+                <note row="420" velocity="50" fx="+00">E♭↓4</note>
+                <note row="424" velocity="50" fx="+00">F-4</note>
+                <note row="428" velocity="42" fx="+00">G-4</note>
+                <note row="430" velocity="42" fx="+00">G-4</note>
+                <note row="432" velocity="50" fx="+00">E♭↓4</note>
+                <note row="436" velocity="42" fx="+00">F-4</note>
+                <note row="438" velocity="42" fx="+00">C♯↑4</note>
+                <note row="440" velocity="50" fx="+00">B♭↓3</note>
+                <note row="444" velocity="42" fx="+00">G-4</note>
+                <note row="446" velocity="50" fx="+00">G-4</note>
+                <note row="450" velocity="42" fx="+00">C-4</note>
+                <note row="452" velocity="42" fx="+00">C♯↑4</note>
+                <note row="454" velocity="50" fx="+00">E♭↓4</note>
+                <note row="458" velocity="42" fx="+00">E♭↓4</note>
+                <note row="460" velocity="42" fx="+00">E♭↓4</note>
+                <note row="462" velocity="50" fx="+00">C-4</note>
+                <note row="466" velocity="42" fx="+00">C♯↑4</note>
+                <note row="468" velocity="42" fx="+00">E♭↓4</note>
+                <note row="470" velocity="42" fx="+00">E♭↓4</note>
+                <note row="472" velocity="50" fx="+00">F-4</note>
+                <note row="476" velocity="50" fx="+00">E♭↓4</note>
+                <note row="480" velocity="42" fx="+00">F-4</note>
+                <note row="482" velocity="42" fx="+00">E♭↓4</note>
+                <note row="484" velocity="50" fx="+00">F-4</note>
+                <note row="488" velocity="42" fx="+00">E♭↓4</note>
+                <note row="490" velocity="42" fx="+00">E♭↓4</note>
+                <note row="492" velocity="50" fx="+00">C♯↑4</note>
+                <note row="496" velocity="42" fx="+00">E♭↓4</note>
+                <note row="498" velocity="42" fx="+00">F-4</note>
+                <note row="500" velocity="50" fx="+00">G-4</note>
+                <note row="506" velocity="50" fx="+00">G-4</note>
+                <note row="510" velocity="42" fx="+00">E♭↓4</note>
+                <note row="512" velocity="42" fx="+00">F-4</note>
+                <note row="514" velocity="50" fx="+00">G-4</note>
+                <note row="518" velocity="42" fx="+00">F-4</note>
+                <note row="520" velocity="42" fx="+00">E♭↓4</note>
+                <note row="522" velocity="50" fx="+00">F-4</note>
+                <note row="526" velocity="42" fx="+00">B♭↓3</note>
+                <note row="528" velocity="42" fx="+00">C-4</note>
+                <note row="530" velocity="42" fx="+00">C♯↑4</note>
+                <note row="532" velocity="42" fx="+00">E♭↓4</note>
+                <note row="534" velocity="42" fx="+00">C♯↑4</note>
+                <note row="536" velocity="50" fx="+00">C-4</note>
+                <note row="540" velocity="42" fx="+00">C-4</note>
+                <note row="542" velocity="42" fx="+00">C-4</note>
+                <note row="544" velocity="50" fx="+00">C-4</note>
+                <note row="548" velocity="42" fx="+00">C-4</note>
+                <note row="550" velocity="42" fx="+00">C-4</note>
+                <note row="552" velocity="50" fx="+00">C-4</note>
+                <note row="556" velocity="42" fx="+00">C♯↑4</note>
+                <note row="558" velocity="42" fx="+00">C-4</note>
+                <note row="560" velocity="42" fx="+00">C♯↑4</note>
+                <note row="562" velocity="42" fx="+00">B♭↓3</note>
+                <note row="564" velocity="42" fx="+00">C♯↑4</note>
+                <note row="566" velocity="50" fx="+00">E♭↓4</note>
+                <note row="570" velocity="42" fx="+00">E♭↓4</note>
+                <note row="572" velocity="42" fx="+00">F-4</note>
+                <note row="574" velocity="50" fx="+00">G-4</note>
+                <note row="578" velocity="42" fx="+00">F-4</note>
+                <note row="580" velocity="42" fx="+00">E♭↓4</note>
+                <note row="582" velocity="50" fx="+00">F-4</note>
+                <note row="586" velocity="42" fx="+00">B♭↓3</note>
+                <note row="588" velocity="42" fx="+00">C-4</note>
+                <note row="590" velocity="42" fx="+00">C♯↑4</note>
+                <note row="592" velocity="42" fx="+00">E♭↓4</note>
+                <note row="594" velocity="42" fx="+00">C♯↑4</note>
+                <note row="596" velocity="50" fx="+00">C-4</note>
+            </pattern>
+        </clip>
+        <clip track="lyre" id="clip7" name="Interlude 3" length="30">
+            <pattern/>
+        </clip>
+        <clip track="lyre" id="clip8" name="Nemesis" loop="false" length="630">
+            <pattern>
+                <note row="30" velocity="42" fx="+00">F-4</note>
+                <note row="32" velocity="42" fx="+00">E♭↓4</note>
+                <note row="34" velocity="50" fx="+00">E♭↓4</note>
+                <note row="38" velocity="42" fx="+00">E♭↓4</note>
+                <note row="40" velocity="42" fx="+00">F-4</note>
+                <note row="42" velocity="50" fx="+00">E♭↓4</note>
+                <note row="46" velocity="42" fx="+00">E♭↓4</note>
+                <note row="48" velocity="42" fx="+00">F-4</note>
+                <note row="50" velocity="50" fx="+00">C-4</note>
+                <note row="54" velocity="42" fx="+00">C♯↑4</note>
+                <note row="56" velocity="50" fx="+00">E♭↓4</note>
+                <note row="60" velocity="42" fx="+00">B♭↓3</note>
+                <note row="62" velocity="42" fx="+00">E♭↓4</note>
+                <note row="64" velocity="50" fx="+00">G-4</note>
+                <note row="68" velocity="42" fx="+00">G-4</note>
+                <note row="70" velocity="42" fx="+00">G-4</note>
+                <note row="72" velocity="50" fx="+00">G-4</note>
+                <note row="76" velocity="42" fx="+00">A♭↓4</note>
+                <note row="78" velocity="42" fx="+00">G-4</note>
+                <note row="80" velocity="50" fx="+00">F-4</note>
+                <note row="84" velocity="42" fx="+00">G-4</note>
+                <note row="86" velocity="50" fx="+00">E♭↓4</note>
+                <note row="90" velocity="50" fx="+00">E♭↓4</note>
+                <note row="94" velocity="50" fx="+00">B♭↓4</note>
+                <note row="98" velocity="42" fx="+00">B♭↓4</note>
+                <note row="100" velocity="42" fx="+00">B♭↓4</note>
+                <note row="102" velocity="50" fx="+00">B♭↓4</note>
+                <note row="106" velocity="42" fx="+00">A♭↓4</note>
+                <note row="108" velocity="42" fx="+00">G-4</note>
+                <note row="110" velocity="50" fx="+00">A♭↓4</note>
+                <note row="116" velocity="50" fx="+00">B♭↓4</note>
+                <note row="120" velocity="42" fx="+00">B♭↓4</note>
+                <note row="122" velocity="42" fx="+00">B♭↓4</note>
+                <note row="124" velocity="50" fx="+00">E♭↓4</note>
+                <note row="128" velocity="42" fx="+00">F-4</note>
+                <note row="130" velocity="42" fx="+00">B♭↓4</note>
+                <note row="132" velocity="50" fx="+00">G-4</note>
+                <note row="136" velocity="42" fx="+00">A♭↓4</note>
+                <note row="138" velocity="42" fx="+00">F-4</note>
+                <note row="140" velocity="50" fx="+00">E♭↓4</note>
+                <note row="146" velocity="50" fx="+00">E♭↓4</note>
+                <note row="150" velocity="50" fx="+00">E♭↓4</note>
+                <note row="154" velocity="50" fx="+00">E♭↓4</note>
+                <note row="158" velocity="42" fx="+00">E♭↓4</note>
+                <note row="160" velocity="42" fx="+00">E♭↓4</note>
+                <note row="162" velocity="50" fx="+00">E♭↓4</note>
+                <note row="166" velocity="42" fx="+00">E♭↓4</note>
+                <note row="168" velocity="42" fx="+00">E♭↓4</note>
+                <note row="170" velocity="50" fx="+00">E♭↓4</note>
+                <note row="174" velocity="42" fx="+00">C-4</note>
+                <note row="176" velocity="42" fx="+00">E♭↓4</note>
+                <note row="178" velocity="42" fx="+00">B♭↓3</note>
+                <note row="180" velocity="42" fx="+00">C♯↑4</note>
+                <note row="182" velocity="42" fx="+00">C-4</note>
+                <note row="184" velocity="50" fx="+00">B♭↓3</note>
+                <note row="188" velocity="42" fx="+00">C♯↑4</note>
+                <note row="190" velocity="42" fx="+00">C♯↑4</note>
+                <note row="210" velocity="42" fx="+00">A♭↓3</note>
+                <note row="212" velocity="42" fx="+00">B♭↓3</note>
+                <note row="214" velocity="50" fx="+00">C-4</note>
+                <note row="218" velocity="42" fx="+00">B♭↓3</note>
+                <note row="222" velocity="50" fx="+00">F-4</note>
+                <note row="226" velocity="42" fx="+00">C-4</note>
+                <note row="228" velocity="42" fx="+00">B♭↓3</note>
+                <note row="230" velocity="50" fx="+00">C♯↑4</note>
+                <note row="234" velocity="42" fx="+00">E♭↓4</note>
+                <note row="236" velocity="50" fx="+00">F-4</note>
+                <note row="240" velocity="42" fx="+00">G-4</note>
+                <note row="242" velocity="42" fx="+00">A♭↓4</note>
+                <note row="244" velocity="50" fx="+00">B♭↓4</note>
+                <note row="248" velocity="42" fx="+00">G-4</note>
+                <note row="252" velocity="50" fx="+00">F-4</note>
+                <note row="256" velocity="42" fx="+00">F-4</note>
+                <note row="260" velocity="50" fx="+00">E♭↓4</note>
+                <note row="264" velocity="42" fx="+00">G-4</note>
+                <note row="266" velocity="50" fx="+00">E♭↓4</note>
+                <note row="270" velocity="50" fx="+00">E♭↓4</note>
+                <note row="274" velocity="50" fx="+00">E♭↓4</note>
+                <note row="278" velocity="42" fx="+00">E♭↓4</note>
+                <note row="280" velocity="42" fx="+00">E♭↓4</note>
+                <note row="282" velocity="50" fx="+00">E♭↓4</note>
+                <note row="286" velocity="42" fx="+00">E♭↓4</note>
+                <note row="288" velocity="42" fx="+00">C♯↑4</note>
+                <note row="290" velocity="42" fx="+00">E♭↓4</note>
+                <note row="292" velocity="50" fx="+00">C-4</note>
+                <note row="296" velocity="42" fx="+00">C-4</note>
+                <note row="298" velocity="42" fx="+00">B♭↓3</note>
+                <note row="300" velocity="50" fx="+00">A♭↓3</note>
+                <note row="304" velocity="50" fx="+00">B♭↓3</note>
+                <note row="308" velocity="42" fx="+00">C♯↑4</note>
+                <note row="310" velocity="42" fx="+00">C♯↑4</note>
+                <note row="312" velocity="50" fx="+00">E♭↓4</note>
+                <note row="316" velocity="42" fx="+00">F-4</note>
+                <note row="318" velocity="42" fx="+00">C♯↑4</note>
+                <note row="320" velocity="50" fx="+00">E♭↓4</note>
+                <note row="326" velocity="50" fx="+00">E♭↓4</note>
+                <note row="330" velocity="42" fx="+00">A♭↓3</note>
+                <note row="332" velocity="42" fx="+00">B♭↓3</note>
+                <note row="334" velocity="50" fx="+00">C♯↑4</note>
+                <note row="338" velocity="42" fx="+00">C-4</note>
+                <note row="340" velocity="42" fx="+00">B♭↓3</note>
+                <note row="342" velocity="50" fx="+00">C♯↑4</note>
+                <note row="346" velocity="42" fx="+00">C♯↑4</note>
+                <note row="348" velocity="42" fx="+00">C-4</note>
+                <note row="350" velocity="50" fx="+00">C♯↑4</note>
+                <note row="354" velocity="42" fx="+00">E♭↓4</note>
+                <note row="356" velocity="50" fx="+00">F-4</note>
+                <note row="360" velocity="50" fx="+00">B♭↓4</note>
+                <note row="364" velocity="50" fx="+00">E♭↓4</note>
+                <note row="368" velocity="42" fx="+00">F-4</note>
+                <note row="370" velocity="42" fx="+00">G-4</note>
+                <note row="372" velocity="50" fx="+00">A♭↓4</note>
+                <note row="376" velocity="42" fx="+00">F-4</note>
+                <note row="378" velocity="42" fx="+00">E♭↓4</note>
+                <note row="380" velocity="50" fx="+00">E♭↓4</note>
+                <note row="384" velocity="42" fx="+00">B♭↓3</note>
+                <note row="386" velocity="50" fx="+00">E♭↓4</note>
+                <note row="392" velocity="42" fx="+00">B♭↓3</note>
+                <note row="394" velocity="50" fx="+00">E♭↓4</note>
+                <note row="398" velocity="42" fx="+00">E♭↓4</note>
+                <note row="400" velocity="42" fx="+00">E♭↓4</note>
+                <note row="402" velocity="50" fx="+00">C♯↑4</note>
+                <note row="406" velocity="42" fx="+00">C-4</note>
+                <note row="408" velocity="42" fx="+00">E♭↓4</note>
+                <note row="410" velocity="50" fx="+00">F-4</note>
+                <note row="416" velocity="42" fx="+00">F-4</note>
+                <note row="420" velocity="50" fx="+00">A♭↓4</note>
+                <note row="424" velocity="50" fx="+00">A♭↓4</note>
+                <note row="428" velocity="42" fx="+00">A♭↓4</note>
+                <note row="430" velocity="42" fx="+00">A♭↓4</note>
+                <note row="432" velocity="50" fx="+00">G-4</note>
+                <note row="436" velocity="42" fx="+00">G-4</note>
+                <note row="438" velocity="42" fx="+00">F-4</note>
+                <note row="440" velocity="50" fx="+00">E♭↓4</note>
+                <note row="444" velocity="42" fx="+00">F-4</note>
+                <note row="446" velocity="42" fx="+00">C♯↑4</note>
+                <note row="450" velocity="42" fx="+00">A♭↓4</note>
+                <note row="452" velocity="42" fx="+00">A♭↓4</note>
+                <note row="454" velocity="50" fx="+00">A♭↓4</note>
+                <note row="458" velocity="42" fx="+00">G-4</note>
+                <note row="460" velocity="42" fx="+00">G-4</note>
+                <note row="462" velocity="50" fx="+00">F-4</note>
+                <note row="466" velocity="42" fx="+00">E♭↓4</note>
+                <note row="468" velocity="42" fx="+00">F-4</note>
+                <note row="470" velocity="50" fx="+00">F-4</note>
+                <note row="474" velocity="42" fx="+00">G-4</note>
+                <note row="476" velocity="50" fx="+00">E♭↓4</note>
+                <note row="480" velocity="42" fx="+00">F-4</note>
+                <note row="482" velocity="42" fx="+00">E♭↓4</note>
+                <note row="484" velocity="50" fx="+00">E♭↓4</note>
+                <note row="488" velocity="42" fx="+00">E♭↓4</note>
+                <note row="490" velocity="42" fx="+00">E♭↓4</note>
+                <note row="492" velocity="50" fx="+00">F-4</note>
+                <note row="496" velocity="42" fx="+00">E♭↓4</note>
+                <note row="498" velocity="42" fx="+00">C-4</note>
+                <note row="500" velocity="50" fx="+00">C♯↑4</note>
+                <note row="504" velocity="42" fx="+00">E♭↓4</note>
+                <note row="506" velocity="50" fx="+00">E♭↓4</note>
+                <note row="510" velocity="50" fx="+00">G-4</note>
+                <note row="514" velocity="50" fx="+00">E♭↓4</note>
+                <note row="518" velocity="42" fx="+00">F-4</note>
+                <note row="520" velocity="42" fx="+00">G-4</note>
+                <note row="522" velocity="50" fx="+00">A♭↓4</note>
+                <note row="526" velocity="42" fx="+00">F-4</note>
+                <note row="528" velocity="42" fx="+00">F-4</note>
+                <note row="530" velocity="50" fx="+00">E♭↓4</note>
+                <note row="534" velocity="42" fx="+00">G-4</note>
+                <note row="536" velocity="50" fx="+00">E♭↓4</note>
+                <note row="540" velocity="50" fx="+00">E♭↓4</note>
+                <note row="544" velocity="50" fx="+00">E♭↓4</note>
+                <note row="548" velocity="42" fx="+00">B♭↓4</note>
+                <note row="550" velocity="42" fx="+00">B♭↓4</note>
+                <note row="552" velocity="50" fx="+00">B♭↓4</note>
+                <note row="556" velocity="42" fx="+00">B♭↓4</note>
+                <note row="558" velocity="42" fx="+00">G-4</note>
+                <note row="560" velocity="50" fx="+00">A♭↓4</note>
+                <note row="564" velocity="42" fx="+00">B♭↓4</note>
+                <note row="566" velocity="50" fx="+00">E♭↓4</note>
+                <note row="570" velocity="50" fx="+00">C♯↑4</note>
+                <note row="574" velocity="50" fx="+00">E♭↓4</note>
+                <note row="578" velocity="42" fx="+00">E♭↓4</note>
+                <note row="580" velocity="42" fx="+00">E♭↓4</note>
+                <note row="582" velocity="50" fx="+00">E♭↓4</note>
+                <note row="586" velocity="42" fx="+00">C-4</note>
+                <note row="588" velocity="42" fx="+00">F-4</note>
+                <note row="590" velocity="50" fx="+00">E♭↓4</note>
+                <note row="594" velocity="42" fx="+00">C♯↑4</note>
+                <note row="596" velocity="50" fx="+00">E♭↓4</note>
+                <note row="600" velocity="42" fx="+00">G-4</note>
+                <note row="626" velocity="50" fx="+00">E♭↓4</note>
+            </pattern>
+        </clip>
+        <clip track="lyre" id="clip9" name="Outro" loop="false" length="32">
+            <pattern>
+                <note row="0" velocity="38" fx="+00">G-4</note>
+                <note row="4" velocity="34" fx="+00">E♭↓4</note>
+                <note row="14" velocity="30" fx="+00">E♭↓4</note>
+            </pattern>
+        </clip>
+        <clip track="kithara" id="clip10" name="Intro" length="32">
+            <pattern>
+                <note row="0" velocity="30" fx="+00">C-3</note>
+                <note row="1" velocity="30" fx="+00">C♯↑3</note>
+                <note row="2" velocity="31" fx="+00">E♭↓3</note>
+                <note row="3" velocity="31" fx="+00">F-3</note>
+                <note row="4" velocity="32" fx="+00">G-3</note>
+                <note row="5" velocity="32" fx="+00">A♭↓3</note>
+                <note row="6" velocity="33" fx="+00">B♭↓3</note>
+                <note row="7" velocity="33" fx="+00">C-4</note>
+                <note row="8" velocity="56" fx="+00">C-3</note>
+                <note row="8" column="1" velocity="56" fx="+00">G-3</note>
+                <note row="11" velocity="30" fx="+00">C-4</note>
+                <note row="12" velocity="30" fx="+00">E♭↓4</note>
+                <note row="13" velocity="30" fx="+00">G-4</note>
+                <note row="16" velocity="44" fx="+00">C-3</note>
+                <note row="16" column="1" velocity="44" fx="+00">G-3</note>
+                <note row="24" column="1" velocity="34" fx="+00">G-3</note>
+            </pattern>
+        </clip>
+        <clip track="kithara" id="clip11" name="Muse" loop="false" length="120">
+            <pattern>
+                <note row="0" velocity="56" fx="+00">C-3</note>
+                <note row="0" column="1" velocity="56" fx="+00">G-3</note>
+                <note row="12" column="1" velocity="36" fx="+00">G-3</note>
+                <note row="20" velocity="30" fx="+00">C-4</note>
+                <note row="21" velocity="30" fx="+00">E♭↓4</note>
+                <note row="22" velocity="30" fx="+00">G-4</note>
+                <note row="24" velocity="60" fx="+00">C-3</note>
+                <note row="24" column="1" velocity="60" fx="+00">G-3</note>
+                <note row="36" velocity="40" fx="+00">C-3</note>
+                <note row="36" column="1" velocity="40" fx="+00">G-3</note>
+                <note row="45" velocity="28" fx="+00">C-3</note>
+                <note row="46" velocity="28" fx="+00">E♭↓3</note>
+                <note row="47" velocity="28" fx="+00">G-3</note>
+                <note row="48" velocity="58" fx="+00">C-3</note>
+                <note row="48" column="1" velocity="58" fx="+00">G-3</note>
+                <note row="60" velocity="40" fx="+00">C-3</note>
+                <note row="60" column="1" velocity="40" fx="+00">G-3</note>
+                <note row="70" velocity="28" fx="+00">C-3</note>
+                <note row="71" velocity="28" fx="+00">G-3</note>
+                <note row="72" velocity="58" fx="+00">C-3</note>
+                <note row="72" column="1" velocity="58" fx="+00">G-3</note>
+                <note row="84" velocity="40" fx="+00">C-3</note>
+                <note row="84" column="1" velocity="40" fx="+00">G-3</note>
+                <note row="93" velocity="28" fx="+00">C-3</note>
+                <note row="94" velocity="28" fx="+00">E♭↓3</note>
+                <note row="95" velocity="28" fx="+00">G-3</note>
+                <note row="96" velocity="58" fx="+00">C-3</note>
+                <note row="96" column="1" velocity="58" fx="+00">G-3</note>
+                <note row="108" velocity="40" fx="+00">C-3</note>
+                <note row="108" column="1" velocity="40" fx="+00">G-3</note>
+            </pattern>
+        </clip>
+        <clip track="kithara" id="clip12" name="Interlude 1" length="24">
+            <pattern>
+                <note row="0" velocity="50" fx="+00">C-3</note>
+                <note row="0" column="1" velocity="50" fx="+00">G-3</note>
+                <note row="12" column="1" velocity="34" fx="+00">G-3</note>
+            </pattern>
+        </clip>
+        <clip track="kithara" id="clip13" name="Calliope" loop="false" length="128">
+            <pattern>
+                <note row="0" velocity="56" fx="+00">C-3</note>
+                <note row="0" column="1" velocity="56" fx="+00">G-3</note>
+                <note row="3" velocity="30" fx="+00">C-4</note>
+                <note row="4" velocity="30" fx="+00">E♭↓4</note>
+                <note row="5" velocity="30" fx="+00">G-4</note>
+                <note row="8" velocity="60" fx="+00">C-3</note>
+                <note row="8" column="1" velocity="60" fx="+00">G-3</note>
+                <note row="28" velocity="40" fx="+00">C-3</note>
+                <note row="28" column="1" velocity="40" fx="+00">G-3</note>
+                <note row="53" velocity="28" fx="+00">A♭↓2</note>
+                <note row="54" velocity="28" fx="+00">C-3</note>
+                <note row="55" velocity="28" fx="+00">E♭↓3</note>
+                <note row="56" velocity="58" fx="+00">A♭↓2</note>
+                <note row="56" column="1" velocity="58" fx="+00">E♭↓3</note>
+                <note row="76" velocity="40" fx="+00">A♭↓2</note>
+                <note row="76" column="1" velocity="40" fx="+00">E♭↓3</note>
+                <note row="102" velocity="28" fx="+00">C-3</note>
+                <note row="103" velocity="28" fx="+00">G-3</note>
+                <note row="104" velocity="60" fx="+00">C-3</note>
+                <note row="104" column="1" velocity="60" fx="+00">G-3</note>
+            </pattern>
+        </clip>
+        <clip track="kithara" id="clip14" name="Interlude 2" length="24">
+            <pattern>
+                <note row="0" velocity="50" fx="+00">C-3</note>
+                <note row="0" column="1" velocity="50" fx="+00">G-3</note>
+                <note row="12" column="1" velocity="34" fx="+00">G-3</note>
+            </pattern>
+        </clip>
+        <clip track="kithara" id="clip15" name="Helios" loop="false" length="600">
+            <pattern>
+                <note row="0" velocity="30" fx="+00">C-3</note>
+                <note row="1" velocity="30" fx="+00">C♯↑3</note>
+                <note row="2" velocity="31" fx="+00">E♭↓3</note>
+                <note row="3" velocity="31" fx="+00">F-3</note>
+                <note row="4" velocity="32" fx="+00">G-3</note>
+                <note row="5" velocity="32" fx="+00">A♭↓3</note>
+                <note row="6" velocity="33" fx="+00">B♭↓3</note>
+                <note row="7" velocity="33" fx="+00">C-4</note>
+                <note row="8" velocity="56" fx="+00">C-3</note>
+                <note row="8" column="1" velocity="56" fx="+00">G-3</note>
+                <note row="16" velocity="40" fx="+00">C-3</note>
+                <note row="16" column="1" velocity="40" fx="+00">G-3</note>
+                <note row="26" velocity="30" fx="+00">C-4</note>
+                <note row="27" velocity="30" fx="+00">E♭↓4</note>
+                <note row="28" velocity="30" fx="+00">G-4</note>
+                <note row="30" velocity="60" fx="+00">C-3</note>
+                <note row="30" column="1" velocity="60" fx="+00">G-3</note>
+                <note row="46" velocity="40" fx="+00">C-3</note>
+                <note row="46" column="1" velocity="40" fx="+00">G-3</note>
+                <note row="57" velocity="28" fx="+00">C-3</note>
+                <note row="58" velocity="28" fx="+00">E♭↓3</note>
+                <note row="59" velocity="28" fx="+00">G-3</note>
+                <note row="60" velocity="58" fx="+00">C-3</note>
+                <note row="60" column="1" velocity="58" fx="+00">G-3</note>
+                <note row="76" velocity="40" fx="+00">C-3</note>
+                <note row="76" column="1" velocity="40" fx="+00">G-3</note>
+                <note row="88" velocity="28" fx="+00">C-3</note>
+                <note row="89" velocity="28" fx="+00">G-3</note>
+                <note row="90" velocity="58" fx="+00">C-3</note>
+                <note row="90" column="1" velocity="58" fx="+00">G-3</note>
+                <note row="106" velocity="40" fx="+00">C-3</note>
+                <note row="106" column="1" velocity="40" fx="+00">G-3</note>
+                <note row="117" velocity="28" fx="+00">C-3</note>
+                <note row="118" velocity="28" fx="+00">E♭↓3</note>
+                <note row="119" velocity="28" fx="+00">G-3</note>
+                <note row="120" velocity="58" fx="+00">C-3</note>
+                <note row="120" column="1" velocity="58" fx="+00">G-3</note>
+                <note row="136" velocity="40" fx="+00">C-3</note>
+                <note row="136" column="1" velocity="40" fx="+00">G-3</note>
+                <note row="148" velocity="28" fx="+00">C-3</note>
+                <note row="149" velocity="28" fx="+00">G-3</note>
+                <note row="150" velocity="58" fx="+00">C-3</note>
+                <note row="150" column="1" velocity="58" fx="+00">G-3</note>
+                <note row="166" velocity="40" fx="+00">C-3</note>
+                <note row="166" column="1" velocity="40" fx="+00">G-3</note>
+                <note row="177" velocity="28" fx="+00">C-3</note>
+                <note row="178" velocity="28" fx="+00">E♭↓3</note>
+                <note row="179" velocity="28" fx="+00">G-3</note>
+                <note row="180" velocity="58" fx="+00">C-3</note>
+                <note row="180" column="1" velocity="58" fx="+00">G-3</note>
+                <note row="196" velocity="40" fx="+00">C-3</note>
+                <note row="196" column="1" velocity="40" fx="+00">G-3</note>
+                <note row="208" velocity="28" fx="+00">C-3</note>
+                <note row="209" velocity="28" fx="+00">G-3</note>
+                <note row="210" velocity="58" fx="+00">C-3</note>
+                <note row="210" column="1" velocity="58" fx="+00">G-3</note>
+                <note row="226" velocity="40" fx="+00">C-3</note>
+                <note row="226" column="1" velocity="40" fx="+00">G-3</note>
+                <note row="237" velocity="28" fx="+00">C-3</note>
+                <note row="238" velocity="28" fx="+00">E♭↓3</note>
+                <note row="239" velocity="28" fx="+00">G-3</note>
+                <note row="240" velocity="58" fx="+00">C-3</note>
+                <note row="240" column="1" velocity="58" fx="+00">G-3</note>
+                <note row="256" velocity="40" fx="+00">C-3</note>
+                <note row="256" column="1" velocity="40" fx="+00">G-3</note>
+                <note row="268" velocity="28" fx="+00">C-3</note>
+                <note row="269" velocity="28" fx="+00">G-3</note>
+                <note row="270" velocity="58" fx="+00">C-3</note>
+                <note row="270" column="1" velocity="58" fx="+00">G-3</note>
+                <note row="286" velocity="40" fx="+00">C-3</note>
+                <note row="286" column="1" velocity="40" fx="+00">G-3</note>
+                <note row="297" velocity="28" fx="+00">C-3</note>
+                <note row="298" velocity="28" fx="+00">E♭↓3</note>
+                <note row="299" velocity="28" fx="+00">G-3</note>
+                <note row="300" velocity="58" fx="+00">C-3</note>
+                <note row="300" column="1" velocity="58" fx="+00">G-3</note>
+                <note row="316" velocity="40" fx="+00">C-3</note>
+                <note row="316" column="1" velocity="40" fx="+00">G-3</note>
+                <note row="328" velocity="28" fx="+00">C-3</note>
+                <note row="329" velocity="28" fx="+00">G-3</note>
+                <note row="330" velocity="58" fx="+00">C-3</note>
+                <note row="330" column="1" velocity="58" fx="+00">G-3</note>
+                <note row="346" velocity="40" fx="+00">C-3</note>
+                <note row="346" column="1" velocity="40" fx="+00">G-3</note>
+                <note row="357" velocity="28" fx="+00">C-3</note>
+                <note row="358" velocity="28" fx="+00">E♭↓3</note>
+                <note row="359" velocity="28" fx="+00">G-3</note>
+                <note row="360" velocity="58" fx="+00">C-3</note>
+                <note row="360" column="1" velocity="58" fx="+00">G-3</note>
+                <note row="376" velocity="40" fx="+00">C-3</note>
+                <note row="376" column="1" velocity="40" fx="+00">G-3</note>
+                <note row="388" velocity="28" fx="+00">C-3</note>
+                <note row="389" velocity="28" fx="+00">G-3</note>
+                <note row="390" velocity="58" fx="+00">C-3</note>
+                <note row="390" column="1" velocity="58" fx="+00">G-3</note>
+                <note row="406" velocity="40" fx="+00">C-3</note>
+                <note row="406" column="1" velocity="40" fx="+00">G-3</note>
+                <note row="417" velocity="28" fx="+00">C-3</note>
+                <note row="418" velocity="28" fx="+00">E♭↓3</note>
+                <note row="419" velocity="28" fx="+00">G-3</note>
+                <note row="420" velocity="58" fx="+00">C-3</note>
+                <note row="420" column="1" velocity="58" fx="+00">G-3</note>
+                <note row="436" velocity="40" fx="+00">C-3</note>
+                <note row="436" column="1" velocity="40" fx="+00">G-3</note>
+                <note row="448" velocity="28" fx="+00">C-3</note>
+                <note row="449" velocity="28" fx="+00">G-3</note>
+                <note row="450" velocity="58" fx="+00">C-3</note>
+                <note row="450" column="1" velocity="58" fx="+00">G-3</note>
+                <note row="466" velocity="40" fx="+00">C-3</note>
+                <note row="466" column="1" velocity="40" fx="+00">G-3</note>
+                <note row="477" velocity="28" fx="+00">C-3</note>
+                <note row="478" velocity="28" fx="+00">E♭↓3</note>
+                <note row="479" velocity="28" fx="+00">G-3</note>
+                <note row="480" velocity="58" fx="+00">C-3</note>
+                <note row="480" column="1" velocity="58" fx="+00">G-3</note>
+                <note row="496" velocity="40" fx="+00">C-3</note>
+                <note row="496" column="1" velocity="40" fx="+00">G-3</note>
+                <note row="508" velocity="28" fx="+00">C-3</note>
+                <note row="509" velocity="28" fx="+00">G-3</note>
+                <note row="510" velocity="58" fx="+00">C-3</note>
+                <note row="510" column="1" velocity="58" fx="+00">G-3</note>
+                <note row="526" velocity="40" fx="+00">C-3</note>
+                <note row="526" column="1" velocity="40" fx="+00">G-3</note>
+                <note row="537" velocity="28" fx="+00">C-3</note>
+                <note row="538" velocity="28" fx="+00">E♭↓3</note>
+                <note row="539" velocity="28" fx="+00">G-3</note>
+                <note row="540" velocity="58" fx="+00">C-3</note>
+                <note row="540" column="1" velocity="58" fx="+00">G-3</note>
+                <note row="556" velocity="40" fx="+00">C-3</note>
+                <note row="556" column="1" velocity="40" fx="+00">G-3</note>
+                <note row="568" velocity="28" fx="+00">C-3</note>
+                <note row="569" velocity="28" fx="+00">G-3</note>
+                <note row="570" velocity="58" fx="+00">C-3</note>
+                <note row="570" column="1" velocity="58" fx="+00">G-3</note>
+                <note row="586" velocity="40" fx="+00">C-3</note>
+                <note row="586" column="1" velocity="40" fx="+00">G-3</note>
+            </pattern>
+        </clip>
+        <clip track="kithara" id="clip16" name="Interlude 3" length="30">
+            <pattern>
+                <note row="0" velocity="50" fx="+00">C-3</note>
+                <note row="0" column="1" velocity="50" fx="+00">G-3</note>
+                <note row="16" column="1" velocity="34" fx="+00">G-3</note>
+            </pattern>
+        </clip>
+        <clip track="kithara" id="clip17" name="Nemesis" loop="false" length="630">
+            <pattern>
+                <note row="0" velocity="30" fx="+00">E♭↓3</note>
+                <note row="1" velocity="30" fx="+00">F-3</note>
+                <note row="2" velocity="31" fx="+00">G-3</note>
+                <note row="3" velocity="31" fx="+00">A♭↓3</note>
+                <note row="4" velocity="32" fx="+00">B♭↓3</note>
+                <note row="5" velocity="32" fx="+00">C-4</note>
+                <note row="6" velocity="33" fx="+00">C♯↑4</note>
+                <note row="7" velocity="33" fx="+00">E♭↓4</note>
+                <note row="8" velocity="56" fx="+00">E♭↓3</note>
+                <note row="8" column="1" velocity="56" fx="+00">B♭↓3</note>
+                <note row="16" velocity="40" fx="+00">E♭↓3</note>
+                <note row="16" column="1" velocity="40" fx="+00">B♭↓3</note>
+                <note row="26" velocity="30" fx="+00">E♭↓4</note>
+                <note row="27" velocity="30" fx="+00">G-4</note>
+                <note row="28" velocity="30" fx="+00">B♭↓4</note>
+                <note row="30" velocity="60" fx="+00">E♭↓3</note>
+                <note row="30" column="1" velocity="60" fx="+00">B♭↓3</note>
+                <note row="46" velocity="40" fx="+00">E♭↓3</note>
+                <note row="46" column="1" velocity="40" fx="+00">B♭↓3</note>
+                <note row="57" velocity="28" fx="+00">E♭↓3</note>
+                <note row="58" velocity="28" fx="+00">G-3</note>
+                <note row="59" velocity="28" fx="+00">B♭↓3</note>
+                <note row="60" velocity="58" fx="+00">E♭↓3</note>
+                <note row="60" column="1" velocity="58" fx="+00">B♭↓3</note>
+                <note row="76" velocity="40" fx="+00">E♭↓3</note>
+                <note row="76" column="1" velocity="40" fx="+00">B♭↓3</note>
+                <note row="88" velocity="28" fx="+00">E♭↓3</note>
+                <note row="89" velocity="28" fx="+00">B♭↓3</note>
+                <note row="90" velocity="58" fx="+00">E♭↓3</note>
+                <note row="90" column="1" velocity="58" fx="+00">B♭↓3</note>
+                <note row="106" velocity="40" fx="+00">E♭↓3</note>
+                <note row="106" column="1" velocity="40" fx="+00">B♭↓3</note>
+                <note row="117" velocity="28" fx="+00">E♭↓3</note>
+                <note row="118" velocity="28" fx="+00">G-3</note>
+                <note row="119" velocity="28" fx="+00">B♭↓3</note>
+                <note row="120" velocity="58" fx="+00">E♭↓3</note>
+                <note row="120" column="1" velocity="58" fx="+00">B♭↓3</note>
+                <note row="136" velocity="40" fx="+00">E♭↓3</note>
+                <note row="136" column="1" velocity="40" fx="+00">B♭↓3</note>
+                <note row="148" velocity="28" fx="+00">E♭↓3</note>
+                <note row="149" velocity="28" fx="+00">B♭↓3</note>
+                <note row="150" velocity="58" fx="+00">E♭↓3</note>
+                <note row="150" column="1" velocity="58" fx="+00">B♭↓3</note>
+                <note row="166" velocity="40" fx="+00">E♭↓3</note>
+                <note row="166" column="1" velocity="40" fx="+00">B♭↓3</note>
+                <note row="177" velocity="28" fx="+00">E♭↓3</note>
+                <note row="178" velocity="28" fx="+00">G-3</note>
+                <note row="179" velocity="28" fx="+00">B♭↓3</note>
+                <note row="180" velocity="58" fx="+00">E♭↓3</note>
+                <note row="180" column="1" velocity="58" fx="+00">B♭↓3</note>
+                <note row="196" velocity="40" fx="+00">E♭↓3</note>
+                <note row="196" column="1" velocity="40" fx="+00">B♭↓3</note>
+                <note row="208" velocity="28" fx="+00">E♭↓3</note>
+                <note row="209" velocity="28" fx="+00">B♭↓3</note>
+                <note row="210" velocity="58" fx="+00">E♭↓3</note>
+                <note row="210" column="1" velocity="58" fx="+00">B♭↓3</note>
+                <note row="226" velocity="40" fx="+00">E♭↓3</note>
+                <note row="226" column="1" velocity="40" fx="+00">B♭↓3</note>
+                <note row="237" velocity="28" fx="+00">E♭↓3</note>
+                <note row="238" velocity="28" fx="+00">G-3</note>
+                <note row="239" velocity="28" fx="+00">B♭↓3</note>
+                <note row="240" velocity="58" fx="+00">E♭↓3</note>
+                <note row="240" column="1" velocity="58" fx="+00">B♭↓3</note>
+                <note row="256" velocity="40" fx="+00">E♭↓3</note>
+                <note row="256" column="1" velocity="40" fx="+00">B♭↓3</note>
+                <note row="268" velocity="28" fx="+00">E♭↓3</note>
+                <note row="269" velocity="28" fx="+00">B♭↓3</note>
+                <note row="270" velocity="58" fx="+00">E♭↓3</note>
+                <note row="270" column="1" velocity="58" fx="+00">B♭↓3</note>
+                <note row="286" velocity="40" fx="+00">E♭↓3</note>
+                <note row="286" column="1" velocity="40" fx="+00">B♭↓3</note>
+                <note row="297" velocity="28" fx="+00">E♭↓3</note>
+                <note row="298" velocity="28" fx="+00">G-3</note>
+                <note row="299" velocity="28" fx="+00">B♭↓3</note>
+                <note row="300" velocity="58" fx="+00">E♭↓3</note>
+                <note row="300" column="1" velocity="58" fx="+00">B♭↓3</note>
+                <note row="316" velocity="40" fx="+00">E♭↓3</note>
+                <note row="316" column="1" velocity="40" fx="+00">B♭↓3</note>
+                <note row="328" velocity="28" fx="+00">E♭↓3</note>
+                <note row="329" velocity="28" fx="+00">B♭↓3</note>
+                <note row="330" velocity="58" fx="+00">E♭↓3</note>
+                <note row="330" column="1" velocity="58" fx="+00">B♭↓3</note>
+                <note row="346" velocity="40" fx="+00">E♭↓3</note>
+                <note row="346" column="1" velocity="40" fx="+00">B♭↓3</note>
+                <note row="357" velocity="28" fx="+00">E♭↓3</note>
+                <note row="358" velocity="28" fx="+00">G-3</note>
+                <note row="359" velocity="28" fx="+00">B♭↓3</note>
+                <note row="360" velocity="58" fx="+00">E♭↓3</note>
+                <note row="360" column="1" velocity="58" fx="+00">B♭↓3</note>
+                <note row="376" velocity="40" fx="+00">E♭↓3</note>
+                <note row="376" column="1" velocity="40" fx="+00">B♭↓3</note>
+                <note row="388" velocity="28" fx="+00">E♭↓3</note>
+                <note row="389" velocity="28" fx="+00">B♭↓3</note>
+                <note row="390" velocity="58" fx="+00">E♭↓3</note>
+                <note row="390" column="1" velocity="58" fx="+00">B♭↓3</note>
+                <note row="406" velocity="40" fx="+00">E♭↓3</note>
+                <note row="406" column="1" velocity="40" fx="+00">B♭↓3</note>
+                <note row="417" velocity="28" fx="+00">E♭↓3</note>
+                <note row="418" velocity="28" fx="+00">G-3</note>
+                <note row="419" velocity="28" fx="+00">B♭↓3</note>
+                <note row="420" velocity="58" fx="+00">E♭↓3</note>
+                <note row="420" column="1" velocity="58" fx="+00">B♭↓3</note>
+                <note row="436" velocity="40" fx="+00">E♭↓3</note>
+                <note row="436" column="1" velocity="40" fx="+00">B♭↓3</note>
+                <note row="448" velocity="28" fx="+00">E♭↓3</note>
+                <note row="449" velocity="28" fx="+00">B♭↓3</note>
+                <note row="450" velocity="58" fx="+00">E♭↓3</note>
+                <note row="450" column="1" velocity="58" fx="+00">B♭↓3</note>
+                <note row="466" velocity="40" fx="+00">E♭↓3</note>
+                <note row="466" column="1" velocity="40" fx="+00">B♭↓3</note>
+                <note row="477" velocity="28" fx="+00">E♭↓3</note>
+                <note row="478" velocity="28" fx="+00">G-3</note>
+                <note row="479" velocity="28" fx="+00">B♭↓3</note>
+                <note row="480" velocity="58" fx="+00">E♭↓3</note>
+                <note row="480" column="1" velocity="58" fx="+00">B♭↓3</note>
+                <note row="496" velocity="40" fx="+00">E♭↓3</note>
+                <note row="496" column="1" velocity="40" fx="+00">B♭↓3</note>
+                <note row="508" velocity="28" fx="+00">E♭↓3</note>
+                <note row="509" velocity="28" fx="+00">B♭↓3</note>
+                <note row="510" velocity="58" fx="+00">E♭↓3</note>
+                <note row="510" column="1" velocity="58" fx="+00">B♭↓3</note>
+                <note row="526" velocity="40" fx="+00">E♭↓3</note>
+                <note row="526" column="1" velocity="40" fx="+00">B♭↓3</note>
+                <note row="537" velocity="28" fx="+00">E♭↓3</note>
+                <note row="538" velocity="28" fx="+00">G-3</note>
+                <note row="539" velocity="28" fx="+00">B♭↓3</note>
+                <note row="540" velocity="58" fx="+00">E♭↓3</note>
+                <note row="540" column="1" velocity="58" fx="+00">B♭↓3</note>
+                <note row="556" velocity="40" fx="+00">E♭↓3</note>
+                <note row="556" column="1" velocity="40" fx="+00">B♭↓3</note>
+                <note row="568" velocity="28" fx="+00">E♭↓3</note>
+                <note row="569" velocity="28" fx="+00">B♭↓3</note>
+                <note row="570" velocity="58" fx="+00">E♭↓3</note>
+                <note row="570" column="1" velocity="58" fx="+00">B♭↓3</note>
+                <note row="586" velocity="40" fx="+00">E♭↓3</note>
+                <note row="586" column="1" velocity="40" fx="+00">B♭↓3</note>
+                <note row="597" velocity="28" fx="+00">E♭↓3</note>
+                <note row="598" velocity="28" fx="+00">G-3</note>
+                <note row="599" velocity="28" fx="+00">B♭↓3</note>
+                <note row="600" velocity="58" fx="+00">E♭↓3</note>
+                <note row="600" column="1" velocity="58" fx="+00">B♭↓3</note>
+                <note row="616" velocity="40" fx="+00">E♭↓3</note>
+                <note row="616" column="1" velocity="40" fx="+00">B♭↓3</note>
+            </pattern>
+        </clip>
+        <clip track="kithara" id="clip18" name="Outro" loop="false" length="32">
+            <pattern>
+                <note row="0" velocity="30" fx="+00">B♭↓4</note>
+                <note row="1" velocity="29" fx="+00">G-4</note>
+                <note row="2" velocity="28" fx="+00">E♭↓4</note>
+                <note row="3" velocity="27" fx="+00">B♭↓3</note>
+                <note row="4" velocity="50" fx="+00">E♭↓3</note>
+                <note row="4" column="1" velocity="50" fx="+00">B♭↓3</note>
+                <note row="16" velocity="40" fx="+00">E♭↓3</note>
+                <note row="16" column="1" velocity="40" fx="+00">B♭↓3</note>
+            </pattern>
+        </clip>
+    </clips>
+    <arrangement>
+        <pattern track="kithara"/>
+        <pattern track="lyre"/>
+    </arrangement>
+</song>
