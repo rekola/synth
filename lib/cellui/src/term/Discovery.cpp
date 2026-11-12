@@ -312,6 +312,7 @@ Capabilities Discovery::result() const {
   else if (env_.colors_override == "256") caps.colors = ColorDepth::C256;
   else if (env_.colors_override == "24bit") caps.colors = ColorDepth::TRUECOLOR;
 
+  caps.display.palette_colours = caps.colors == ColorDepth::TRUECOLOR ? 0 : caps.colors == ColorDepth::C256 ? 256 : caps.colors == ColorDepth::C16 ? 16 : caps.colors == ColorDepth::C8 ? 8 : 1;
   caps.column_move = term_colors > 0 || tcap_hpa_ || complete_;
   caps.display.default_fg = default_fg_;
   caps.display.default_bg = default_bg_;

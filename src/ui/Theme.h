@@ -1,9 +1,12 @@
 #pragma once
 
 #include "../model/Color.h"
+#include <cellui/Ansi16.h>
 #include <cellui/Theme.h>
 
+#include <algorithm>
 #include <cmath>
+#include <optional>
 #include <string>
 
 // How a track's identity colour is made from its ordinal: the original steps
@@ -17,16 +20,24 @@
 // free, so a track never looks like a playing or a recording clip.
 struct TrackPalette {
   enum class Model { GOLDEN_HSL,
-                     OKLCH_TABLE };
+                     OKLCH_TABLE,
+                     ANSI };
   Model model = Model::GOLDEN_HSL;
   float lightness = 0.42f;
   float saturation_or_chroma = 0.35f;
+  // ANSI: how many entries of kAnsiOrder it cycles through (12 on a 16-colour terminal, the six hues on an 8-colour one).
+  int ansi_colours = 12;
 
   static TrackPalette original() { return {Model::GOLDEN_HSL, 0.42f, 0.35f}; }
   static TrackPalette modern() { return {Model::OKLCH_TABLE, 0.585f, 0.12f}; }
+  // A fixed table of the terminal's own colours, in the order that keeps the first N tracks as different as
+  // the palette allows for every N: the six hues alternating warm and cool, then their bright forms.
+  static TrackPalette ansi16() { return {Model::ANSI, 0.0f, 0.0f, 12}; }
+  static TrackPalette ansi8() { return {Model::ANSI, 0.0f, 0.0f, 6}; }
 
   // The model's own hue, in degrees.
   float hue(int ordinal) const {
+    if (model == Model::ANSI) return color(ordinal).hslHue();
     if (model == Model::GOLDEN_HSL) return std::fmod(static_cast<float>(ordinal) * 137.50776f, 360.0f);
     if (ordinal < kTableSize) return kTable[ordinal].hue;
     constexpr float arcs[2][2] = {{62.0f, 110.0f}, {180.0f, 352.0f}};
@@ -41,7 +52,14 @@ struct TrackPalette {
   float chroma(int ordinal) const {
     return model == Model::OKLCH_TABLE && ordinal < kTableSize && ordinal >= 0 ? kTable[ordinal].chroma : saturation_or_chroma;
   }
+  // The palette index of an ANSI track's colour.
+  int ansiIndex(int ordinal) const {
+    static constexpr int kAnsiOrder[12] = {3, 4, 1, 6, 5, 2, 11, 12, 9, 14, 13, 10};
+    int n = std::clamp(ansi_colours, 1, 12);
+    return kAnsiOrder[((ordinal % n) + n) % n];
+  }
   Color color(int ordinal) const {
+    if (model == Model::ANSI) return cellui::ansi16Color(ansiIndex(ordinal));
     return model == Model::GOLDEN_HSL ? Color::fromHSL(hue(ordinal), saturation_or_chroma, lightness)
                                       : Color::fromOklchClipped(lightness, chroma(ordinal), hue(ordinal));
   }
@@ -49,7 +67,7 @@ struct TrackPalette {
   // has only its primaries, so a muted colour is shown less saturated.
   float hslHue(int ordinal) const { return color(ordinal).hslHue(); }
   float padSaturation(int ordinal) const {
-    if (model == Model::GOLDEN_HSL) return 0.8f;
+    if (model != Model::OKLCH_TABLE) return 0.8f;
     return std::fmin(1.0f, 0.35f + chroma(ordinal) / 0.17f * 0.55f);
   }
 
@@ -192,6 +210,59 @@ struct SynthPalette {
     p.comma_down = Color("#1f55c4");
     return p;
   }
+
+  // The tracker's roles in the terminal's 16 colours (8 with `eight`), as the generic theme `t` made them
+  // (Theme::ansi16()): light or dark by that theme's text against its background.
+  static SynthPalette ansi16(const cellui::Theme & t, bool eight = false) {
+    auto luma = [](const Color & c) { return 0.2126 * c.getRed() + 0.7152 * c.getGreen() + 0.0722 * c.getBlue(); };
+    bool light = luma(t.surface_base) > luma(t.text_primary);
+    auto c = [&](int i) { return cellui::ansi16Color(eight && i >= 8 ? (i == 8 ? 0 : i - 8) : i); };
+    SynthPalette p = dark(t);
+    p.tracks = eight ? TrackPalette::ansi8() : TrackPalette::ansi16();
+    p.grid_beat_fg = t.text_primary;
+    p.grid_beat_bg = t.surface_panel;
+    p.command_column = c(3);
+    p.text_on_track = c(0);
+    p.data_fx = light ? c(5) : c(13);
+    p.data_velocity = c(3);
+    p.data_delay = c(6);
+    if (!light) {
+      p.state_playing = c(10);
+      p.state_playing_dim = c(2);
+      p.state_recording = c(9);
+      p.state_recording_dim = c(1);
+      p.grid_bar_fg = c(15);
+      p.grid_bar_bg = c(8);
+      p.mute = c(9);
+      p.solo = c(11);
+      p.monitor = c(14);
+      p.clip_override = c(3);
+      p.locator = c(15);
+      p.locator_bg = c(8);
+      p.locator_mark = c(7);
+      p.master_track = c(8);
+      p.comma_up = c(11);
+      p.comma_down = c(12);
+    } else {
+      p.state_playing = c(2);
+      p.state_playing_dim = c(10);
+      p.state_recording = c(1);
+      p.state_recording_dim = c(9);
+      p.grid_bar_fg = t.text_primary;
+      p.grid_bar_bg = c(7);
+      p.mute = c(1);
+      p.solo = c(3);
+      p.monitor = c(4);
+      p.clip_override = c(3);
+      p.locator = t.text_primary;
+      p.locator_bg = c(7);
+      p.locator_mark = c(8);
+      p.master_track = c(7);
+      p.comma_up = c(3);
+      p.comma_down = c(4);
+    }
+    return p;
+  }
 };
 
 // A generic theme with the tracker's palette that goes with it.
@@ -208,15 +279,30 @@ struct Theme {
     auto t = cellui::Theme::light();
     return {t, SynthPalette::light(t)};
   }
+  // The terminal's own 16 colours (8 with `eight`); its text and background colours where it said what they are.
+  static Theme ansi16(const std::optional<Color> & default_fg = std::nullopt, const std::optional<Color> & default_bg = std::nullopt,
+                      bool eight = false) {
+    auto t = cellui::Theme::ansi16(default_fg, default_bg, eight);
+    return {t, SynthPalette::ansi16(t, eight)};
+  }
 
-  // The names a setting or command line can give.
-  static bool byName(const std::string & name, Theme & out) {
+  // What the display says about itself that a theme can use: the terminal's own text and background colours.
+  struct Hints {
+    std::optional<Color> default_fg, default_bg;
+  };
+
+  // The names a setting or command line can give. "ansi16" and "ansi8" take the terminal's own colours from `hints`.
+  static bool byName(const std::string & name, Theme & out, const Hints & hints = {}) {
     if (name == "original")
       out = original();
     else if (name == "dark")
       out = dark();
     else if (name == "light")
       out = light();
+    else if (name == "ansi16")
+      out = ansi16(hints.default_fg, hints.default_bg, false);
+    else if (name == "ansi8")
+      out = ansi16(hints.default_fg, hints.default_bg, true);
     else
       return false;
     return true;

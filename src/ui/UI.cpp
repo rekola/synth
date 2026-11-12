@@ -492,9 +492,9 @@ UI::initializeCommands() {
       if (!scaleSupportsTuning(song.getScale(), tuning)) status += fmt::format("; the {} scale is out of tune in it", scaleLabel(song.getScale()));
       setStatus(status); }, true);
   });
-  // The colours: the modern look in dark or light, or the original one.
+  // The colours: the modern look in dark or light, the original one, or the terminal's own 16 or 8.
   commands_.define("select-theme", [this]() {
-    static const char * const kNames[] = {"dark", "light", "original"};
+    static const char * const kNames[] = {"dark", "light", "original", "ansi16", "ansi8"};
     std::vector<std::pair<std::string, std::string>> choices;
     int current = -1;
     for (auto name : kNames) {

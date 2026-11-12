@@ -1,5 +1,7 @@
 #include <cellui/term/FrameEncoder.h>
 
+#include <cellui/Ansi16.h>
+
 #include <algorithm>
 #include <chrono>
 #include <cstdint>
@@ -77,14 +79,6 @@ int nearest8(const Color & c) {
   int r = rgb[0], g = rgb[1], b = rgb[2];
   if ((r >> 3) == (g >> 3) && (g >> 3) == (b >> 3)) return r < 64 ? 0 : 7;
   return (r >= 128 ? 1 : 0) | (g >= 128 ? 2 : 0) | (b >= 128 ? 4 : 0);
-}
-
-const Color & ansi16Color(int index) {
-  static const Color table[16] = {
-      Color("#000000"), Color("#cd0000"), Color("#00cd00"), Color("#cdcd00"), Color("#0000ee"), Color("#cd00cd"), Color("#00cdcd"), Color("#e5e5e5"),
-      Color("#7f7f7f"), Color("#ff0000"), Color("#00ff00"), Color("#ffff00"), Color("#5c5cff"), Color("#ff00ff"), Color("#00ffff"), Color("#ffffff"),
-  };
-  return table[index & 15];
 }
 
 int nearest16(const Color & c) {

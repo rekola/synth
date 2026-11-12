@@ -1,9 +1,11 @@
 #pragma once
 
+#include <cellui/Ansi16.h>
 #include <cellui/Backdrop.h>
 #include <cellui/Color.h>
 
 #include <cmath>
+#include <optional>
 #include <string>
 
 namespace cellui {
@@ -188,6 +190,68 @@ struct Theme {
     t.picker_bg = t.surface_overlay;
     t.picker_fg = t.text_primary;
     t.modal_backdrop = Backdrop{ 2, 0.3f, t.surface_base };
+    return t;
+  }
+
+  // The 16 colours of the standard terminal palette, named by role. Text and background are the
+  // terminal's own (`default_fg`, `default_bg` where it said what they are), so the user's terminal
+  // theme decides their contrast; every other colour is one of the palette's own values, which the
+  // terminal encoder turns back into its index. A surface above the base is bright black (white on a
+  // light terminal), the accent bright cyan (blue on a light one). With `eight` colours only the
+  // first eight indices are used, the bright ones given up for their normal forms.
+  static Theme ansi16(const std::optional<Color> & default_fg = std::nullopt, const std::optional<Color> & default_bg = std::nullopt,
+                      bool eight = false) {
+    auto luma = [](const Color & c) { return 0.2126 * c.getRed() + 0.7152 * c.getGreen() + 0.0722 * c.getBlue(); };
+    Color fg = default_fg ? *default_fg : ansi16Color(7), bg = default_bg ? *default_bg : ansi16Color(0);
+    bool light = luma(bg) > luma(fg);
+    auto c = [&](int i) { return ansi16Color(eight && i >= 8 ? (i == 8 ? 0 : i - 8) : i); };
+    Theme t = original();
+    t.surface_base = t.surface_panel = t.plane_base_bg = bg;
+    t.text_primary = t.text_secondary = t.menu_section_fg = t.picker_fg = fg;
+    t.text_disabled = c(8);
+    t.modal_backdrop = Backdrop{0, 0.0f, bg};
+    t.focus = c(light ? 4 : 14);
+    t.accent = t.focus;
+    t.level_low = t.level_mid = c(2);
+    t.level_active = light ? c(2) : c(10);
+    t.level_lime = light ? c(3) : c(11);
+    t.level_warn = light ? c(3) : c(11);
+    t.level_hot = light ? c(1) : c(3);
+    t.level_full = c(9);
+    t.menu_bg = c(4);
+    t.menu_fg = c(15);
+    if (!light) {
+      t.surface_raised = t.surface_overlay = t.picker_bg = t.menu_section_bg = c(8);
+      t.text_on_accent = c(0);
+      t.accent_dim = c(4);
+      t.cursor_tint = c(15);
+      t.cursor_row_tint = c(6);
+      t.reader_text = c(13);
+      t.info_line_fg = c(0);
+      t.info_line_bg = c(7);
+      t.line_low = c(12);
+      t.line_high = c(14);
+      t.button_fg = c(0);
+      t.button_bg = c(14);
+      t.button_pressed_bg = c(6);
+      t.row_pressed_bg = c(4);
+    } else {
+      t.surface_raised = t.surface_overlay = t.picker_bg = t.menu_section_bg = c(7);
+      t.text_on_accent = c(15);
+      t.accent_dim = c(14);
+      t.cursor_tint = c(4);
+      t.cursor_row_tint = c(6);
+      t.reader_text = c(5);
+      t.info_line_fg = c(15);
+      t.info_line_bg = c(8);
+      t.line_low = c(4);
+      t.line_high = c(6);
+      t.button_fg = c(15);
+      t.button_bg = c(4);
+      t.button_pressed_bg = c(12);
+      t.row_pressed_bg = c(14);
+    }
+    t.dialog_radius_px = 0.0;
     return t;
   }
 

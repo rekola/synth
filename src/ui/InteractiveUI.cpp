@@ -613,6 +613,10 @@ InteractiveUI::clearLastRow() {
   putstr(rows - 1, 0, std::string(static_cast<size_t>(cols), ' '));
 }
 
+Theme::Hints InteractiveUI::themeHints() const {
+  return {backend_.display().default_fg, backend_.display().default_bg};
+}
+
 void
 InteractiveUI::applyTheme(const Theme & theme) {
   styles_.applyTheme(theme);

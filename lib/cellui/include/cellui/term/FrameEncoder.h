@@ -1,5 +1,6 @@
 #pragma once
 
+#include <cellui/Ansi16.h>
 #include <cellui/CellBuffer.h>
 #include <cellui/term/Capabilities.h>
 
@@ -16,10 +17,7 @@ int nearest256(const Color & c);
 // One of the 8 basic colours: greys by brightness, others by which
 // components are at least half on.
 int nearest8(const Color & c);
-// The 16 colours of the standard palette (0-7, then their bright forms 8-15) as the RGB values
-// terminals draw them with by default, so a theme made of these gets back the index it meant.
-const Color & ansi16Color(int index);
-// The nearest of those 16 colours.
+// The nearest of the 16 colours of the standard palette (cellui/Ansi16.h).
 int nearest16(const Color & c);
 
 // What the encoder needs to know about the terminal.
