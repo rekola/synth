@@ -288,8 +288,10 @@ node and a dim inside the backdrop's cells — the window never makes the blur
 itself. Shadows: two GSK outset shadows (a key light from the upper left,
 offset down by half the height, and a faint ambient one) around every
 `FrameInfo::elevations` area no later backdrop covers, then height by height
-the cells of every area as high or higher again over them, plus a light top
-and dark bottom edge per area. Glow: a glyph whose foreground is lit past white
+the cells of every area as high or higher again over them (the frame's own
+cells as one node made once a frame, `paintedNode()`, under a clip - never a
+walk over the cells for each area, since a screen of cards has many), plus a
+light top and dark bottom edge per area. Glow: a glyph whose foreground is lit past white
 (a `Color` channel above 1, from 0.6 above it at full strength) gets a glow, drawn
 over the backgrounds and under the text as a small cached texture: the glyph blurred
 tight and wide once on the CPU for a glyph in a face (`glowSprite()`, a white texture
