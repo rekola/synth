@@ -154,12 +154,12 @@ strikes the frame. Outro: the frame once more, held.</notes>
         </clip>
         <clip track="chorus" id="clip2" name="Section 1" loop="false" length="280">
             <pattern>
-                <note row="0" velocity="0">???</note>
-                <note row="2" velocity="0">???</note>
-                <note row="4" velocity="0">???</note>
-                <note row="6" velocity="0">???</note>
-                <note row="8" velocity="0">???</note>
-                <note row="10" velocity="0">???</note>
+                <note row="0">???</note>
+                <note row="2">???</note>
+                <note row="4">???</note>
+                <note row="6">???</note>
+                <note row="8">???</note>
+                <note row="10">???</note>
                 <note row="14" velocity="52" fx="+00">C-4</note>
                 <note row="16" velocity="52" fx="+00">B↑3</note>
                 <note row="18" velocity="52" fx="+00">B↑3</note>
@@ -168,12 +168,12 @@ strikes the frame. Outro: the frame once more, held.</notes>
                 <note row="24" velocity="52" fx="+00">F-3</note>
                 <note row="26" velocity="52" fx="+00">A↑3</note>
                 <note row="30" velocity="52" fx="+00">A↑3</note>
-                <note row="32" velocity="0">???</note>
-                <note row="34" velocity="0">???</note>
-                <note row="36" velocity="0">???</note>
-                <note row="38" velocity="0">???</note>
-                <note row="40" velocity="0">???</note>
-                <note row="42" velocity="0">???</note>
+                <note row="32">???</note>
+                <note row="34">???</note>
+                <note row="36">???</note>
+                <note row="38">???</note>
+                <note row="40">???</note>
+                <note row="42">???</note>
                 <note row="44" velocity="52" fx="+00">C-4</note>
                 <note row="46" velocity="52" fx="+00">B↑3</note>
                 <note row="48" velocity="52" fx="+00">A↑3</note>
@@ -183,8 +183,8 @@ strikes the frame. Outro: the frame once more, held.</notes>
                 <note row="56" velocity="52" fx="+00">A↑3</note>
                 <note row="59" velocity="0" delay="192">OFF</note>
                 <note row="60" velocity="52" fx="+00">A↑3</note>
-                <note row="64" velocity="0">???</note>
-                <note row="66" velocity="0">???</note>
+                <note row="64">???</note>
+                <note row="66">???</note>
                 <note row="70" velocity="52" fx="+00">C-4</note>
                 <note row="72" velocity="52" fx="+00">B↑3</note>
                 <note row="74" velocity="52" fx="+00">A↑3</note>
@@ -233,7 +233,7 @@ strikes the frame. Outro: the frame once more, held.</notes>
                 <note row="174" velocity="52" fx="+00">B↑3</note>
                 <note row="176" velocity="52" fx="+00">A↑3</note>
                 <note row="178" velocity="52" fx="+00">F-3</note>
-                <note row="180" velocity="0">???</note>
+                <note row="180">???</note>
                 <note row="182" velocity="52" fx="+00">F-3</note>
                 <note row="184" velocity="52" fx="+00">A↑3</note>
                 <note row="186" velocity="52" fx="+00">A↑3</note>
@@ -282,7 +282,7 @@ strikes the frame. Outro: the frame once more, held.</notes>
         </clip>
         <clip track="chorus" id="clip3" name="Section 2" loop="false" length="290">
             <pattern>
-                <note row="0" velocity="0">???</note>
+                <note row="0">???</note>
                 <note row="4" velocity="52" fx="+00">A↑3</note>
                 <note row="6" velocity="52" fx="+00">D-4</note>
                 <note row="10" velocity="52" fx="+00">D-4</note>
@@ -312,7 +312,7 @@ strikes the frame. Outro: the frame once more, held.</notes>
                 <note row="66" velocity="52" fx="+00">E↑4</note>
                 <note row="69" velocity="0" delay="192">OFF</note>
                 <note row="70" velocity="52" fx="+00">E↑4</note>
-                <note row="72" velocity="0">???</note>
+                <note row="72">???</note>
                 <note row="74" velocity="52" fx="+00">C-4</note>
                 <note row="76" velocity="52" fx="+00">D-4</note>
                 <note row="80" velocity="52" fx="+00">A↑3</note>
@@ -411,8 +411,8 @@ strikes the frame. Outro: the frame once more, held.</notes>
             <pattern>
                 <note row="0" velocity="52" fx="+00">E↑3</note>
                 <note row="2" velocity="52" fx="+00">E↑4</note>
-                <note row="4" velocity="0">???</note>
-                <note row="6" velocity="0">???</note>
+                <note row="4">???</note>
+                <note row="6">???</note>
                 <note row="10" velocity="52" fx="+00">F-4</note>
                 <note row="12" velocity="52" fx="+00">D-4</note>
                 <note row="14" velocity="52" fx="+00">E↑4</note>
@@ -423,10 +423,10 @@ strikes the frame. Outro: the frame once more, held.</notes>
                 <note row="30" velocity="52" fx="+00">F-4</note>
                 <note row="32" velocity="52" fx="+00">F-4</note>
                 <note row="34" velocity="52" fx="+00">E↑4</note>
-                <note row="36" velocity="0">???</note>
-                <note row="40" velocity="0">???</note>
-                <note row="44" velocity="0">???</note>
-                <note row="46" velocity="0">???</note>
+                <note row="36">???</note>
+                <note row="40">???</note>
+                <note row="44">???</note>
+                <note row="46">???</note>
                 <note row="50" velocity="52" fx="+00">C-4</note>
                 <note row="53" velocity="0" delay="192">OFF</note>
                 <note row="54" velocity="52" fx="+00">D-4</note>
@@ -437,12 +437,12 @@ strikes the frame. Outro: the frame once more, held.</notes>
                 <note row="66" velocity="52" fx="+00">E↑4</note>
                 <note row="68" velocity="52" fx="+00">F-4</note>
                 <note row="70" velocity="52" fx="+00">D-4</note>
-                <note row="74" velocity="0">???</note>
-                <note row="76" velocity="0">???</note>
-                <note row="80" velocity="0">???</note>
-                <note row="84" velocity="0">???</note>
-                <note row="86" velocity="0">???</note>
-                <note row="88" velocity="0">???</note>
+                <note row="74">???</note>
+                <note row="76">???</note>
+                <note row="80">???</note>
+                <note row="84">???</note>
+                <note row="86">???</note>
+                <note row="88">???</note>
                 <note row="90" velocity="52" fx="+00">B↑3</note>
                 <note row="92" velocity="52" fx="+00">C-4</note>
                 <note row="94" velocity="52" fx="+00">D-4</note>
@@ -454,8 +454,8 @@ strikes the frame. Outro: the frame once more, held.</notes>
                 <note row="108" velocity="52" fx="+00">D-4</note>
                 <note row="110" velocity="52" fx="+00">D-4</note>
                 <note row="112" velocity="52" fx="+00">E↑4</note>
-                <note row="114" velocity="0">???</note>
-                <note row="116" velocity="0">???</note>
+                <note row="114">???</note>
+                <note row="116">???</note>
                 <note row="120" velocity="52" fx="+00">F-4</note>
                 <note row="124" velocity="52" fx="+00">E↑4</note>
                 <note row="126" velocity="52" fx="+00">E↑4</note>
@@ -465,9 +465,9 @@ strikes the frame. Outro: the frame once more, held.</notes>
                 <note row="134" velocity="52" fx="+00">E↑4</note>
                 <note row="136" velocity="52" fx="+00">E↑4</note>
                 <note row="140" velocity="52" fx="+00">D-4</note>
-                <note row="144" velocity="0">???</note>
-                <note row="146" velocity="0">???</note>
-                <note row="148" velocity="0">???</note>
+                <note row="144">???</note>
+                <note row="146">???</note>
+                <note row="148">???</note>
             </pattern>
         </clip>
         <clip track="chorus" id="clip5" name="Section 4" loop="false" length="160">
@@ -482,12 +482,12 @@ strikes the frame. Outro: the frame once more, held.</notes>
                 <note row="16" velocity="52" fx="+00">C-4</note>
                 <note row="20" velocity="52" fx="+00">D-4</note>
                 <note row="22" velocity="52" fx="+00">C-4</note>
-                <note row="24" velocity="0">???</note>
-                <note row="26" velocity="0">???</note>
-                <note row="30" velocity="0">???</note>
-                <note row="32" velocity="0">???</note>
-                <note row="34" velocity="0">???</note>
-                <note row="36" velocity="0">???</note>
+                <note row="24">???</note>
+                <note row="26">???</note>
+                <note row="30">???</note>
+                <note row="32">???</note>
+                <note row="34">???</note>
+                <note row="36">???</note>
                 <note row="38" velocity="52" fx="+00">F-4</note>
                 <note row="40" velocity="52" fx="+00">D-4</note>
                 <note row="42" velocity="52" fx="+00">E↑4</note>
@@ -497,10 +497,10 @@ strikes the frame. Outro: the frame once more, held.</notes>
                 <note row="50" velocity="52" fx="+00">E↑4</note>
                 <note row="52" velocity="52" fx="+00">E↑3</note>
                 <note row="54" velocity="52" fx="+00">E↑4</note>
-                <note row="56" velocity="0">???</note>
-                <note row="60" velocity="0">???</note>
-                <note row="64" velocity="0">???</note>
-                <note row="66" velocity="0">???</note>
+                <note row="56">???</note>
+                <note row="60">???</note>
+                <note row="64">???</note>
+                <note row="66">???</note>
                 <note row="70" velocity="52" fx="+00">B↑3</note>
                 <note row="72" velocity="52" fx="+00">A♭3</note>
                 <note row="74" velocity="52" fx="+00">D-4</note>
@@ -511,14 +511,14 @@ strikes the frame. Outro: the frame once more, held.</notes>
                 <note row="84" velocity="52" fx="+00">E↑4</note>
                 <note row="86" velocity="52" fx="+00">E↑4</note>
                 <note row="90" velocity="52" fx="+00">E↑4</note>
-                <note row="94" velocity="0">???</note>
-                <note row="96" velocity="0">???</note>
-                <note row="100" velocity="0">???</note>
-                <note row="104" velocity="0">???</note>
-                <note row="106" velocity="0">???</note>
-                <note row="110" velocity="0">???</note>
-                <note row="114" velocity="0">???</note>
-                <note row="116" velocity="0">???</note>
+                <note row="94">???</note>
+                <note row="96">???</note>
+                <note row="100">???</note>
+                <note row="104">???</note>
+                <note row="106">???</note>
+                <note row="110">???</note>
+                <note row="114">???</note>
+                <note row="116">???</note>
                 <note row="118" velocity="52" fx="+00">B↑3</note>
                 <note row="120" velocity="52" fx="+00">C-4</note>
                 <note row="124" velocity="52" fx="+00">A↑3</note>
@@ -529,16 +529,16 @@ strikes the frame. Outro: the frame once more, held.</notes>
                 <note row="134" velocity="52" fx="+00">D-4</note>
                 <note row="136" velocity="52" fx="+00">F-4</note>
                 <note row="140" velocity="52" fx="+00">F-4</note>
-                <note row="144" velocity="0">???</note>
-                <note row="146" velocity="0">???</note>
-                <note row="150" velocity="0">???</note>
-                <note row="154" velocity="0">???</note>
-                <note row="156" velocity="0">???</note>
+                <note row="144">???</note>
+                <note row="146">???</note>
+                <note row="150">???</note>
+                <note row="154">???</note>
+                <note row="156">???</note>
             </pattern>
         </clip>
         <clip track="chorus" id="clip6" name="Section 5" loop="false" length="70">
             <pattern>
-                <note row="0" velocity="0">???</note>
+                <note row="0">???</note>
                 <note row="4" velocity="52" fx="+00">E↑4</note>
                 <note row="6" velocity="52" fx="+00">E↑4</note>
                 <note row="8" velocity="52" fx="+00">F-4</note>
@@ -546,34 +546,34 @@ strikes the frame. Outro: the frame once more, held.</notes>
                 <note row="12" velocity="52" fx="+00">F-4</note>
                 <note row="14" velocity="52" fx="+00">F-4</note>
                 <note row="16" velocity="52" fx="+00">E↑4</note>
-                <note row="20" velocity="0">???</note>
-                <note row="24" velocity="0">???</note>
-                <note row="26" velocity="0">???</note>
-                <note row="30" velocity="0">???</note>
-                <note row="34" velocity="0">???</note>
-                <note row="36" velocity="0">???</note>
-                <note row="38" velocity="0">???</note>
-                <note row="40" velocity="0">???</note>
-                <note row="44" velocity="0">???</note>
-                <note row="46" velocity="0">???</note>
-                <note row="48" velocity="0">???</note>
+                <note row="20">???</note>
+                <note row="24">???</note>
+                <note row="26">???</note>
+                <note row="30">???</note>
+                <note row="34">???</note>
+                <note row="36">???</note>
+                <note row="38">???</note>
+                <note row="40">???</note>
+                <note row="44">???</note>
+                <note row="46">???</note>
+                <note row="48">???</note>
                 <note row="50" velocity="52" fx="+00">B↑3</note>
                 <note row="52" velocity="52" fx="+00">C-4</note>
                 <note row="54" velocity="52" fx="+00">D-4</note>
                 <note row="56" velocity="52" fx="+00">F-4</note>
-                <note row="60" velocity="0">???</note>
-                <note row="64" velocity="0">~~~</note>
+                <note row="60">???</note>
+                <note row="64">~~~</note>
             </pattern>
         </clip>
         <clip track="chorus" id="clip7" name="Fragment" loop="false" length="20">
             <pattern>
-                <note row="0" velocity="0">???</note>
+                <note row="0">???</note>
                 <note row="4" velocity="52" fx="+00">E↑4</note>
                 <note row="6" velocity="52" fx="+00">E↑4</note>
                 <note row="10" velocity="52" fx="+00">E↑4</note>
                 <note row="12" velocity="52" fx="+00">F-4</note>
                 <note row="14" velocity="52" fx="+00">D-4</note>
-                <note row="16" velocity="0">???</note>
+                <note row="16">???</note>
             </pattern>
         </clip>
         <clip track="chorus" id="clip8" name="Outro" loop="false" length="20">

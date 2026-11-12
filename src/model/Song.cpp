@@ -333,7 +333,7 @@ static void storePatternContent(XMLDocument & doc, XMLElement * pattern_element,
       auto note_element = doc.NewElement("note");
       note_element->SetAttribute("row", static_cast<int>(row));
       if (col > 0) note_element->SetAttribute("column", static_cast<int>(col));
-      if (note.isDefined()) {
+      if (note.hasVelocityAndDelay()) {
         // A note-on's velocity, an OFF's lift, or the pressure of aftertouch;
         // neutral is left out, except for aftertouch: with no text and no value
         // its velocity is what tells it from a cell with only fx.

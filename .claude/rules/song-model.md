@@ -174,7 +174,8 @@ paths:
   the aftertouch pressure (neutral 64 omitted, except for aftertouch); the text
   is the note, `OFF` or `???` (a lost note: it began here but its pitch is
   gone; it makes no sound and ends the column's previous note) or `~~~` (a lacuna: a
-  span of missing notes, the same way), and aftertouch has none, like its empty note column.
+  span of missing notes, the same way) — neither has a velocity or a delay, so the
+  file writes neither and ignores them if present — and aftertouch has none, like its empty note column.
 - A track names its pool instrument by id (`instrument="i1"`); the
   arrangement places a clip with `<instance track row clip/>`, a stop being
   an instance with no `clip`. There is no reader for earlier file forms: the

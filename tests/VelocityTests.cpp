@@ -296,16 +296,24 @@ TEST(a_song_file_off_without_a_velocity_has_the_neutral_lift) {
 }
 
 TEST(a_lost_note_has_no_pitch_makes_no_sound_and_ends_the_previous_note) {
-  auto lost = Note::lost(90, 5);
+  auto lost = Note::lost();
   CHECK(lost.isDefined() && lost.isLost());
   CHECK(!lost.isNoteOn() && !lost.isOff() && !lost.isAftertouch());
-  CHECK(lost.getValue() == -1 && lost.getVelocity() == 90 && lost.getDelay() == 5);
+  CHECK(lost.getValue() == -1 && !lost.hasVelocityAndDelay() && lost.getDelay() == 0);
+  // It has no velocity or delay to set, and none to read from a file or a string.
+  lost.setVelocity(10);
+  lost.setDelay(7);
+  CHECK(lost.isLost() && lost.getVelocity() == constants::NEUTRAL_VELOCITY && lost.getDelay() == 0);
+  CHECK(Note("???", Tuning::EDO53, 10, 7).getDelay() == 0);
+  CHECK(Note("???", Tuning::EDO53, 10, 7).getVelocity() == constants::NEUTRAL_VELOCITY);
+  CHECK(Note(60, 10, 7).hasVelocityAndDelay() && Note::off().hasVelocityAndDelay() && Note::aftertouch(9).hasVelocityAndDelay());
+  CHECK(!Note().hasVelocityAndDelay());
   CHECK(lost.toString(Tuning::EDO53) == "???");
   CHECK(getFrequencyFor(Tuning::EDO53, lost) == 0.0f);
   CHECK(Note("???", Tuning::EDO53).isLost());
   CHECK(Note::createFromString("???", 80, 0, Tuning::EDO53)[0].isLost());
-  auto back = Note::fromCode(lost.toCode(), lost.getVelocity(), lost.getDelay());
-  CHECK(back.isLost() && back.getVelocity() == 90);
+  auto back = Note::fromCode(lost.toCode(), 90, 5);
+  CHECK(back.isLost() && !back.hasVelocityAndDelay() && back.getDelay() == 0);
   Pattern pattern;
   pattern.setNote(0, 0, lost);
   CHECK(!pattern.isEmpty() && !pattern.hasSoundingNote());
@@ -334,7 +342,7 @@ TEST(a_lost_note_is_saved_as_three_question_marks) {
   auto track_to_add = std::make_unique<InstrumentTrack>(0);
   track_to_add->setId("t");
   auto & track = song.addTrack(std::move(track_to_add));
-  song.getArrangement().setNote(3, track.getInternalId(), 0, Note::lost(70, 4));
+  song.getArrangement().setNote(3, track.getInternalId(), 0, Note::lost());
   song.save(path);
   CHECK(slurp(path).find(">?"
                          "??"
@@ -346,20 +354,24 @@ TEST(a_lost_note_is_saved_as_three_question_marks) {
   CHECK(reloaded_track != nullptr);
   if (!reloaded_track) return;
   auto note = reloaded.getArrangement().getNote(3, reloaded_track->getInternalId(), 0);
-  CHECK(note.isLost() && note.getVelocity() == 70 && note.getDelay() == 4);
+  CHECK(note.isLost() && !note.hasVelocityAndDelay() && note.getDelay() == 0);
+  CHECK(slurp(path).find("velocity") == std::string::npos && slurp(path).find("delay") == std::string::npos);
 }
 
 TEST(a_lacuna_marks_missing_notes_and_ends_the_previous_note) {
-  auto lacuna = Note::lacuna(90, 5);
+  auto lacuna = Note::lacuna();
   CHECK(lacuna.isDefined() && lacuna.isLacuna());
   CHECK(!lacuna.isNoteOn() && !lacuna.isLost() && !lacuna.isOff() && !lacuna.isAftertouch());
-  CHECK(lacuna.getValue() == -1 && lacuna.getVelocity() == 90 && lacuna.getDelay() == 5);
+  CHECK(lacuna.getValue() == -1 && !lacuna.hasVelocityAndDelay() && lacuna.getDelay() == 0);
+  lacuna.setVelocity(10);
+  lacuna.setDelay(7);
+  CHECK(lacuna.isLacuna() && lacuna.getVelocity() == constants::NEUTRAL_VELOCITY && lacuna.getDelay() == 0);
   CHECK(lacuna.toString(Tuning::EDO53) == "~~~");
   CHECK(getFrequencyFor(Tuning::EDO53, lacuna) == 0.0f);
   CHECK(Note("~~~", Tuning::EDO53).isLacuna());
   CHECK(Note::createFromString("~~~", 80, 0, Tuning::EDO53)[0].isLacuna());
-  auto back = Note::fromCode(lacuna.toCode(), lacuna.getVelocity(), lacuna.getDelay());
-  CHECK(back.isLacuna() && !back.isLost() && back.getVelocity() == 90);
+  auto back = Note::fromCode(lacuna.toCode(), 90, 5);
+  CHECK(back.isLacuna() && !back.isLost() && !back.hasVelocityAndDelay() && back.getDelay() == 0);
   Pattern pattern;
   pattern.setNote(0, 0, lacuna);
   CHECK(!pattern.isEmpty() && !pattern.hasSoundingNote());
@@ -382,7 +394,7 @@ TEST(a_lacuna_is_saved_as_three_tildes) {
   auto track_to_add = std::make_unique<InstrumentTrack>(0);
   track_to_add->setId("t");
   auto & track = song.addTrack(std::move(track_to_add));
-  song.getArrangement().setNote(3, track.getInternalId(), 0, Note::lacuna(70, 4));
+  song.getArrangement().setNote(3, track.getInternalId(), 0, Note::lacuna());
   song.save(path);
   CHECK(slurp(path).find(">~~~</note>") != std::string::npos);
   InstrumentProvider provider;
@@ -392,5 +404,18 @@ TEST(a_lacuna_is_saved_as_three_tildes) {
   CHECK(reloaded_track != nullptr);
   if (!reloaded_track) return;
   auto note = reloaded.getArrangement().getNote(3, reloaded_track->getInternalId(), 0);
-  CHECK(note.isLacuna() && note.getVelocity() == 70 && note.getDelay() == 4);
+  CHECK(note.isLacuna() && !note.hasVelocityAndDelay() && note.getDelay() == 0);
+  CHECK(slurp(path).find("velocity") == std::string::npos && slurp(path).find("delay") == std::string::npos);
+
+  // A file that gives a lost note or a lacuna a velocity or delay is read without them.
+  auto text = slurp(path);
+  text.insert(text.find(">~~~</note>"), " velocity=\"0\" delay=\"9\"");
+  std::ofstream(path) << text;
+  Song again(Tuning::EDO53);
+  CHECK(again.open(path, provider));
+  auto again_track = again.getMasterTrack().getChildById("t");
+  CHECK(again_track != nullptr);
+  if (!again_track) return;
+  auto read = again.getArrangement().getNote(3, again_track->getInternalId(), 0);
+  CHECK(read.isLacuna() && !read.hasVelocityAndDelay() && read.getDelay() == 0);
 }
