@@ -12,7 +12,8 @@ A microtonal, multiparadigm music production system that combines a live sequenc
 ## Features
 
 - Live sequencer with sample and note based clips
-- Microtonal: 12, 19, 24, 31 or 53 equal divisions of the octave (EDO), with just intonation
+- Microtonal: 12, 19, 24, 31 or 53 equal divisions of the octave (EDO)
+- Just intonation (static only)
 - SoundFont 2 (General MIDI) instruments
 - Headless mode (for art installations or escape rooms)
 - 3D spatial audio (ambisonics), heard binaurally on headphones
@@ -192,7 +193,6 @@ The major things that are missing are the following:
 
 * A proper name
 * Lighting control (DMX/ArtNet)
-* Adaptive just intonation, which tunes each note against what sounds with it in any track
 * Continuous MIDI recording with retroactive capture
 * Collaborative Editing
 
@@ -209,4 +209,4 @@ The major things that are missing are the following:
 * Allocation-free and realtime-priority renderer
 * New recordings are initially drafts and can then be either merged or promoted to a clip
 * Ambient textures (waves, campfire, thunder, rain etc.)
-* Launch modes and Follow actions
+* Clip launch modes
