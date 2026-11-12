@@ -186,7 +186,11 @@ Controller-level and per-widget commands. Not migrated: `StatusLine`,
   is made with one, so a widget reaches a tracker role with
   `UIElement::synthStyles()` (or `synthStyles(plane)`); code that needs only
   generic roles takes a `cellui::StyleProvider`. A new tracker colour goes in
-  `SynthPalette`, never in cellui.
+  `SynthPalette`, never in cellui. On a terminal of 16 or 8 colours the theme is
+  `ansi16`/`ansi8` (`Theme::ansi16()`, made from the terminal's own text and background colours by
+  `UI::themeHints()`): every colour is a palette entry's own value, so the encoder's nearest-colour step returns
+  the index meant, and `TrackPalette::Model::ANSI` is a fixed order of the six hues, warm and cool
+  alternating, then their bright forms.
 
 ## Arrangement view, Live View, clip grid
 

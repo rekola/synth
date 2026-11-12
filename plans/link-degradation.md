@@ -581,8 +581,17 @@ deflate ratio on real charts is known.
    (`keepTrackLinesVisible(..., by_page)`) and the arrangement grid's bars (`ScrollAxis::revealByPage()`). The real app on a 50 kB/s link (`lib/cellui/tools/pacing/app_slow_link.py`, not a ctest: it needs `synth`): a key's echo while stopped arrives in about 20 ms, playing uses about 35 kB/s of the 50. Still to do: the level meters' own rates. **Backdrops** by class
    (`term::backdropModeFor()`, set by `TerminalSession` on each frame): live, static (the blur kept as it was
    when the dialog opened), cell blur (no pictures) and flat dim, as in the 3.7 table.
-6. **Colours** (section 2): the `ansi16` theme and track-colour table, `MONO` with reverse video;
-   grey only if asked.
+6. **Colours** (section 2). **Done**, with these differences: the terminal encoder has `ColorDepth::C16`
+   (`SGR 90-97/100-107`, found from `TERM`'s `16color` or `CELLUI_COLORS=16`) and sends a colour equal to
+   the terminal's own text or background as the default (`SGR 39`/`49`) at 16 and 8 colours; the
+   `ansi16` and `ansi8` themes (`Theme::ansi16()`, `SynthPalette::ansi16()`, `--theme ansi16|ansi8`, chosen
+   when the terminal has 16 or 8 colours) name roles by palette index, light or dark by the terminal's
+   own colours, with `TrackPalette::Model::ANSI` (twelve entries, six on 8 colours); `MONO` marks a
+   highlight (a background far from the terminal's own) by reverse video and a grey text far from its
+   text colour by dim, decided in the encoder from the colours a theme already has, so no widget knows.
+   A test checks the pairs that must differ, by index, for both depths on dark, light and unknown
+   terminals. Not done: bold for the second six track colours on 8 colours (they repeat the six hues), and
+   grey on request, which nothing needs yet.
 7. **Window class** from the frame clock and vsync (section 1).
 8. **CPU for the audio.** Everything this plan adds runs on the UI thread, which shares the machine with
    the audio thread, so the aim is not a faster encoder for its own sake but less CPU spent on pictures: a

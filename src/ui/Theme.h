@@ -227,12 +227,14 @@ struct SynthPalette {
     p.data_velocity = c(3);
     p.data_delay = c(6);
     if (!light) {
+      // With 8 colours the bright forms are gone: a paused or stopping state takes the text colour or
+      // another hue, and the bar rows blue, to stay apart from what they are the dim of.
       p.state_playing = c(10);
-      p.state_playing_dim = c(2);
+      p.state_playing_dim = eight ? c(7) : c(2);
       p.state_recording = c(9);
-      p.state_recording_dim = c(1);
+      p.state_recording_dim = eight ? c(5) : c(1);
       p.grid_bar_fg = c(15);
-      p.grid_bar_bg = c(8);
+      p.grid_bar_bg = eight ? c(4) : c(8);
       p.mute = c(9);
       p.solo = c(11);
       p.monitor = c(14);
@@ -245,9 +247,9 @@ struct SynthPalette {
       p.comma_down = c(12);
     } else {
       p.state_playing = c(2);
-      p.state_playing_dim = c(10);
+      p.state_playing_dim = eight ? c(0) : c(10);
       p.state_recording = c(1);
-      p.state_recording_dim = c(9);
+      p.state_recording_dim = eight ? c(5) : c(9);
       p.grid_bar_fg = t.text_primary;
       p.grid_bar_bg = c(7);
       p.mute = c(1);

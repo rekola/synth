@@ -233,7 +233,7 @@ struct Theme {
       t.line_high = c(14);
       t.button_fg = c(0);
       t.button_bg = c(14);
-      t.button_pressed_bg = c(6);
+      t.button_pressed_bg = eight ? c(4) : c(6);
       t.row_pressed_bg = c(4);
     } else {
       t.surface_raised = t.surface_overlay = t.picker_bg = t.menu_section_bg = c(7);
@@ -248,7 +248,7 @@ struct Theme {
       t.line_high = c(6);
       t.button_fg = c(15);
       t.button_bg = c(4);
-      t.button_pressed_bg = c(12);
+      t.button_pressed_bg = eight ? c(6) : c(12);
       t.row_pressed_bg = c(14);
     }
     t.dialog_radius_px = 0.0;
