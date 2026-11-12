@@ -2415,7 +2415,11 @@ bool PatternEditor::keyDown(const cellui::KeyDown & e) {
               getController().log("No note here - enter a velocity first");
               return true;
 	    }
-	    pending_ = PendingNibbles();
+            if (note.isDefined() && !note.hasVelocityAndDelay()) {
+              getController().log("A lost note or a lacuna has no velocity or delay");
+              return true;
+            }
+            pending_ = PendingNibbles();
 	    pending_.valid = true;
 	    pending_.next = new_cursor;
 	    pending_.next.subcol = 0;
@@ -2515,9 +2519,9 @@ bool PatternEditor::keyDown(const cellui::KeyDown & e) {
 	    edit_target.pattern->deleteNote(edit_target.effective_row, note_column);
 	    event_queue.push(make_unique<PlaybackControlEvent>(PlaybackControlEvent::STOP_NOTE, getController().getActiveBufferName(), track_id, note_column));
           } else if (is_lacuna) {
-            edit_target.pattern->setNote(edit_target.effective_row, note_column, Note::lacuna(constants::DEFAULT_NOTE_ON_VELOCITY, current_delay));
+            edit_target.pattern->setNote(edit_target.effective_row, note_column, Note::lacuna());
           } else if (is_lost) {
-            edit_target.pattern->setNote(edit_target.effective_row, note_column, Note::lost(constants::DEFAULT_NOTE_ON_VELOCITY, current_delay));
+            edit_target.pattern->setNote(edit_target.effective_row, note_column, Note::lost());
           } else if (is_off) {
             edit_target.pattern->setNote(edit_target.effective_row, note_column, Note::off(constants::NEUTRAL_VELOCITY, current_delay));
             event_queue.push(make_unique<PlaybackControlEvent>(PlaybackControlEvent::STOP_NOTE, getController().getActiveBufferName(), track_id, note_column));
@@ -3973,7 +3977,7 @@ PatternEditor::renderRow(const StyleProvider & styles, int heading_height, const
           if (command.isDefined() && !cell_is_selected && track_dim <= 0.0f) {
             int velocity = 0;
             for (auto & n : notes) {
-              if (n.isDefined() && !n.isOff()) velocity = std::max<int>(velocity, n.getVelocity());
+              if (n.hasVelocityAndDelay() && !n.isOff()) velocity = std::max<int>(velocity, n.getVelocity());
             }
             if (velocity > 0) flash = noteFlashOf(track_id, 0) * StyleProvider::velocityFlash(velocity);
             cell_fg = StyleProvider::lit(cell_fg, flash);
@@ -4063,14 +4067,14 @@ PatternEditor::renderRow(const StyleProvider & styles, int heading_height, const
 	  if (pending_.valid && pending_.track_id == track_id && pending_.note_column == l && pending_.type == column_type &&
 	      source_->trackAddress(track_id, pending_.at) == own_address) {
             s = fmt::format("{:02x}", pending_.value);
-          } else if (note.isDefined()) {
+          } else if (note.hasVelocityAndDelay()) {
             // An OFF shows its release velocity here, like a note-on its own.
             s = fmt::format("{:02x}", column_type == ColumnType::VELOCITY ? note.getVelocity() : note.getDelay());
           } else {
-	    s = "--";
-	  }
+            s = "--";
+          }
 
-	  // The bright velocity/delay colors are tuned for contrast against the
+          // The bright velocity/delay colors are tuned for contrast against the
 	  // normal dark row background; inside the (bright) effective-region
 	  // highlight they'd be nearly unreadable, so use the region's own
 	  // (dark) foreground there instead - same idea as the note column.
@@ -4079,10 +4083,10 @@ PatternEditor::renderRow(const StyleProvider & styles, int heading_height, const
 	  // column type.
 	  cell_fg = column_selected ? cur_fg : tintForPlayhead(dim_fixed_color(column_type == ColumnType::VELOCITY ? styles.data_velocity_color : styles.data_delay_color));
 	  cell_bg = cell_is_selected ? cur_bg : tintForPlayhead(bg);
-	  if (!note.isDefined()) cell_fg = cell_fg.blend(0.5f, cell_bg);
+          if (!note.hasVelocityAndDelay()) cell_fg = cell_fg.blend(0.5f, cell_bg);
           // Lit with its note, when it has a value to show.
           float flash = 0.0f;
-          if (!cell_is_selected && track_dim <= 0.0f && note.isDefined()) flash = noteFlashOf(track_id, note.getDelay()) * StyleProvider::velocityFlash(note.isOff() ? 0 : note.getVelocity());
+          if (!cell_is_selected && track_dim <= 0.0f && note.hasVelocityAndDelay()) flash = noteFlashOf(track_id, note.getDelay()) * StyleProvider::velocityFlash(note.isOff() ? 0 : note.getVelocity());
           cell_fg = StyleProvider::lit(cell_fg, flash);
           setFgColor(cell_fg);
 	  setBgColor(cell_bg);

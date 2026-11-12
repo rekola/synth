@@ -128,8 +128,8 @@ together.
 
 **Lacuna**
 A span of missing notes, written `~~~` (typed with `~` in the note column), from its
-row until the next cell in the column. Like a lost note it has a velocity and a delay
-but no value, makes no sound and ends the previous note in its column, as an OFF does.
+row until the next cell in the column. Like a lost note it has no value, no velocity and
+no delay, makes no sound and ends the previous note in its column, as an OFF does.
 Where a lost note stands for one note whose pitch is gone, a lacuna stands for a stretch
 where the source is broken off and the notes are not known at all.
 
@@ -161,7 +161,7 @@ editor and the arrangement grid's header. It is an arrangement object too.
 
 **Lost note**
 A note that began on this row whose pitch is gone, written `???` (typed with `?` in
-the note column). It has a velocity and a delay like any note but no value, and it
+the note column). It has no value, no velocity and no delay, and it
 makes no sound, but it ends the previous note in its column, as an OFF does. It is for transcriptions of music that survives
 incompletely, such as the Delphic Paean of Athenaeus, where some of the notes are
 unknown.
