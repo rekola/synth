@@ -127,11 +127,13 @@ scale is tuned with the whole extended diamond, so the two can be played
 together.
 
 **Lacuna**
-A span of missing notes, written `~~~` (typed with `~` in the note column), from its
-row until the next cell in the column. Like a lost note it has no value, no velocity and
-no delay, makes no sound and ends the previous note in its column, as an OFF does.
-Where a lost note stands for one note whose pitch is gone, a lacuna stands for a stretch
-where the source is broken off and the notes are not known at all.
+A gap in a text: the place where a manuscript is torn or worn away and some of what
+was written is lost (Latin *lacuna*, a hole). Editors of such texts mark one in
+the edition. In a pattern a lacuna, written `~~~` (typed with `~` in the note
+column), stands for a stretch of notes that are missing from the source, from its row
+until the next cell in the column. It has no value, velocity or delay, makes no sound
+and ends the previous note in its column, as an OFF does. A *lost note* is the smaller
+case: a note was there, but its pitch is gone.
 
 **Lift**
 An OFF's velocity: how fast the key is let go. It scales the release time of
