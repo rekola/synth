@@ -279,7 +279,9 @@ cell), and pictures as `GdkTexture`s uploaded only when new or re-versioned
 and laid over the backgrounds — so a chart changing every frame redoes no
 text. The app's descriptors are GSources on GTK's main context; events wait
 behind an eventfd that is `inputFd()`. Keys are taken in the capture phase
-with real press/repeat/release; the pointer's motion is reported with or
+with real press/repeat/release (a dead key and the keys after it go through a simple input
+method context, which joins them into the character they make, sent as a press and a release;
+the other keys never do, so their presses and releases stay as they are); the pointer's motion is reported with or
 without a button held (a drag), at each new cell; wheel is buttons 4-7; paste is Ctrl+Shift+V / Shift+Insert.
 Backdrops: each layer is drawn, then the stack so far again under a GSK blur
 node and a dim inside the backdrop's cells — the window never makes the blur

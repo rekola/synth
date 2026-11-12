@@ -638,7 +638,7 @@ TEST(gtk_window_input_from_the_display) {
 
   // A key: press, then release.
   xdotool("key a");
-  CHECK(gather(2));
+  CHECK(gather(2)); 
   if (got.size() >= 2) {
     CHECK(got[0].type == BackendEvent::Type::INPUT && got[0].input.getId() == 'a' && got[0].input.getKind() == Input::Kind::PRESS);
     CHECK(got[1].input.getId() == 'a' && got[1].input.getKind() == Input::Kind::RELEASE);
@@ -652,6 +652,30 @@ TEST(gtk_window_input_from_the_display) {
     CHECK(got[0].input.getId() == ' ' && got[0].input.hasCtrl());
     CHECK(got[2].input.getId() == 'a' && got[2].input.hasShift() && got[2].input.getTrueCaseId() == 'A');
     CHECK(got[4].input.getId() == Key::Up);
+  }
+
+  // A dead key joins the next key. On a Finnish layout ~ is AltGr and the dead diaeresis key, so
+  // it takes a space after it; the dead key itself is nothing.
+  if (std::system("setxkbmap fi > /dev/null 2>&1") == 0) {
+    got.clear();
+    xdotool("key ISO_Level3_Shift+dead_diaeresis space");
+    CHECK(gather(2));
+    if (got.size() >= 2) {
+      CHECK(got[0].input.getId() == '~' && got[0].input.getKind() == Input::Kind::PRESS);
+      CHECK(got[1].input.getId() == '~' && got[1].input.getKind() == Input::Kind::RELEASE);
+    }
+    // And a dead key with a letter makes the accented letter.
+    got.clear();
+    xdotool("key dead_diaeresis a");
+    CHECK(gather(2));
+    if (got.size() >= 2) CHECK(got[0].input.getId() == 0xe4 && got[0].input.getKind() == Input::Kind::PRESS);
+    // Keys after it are not held back.
+    got.clear();
+    xdotool("key a");
+    CHECK(gather(2));
+    if (got.size() >= 2) CHECK(got[0].input.getId() == 'a' && got[1].input.getKind() == Input::Kind::RELEASE);
+    int restored = std::system("setxkbmap us > /dev/null 2>&1");
+    (void)restored;
   }
 
   // Alt comes with the key as the Alt modifier, for the M-x shortcut.
