@@ -231,3 +231,12 @@ TEST(discovery_appearance_from_the_default_colours) {
   CHECK(discover(readFixture("xterm")).appearance == Appearance::LIGHT);
   CHECK(discover(readFixture("kitty")).appearance == Appearance::DARK);
 }
+
+TEST(discovery_finds_16_colours) {
+  Environment env = xtermEnv();
+  env.term = "xterm-16color";
+  CHECK(discover("\x1b[?62c", env).colors == ColorDepth::C16);
+  env = xtermEnv();
+  env.colors_override = "16";
+  CHECK(discover("\x1b[?62c", env).colors == ColorDepth::C16);
+}

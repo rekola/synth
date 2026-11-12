@@ -8,7 +8,7 @@
 
 namespace cellui::term {
 
-enum class ColorDepth { NONE, C8, C256, TRUECOLOR };
+enum class ColorDepth { NONE, C8, C16, C256, TRUECOLOR };
 enum class PixelProtocol { NONE, SIXEL, ITERM2, KITTY };
 // Synchronized output as a private mode, or as the DCS pair some terminals
 // implement without answering a mode query.
@@ -83,7 +83,7 @@ struct Environment {
   bool ssh = false;           // $SSH_CONNECTION or $SSH_TTY set
   bool linux_console = false; // the tty is a Linux virtual console
   bool windows = false;
-  // Overrides: "none", "8", "256" or "24bit"; "none", "sixel", "kitty" or
+  // Overrides: "none", "8", "16", "256" or "24bit"; "none", "sixel", "kitty" or
   // "iterm2". Empty means detect.
   std::string colors_override;
   std::string pixels_override;
