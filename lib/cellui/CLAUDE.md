@@ -222,7 +222,7 @@ timing (and missed-vsync counts) at exit.
   split sequences), `Discovery`/`Capabilities` (start-up queries with a
   deadline; true colour is also found by setting a 24-bit background and reading the pen back with DECRQSS, which xterm answers with the colour only when it keeps 24 bits; display scale guessed from the cell size, light/dark from the
   default colours, which picks the default `--theme`), `FrameEncoder` (frame
-  diff as escape sequences; a foreground lit past white, a channel above `kLitBold`, is written bold
+  diff as escape sequences; colour depth NONE/8/16/256/24-bit, found from `TERM` or `CELLUI_COLORS`; at 16 and 8 colours a colour equal to the terminal's own text or background is sent as the default, and with no colour a background far from the terminal's own is reverse video and a quiet grey text is dim; a foreground lit past white, a channel above `kLitBold`, is written bold
   for its first `kBoldHold` seconds lit (a latch per cell, on a clock a test can set): a terminal's
   way of brighter, so an app never asks a weight for a flash and the bold shows on every lit
   cell for the same short time, whatever the colour does after), `ImageEncoder` (kitty graphics, iTerm2 inline

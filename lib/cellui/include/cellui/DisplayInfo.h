@@ -38,6 +38,9 @@ struct DisplayInfo {
   bool pictures = false;
   // The colours cells without one are drawn in, when known.
   std::optional<Color> default_fg, default_bg;
+  // How many colours the display can show: 0 for the full range, otherwise the size of the palette it
+  // is limited to (256, 16 or 8), or 1 when it has no colour at all.
+  int palette_colours = 0;
   // 1 for a 96-dpi display, 2 for a typical HiDPI one; what the application
   // draws in pixels is scaled by it.
   double display_scale = 1.0;

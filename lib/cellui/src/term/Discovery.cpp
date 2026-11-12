@@ -49,6 +49,7 @@ std::string upper(std::string s) {
 int colorsForTerm(const std::string & term) {
   if (term.empty() || term == "dumb" || startsWith(term, "vt1") || startsWith(term, "vt2")) return 0;
   if (contains(term, "direct") || contains(term, "truecolor") || contains(term, "24bit")) return 1 << 24;
+  if (contains(term, "16color")) return 16;
   if (contains(term, "256color") || term == "xterm-kitty" || term == "foot" || startsWith(term, "foot-") ||
       term == "alacritty" || term == "wezterm" || term == "contour" || term == "xterm-ghostty") return 256;
   return 8;
@@ -302,13 +303,16 @@ Capabilities Discovery::result() const {
   if (name == "apple" || name == "terminology") truecolor = false;
   if (truecolor) caps.colors = ColorDepth::TRUECOLOR;
   else if (term_colors >= 256) caps.colors = ColorDepth::C256;
+  else if (term_colors >= 16) caps.colors = ColorDepth::C16;
   else if (term_colors >= 8) caps.colors = ColorDepth::C8;
   else caps.colors = ColorDepth::NONE;
   if (env_.colors_override == "none") caps.colors = ColorDepth::NONE;
   else if (env_.colors_override == "8") caps.colors = ColorDepth::C8;
+  else if (env_.colors_override == "16") caps.colors = ColorDepth::C16;
   else if (env_.colors_override == "256") caps.colors = ColorDepth::C256;
   else if (env_.colors_override == "24bit") caps.colors = ColorDepth::TRUECOLOR;
 
+  caps.display.palette_colours = caps.colors == ColorDepth::TRUECOLOR ? 0 : caps.colors == ColorDepth::C256 ? 256 : caps.colors == ColorDepth::C16 ? 16 : caps.colors == ColorDepth::C8 ? 8 : 1;
   caps.column_move = term_colors > 0 || tcap_hpa_ || complete_;
   caps.display.default_fg = default_fg_;
   caps.display.default_bg = default_bg_;

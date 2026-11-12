@@ -3,6 +3,7 @@
 #include "../src/ui/StyleProvider.h"
 
 #include <array>
+#include <set>
 #include <cmath>
 
 namespace {
@@ -253,4 +254,87 @@ TEST(note_flash_zoom_follows_the_flash_in_the_face) {
   }
   // Only the zoom: a face for a flash is otherwise the plain one.
   CHECK(StyleProvider::zoomFace(0.5f).weight == cellui::kWeightNormal);
+}
+
+// --- The terminal's own 16 (and 8) colours ---
+
+#include <cellui/term/FrameEncoder.h>
+
+namespace {
+
+// What a colour is as the terminal is sent it: the palette index, or a marker for the terminal's own text or
+// background colour (which is sent as the default and so is its own "colour").
+int sentIndex(const Color & c, bool eight, const std::optional<Color> & fg, const std::optional<Color> & bg, bool background) {
+  const auto & own = background ? bg : fg;
+  if (own && c.toSrgb8() == own->toSrgb8()) return background ? 100 : 101;
+  return eight ? cellui::term::nearest8(c) : cellui::term::nearest16(c);
+}
+
+struct TerminalColours {
+  const char * name;
+  std::optional<Color> fg, bg;
+};
+
+} // namespace
+
+TEST(the_ansi_themes_use_the_terminals_own_text_and_background) {
+  Theme t;
+  Theme::Hints hints{Color("#d0d0d0"), Color("#101010")};
+  CHECK(Theme::byName("ansi16", t, hints));
+  CHECK(same(t.base.text_primary, "#d0d0d0"));
+  CHECK(same(t.base.surface_base, "#101010"));
+  CHECK(Theme::byName("ansi8", t, hints));
+  CHECK(same(t.base.text_primary, "#d0d0d0"));
+  // Without hints, a dark terminal's usual white on black.
+  CHECK(Theme::byName("ansi16", t));
+  CHECK(same(t.base.surface_base, cellui::ansi16Color(0)));
+}
+
+// Every pair of roles that must tell apart does, as the terminal receives them: by palette index. Both
+// depths, a dark and a light terminal and one whose colours are not known.
+TEST(the_ansi_themes_keep_the_pairs_that_must_differ_apart) {
+  const TerminalColours terminals[] = {
+      {"dark", Color("#d0d0d0"), Color("#101010")},
+      {"light", Color("#202020"), Color("#f8f8f8")},
+      {"unknown", std::nullopt, std::nullopt},
+  };
+  for (const auto & terminal : terminals) {
+    for (bool eight : {false, true}) {
+      Theme t = Theme::ansi16(terminal.fg, terminal.bg, eight);
+      const auto & b = t.base;
+      const auto & p = t.palette;
+      auto bg = [&](const Color & c) { return sentIndex(c, eight, terminal.fg, terminal.bg, true); };
+      auto fg = [&](const Color & c) { return sentIndex(c, eight, terminal.fg, terminal.bg, false); };
+      auto differ = [&](int x, int y, const char * what) {
+        if (x == y) std::fprintf(stderr, "    %s, %s colours: %s are the same\n", terminal.name, eight ? "8" : "16", what);
+        return x != y;
+      };
+      // The cursor, focused and not, against the surface it is on and against each other.
+      CHECK(differ(bg(b.accent), bg(b.surface_base), "cursor and surface"));
+      CHECK(differ(bg(b.accent_dim), bg(b.surface_base), "unfocused cursor and surface"));
+      CHECK(differ(bg(b.accent), bg(b.accent_dim), "cursor and unfocused cursor"));
+      CHECK(differ(fg(b.text_on_accent), bg(b.accent), "cursor text and cursor"));
+      CHECK(differ(fg(b.text_primary), bg(b.surface_base), "text and surface"));
+      CHECK(differ(fg(b.focus), bg(b.surface_base), "focus and surface"));
+      // Bar and beat rows, the grid's accents.
+      CHECK(differ(bg(p.grid_bar_bg), bg(p.grid_beat_bg), "bar and beat rows"));
+      CHECK(differ(fg(p.grid_bar_fg), bg(p.grid_bar_bg), "bar text and bar"));
+      // The playhead and clip states.
+      CHECK(differ(fg(p.state_playing), fg(p.state_playing_dim), "playing and paused"));
+      CHECK(differ(fg(p.state_recording), fg(p.state_recording_dim), "recording and stopping"));
+      CHECK(differ(fg(p.state_playing), fg(p.state_recording), "playing and recording"));
+      // Buttons, the menu, the level meter's two ends.
+      CHECK(differ(bg(b.button_bg), bg(b.button_pressed_bg), "button and pressed button"));
+      CHECK(differ(bg(b.menu_bg), bg(b.surface_base), "menu bar and surface"));
+      CHECK(differ(fg(b.level_low), fg(b.level_full), "meter low and clip"));
+      CHECK(differ(fg(b.level_warn), fg(b.level_full), "meter warning and clip"));
+      CHECK(differ(fg(p.mute), fg(p.solo), "mute and solo"));
+      // Tracks: neighbours always differ, and the first N are all different for every N the palette allows.
+      int distinct = eight ? 6 : 12;
+      std::set<int> seen;
+      for (int i = 0; i < distinct; i++) seen.insert(fg(p.tracks.color(i)));
+      CHECK(static_cast<int>(seen.size()) == distinct);
+      for (int i = 0; i < 40; i++) CHECK(differ(fg(p.tracks.color(i)), fg(p.tracks.color(i + 1)), "neighbouring tracks"));
+    }
+  }
 }

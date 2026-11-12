@@ -1,5 +1,7 @@
 #include <cellui/term/FrameEncoder.h>
 
+#include <cellui/Ansi16.h>
+
 #include <algorithm>
 #include <chrono>
 #include <cstdint>
@@ -79,12 +81,28 @@ int nearest8(const Color & c) {
   return (r >= 128 ? 1 : 0) | (g >= 128 ? 2 : 0) | (b >= 128 ? 4 : 0);
 }
 
+int nearest16(const Color & c) {
+  auto rgb = c.toSrgb8();
+  int best = 0, best_d = -1;
+  for (int i = 0; i < 16; i++) {
+    auto p = ansi16Color(i).toSrgb8();
+    int d = weightedDistance(rgb[0], rgb[1], rgb[2], p[0], p[1], p[2]);
+    if (best_d < 0 || d < best_d) {
+      best_d = d;
+      best = i;
+    }
+  }
+  return best;
+}
+
 EncoderProfile EncoderProfile::from(const Capabilities & caps) {
   EncoderProfile p;
   p.colors = caps.colors;
   p.column_move = caps.column_move;
   p.sync = caps.sync;
   if (caps.distinct_default_bg) p.distinct_from = caps.display.default_bg;
+  p.default_fg = caps.display.default_fg;
+  p.default_bg = caps.display.default_bg;
   return p;
 }
 
@@ -106,8 +124,17 @@ bool FrameEncoder::litBold(size_t index, const CellBuffer::Cell & cell, double n
 FrameEncoder::Ink FrameEncoder::ink(const std::optional<Color> & c, bool background) const {
   Ink k;
   if (!c) return k;
+  // At 16 colours and fewer the terminal's own text and background colours stay the terminal's.
+  if (profile_.colors == ColorDepth::C8 || profile_.colors == ColorDepth::C16) {
+    const std::optional<Color> & own = background ? profile_.default_bg : profile_.default_fg;
+    if (own && c->toSrgb8() == own->toSrgb8()) return k;
+  }
   switch (profile_.colors) {
     case ColorDepth::NONE:
+      return k;
+    case ColorDepth::C16:
+      k.kind = Ink::INDEX;
+      k.value = nearest16(*c);
       return k;
     case ColorDepth::C8:
       k.kind = Ink::INDEX;
@@ -141,8 +168,29 @@ void FrameEncoder::moveTo(std::string & out, int y, int x) {
   cursor_x_ = x;
 }
 
+void FrameEncoder::monoStyle(const CellBuffer::Cell & cell, bool & reverse, bool & dim) const {
+  // The luma of a colour, 0 to 1 on its encoded values.
+  auto luma = [](const Color & c) {
+    auto rgb = c.toSrgb8();
+    return (0.2126 * rgb[0] + 0.7152 * rgb[1] + 0.0722 * rgb[2]) / 255.0;
+  };
+  double default_fg = profile_.default_fg ? luma(*profile_.default_fg) : 1.0;
+  double default_bg = profile_.default_bg ? luma(*profile_.default_bg) : 0.0;
+  // A background far from the terminal's own is a highlight: reverse video, whatever its colour.
+  reverse = cell.bg && std::abs(luma(*cell.bg) - default_bg) > 0.3;
+  // A grey text far from the terminal's own text colour is a quiet one.
+  dim = false;
+  if (!reverse && cell.fg) {
+    auto rgb = cell.fg->toSrgb8();
+    bool grey = std::max({rgb[0], rgb[1], rgb[2]}) - std::min({rgb[0], rgb[1], rgb[2]}) < 24;
+    dim = grey && std::abs(luma(*cell.fg) - default_fg) > 0.3;
+  }
+}
+
 void FrameEncoder::pen(std::string & out, const CellBuffer::Cell & cell) {
   Ink fg = ink(cell.fg, false), bg = ink(cell.bg, true);
+  bool reverse = false, dim = false;
+  if (profile_.colors == ColorDepth::NONE) monoStyle(cell, reverse, dim);
   std::string params;
   auto add = [&](const std::string & p) {
     if (!params.empty()) params += ';';
@@ -155,19 +203,31 @@ void FrameEncoder::pen(std::string & out, const CellBuffer::Cell & cell) {
              std::to_string((k.value >> 8) & 0xFF) + ";" + std::to_string(k.value & 0xFF);
     }
     if (profile_.colors == ColorDepth::C8) return std::to_string((background ? 40 : 30) + k.value);
+    if (profile_.colors == ColorDepth::C16) return std::to_string((k.value < 8 ? (background ? 40 : 30) + k.value : (background ? 100 : 90) + k.value - 8));
     return std::string(background ? "48;5;" : "38;5;") + std::to_string(k.value);
   };
   if (!pen_known_) {
     add("0");
     if (cell.bold()) add("1");
+    if (dim) add("2");
     if (cell.italic) add("3");
     if (cell.underline) add("4");
+    if (reverse) add("7");
     if (fg.kind != Ink::DEFAULT) add(color(fg, false));
     if (bg.kind != Ink::DEFAULT) add(color(bg, true));
   } else {
-    if (cell.bold() != bold_) add(cell.bold() ? "1" : "22");
+    // SGR 22 ends bold and dim together, so one that stays on is asked for again.
+    if ((bold_ && !cell.bold()) || (dim_ && !dim)) {
+      add("22");
+      if (cell.bold()) add("1");
+      if (dim) add("2");
+    } else {
+      if (cell.bold() && !bold_) add("1");
+      if (dim && !dim_) add("2");
+    }
     if (cell.italic != italic_) add(cell.italic ? "3" : "23");
     if (cell.underline != underline_) add(cell.underline ? "4" : "24");
+    if (reverse != reverse_) add(reverse ? "7" : "27");
     if (fg != fg_) add(color(fg, false));
     if (bg != bg_) add(color(bg, true));
   }
@@ -178,6 +238,8 @@ void FrameEncoder::pen(std::string & out, const CellBuffer::Cell & cell) {
   bold_ = cell.bold();
   italic_ = cell.italic;
   underline_ = cell.underline;
+  reverse_ = reverse;
+  dim_ = dim;
 }
 
 std::string FrameEncoder::encode(const CellBuffer & frame, const CursorRequest & cursor, const std::string & images) {
@@ -188,7 +250,7 @@ std::string FrameEncoder::encode(const CellBuffer & frame, const CursorRequest &
     body += "\x1b[0m\x1b[H\x1b[2J";
     pen_known_ = true;
     fg_ = bg_ = Ink{};
-    bold_ = italic_ = underline_ = false;
+    bold_ = italic_ = underline_ = reverse_ = dim_ = false;
     cursor_y_ = cursor_x_ = 0;
     last_.emplace(rows, cols);
     full_ = false;
