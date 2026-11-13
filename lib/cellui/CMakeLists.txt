@@ -265,7 +265,8 @@ add_executable(cellui_tests
   tests/Utf8Tests.cpp)
 if(NOT WIN32)
   target_sources(cellui_tests PRIVATE tests/BackdropEmulationTests.cpp tests/CanvasRasterizerTests.cpp tests/EventLoopTests.cpp tests/ThreadPostsTests.cpp tests/TerminalSessionTests.cpp tests/TestBackendTests.cpp tests/HeatmapImageTests.cpp tests/LineImageTests.cpp
-    tests/SparklineTests.cpp tests/DialTests.cpp)
+    tests/SparklineTests.cpp
+  tests/StageStatsTests.cpp tests/DialTests.cpp)
 endif()
 if(WIN32)
   target_sources(cellui_tests PRIVATE tests/Win32Tests.cpp)
