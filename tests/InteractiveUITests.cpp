@@ -484,5 +484,6 @@ TEST(terminal_ui_clip_grid_track_rename_shows_the_typed_name) {
   for (int c = 30; c < 70; c++) row += f.terminal.frame().at(1, c).text;
   CHECK(row.find("abcQz") != std::string::npos);
   CHECK(row.find("abc") == row.rfind("abc"));
+  CHECK(row.find("...") == std::string::npos && row.find("\xE2\x80\xA6") == std::string::npos); // the number is not ellipsized
   f.press(cellui::Key::Escape);
 }
