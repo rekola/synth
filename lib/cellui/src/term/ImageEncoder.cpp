@@ -663,9 +663,10 @@ std::vector<int> mapToRegisters(const SixelPalette & palette, const Image & imag
         continue;
       }
       int r = Image::red(p), g = Image::green(p), b = Image::blue(p);
-      if (palette.grid_dither) gridColour(p, &dither, x, y, r, g, b);
-      else if (palette.grid) r = onSixelGrid(r), g = onSixelGrid(g), b = onSixelGrid(b);
       if (palette.exact) {
+        // The only place a colour is put on the grid: the palette's registers are those, and are found by them.
+        if (palette.grid_dither) gridColour(p, &dither, x, y, r, g, b);
+        else if (palette.grid) r = onSixelGrid(r), g = onSixelGrid(g), b = onSixelGrid(b);
         regs[i] = palette.index.at(((static_cast<uint32_t>(r)) << 16) | (static_cast<uint32_t>(g) << 8) | static_cast<uint32_t>(b));
         continue;
       }
