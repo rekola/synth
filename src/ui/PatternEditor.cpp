@@ -738,7 +738,7 @@ PatternEditor::getTrackInformation(const Song & song, int scroll_row) const {
   apply_baseline_track_info(SongStructure(song), track_info);
   // Where each track is at its own row, each shows its own row numbers.
   if (isLiveMode()) {
-    for (auto & [ track_id, info ] : track_info) info.row_number_width_ = kTrackRowNumberWidth;
+    for (auto & [track_id, info] : track_info) info.row_number_width_ = std::max(info.row_number_width_, kTrackRowNumberWidth);
   }
 
   return track_info;
@@ -3715,7 +3715,7 @@ PatternEditor::renderRow(const StyleProvider & styles, int heading_height, const
         auto own_row = own.block < 0 ? -1 : own.row;
         setFgColor(in_selection ? fg : tintForPlayhead(fg));
         setBgColor(in_selection ? bg : tintForPlayhead(bg));
-        auto number = own_row < 0 ? string() : fmt::format("{:02x}", own_row);
+        auto number = own_row < 0 ? string() : fmt::format("{:0{}x}", own_row, track_info.row_number_width_ - 1);
         number.resize(static_cast<size_t>(track_info.row_number_width_), ' ');
         putstr(display_row, current_pos, number);
         current_pos += track_info.row_number_width_;
