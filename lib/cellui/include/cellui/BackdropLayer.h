@@ -49,6 +49,10 @@ struct Band {
   // square, so what fills one to its corner (a full block) shows through the
   // notch: this is for cells of text.
   double border_radius = 0;
+  // How many rows from the top the skipped span is that tall; 0: the whole
+  // band. Below it the border is whole (a tall band around something that
+  // stands in its first row).
+  double border_skip_rows = 0;
 };
 
 // A rectangle in pixels.
@@ -110,25 +114,30 @@ inline BandBorderShape bandBorder(const Band & band, double x, double y, double 
     round_left |= l;
     round_right |= rr;
   }
-  for (double at : { y, y + h - t }) {
-    for (const Run & run : std::span(runs).first(run_count)) {
-      double a = run.a + (run.round_left ? r : 0.0), b = run.b - (run.round_right ? r : 0.0);
-      if (b > a) out.rects.push_back({ a, at, b - a, t });
-    }
+  // A span that is only the first rows tall leaves the bottom edge whole, and
+  // a side it reaches starts below it.
+  bool partial = skips && band.border_skip_rows > 0 && band.border_skip_rows < band.rows;
+  double skip_h = band.border_skip_rows * cell_h;
+  bool bottom_round = partial && r > 0 && w >= 2 * r;
+  bool bottom_left = partial ? bottom_round : round_left, bottom_right = partial ? bottom_round : round_right;
+  for (const Run & run : std::span(runs).first(run_count)) {
+    double a = run.a + (run.round_left ? r : 0.0), b = run.b - (run.round_right ? r : 0.0);
+    if (b > a) out.rects.push_back({ a, y, b - a, t });
+    if (!partial && b > a) out.rects.push_back({ a, y + h - t, b - a, t });
   }
-  double top = y + (round_left ? r : t), bottom = y + h - (round_left ? r : t);
-  if (left_side && bottom > top) out.rects.push_back({ x, top, t, bottom - top });
-  top = y + (round_right ? r : t);
-  bottom = y + h - (round_right ? r : t);
-  if (right_side && bottom > top) out.rects.push_back({ x + w - t, top, t, bottom - top });
-  if (round_left) {
-    out.corners.push_back({ BandCorner::TOP_LEFT, x, y, r });
-    out.corners.push_back({ BandCorner::BOTTOM_LEFT, x, y + h - r, r });
+  if (partial) {
+    double a = x + (bottom_left ? r : 0.0), b = x + w - (bottom_right ? r : 0.0);
+    if (b > a) out.rects.push_back({ a, y + h - t, b - a, t });
   }
-  if (round_right) {
-    out.corners.push_back({ BandCorner::TOP_RIGHT, x + w - r, y, r });
-    out.corners.push_back({ BandCorner::BOTTOM_RIGHT, x + w - r, y + h - r, r });
-  }
+  double top = left_side ? y + (round_left ? r : t) : y + skip_h, bottom = y + h - (bottom_left ? r : t);
+  if ((left_side || partial) && bottom > top) out.rects.push_back({ x, top, t, bottom - top });
+  top = right_side ? y + (round_right ? r : t) : y + skip_h;
+  bottom = y + h - (bottom_right ? r : t);
+  if ((right_side || partial) && bottom > top) out.rects.push_back({ x + w - t, top, t, bottom - top });
+  if (round_left) out.corners.push_back({ BandCorner::TOP_LEFT, x, y, r });
+  if (bottom_left) out.corners.push_back({ BandCorner::BOTTOM_LEFT, x, y + h - r, r });
+  if (round_right) out.corners.push_back({ BandCorner::TOP_RIGHT, x + w - r, y, r });
+  if (bottom_right) out.corners.push_back({ BandCorner::BOTTOM_RIGHT, x + w - r, y + h - r, r });
   return out;
 }
 

@@ -80,9 +80,6 @@ class StyleProvider {
   Color cursor_row_tint_color;
   static constexpr float kRowTintAlpha = 0.35f;
   Color cursorRowTint(Color base) const { return base.blend(kRowTintAlpha, cursor_row_tint_color); }
-  // The rows of a cursor below its first: its colour, far fainter than a selection.
-  static constexpr float kCursorBodyAlpha = 0.16f;
-  Color cursorBodyTint(Color base) const { return base.blend(kCursorBodyAlpha, highlight_bg_color); }
 
   Color window_border_color;
   Color window_fg_color;

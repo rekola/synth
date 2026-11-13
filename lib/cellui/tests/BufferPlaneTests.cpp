@@ -639,6 +639,19 @@ TEST(band_border_leaves_out_a_skipped_span) {
   band.border_skip_col = 5;
   auto middle = bandBorderRects(band, 20, 0, 50, 10, 20);
   CHECK(middle.size() == 6);
+  // A span one row tall in a band of four: the bottom is whole, and the side it
+  // reaches starts below the span.
+  band.rows = 4.0;
+  band.border_skip_col = 2;
+  band.border_skip_rows = 1.0;
+  auto tall = bandBorderRects(band, 20, 0, 20, 10, 20);
+  CHECK(tall.size() == 4);
+  bool bottom = false, side = false;
+  for (const auto & r : tall) {
+    if (r.x == 20 && r.w == 100 && r.y == 80 - 1) bottom = true;
+    if (r.x == 20 && r.w == 1 && r.y == 20) side = true;
+  }
+  CHECK(bottom && side);
 }
 
 static double coveredArea(const BandBorderShape & shape) {
