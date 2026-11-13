@@ -517,7 +517,7 @@ private:
   int palette_size_ = 4; // the size last used with a cursor of one column
   bool palette_drawn_ = false;
   std::unique_ptr<Plane> palette_plane_;
-  // Opens the palette on the next (1) or previous (-1) chord, or moves an open one.
+  // Moves the open palette's selection on (1) or back (-1); opens a closed one, `direction` lines from the chord in the pattern.
   void stepChordPalette(int direction);
   void fillChordPalette();
   void writePaletteChord();
