@@ -6,6 +6,7 @@
 
 #include <algorithm>
 #include <cmath>
+#include <cstdio>
 #include <cstdlib>
 #include <set>
 #include <unordered_map>
@@ -431,7 +432,10 @@ SixelPalette makeSixelPalette(const Image & image, int x0, int y0, int width, in
   // A picture with more colours than registers is a gradient (a blurred backdrop): it is dithered, where a
   // flat one (text, a chart) stays as it is.
   bool gradient = false;
-  if (grid && dither && dither->method != Dither::Method::NEAREST && dither->gradient) {
+  const bool mix = dither && dither->mix;
+  if (mix) {
+    // the colours are only put on the terminal's levels (below), never dithered first
+  } else if (grid && dither && dither->method != Dither::Method::NEAREST && dither->gradient) {
     gradient = true;
   } else if (grid && dither && dither->method != Dither::Method::NEAREST) {
     ColourCounts distinct(static_cast<size_t>(std::max(2, registers)) * 2);
@@ -559,6 +563,43 @@ SixelPalette xtermPalette() {
   return palette;
 }
 
+// For a colour: its nearest register `a`, the register `b` that a mix with `a` comes nearest it by, and how far
+// along from a to b the colour lies (0 to 1).
+struct MixPick {
+  uint32_t key = 0xffffffffu;
+  int a = 0, b = 0;
+  float t = 0;
+};
+
+MixPick mixPick(const SixelPalette & palette, int r, int g, int b, uint32_t key) {
+  MixPick pick;
+  pick.key = key;
+  pick.a = pick.b = paletteNearest(palette, r, g, b);
+  const size_t n = palette.red.size();
+  if (n < 2) return pick;
+  const float w[3] = {3.0f, 4.0f, 2.0f};
+  const float c[3] = {static_cast<float>(r), static_cast<float>(g), static_cast<float>(b)};
+  const size_t a = static_cast<size_t>(pick.a);
+  const float base[3] = {static_cast<float>(palette.red[a]), static_cast<float>(palette.green[a]), static_cast<float>(palette.blue[a])};
+  const float rel[3] = {c[0] - base[0], c[1] - base[1], c[2] - base[2]};
+  float best = w[0] * rel[0] * rel[0] + w[1] * rel[1] * rel[1] + w[2] * rel[2] * rel[2];
+  for (size_t j = 0; j < n; j++) {
+    if (j == a) continue;
+    const float d[3] = {static_cast<float>(palette.red[j]) - base[0], static_cast<float>(palette.green[j]) - base[1], static_cast<float>(palette.blue[j]) - base[2]};
+    float dd = w[0] * d[0] * d[0] + w[1] * d[1] * d[1] + w[2] * d[2] * d[2];
+    if (dd <= 0) continue;
+    float t = std::clamp((w[0] * rel[0] * d[0] + w[1] * rel[1] * d[1] + w[2] * rel[2] * d[2]) / dd, 0.0f, 1.0f);
+    float e[3] = {rel[0] - t * d[0], rel[1] - t * d[1], rel[2] - t * d[2]};
+    float residual = w[0] * e[0] * e[0] + w[1] * e[1] * e[1] + w[2] * e[2] * e[2];
+    if (residual < best) {
+      best = residual;
+      pick.b = static_cast<int>(j);
+      pick.t = t;
+    }
+  }
+  return pick;
+}
+
 // The pixels as Sixel in the colours of `palette`: covered pixels (`keep` false, one entry per pixel)
 // are left transparent. A palette that holds the picture's colours exactly draws them as they are;
 // otherwise each pixel goes to the nearest register, after the dither's offset or with its error
@@ -599,6 +640,8 @@ std::vector<int> mapToRegisters(const SixelPalette & palette, const Image & imag
   size_t cache_bits = 8;
   while (cache_bits < 14 && (size_t{1} << cache_bits) < static_cast<size_t>(width) * static_cast<size_t>(height) / 2) cache_bits++;
   std::vector<Cached> cache(size_t{1} << cache_bits);
+  const size_t mix_cache_bits = cache_bits;
+  std::vector<MixPick> mix_cache(size_t{1} << mix_cache_bits);
   auto nearest = [&](int r, int g, int b) {
     uint32_t key = (static_cast<uint32_t>(r) << 16) | (static_cast<uint32_t>(g) << 8) | static_cast<uint32_t>(b);
     Cached & slot = cache[(key * 2654435761u) >> (32 - cache_bits)];
@@ -641,6 +684,16 @@ std::vector<int> mapToRegisters(const SixelPalette & palette, const Image & imag
           next[e + k] += error * 5.0f / 16.0f;
           next[e + 3 + k] += error * 1.0f / 16.0f;
         }
+        continue;
+      }
+      if (dither.mix) {
+        // Between the nearest entry and the one that, mixed with it, comes nearest the pixel: the Bayer
+        // matrix says which, by how far along the pair the pixel lies.
+        uint32_t key = (static_cast<uint32_t>(r) << 16) | (static_cast<uint32_t>(g) << 8) | static_cast<uint32_t>(b);
+        MixPick & pick = mix_cache[(key * 2654435761u) >> (32 - mix_cache_bits)];
+        if (pick.key != key) pick = mixPick(palette, r, g, b, key);
+        float threshold = bayer8(dither.origin_x + x, dither.origin_y + y);
+        regs[i] = pick.t > threshold ? pick.b : pick.a;
         continue;
       }
       int reg = nearest(r, g, b);
@@ -1202,6 +1255,12 @@ std::string ImageEncoder::sixel(const CellBuffer & frame, const ImagePlacement &
         fixed = false;
         registers = std::max(2, std::atoi(blur_registers));
       }
+    }
+    if (std::getenv("CELLUI_BLUR_MIX") && p.image->stretched() && quality_ == PictureQuality::FULL) {
+      palette_dither.mix = true;
+      palette_dither.gradient = false;
+      fixed = false;
+      if (!std::getenv("CELLUI_BLUR_REGISTERS")) registers = 48;
     }
     bool on_grid = !(std::getenv("CELLUI_BLUR_GRID") && std::atoi(std::getenv("CELLUI_BLUR_GRID")) == 0 && p.image->stretched());
     SixelPalette palette = fixed ? xtermPalette() : makeSixelPalette(img, x, y, w, h, all, registers, on_grid, &palette_dither);

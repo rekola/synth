@@ -36,6 +36,9 @@ struct Dither {
   // The picture is a gradient whatever its colour count (a blurred backdrop: a dark one spans a few levels
   // and has few colours, yet bands at the terminal's 101 colour levels), so it is dithered between them.
   bool gradient = false;
+  // EXPERIMENT: the palette is made from the picture's colours put once on the terminal's levels (not dithered
+  // first), and each pixel is dithered once between the two palette entries it lies between.
+  bool mix = false;
 };
 
 // How many colours a picture keeps, which a slow link turns instead of the screen's colour: FULL sends
