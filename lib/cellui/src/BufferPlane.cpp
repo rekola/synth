@@ -674,9 +674,10 @@ void BufferPlane::showReader(const std::string & prompt, int y, int x, int rows,
   int reader_rows = rows == -1 ? plane_rows : rows;
   int reader_cols = cols == -1 ? std::max(1, plane_cols - reader_x_) : std::max(1, cols);
   reader_color_ = text_color.value_or(getStyles().reader_text_color);
-  reader_plane_ = makeChild();
+  reader_plane_ = makeReaderChild();
   reader_plane_->mouse_cursor_ = MouseCursor::TEXT;
-  reader_plane_->move(y, reader_x_);
+  auto [origin_y, origin_x] = readerOrigin();
+  reader_plane_->move(origin_y + y, origin_x + reader_x_);
   reader_plane_->resize(std::max(1, reader_rows), reader_cols);
   editor_ = std::make_unique<LineEditor>();
   editor_->setText(initial_text);
@@ -728,12 +729,13 @@ bool BufferPlane::insertIntoReader(const std::string & text) {
 void BufferPlane::showReaderIndicator(int x, const std::string & s) {
   if (!editor_) return;
   if (!indicator_) {
-    indicator_ = makeChild();
+    indicator_ = makeReaderChild();
     indicator_->setElevation(getStyles().theme.elevation.overlay);
     indicator_->resize(1, kIndicatorCols);
     indicator_->style_.fg = Color(0xff, 0xff, 0xff);
   }
-  indicator_->move(0, reader_x_ + x);
+  auto [origin_y, origin_x] = readerOrigin();
+  indicator_->move(origin_y, origin_x + reader_x_ + x);
   indicator_->erase();
   indicator_->putstr(0, 0, s);
   indicator_->moveToTop();

@@ -192,6 +192,12 @@ class BufferPlane : public Plane {
 
   explicit BufferPlane(BufferPlane & parent);
   std::unique_ptr<BufferPlane> makeChild() { return std::unique_ptr<BufferPlane>(new BufferPlane(*this)); }
+  // The reader's planes go where createChild() puts children, so they stack
+  // above the owner's own (flat) children; the origin is where the owner's
+  // coordinates start in that parent.
+  bool readerIsFlat() const { return root().flat_ && parent_; }
+  std::unique_ptr<BufferPlane> makeReaderChild() { return std::unique_ptr<BufferPlane>(new BufferPlane(readerIsFlat() ? root() : *this)); }
+  std::pair<int, int> readerOrigin() const { return readerIsFlat() ? screenPosition() : std::pair<int, int>{0, 0}; }
 
   BufferPlane & root() { return parent_ ? parent_->root() : *this; }
   const BufferPlane & root() const { return parent_ ? parent_->root() : *this; }
