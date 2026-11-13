@@ -1,3 +1,4 @@
+#include <cellui/StageStats.h>
 #include <cellui/term/ImageEncoder.h>
 
 #include <cellui/term/Deflate.h>
@@ -19,6 +20,7 @@ constexpr int kCubeLevels[6] = {0, 95, 135, 175, 215, 255};
 constexpr size_t kKittyChunk = 4096;
 
 std::string base64(const std::vector<uint8_t> & data) {
+  StageTimer timer(Stage::BASE64);
   static const char table[] = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
   std::string out;
   out.reserve((data.size() + 2) / 3 * 4);
@@ -118,6 +120,9 @@ float bayer8(int x, int y) {
   return table[(y & 7) * 8 + (x & 7)];
 }
 
+// Where a pixel is in the Bayer matrix, 0 to 63.
+int bayerIndex(int x, int y) { return (y & 7) * 8 + (x & 7); }
+
 // Offset, in levels peak to peak, an ordered dither adds before a pixel goes to its nearest register.
 constexpr float kOrderedAmplitude = 12.0f;
 // A pixel off its nearest register by no more than this in any channel is not dithered.
@@ -131,13 +136,59 @@ constexpr size_t kSmallPicturePixels = 16384;
 // uses, and most changes (a line moving across a chart) touch every row.
 constexpr size_t kPartialBelowPercent = 80;
 
-int percent(int v) { return static_cast<int>(std::lround(v * 100.0 / 255.0)); }
+int percentOf(int v) { return static_cast<int>(std::lround(v * 100.0 / 255.0)); }
+
+// The same as percentOf() and onSixelGrid() for a level, from a table made once: a picture asks for both
+// of every pixel.
+struct LevelTables {
+  uint8_t percent[256];
+  uint8_t grid[256];
+  LevelTables() {
+    for (int v = 0; v < 256; v++) {
+      percent[v] = static_cast<uint8_t>(percentOf(v));
+      grid[v] = static_cast<uint8_t>(std::lround(percentOf(v) * 255.0 / 100.0));
+    }
+  }
+};
+const LevelTables & levelTables() {
+  static const LevelTables tables;
+  return tables;
+}
+
+int percent(int v) { return v >= 0 && v < 256 ? levelTables().percent[v] : percentOf(v); }
+
+// What the dither does to a level at each place of the matrix, made once from the same expressions the
+// pixels used to be worked out with: the level moved by the matrix's offset and put on the 101 levels
+// (`grid`, for a gradient between the terminal's levels), or only moved (`ordered`, between a palette's
+// registers). A picture asks for both of every pixel.
+struct DitherTables {
+  uint8_t grid[64][256];
+  uint8_t ordered[64][256];
+  DitherTables() {
+    const LevelTables & levels = levelTables();
+    for (int i = 0; i < 64; i++) {
+      float threshold = bayer8(i & 7, i >> 3);
+      float grid_offset = (threshold - 0.5f) * (255.0f / 100.0f);
+      float ordered_offset = (threshold - 0.5f) * kOrderedAmplitude;
+      for (int v = 0; v < 256; v++) {
+        grid[i][v] = levels.grid[std::clamp(static_cast<int>(std::lround(static_cast<float>(v) + grid_offset)), 0, 255)];
+        ordered[i][v] = static_cast<uint8_t>(std::clamp(static_cast<int>(std::lround(static_cast<float>(v) + ordered_offset)), 0, 255));
+      }
+    }
+  }
+};
+const DitherTables & ditherTables() {
+  static const DitherTables tables;
+  return tables;
+}
 
 // The terminal's own default 256-colour palette beyond the 16 base colours (the 6x6x6 cube and 24 greys:
 // entries 16 to 255), as a fixed palette: register n is entry n + 16. A picture drawn in it carries no
 // palette of its own to compute, and a smooth dark gradient maps to long runs of a few greys.
 constexpr int kXtermCube[6] = {0, 95, 135, 175, 215, 255};
 constexpr int kXtermRegisters = 240;
+// The most registers a palette of ours has (the terminal's 128 at most, the default palette's 240).
+constexpr size_t kMaxSixelRegisters = 256;
 
 uint32_t xtermColour(int reg) {
   int index = reg + 16, r, g, b;
@@ -174,7 +225,7 @@ int xtermRegister(int r, int g, int b, float threshold) {
 }
 
 // The 8-bit level a Sixel colour definition (percent) makes of `v`: the level the terminal shows.
-int onSixelGrid(int v) { return static_cast<int>(std::lround(percent(v) * 255.0 / 100.0)); }
+int onSixelGrid(int v) { return v >= 0 && v < 256 ? levelTables().grid[v] : static_cast<int>(std::lround(percentOf(v) * 255.0 / 100.0)); }
 
 void put32(std::vector<uint8_t> & out, uint32_t v) {
   out.push_back(static_cast<uint8_t>(v >> 24));
@@ -205,6 +256,7 @@ ImageEncoder::Profile ImageEncoder::Profile::from(const Capabilities & caps) {
 }
 
 std::vector<uint8_t> encodePng(const Image & image, int x0, int y0, int width, int height) {
+  StageTimer timer(Stage::PNG);
   // The scanlines, each led by filter type 0 (none).
   std::vector<uint8_t> raw;
   raw.reserve(static_cast<size_t>(height) * (static_cast<size_t>(width) * 4 + 1));
@@ -233,6 +285,66 @@ std::vector<uint8_t> encodePng(const Image & image, int x0, int y0, int width, i
 
 namespace {
 
+// A count of 24-bit colours in an open-addressing table, for a picture with thousands of colours a pixel
+// asks about: the hash maps this replaces were most of the palette's time.
+class ColourCounts {
+ public:
+  explicit ColourCounts(size_t expected) {
+    size_t cap = 256;
+    while (cap < expected * 2) cap *= 2;
+    keys_.assign(cap, kEmpty);
+    counts_.assign(cap, 0);
+  }
+  void add(uint32_t colour, uint32_t n = 1) {
+    if ((used_ + 1) * 2 > keys_.size()) grow();
+    size_t i = slot(colour);
+    while (keys_[i] != kEmpty && keys_[i] != colour) i = (i + 1) & (keys_.size() - 1);
+    if (keys_[i] == kEmpty) {
+      keys_[i] = colour;
+      used_++;
+    }
+    counts_[i] += n;
+  }
+  size_t size() const { return used_; }
+  // The (colour, count) pairs in colour order.
+  std::vector<std::pair<uint32_t, uint32_t>> sorted() const {
+    std::vector<std::pair<uint32_t, uint32_t>> out;
+    out.reserve(used_);
+    for (size_t i = 0; i < keys_.size(); i++) {
+      if (keys_[i] != kEmpty) out.emplace_back(keys_[i], counts_[i]);
+    }
+    // By colour, as sorting the pairs would (no two have the same colour): three passes of a byte each.
+    std::vector<std::pair<uint32_t, uint32_t>> tmp(out.size());
+    for (int shift = 0; shift < 24; shift += 8) {
+      size_t start[257] = {0};
+      for (const auto & c : out) start[((c.first >> shift) & 0xff) + 1]++;
+      for (size_t k = 0; k < 256; k++) start[k + 1] += start[k];
+      for (const auto & c : out) tmp[start[(c.first >> shift) & 0xff]++] = c;
+      out.swap(tmp);
+    }
+    return out;
+  }
+
+ private:
+  static constexpr uint32_t kEmpty = 0xffffffffu;  // a colour is 24 bits
+  size_t slot(uint32_t colour) const { return (colour * 2654435761u >> 8) & (keys_.size() - 1); }
+  void grow() {
+    std::vector<uint32_t> keys = std::move(keys_);
+    std::vector<uint32_t> counts = std::move(counts_);
+    keys_.assign(keys.size() * 2, kEmpty);
+    counts_.assign(keys.size() * 2, 0);
+    for (size_t j = 0; j < keys.size(); j++) {
+      if (keys[j] == kEmpty) continue;
+      size_t i = slot(keys[j]);
+      while (keys_[i] != kEmpty) i = (i + 1) & (keys_.size() - 1);
+      keys_[i] = keys[j];
+      counts_[i] = counts[j];
+    }
+  }
+  std::vector<uint32_t> keys_, counts_;
+  size_t used_ = 0;
+};
+
 // The colours of a Sixel image: a register each, either exactly the colours the pixels have (when
 // they fit) or their median cut. Made once for a picture, so every piece of it sent later is drawn in
 // the same colours.
@@ -243,21 +355,53 @@ struct SixelPalette {
   bool grid_dither = false;   // and a gradient (more colours than registers) is dithered between those levels
   bool fixed = false;         // the terminal's default palette (kXtermRegisters registers), not made from the picture
   std::unordered_map<uint32_t, int> index;  // (exact) colour -> register
+  // The registers' levels a channel at a time, for a search that goes over them all (see finish()).
+  std::vector<int> red, green, blue;
+
+  // Called when the registers are all there: lays them out for paletteNearest().
+  void finish() {
+    red.resize(rgb.size());
+    green.resize(rgb.size());
+    blue.resize(rgb.size());
+    for (size_t i = 0; i < rgb.size(); i++) {
+      red[i] = static_cast<int>((rgb[i] >> 16) & 0xff);
+      green[i] = static_cast<int>((rgb[i] >> 8) & 0xff);
+      blue[i] = static_cast<int>(rgb[i] & 0xff);
+    }
+  }
 };
 
 int paletteNearest(const SixelPalette & palette, int r, int g, int b) {
-  int best = 0;
-  long best_d = -1;
-  for (size_t i = 0; i < palette.rgb.size(); i++) {
-    uint32_t c = palette.rgb[i];
-    long dr = static_cast<long>((c >> 16) & 0xff) - r, dg = static_cast<long>((c >> 8) & 0xff) - g, db = static_cast<long>(c & 0xff) - b;
-    long d = 3 * dr * dr + 4 * dg * dg + 2 * db * db;  // green most, blue least
-    if (best_d < 0 || d < best_d) {
-      best_d = d;
-      best = static_cast<int>(i);
+  // The distance to every register (green counts most, blue least) in one loop a compiler can vectorise,
+  // then the first of the nearest, as the one-at-a-time search it replaces took it.
+  const size_t n = palette.red.size();
+  int distance[kMaxSixelRegisters];
+  if (n == 0 || n > kMaxSixelRegisters) {
+    int best = 0;
+    long best_d = -1;
+    for (size_t i = 0; i < palette.rgb.size(); i++) {
+      uint32_t c = palette.rgb[i];
+      long dr = static_cast<long>((c >> 16) & 0xff) - r, dg = static_cast<long>((c >> 8) & 0xff) - g, db = static_cast<long>(c & 0xff) - b;
+      long d = 3 * dr * dr + 4 * dg * dg + 2 * db * db;
+      if (best_d < 0 || d < best_d) {
+        best_d = d;
+        best = static_cast<int>(i);
+      }
     }
+    return best;
   }
-  return best;
+  const int * pr = palette.red.data();
+  const int * pg = palette.green.data();
+  const int * pb = palette.blue.data();
+  for (size_t i = 0; i < n; i++) {
+    int dr = pr[i] - r, dg = pg[i] - g, db = pb[i] - b;
+    distance[i] = 3 * dr * dr + 4 * dg * dg + 2 * db * db;
+  }
+  size_t best = 0;
+  for (size_t i = 1; i < n; i++) {
+    if (distance[i] < distance[best]) best = i;
+  }
+  return static_cast<int>(best);
 }
 
 // The colour a pixel is shown in on the Sixel grid: its levels snapped to the grid's, after the ordered
@@ -271,33 +415,38 @@ void gridColour(uint32_t p, const Dither * dither, int x, int y, int & r, int & 
     r = pr, g = pg, b = pb;
     return;
   }
-  float offset = dither ? (bayer8(dither->origin_x + x, dither->origin_y + y) - 0.5f) * (255.0f / 100.0f) : 0.0f;
-  auto snap = [&](int v) { return onSixelGrid(std::clamp(static_cast<int>(std::lround(static_cast<float>(v) + offset)), 0, 255)); };
-  r = snap(Image::red(p)), g = snap(Image::green(p)), b = snap(Image::blue(p));
+  if (!dither) {
+    r = pr, g = pg, b = pb;
+    return;
+  }
+  const uint8_t * snap = ditherTables().grid[bayerIndex(dither->origin_x + x, dither->origin_y + y)];
+  r = snap[Image::red(p)], g = snap[Image::green(p)], b = snap[Image::blue(p)];
 }
 
 // The pixels' colours cut into at most `registers` boxes, repeatedly splitting the box with the most
 // pixels times its widest range at the weighted median of that channel; a box's register is its mean.
 SixelPalette makeSixelPalette(const Image & image, int x0, int y0, int width, int height, const std::vector<bool> & keep, int registers,
                               bool grid = false, const Dither * dither = nullptr) {
+  StageTimer timer(Stage::SIXEL_PALETTE);
   // A picture with more colours than registers is a gradient (a blurred backdrop): it is dithered, where a
   // flat one (text, a chart) stays as it is.
   bool gradient = false;
   if (grid && dither && dither->method != Dither::Method::NEAREST && dither->gradient) {
     gradient = true;
   } else if (grid && dither && dither->method != Dither::Method::NEAREST) {
-    std::unordered_set<uint32_t> distinct;
+    ColourCounts distinct(static_cast<size_t>(std::max(2, registers)) * 2);
     for (int y = 0; y < height && !gradient; y++) {
       for (int x = 0; x < width && !gradient; x++) {
         uint32_t p = image.pixels[static_cast<size_t>(y0 + y) * static_cast<size_t>(image.width) + static_cast<size_t>(x0 + x)];
         if (!keep[static_cast<size_t>(y) * static_cast<size_t>(width) + static_cast<size_t>(x)] || Image::alpha(p) < 192) continue;
-        distinct.insert(p & 0xffffff);
+        distinct.add(p & 0xffffff);
         gradient = distinct.size() > static_cast<size_t>(std::max(2, registers));
       }
     }
   }
-  std::unordered_map<uint32_t, uint32_t> counts;
+  ColourCounts counts(std::min<size_t>(static_cast<size_t>(width) * static_cast<size_t>(height) / 4, 16384));
   for (int y = 0; y < height; y++) {
+    uint32_t run_colour = 0, run = 0;  // a run of the same colour is counted once
     for (int x = 0; x < width; x++) {
       uint32_t p = image.pixels[static_cast<size_t>(y0 + y) * static_cast<size_t>(image.width) + static_cast<size_t>(x0 + x)];
       if (!keep[static_cast<size_t>(y) * static_cast<size_t>(width) + static_cast<size_t>(x)] || Image::alpha(p) < 192) continue;
@@ -306,14 +455,21 @@ SixelPalette makeSixelPalette(const Image & image, int x0, int y0, int width, in
       // and the median cut must not average a flat colour with its neighbours because of them.
       if (gradient) gridColour(p, dither, x, y, r, g, b);
       else if (grid) r = onSixelGrid(r), g = onSixelGrid(g), b = onSixelGrid(b);
-      counts[(static_cast<uint32_t>(r) << 16) | (static_cast<uint32_t>(g) << 8) | static_cast<uint32_t>(b)]++;
+      uint32_t colour = (static_cast<uint32_t>(r) << 16) | (static_cast<uint32_t>(g) << 8) | static_cast<uint32_t>(b);
+      if (run && colour == run_colour) {
+        run++;
+        continue;
+      }
+      if (run) counts.add(run_colour, run);
+      run_colour = colour;
+      run = 1;
     }
+    if (run) counts.add(run_colour, run);
   }
   SixelPalette palette;
   palette.grid = grid;
   palette.grid_dither = gradient;
-  std::vector<std::pair<uint32_t, uint32_t>> colours(counts.begin(), counts.end());
-  std::sort(colours.begin(), colours.end());  // a stable order, whatever the hash table did
+  std::vector<std::pair<uint32_t, uint32_t>> colours = counts.sorted();  // in colour order, whatever the table did
   registers = std::max(2, registers);
   if (colours.size() <= static_cast<size_t>(registers)) {
     palette.exact = true;
@@ -321,6 +477,7 @@ SixelPalette makeSixelPalette(const Image & image, int x0, int y0, int width, in
       palette.index[rgb] = static_cast<int>(palette.rgb.size());
       palette.rgb.push_back(rgb);
     }
+    palette.finish();
     return palette;
   }
   struct Box {
@@ -390,6 +547,7 @@ SixelPalette makeSixelPalette(const Image & image, int x0, int y0, int width, in
     palette.rgb.push_back((static_cast<uint32_t>(std::lround(sum[0] / n)) << 16) | (static_cast<uint32_t>(std::lround(sum[1] / n)) << 8) |
                           static_cast<uint32_t>(std::lround(sum[2] / n)));
   }
+  palette.finish();
   return palette;
 }
 
@@ -397,6 +555,7 @@ SixelPalette xtermPalette() {
   SixelPalette palette;
   palette.fixed = true;
   for (int reg = 0; reg < kXtermRegisters; reg++) palette.rgb.push_back(xtermColour(reg));
+  palette.finish();
   return palette;
 }
 
@@ -408,6 +567,7 @@ SixelPalette xtermPalette() {
 // draw); `transparent` says whether any pixel was, or the height is not a whole number of Sixel bands.
 std::vector<int> mapToRegisters(const SixelPalette & palette, const Image & image, int x0, int y0, int width, int height,
                                 const std::vector<bool> & keep, const Dither & dither, bool & transparent) {
+  StageTimer timer(Stage::SIXEL_MAP);
   auto pixel = [&](int x, int y) {
     return image.pixels[static_cast<size_t>(y0 + y) * static_cast<size_t>(image.width) + static_cast<size_t>(x0 + x)];
   };
@@ -430,14 +590,22 @@ std::vector<int> mapToRegisters(const SixelPalette & palette, const Image & imag
     }
     return regs;
   }
-  std::unordered_map<uint32_t, int> cache;  // (offset) colour -> nearest register
+  // (offset) colour -> nearest register, in a table the colours map into by their hash: one that is
+  // pushed out by another is only worked out again, so what comes back is the same.
+  struct Cached {
+    uint32_t key = 0xffffffffu;
+    int reg = 0;
+  };
+  size_t cache_bits = 8;
+  while (cache_bits < 14 && (size_t{1} << cache_bits) < static_cast<size_t>(width) * static_cast<size_t>(height) / 2) cache_bits++;
+  std::vector<Cached> cache(size_t{1} << cache_bits);
   auto nearest = [&](int r, int g, int b) {
     uint32_t key = (static_cast<uint32_t>(r) << 16) | (static_cast<uint32_t>(g) << 8) | static_cast<uint32_t>(b);
-    auto it = cache.find(key);
-    if (it != cache.end()) return it->second;
-    int reg = paletteNearest(palette, r, g, b);
-    cache.emplace(key, reg);
-    return reg;
+    Cached & slot = cache[(key * 2654435761u) >> (32 - cache_bits)];
+    if (slot.key == key) return slot.reg;
+    slot.key = key;
+    slot.reg = paletteNearest(palette, r, g, b);
+    return slot.reg;
   };
   std::vector<float> current(static_cast<size_t>(width + 2) * 3, 0.0f), next(current.size(), 0.0f);
   bool diffuse = !palette.exact && dither.method == Dither::Method::FLOYD_STEINBERG;
@@ -484,10 +652,8 @@ std::vector<int> mapToRegisters(const SixelPalette & palette, const Image & imag
         int miss = std::max({std::abs(static_cast<int>((c >> 16) & 0xff) - r), std::abs(static_cast<int>((c >> 8) & 0xff) - g),
                              std::abs(static_cast<int>(c & 0xff) - b)});
         if (miss > kDitherAbove) {
-          float offset = (bayer8(dither.origin_x + x, dither.origin_y + y) - 0.5f) * kOrderedAmplitude;
-          reg = nearest(std::clamp(static_cast<int>(std::lround(static_cast<float>(r) + offset)), 0, 255),
-                        std::clamp(static_cast<int>(std::lround(static_cast<float>(g) + offset)), 0, 255),
-                        std::clamp(static_cast<int>(std::lround(static_cast<float>(b) + offset)), 0, 255));
+          const uint8_t * moved = ditherTables().ordered[bayerIndex(dither.origin_x + x, dither.origin_y + y)];
+          reg = nearest(moved[r], moved[g], moved[b]);
         }
       }
       regs[i] = reg;
@@ -499,50 +665,65 @@ std::vector<int> mapToRegisters(const SixelPalette & palette, const Image & imag
 
 std::string encodeSixelWith(const SixelPalette & palette, const Image & image, int x0, int y0, int width, int height,
                             const std::vector<bool> & keep, const Dither & dither) {
+  StageTimer timer(Stage::SIXEL_ENCODE);
   bool transparent = false;
   std::vector<int> regs = mapToRegisters(palette, image, x0, y0, width, height, keep, dither, transparent);
-  std::set<int> used;
+  // The registers the picture uses, and which of them each band of six rows does: a band is gone over once,
+  // setting a bit in the plane of the register at each pixel, where it was gone over once a register.
+  const size_t palette_size = palette.rgb.size();
+  std::vector<char> in_picture(palette_size, 0);
   for (int reg : regs) {
-    if (reg >= 0) used.insert(reg);
+    if (reg >= 0) in_picture[static_cast<size_t>(reg)] = 1;
   }
   std::string out = "\x1bP0;" + std::string(transparent ? "1" : "0") + ";0q\"1;1;" + std::to_string(width) + ";" + std::to_string(height);
-  for (int reg : used) {
-    uint32_t c = palette.rgb[static_cast<size_t>(reg)];
+  for (size_t reg = 0; reg < palette_size; reg++) {
+    if (!in_picture[reg]) continue;
+    uint32_t c = palette.rgb[reg];
     out += "#" + std::to_string(reg) + ";2;" + std::to_string(percent(static_cast<int>((c >> 16) & 0xff))) + ";" +
            std::to_string(percent(static_cast<int>((c >> 8) & 0xff))) + ";" + std::to_string(percent(static_cast<int>(c & 0xff)));
   }
-  std::vector<int> bits(static_cast<size_t>(width));
+  const size_t columns = static_cast<size_t>(width);
+  std::vector<int> slot(palette_size, -1);
+  std::vector<int> in_band;
+  std::vector<uint8_t> planes;
   for (int band = 0; band < height; band += 6) {
-    std::set<int> in_band;
+    in_band.clear();
+    planes.clear();
     for (int y = band; y < std::min(band + 6, height); y++) {
-      for (int x = 0; x < width; x++) {
-        int reg = regs[static_cast<size_t>(y) * static_cast<size_t>(width) + static_cast<size_t>(x)];
-        if (reg >= 0) in_band.insert(reg);
+      const int * row = &regs[static_cast<size_t>(y) * columns];
+      for (size_t x = 0; x < columns; x++) {
+        int reg = row[x];
+        if (reg < 0) continue;
+        int & s = slot[static_cast<size_t>(reg)];
+        if (s < 0) {
+          s = static_cast<int>(in_band.size());
+          in_band.push_back(reg);
+          planes.resize(planes.size() + columns, 0);
+        }
+        planes[static_cast<size_t>(s) * columns + x] = static_cast<uint8_t>(planes[static_cast<size_t>(s) * columns + x] | (1 << (y - band)));
       }
     }
+    std::vector<int> order = in_band;
+    std::sort(order.begin(), order.end());
     bool first = true;
-    for (int reg : in_band) {
-      std::fill(bits.begin(), bits.end(), 0);
-      for (int y = band; y < std::min(band + 6, height); y++) {
-        for (int x = 0; x < width; x++) {
-          if (regs[static_cast<size_t>(y) * static_cast<size_t>(width) + static_cast<size_t>(x)] == reg) bits[static_cast<size_t>(x)] |= 1 << (y - band);
-        }
-      }
+    for (int reg : order) {
+      const uint8_t * bits = &planes[static_cast<size_t>(slot[static_cast<size_t>(reg)]) * columns];
       // Trailing empty columns need not be sent.
       int last = width - 1;
-      while (last >= 0 && bits[static_cast<size_t>(last)] == 0) last--;
+      while (last >= 0 && bits[last] == 0) last--;
       if (!first) out += '$';
       first = false;
       out += "#" + std::to_string(reg);
       for (int x = 0; x <= last;) {
         int run = 1;
-        while (x + run <= last && bits[static_cast<size_t>(x + run)] == bits[static_cast<size_t>(x)]) run++;
-        char c = static_cast<char>(0x3f + bits[static_cast<size_t>(x)]);
+        while (x + run <= last && bits[x + run] == bits[x]) run++;
+        char c = static_cast<char>(0x3f + bits[x]);
         if (run > 2) out += "!" + std::to_string(run) + c;
         else out.append(static_cast<size_t>(run), c);
         x += run;
       }
     }
+    for (int reg : in_band) slot[static_cast<size_t>(reg)] = -1;
     out += '-';
   }
   out += "\x1b\\";
@@ -600,6 +781,7 @@ Indexed indexPicture(const Image & image, int x, int y, int width, int height, i
 }  // namespace
 
 std::vector<uint8_t> encodePalettePng(const Image & image, int x0, int y0, int width, int height, int colours, bool dither) {
+  StageTimer timer(Stage::PNG);
   Indexed picture = indexPicture(image, x0, y0, width, height, std::min(colours, 256), dither);
   int bits = picture.palette.rgb.size() <= 16 ? 4 : 8;
   size_t row_bytes = bits == 4 ? (static_cast<size_t>(width) + 1) / 2 : static_cast<size_t>(width);
@@ -1087,6 +1269,7 @@ std::string ImageEncoder::iterm2(const CellBuffer & frame, const ImagePlacement 
 }
 
 std::string ImageEncoder::encode(const CellBuffer & frame, const std::vector<ImagePlacement> & images, bool cleared) {
+  StageTimer timer(Stage::IMAGE_ENCODE);
   std::string out;
   sizes_ = {};
   if (profile_.protocol == PixelProtocol::NONE) return out;

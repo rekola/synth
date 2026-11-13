@@ -8,6 +8,7 @@
 
 #include <cstdio>
 #include <fmt/core.h>
+#include <atomic>
 #include <unistd.h>
 #include <utility>
 
@@ -24,9 +25,12 @@ using namespace std;
 // case. Returns 0 (or whatever non-negative snd_pcm_prepare() returned) on
 // successful recovery, the negative error code otherwise - callers must not
 // assume the stream is usable again without checking this.
+static std::atomic<uint64_t> g_xruns{0};
+
 static int
 recoverFromPcmError(Logger & logger, snd_pcm_t * handle, int err, const char * what) {
   if (err == -EPIPE) {
+    g_xruns++;
     logger.log(string("XRUN (") + what + ").");
     err = snd_pcm_prepare(handle);
     if (err < 0) logger.log(string("ERROR: Can't recover from XRUN on ") + what + ": " + snd_strerror(err));
@@ -558,3 +562,4 @@ AlsaAudio::getCaptureDelayFrames() const {
   return static_cast<int>(delay);
 }
 
+uint64_t AlsaAudio::xrunCount() const { return g_xruns; }

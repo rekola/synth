@@ -167,7 +167,10 @@ bool TerminalSession::start(SessionOptions & options, std::string * error) {
   link_ = LinkMonitor(options.link);
   link_thresholds_ = options.link_thresholds;
   link_opened_ = std::chrono::steady_clock::now();
-  if (const char * path = std::getenv("SYNTH_LINK_STATS")) link_log_ = std::fopen(path, "a");
+  if (const char * path = std::getenv("SYNTH_LINK_STATS")) {
+    link_log_ = std::fopen(path, "a");
+    if (link_log_) StageStats::enable();
+  }
   if (const char * path = std::getenv("SYNTH_PACER_LOG")) pacer_log_ = std::fopen(path, "a");
 
   // cbreak, plus what an Emacs-style key map needs: Ctrl-S/Q (flow
@@ -492,8 +495,23 @@ void TerminalSession::logLinkStats(std::chrono::steady_clock::time_point now) {
     std::fprintf(link_log_, "%s%s:%zu/%zu", first ? "" : ",", label.c_str(), stat.uploads, stat.bytes);
     first = false;
   }
-  std::fprintf(link_log_, "%s\n", first ? "-" : "");
+  std::fprintf(link_log_, "%s", first ? "-" : "");
+  // The UI thread's CPU this second, and each stage's share of it (nested stages are counted in the ones
+  // that hold them), in microseconds.
+  auto stages = StageStats::totals();
+  int64_t cpu = StageStats::cpuNs();
+  std::fprintf(link_log_, " cpu_us=%lld stages=", static_cast<long long>((cpu - link_log_cpu_) / 1000));
+  bool first_stage = true;
+  for (size_t i = 0; i < kStageCount; i++) {
+    int64_t us = (stages[i] - link_log_stages_[i]) / 1000;
+    if (us == 0) continue;
+    std::fprintf(link_log_, "%s%s:%lld", first_stage ? "" : ",", stageName(static_cast<Stage>(i)), static_cast<long long>(us));
+    first_stage = false;
+  }
+  std::fprintf(link_log_, "%s\n", first_stage ? "-" : "");
   std::fflush(link_log_);
+  link_log_stages_ = stages;
+  link_log_cpu_ = cpu;
   link_log_last_ = now;
   link_log_frames_ = s.frames;
   link_log_mark_ = s.totals;
