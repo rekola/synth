@@ -176,8 +176,9 @@ Controller-level and per-widget commands. Not migrated: `StatusLine`,
   value: `edit-step-increase`/`-decrease`, `set-edit-step-1`..`9`), from 1 to
   the bar at the cursor (`PatternSource::barRows()`; `fitEditStep()` reduces
   it in `render()` and `keyDown()` when the bar is shorter). Entry and every
-  command act on the first row; the rows below are only drawn
-  (`StyleProvider::cursorBodyTint()`, in `renderRow()`, not while the cursor
+  command act on the first row; the rows below are only drawn (the cursor's
+  band in `updateCursorBands()` is that tall, `Band::border_skip_rows` keeping
+  the field's gap in the border to the first row; one row while the cursor
   is a playhead) - except Delete and Backspace, which empty the whole
   rectangle (`cursorRows()` cuts it off at the pattern's end).
 - With a wide cursor a note key goes to `enterChordKey()`, not the single-note

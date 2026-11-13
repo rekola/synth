@@ -1594,8 +1594,6 @@ PatternEditor::render(const StyleProvider & styles, bool refresh, bool focused) 
       focused != current_focused_ ||
       editor_redraw ||
       force_full_redraw_ ||
-      // A cursor of several rows is drawn in more rows than the single-row repaints cover.
-      (edit_step_size > 1 && (cursor_changed || score_playing_row != current_score_playing_row)) ||
       // The single-row repaints below assume the view starts in the
       // cursor's own block, which Live View's - or one scrolled back
       // into the block before - doesn't.
@@ -2704,14 +2702,16 @@ void PatternEditor::updateCursorBands(const StyleProvider & styles, const std::v
   // still while the rows scroll under them.
   int visible = rows - heading_height;
   std::vector<double> shown;
-  auto strip = [&](Plane & plane, double line, double col, double cols, const Color & color, float alpha, cellui::BlendMode blend = cellui::BlendMode::NORMAL, double border_px = 0.0, double skip_col = 0.0, double skip_cols = 0.0) {
+  auto strip = [&](Plane & plane, double line, double col, double cols, const Color & color, float alpha, cellui::BlendMode blend = cellui::BlendMode::NORMAL, double border_px = 0.0, double skip_col = 0.0, double skip_cols = 0.0, double lines = 1.0) {
     double first = heading_height + line;
-    double height = std::min(1.0, static_cast<double>(rows) - first);
+    double height = std::min(lines, static_cast<double>(rows) - first);
     if (height <= 0.0 || cols <= 0.0) {
       plane.clearBand();
       return;
     }
-    plane.setBand(cellui::Band{first, height, col, cols, color, alpha, blend, styles.theme.elevation.card, color, 1.0f, border_px, skip_col, skip_cols});
+    cellui::Band band{first, height, col, cols, color, alpha, blend, styles.theme.elevation.card, color, 1.0f, border_px, skip_col, skip_cols};
+    band.border_skip_rows = lines > 1.0 ? 1.0 : 0.0; // the skipped field is in the first row
+    plane.setBand(band);
     for (double v : {first, height, col, cols, static_cast<double>(alpha), static_cast<double>(blend), border_px, skip_col, skip_cols}) shown.push_back(v);
   };
   auto cursor_track = current_cursor.track >= 0 && current_cursor.track < static_cast<int>(track_ids.size()) ? track_ids[static_cast<size_t>(current_cursor.track)] : -1;
@@ -2779,10 +2779,15 @@ void PatternEditor::updateCursorBands(const StyleProvider & styles, const std::v
       // brightness, then the highlight's own hue is put back over it (inverting
       // colours alone turns the hue round).
       // The border leaves out the field, which stands alone as the inverted block.
+      // It is as many rows high as the edit step, where the pattern has them; a
+      // playhead is one row.
+      auto & play = getController().getPlaybackInfo();
+      bool playhead = source_->cursorLocked() || (play.isPlaying() && source_->cursorFollowsTransport());
+      double lines = playhead ? 1.0 : cursorRows(source_->cursor());
       if (smooth_cursor_)
-        strip(*cursor_border_plane_, at, cursor_x0_, cursor_x1_ - cursor_x0_, styles.highlight_bg_color, 0.0f, cellui::BlendMode::NORMAL, 1.0, sub ? cursor_sub_x0_ : 0.0, sub ? sub_cols : 0.0);
+        strip(*cursor_border_plane_, at, cursor_x0_, cursor_x1_ - cursor_x0_, styles.highlight_bg_color, 0.0f, cellui::BlendMode::NORMAL, 1.0, sub ? cursor_sub_x0_ : 0.0, sub ? sub_cols : 0.0, lines);
       else
-        strip(*cursor_border_plane_, at, cursor_x0_, cursor_x1_ - cursor_x0_, styles.highlight_bg_color, 0.25f);
+        strip(*cursor_border_plane_, at, cursor_x0_, cursor_x1_ - cursor_x0_, styles.highlight_bg_color, 0.25f, cellui::BlendMode::NORMAL, 0.0, 0.0, 0.0, lines);
       if (sub && focus_ > 0.01f) {
         // The inversion fades in with the focus.
         strip(*cursor_plane_, at, cursor_sub_x0_, sub_cols, Color(255, 255, 255), focus_, cellui::BlendMode::DIFFERENCE);
@@ -3463,7 +3468,6 @@ PatternEditor::renderRow(const StyleProvider & styles, int heading_height, const
   // selection is drawn in them: it scrolls with the content.
   const bool cursor_only = !whole_song_ && !(selection_active_ && selection_start_pattern_ == point.block);
   const bool playing_now = getController().getPlaybackInfo().isPlaying();
-  const bool cursor_is_playhead = source_->cursorLocked() || (playing_now && source_->cursorFollowsTransport());
   const int unshifted_row = display_row;
   bool row_shifted = false;
 
@@ -3799,13 +3803,6 @@ PatternEditor::renderRow(const StyleProvider & styles, int heading_height, const
       // own column 0.
       auto first_col = i == current_scroll_.track ? current_scroll_.col : 0;
       auto track_start_x = current_pos;
-      // The cursor is as many rows high as the edit step. The rows below its
-      // first are tinted across its width, in the rows that exist; a playhead
-      // has no height.
-      bool cursor_body_row = show_cursor && !cursor_is_playhead && i == current_cursor.track && !current_cursor.isOnLocator() &&
-                             current_cursor.col < track_info.getColumnCount() && pattern_idx == point.block && pattern_row > point.row &&
-                             pattern_row < point.row + edit_step_size && track_dim <= 0.0f && !is_repeat_row && !track_info.collapsed_;
-      const Color track_bg = bg;
       if (first_col == 0 && !track_info.collapsed_ && track_info.row_number_width_ > 0) {
         // The track's own row number, blank where it has no row (before
         // its first clip).
@@ -3826,14 +3823,6 @@ PatternEditor::renderRow(const StyleProvider & styles, int heading_height, const
 	// identifier cell and divider after it fall to it as well).
 	spans.columns.push_back({ k == first_col ? track_start_x : current_pos, current_pos, i, k });
         const int cell_x0 = current_pos;
-        bg = track_bg;
-        if (cursor_body_row && !in_selection) {
-          bool cursor_fx = track_info.isTrackFxColumn(current_cursor.col);
-          int cursor_note = track_info.getNoteNumber(current_cursor.col);
-          int note_number = track_info.getNoteNumber(k);
-          bool under_cursor = cursor_fx || (note_number >= cursor_note && note_number < cursor_note + cursor_width_);
-          if (track_info.isTrackFxColumn(k) == cursor_fx && under_cursor) bg = styles.cursorBodyTint(track_bg);
-        }
         // Only drives the active-character underline for numeric columns
 	// further down now (which numbers columns are highlighted right at
 	// the cursor's own row, unlike column_selected below) - a single-row,
@@ -4220,8 +4209,6 @@ PatternEditor::renderRow(const StyleProvider & styles, int heading_height, const
           }
         }
       }
-
-      bg = track_bg;
 
       // The track's own trailing identifier cell (VisibleTrackInfo::
       // getColumnWidth()'s own +1 budgets exactly this, for a color-

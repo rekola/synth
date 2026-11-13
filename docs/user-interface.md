@@ -225,10 +225,11 @@ so changing the edit step changes the height at once.
 Each of them shows the new edit step on the status line.
 
 - The cursor's position is its first row. Notes, chords and every command
-  that acts at the cursor act there. The first row is drawn as a cursor one row
-  high is; the rows below it are tinted faintly across the cursor's width.
-  Nothing is entered or played in those rows: they show where the next entry
-  will go, which is the row just below the last of them.
+  that acts at the cursor act there. The cursor's own mark, the lighter
+  colour over its columns on a terminal and the border round them in a
+  window, reaches down over all its rows; the cell being edited is marked in
+  the first row only. Nothing is entered or played in the rows below the
+  first: the next entry goes in the row just below the last of them.
 - The height is at least 1 and at most one bar at the cursor (16 rows in 4/4).
   There is no edit step of 0 any more: `set-edit-step-0` and Ctrl-0 are gone, and
   the cursor always moves on after an entry. Where the bar is shorter than the
