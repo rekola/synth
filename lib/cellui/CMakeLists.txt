@@ -210,6 +210,9 @@ if(NOT WIN32)
   # Times the deflate encoder on raw pictures (see the file's top comment).
   add_executable(cellui_deflate_bench tools/deflate_bench.cpp)
   target_link_libraries(cellui_deflate_bench PRIVATE cellui)
+  # Times the picture encoder and hashes its bytes, so a speed-up can be shown to leave them alone.
+  add_executable(cellui_sixel_bench tools/sixel_bench.cpp)
+  target_link_libraries(cellui_sixel_bench PRIVATE cellui)
   # The frame pacer against shaped ptys (bandwidth, latency, a silent terminal).
   find_package(Python3 COMPONENTS Interpreter QUIET)
   if(Python3_Interpreter_FOUND)

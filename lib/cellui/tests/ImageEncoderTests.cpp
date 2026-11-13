@@ -1002,3 +1002,75 @@ TEST(sixel_gradient_with_few_colours_is_dithered_when_it_is_stretched) {
   std::vector<bool> flat_all(16 * 12, true);
   CHECK(count(encodeSixel(flat, 0, 0, 16, 12, flat_all, gradient, 128), ";2;") == 1);
 }
+
+// The bytes the picture encoder makes for pictures of every kind it meets, as a hash, so a change that is
+// only meant to make it faster is shown to leave them alone. The pictures are made by arithmetic here
+// (not drawn), so they are the same on every platform. A change that is meant to change the bytes (a
+// better palette) updates the hashes and says why.
+namespace {
+
+uint64_t fnv1a(const std::string & s) {
+  uint64_t h = 1469598103934665603ull;
+  for (char c : s) h = (h ^ static_cast<unsigned char>(c)) * 1099511628211ull;
+  return h;
+}
+
+Image smooth(int w, int h) {  // many colours: a heatmap or a gradient
+  Image img;
+  img.width = w;
+  img.height = h;
+  img.pixels.resize(static_cast<size_t>(w * h));
+  for (int y = 0; y < h; y++)
+    for (int x = 0; x < w; x++)
+      img.pixels[static_cast<size_t>(y * w + x)] = Image::pack(static_cast<uint8_t>((x * 5 + y * 3) % 256), static_cast<uint8_t>((x * x / 7 + y * 11) % 256),
+                                                              static_cast<uint8_t>((x * 3 + y * y / 5) % 256));
+  return img;
+}
+
+Image chartLike(int w, int h) {  // a few flat colours and a line with an edge of in-between ones
+  Image img;
+  img.width = w;
+  img.height = h;
+  img.pixels.assign(static_cast<size_t>(w * h), Image::pack(28, 34, 39));
+  for (int x = 0; x < w; x++) {
+    int top = h / 2 + (x * 7 % 13) - 6 + (x / 9 % 5);
+    for (int y = std::max(0, top); y < h; y++) img.pixels[static_cast<size_t>(y * w + x)] = Image::pack(36, 70, 90);
+    if (top >= 0 && top < h) img.pixels[static_cast<size_t>(top * w + x)] = Image::pack(117, 212, 235);
+    if (top - 1 >= 0 && top - 1 < h) img.pixels[static_cast<size_t>((top - 1) * w + x)] = Image::pack(70, 120, 140);
+  }
+  return img;
+}
+
+}  // namespace
+
+TEST(the_picture_encoder_makes_the_same_bytes_for_every_kind_of_picture) {
+  Image backdrop = smooth(64, 24);
+  backdrop.cols = 32;
+  backdrop.rows = 4;
+  struct Case { const char * name; Image image; };
+  std::vector<Case> cases;
+  cases.push_back({"smooth", smooth(96, 60)});
+  cases.push_back({"chart", chartLike(160, 48)});
+  cases.push_back({"backdrop", std::move(backdrop)});
+  uint64_t all = 0;
+  for (PixelProtocol protocol : {PixelProtocol::SIXEL, PixelProtocol::KITTY, PixelProtocol::ITERM2}) {
+    for (PictureQuality quality : {PictureQuality::FULL, PictureQuality::REDUCED, PictureQuality::LOW}) {
+      for (const Case & c : cases) {
+        ImageEncoder::Profile prof = profile(protocol);
+        ImageEncoder enc(prof);
+        enc.setPictureQuality(quality);
+        int cols = c.image.stretched() ? c.image.cols : (c.image.width + 1) / 2, rows = c.image.stretched() ? c.image.rows : (c.image.height + 5) / 6;
+        CellBuffer b(rows + 1, cols);
+        CellBuffer::Cell marked;
+        marked.image = 1;
+        for (int y = 0; y < rows; y++)
+          for (int x = 0; x < cols; x++) b.put(y, x, marked);
+        ImagePlacement place;
+        place.image = std::make_shared<const Image>(c.image);
+        place.key = 1;
+        all = all * 1099511628211ull ^ fnv1a(enc.encode(b, {place}, true));
+      }
+    }
+  }
+  CHECK(all == 0x061fff1a2051dd63ull);
+}
