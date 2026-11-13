@@ -631,7 +631,7 @@ static_assert(sizeof(Note) == 8, "Note must stay 8 bytes");
 // The Note-taking overload of getFrequencyFor() (Tuning.h) lives here
 // rather than there, since Tuning.h is included by Note.h and can't
 // include it back without the two headers including each other.
-inline float getFrequencyFor(Tuning tuning, const Note & note) {
+inline float getFrequencyFor(Tuning tuning, const Note note) {
   if (!note.isNoteOn()) {
     return 0.0f;
   }

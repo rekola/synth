@@ -37,8 +37,7 @@ void humanizeNote(Note & note, const HumanizeAmount & amount, NoiseGenerator & r
   note.setDelay(static_cast<short>(clamp(delay, 0, 255)));
 }
 
-
-bool isPitched(const Note & note) {
+bool isPitched(const Note note) {
   return note.isNoteOn();
 }
 
@@ -466,7 +465,7 @@ static int nearestStep(double cents, int edo) {
   return static_cast<int>(std::ceil(cents * edo / 1200.0 - 0.5 - 1e-9));
 }
 
-Note convertNoteTuning(const Note & note, Tuning from, Tuning to, int from_anchor, int to_anchor) {
+Note convertNoteTuning(const Note note, Tuning from, Tuning to, int from_anchor, int to_anchor) {
   int from_edo = edoStepsFor(from), to_edo = edoStepsFor(to);
   if (from == to || from_edo <= 0 || to_edo <= 0 || note.getValue() < 0) return note;
   double interval = (note.getValue() - from_anchor) * 1200.0 / from_edo + note.getTuningCorrectionCents();

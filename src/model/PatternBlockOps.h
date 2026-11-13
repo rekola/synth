@@ -164,7 +164,7 @@ int convertSongTuning(Song & song, Tuning to);
 // moves each: `from_anchor` (a note value in `from`) becomes `to_anchor` and
 // the note keeps its interval to it. Unchanged for the same tuning,
 // percussion, or aftertouch.
-Note convertNoteTuning(const Note & note, Tuning from, Tuning to, int from_anchor, int to_anchor);
+Note convertNoteTuning(const Note note, Tuning from, Tuning to, int from_anchor, int to_anchor);
 // The step of `to` nearest a note value of `from`, by pitch above C.
 int convertTuningAnchor(int value, Tuning from, Tuning to);
 // The notes of one track of a copied block, or of a clip, moved to another

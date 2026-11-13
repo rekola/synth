@@ -69,9 +69,9 @@ class Arrangement {
     patterns_by_track_id_[track_id].insertRow(row, num_rows);
   }
 
-  const Note & getNote(int row, int track_id, int note_column) const {
+  Note getNote(int row, int track_id, int note_column) const {
     auto it = patterns_by_track_id_.find(track_id);
-    return it != patterns_by_track_id_.end() ? it->second.getNote(row, note_column) : empty_note;
+    return it != patterns_by_track_id_.end() ? it->second.getNote(row, note_column) : Note{};
   }
 
   const std::vector<Note> & getNotes(int row, int track_id) const {
@@ -227,7 +227,6 @@ class Arrangement {
   std::unordered_map<int, std::map<unsigned short, std::string> > instances_by_track_id_;
   std::unordered_map<int, SampleContent> sample_backgrounds_by_track_id_;
 
-  static inline Note empty_note;
   static inline std::vector<Note> empty_notes;
   static inline Command empty_command;
   static inline std::vector<Command> empty_commands;
