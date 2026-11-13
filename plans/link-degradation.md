@@ -639,6 +639,22 @@ deflate ratio on real charts is known.
      which the palette and map are 6). The blur (10 to 23 points of drawing the tiles with canvas, and the deflate and
      Sixel bytes of its pictures) is not cut here: it is phase 9, where the algorithm is chosen first.
      Not worth it: the cell encode (about 1) and base64 (0.07 to 0.3).
+   - **First cuts** (`cellui_sixel_bench` for the encoder alone, `cpu_load.py` for the application; the bytes are the same:
+     `the_picture_encoder_makes_the_same_bytes_for_every_kind_of_picture` holds a hash made by the code before). The
+     Sixel encode: the colour counts in flat open-addressing tables in place of hash maps, the 101-level and dither
+     arithmetic from tables made from the same expressions, one pass a band to set each register's bits where each
+     register's pixels were gone over again, the nearest-register search over all registers in one loop a compiler
+     vectorises, a radix sort of the colours. A 328x80 spectrum as Sixel went from 4.3 to 1.6 ms and a 232x80 heatmap
+     from 5.8 to 2.7 ms; the palette PNG of the 15 Hz class from 2.0 to 1.3 ms and from 2.8 to 1.9 ms. In the application
+     (UI-thread CPU, percent of a core, demo3 playing): Sixel Live View at full speed 41 to 23 (image encode 24 to 9),
+     Arrangement 48 to 31 (28 to 12), Live View at 15 Hz 31 to 20 (13 to 5.7); kitty at 15 Hz 28 to 20 (the palette PNG
+     8.5 to 4.4). The audio thread: unchanged (1.5 to 1.8 % of a block, no late block).
+     Looked at and left: deflate runs at 300 to 460 MB/s on x86 and the NEON and AVX2 paths cannot be tried here; a
+     picture's render is 0.2 ms for a spectrum and 0.8 ms for the heatmap, all of it cairo's highest-quality filter
+     scaling the 26x14 grid up (a bilinear scaler of our own takes 0.1 ms but differs from it by 19 levels on average,
+     100 at worst, on a contrasty grid: a change of look, so a decision, not a cut). Still open: a palette kept from
+     one frame to the next while a picture's colours hold (it changes the bytes and so needs the error measured) and
+     the encode off the UI thread.
    - **Done when** the UI under the slowest class and the busiest scenario costs the audio thread no
      missed blocks on the slowest machine, with the per-stage figures recorded here.
 
