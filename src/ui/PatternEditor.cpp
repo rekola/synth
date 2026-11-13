@@ -557,11 +557,11 @@ PatternEditor::PatternEditor(Plane & parent)
   // buttons can trigger the exact same code, not a re-implementation of
   // it - see LaunchpadProtocol's CC91/92 mapping and LaunchpadManager::
   // handleCommand.
-  // Rows the cursor advances after a note is entered (0 stays put).
+  // Rows the cursor advances after a note is entered, which is its height.
   commands_.define("edit-step-increase", [this]() { changeEditStep(1); });
   commands_.define("edit-step-decrease", [this]() { changeEditStep(-1); });
-  // set-edit-step-1 .. set-edit-step-9, set-edit-step-0 (0 stays put).
-  for (int n = 0; n <= 9; n++) {
+  // set-edit-step-1 .. set-edit-step-9.
+  for (int n = 1; n <= 9; n++) {
     auto name = "set-edit-step-" + std::to_string(n);
     commands_.define(name, [this, n]() { setEditStep(n); });
     int digit = '0' + n;
@@ -819,8 +819,33 @@ PatternEditor::changeEditStep(int delta) {
 
 void
 PatternEditor::setEditStep(int step) {
-  edit_step_size = std::clamp(step, 0, kMaxEditStep);
+  int bar = maxEditStep();
+  if (step < 1 && edit_step_size == 1) {
+    getController().log("The cursor is one row high");
+    return;
+  }
+  if (step > bar && edit_step_size == bar) {
+    getController().log(fmt::format("The cursor is at its highest (one bar, {} rows)", bar));
+    return;
+  }
+  edit_step_size = std::clamp(step, 1, bar);
+  force_full_redraw_ = true;
   getController().log("Edit step: " + std::to_string(edit_step_size));
+}
+
+int PatternEditor::maxEditStep() const {
+  return std::max(source_->barRows(source_->cursor()), 1);
+}
+
+int PatternEditor::cursorRows(RowAddress point) const {
+  return std::clamp(source_->blockLength(point.block) - point.row, 1, edit_step_size);
+}
+
+void PatternEditor::fitEditStep() {
+  int fitted = std::clamp(edit_step_size, 1, maxEditStep());
+  if (fitted == edit_step_size) return;
+  edit_step_size = fitted;
+  force_full_redraw_ = true;
 }
 
 int PatternEditor::limitToSelectionPattern(int delta_rows) {
@@ -1271,6 +1296,7 @@ PatternEditor::render(const StyleProvider & styles, bool refresh, bool focused) 
   syncCursorTrack(song);
   getController().setNoteHeld(!active_keyboard_notes_.empty() || chord_entry_.open || chord_palette_.open); // heals a hold whose release never arrived
   auto point = source_->cursor();
+  fitEditStep();
   {
     auto last_row = std::max(song.getArrangementLength(), point.row + 1) - 1;
     int digits = 2;
@@ -1331,10 +1357,14 @@ PatternEditor::render(const StyleProvider & styles, bool refresh, bool focused) 
     RowAddress top{ view_block_, current_scroll_.row };
     auto line = source_->rowsBetween(top, point);
     // By page, the cursor comes to the far margin so the view stays still for a page of rows.
+    // The rows of the cursor below its first are kept in view too, as far as they
+    // fit; not under a playhead, which holds its own line.
+    bool playhead = source_->cursorLocked() || (info.isPlaying() && source_->cursorFollowsTransport());
+    auto below = pointing || playhead ? 0 : std::clamp(edit_step_size - 1, 0, std::max(visible - 1 - 2 * margin, 0));
     if (line < margin) {
       top = source_->advance(point, page_scroll_ ? -(visible - 1 - margin) : -margin);
-    } else if (line > visible - 1 - margin) {
-      top = source_->advance(point, page_scroll_ ? -margin : -(visible - 1 - margin));
+    } else if (line + below > visible - 1 - margin) {
+      top = source_->advance(point, page_scroll_ ? -margin : below - (visible - 1 - margin));
     }
     if (!isLiveMode() && top.row < 0) top = { 0, 0 };
     if (isLiveMode()) {
@@ -1567,6 +1597,8 @@ PatternEditor::render(const StyleProvider & styles, bool refresh, bool focused) 
       focused != current_focused_ ||
       editor_redraw ||
       force_full_redraw_ ||
+      // A cursor of several rows is drawn in more rows than the single-row repaints cover.
+      (edit_step_size > 1 && (cursor_changed || score_playing_row != current_score_playing_row)) ||
       // The single-row repaints below assume the view starts in the
       // cursor's own block, which Live View's - or one scrolled back
       // into the block before - doesn't.
@@ -1575,8 +1607,7 @@ PatternEditor::render(const StyleProvider & styles, bool refresh, bool focused) 
       // can be visible at other screen rows too, not just the cursor's -
       // the single-row repaint below can't know which, so fall back to a
       // full redraw.
-      row_edited
-      ) {
+      row_edited) {
     render_all = true;
     force_full_redraw_ = false;
   }
@@ -1788,7 +1819,7 @@ PatternEditor::loadEditingState(const string & name) {
   new_cursor = state.new_cursor;
   current_scroll_ = state.current_scroll;
   view_detached_ = false;
-  edit_step_size = state.edit_step_size;
+  edit_step_size = std::max(state.edit_step_size, 1);
   current_song_version = state.current_song_version;
   midi_input_ = state.midi_input;
   active_keyboard_notes_ = state.active_keyboard_notes;
@@ -2157,6 +2188,7 @@ bool PatternEditor::keyDown(const cellui::KeyDown & e) {
 
   // A chord entry whose time is up is completed before the next key acts.
   tickChordEntry();
+  fitEditStep();
 
   pointer_scroll_ = false;
 
@@ -2386,7 +2418,14 @@ bool PatternEditor::keyDown(const cellui::KeyDown & e) {
         if (e.key == Key::Delete || e.key == Key::Backspace) {
           Song::Edit edit(song, "clear command", Song::Edit::Kind::CONTENT, Song::Edit::Origin::USER, true);
 	  set_command(Command());
-	  row_edited = true;
+          // And the commands of the cursor's other rows, where there are any.
+          for (int d = 1; d < cursorRows(point); d++) {
+            int command_row;
+            if (auto pattern = command_grid->findCommands(track_id, point.row + d, command_row); pattern && pattern->getCommand(command_row).isDefined()) {
+              if (auto writable = command_grid->obtainCommands(track_id, point.row + d, command_row)) writable->setCommand(command_row, Command());
+            }
+          }
+          row_edited = true;
 	  // Same row-level Backspace-steps-back/Delete-stays-put distinction
 	  // the note column's own is_delete handling makes below.
           if (!transport_owns_row && e.key == Key::Backspace) {
@@ -2433,7 +2472,17 @@ bool PatternEditor::keyDown(const cellui::KeyDown & e) {
 	  note.setFx("---");
 	  Song::Edit edit(song, "clear note fx", Song::Edit::Kind::CONTENT, Song::Edit::Origin::USER, true);
 	  edit_target.pattern->setNote(edit_target.effective_row, note_column, note);
-	  row_edited = true;
+          // And those of every other note under the cursor, in all its rows.
+          for (int d = 0; d < cursorRows(point); d++) {
+            auto target = source_->edit(track_id, RowAddress{point.block, point.row + d});
+            auto row_notes = target.pattern->getNotes(target.effective_row);
+            for (int c = note_column; c < note_column + cursor_width_ && c < static_cast<int>(row_notes.size()); c++) {
+              auto other = row_notes[static_cast<size_t>(c)];
+              other.setFx("---");
+              target.pattern->setNote(target.effective_row, c, other);
+            }
+          }
+          row_edited = true;
 	  new_cursor.subcol = 0;
 	  return true;
         }
@@ -2575,8 +2624,14 @@ bool PatternEditor::keyDown(const cellui::KeyDown & e) {
 	  // already one group, which joins the run when it ends.
 	  Song::Edit edit(song, "enter note", Song::Edit::Kind::CONTENT, Song::Edit::Origin::USER, !song.document().inGroup());
 	  if (is_delete) {
-	    edit_target.pattern->deleteNote(edit_target.effective_row, note_column);
-	    event_queue.push(make_unique<PlaybackControlEvent>(PlaybackControlEvent::STOP_NOTE, getController().getActiveBufferName(), track_id, note_column));
+            // Every note under the cursor: all its columns, in all its rows.
+            for (int d = 0; d < cursorRows(point); d++) {
+              auto target = source_->edit(track_id, RowAddress{point.block, point.row + d});
+              for (int c = note_column; c < note_column + cursor_width_; c++) target.pattern->deleteNote(target.effective_row, c);
+            }
+            for (int c = note_column; c < note_column + cursor_width_; c++) {
+              event_queue.push(make_unique<PlaybackControlEvent>(PlaybackControlEvent::STOP_NOTE, getController().getActiveBufferName(), track_id, c));
+            }
           } else if (is_lacuna) {
             edit_target.pattern->setNote(edit_target.effective_row, note_column, Note::lacuna());
           } else if (is_lost) {
@@ -3434,6 +3489,7 @@ PatternEditor::renderRow(const StyleProvider & styles, int heading_height, const
   // selection is drawn in them: it scrolls with the content.
   const bool cursor_only = !whole_song_ && !(selection_active_ && selection_start_pattern_ == point.block);
   const bool playing_now = getController().getPlaybackInfo().isPlaying();
+  const bool cursor_is_playhead = source_->cursorLocked() || (playing_now && source_->cursorFollowsTransport());
   const int unshifted_row = display_row;
   bool row_shifted = false;
 
@@ -3769,6 +3825,13 @@ PatternEditor::renderRow(const StyleProvider & styles, int heading_height, const
       // own column 0.
       auto first_col = i == current_scroll_.track ? current_scroll_.col : 0;
       auto track_start_x = current_pos;
+      // The cursor is as many rows high as the edit step. The rows below its
+      // first are tinted across its width, in the rows that exist; a playhead
+      // has no height.
+      bool cursor_body_row = show_cursor && !cursor_is_playhead && i == current_cursor.track && !current_cursor.isOnLocator() &&
+                             current_cursor.col < track_info.getColumnCount() && pattern_idx == point.block && pattern_row > point.row &&
+                             pattern_row < point.row + edit_step_size && track_dim <= 0.0f && !is_repeat_row && !track_info.collapsed_;
+      const Color track_bg = bg;
       if (first_col == 0 && !track_info.collapsed_ && track_info.row_number_width_ > 0) {
         // The track's own row number, blank where it has no row (before
         // its first clip).
@@ -3789,6 +3852,14 @@ PatternEditor::renderRow(const StyleProvider & styles, int heading_height, const
 	// identifier cell and divider after it fall to it as well).
 	spans.columns.push_back({ k == first_col ? track_start_x : current_pos, current_pos, i, k });
         const int cell_x0 = current_pos;
+        bg = track_bg;
+        if (cursor_body_row && !in_selection) {
+          bool cursor_fx = track_info.isTrackFxColumn(current_cursor.col);
+          int cursor_note = track_info.getNoteNumber(current_cursor.col);
+          int note_number = track_info.getNoteNumber(k);
+          bool under_cursor = cursor_fx || (note_number >= cursor_note && note_number < cursor_note + cursor_width_);
+          if (track_info.isTrackFxColumn(k) == cursor_fx && under_cursor) bg = styles.cursorBodyTint(track_bg);
+        }
         // Only drives the active-character underline for numeric columns
 	// further down now (which numbers columns are highlighted right at
 	// the cursor's own row, unlike column_selected below) - a single-row,
@@ -4175,6 +4246,8 @@ PatternEditor::renderRow(const StyleProvider & styles, int heading_height, const
           }
         }
       }
+
+      bg = track_bg;
 
       // The track's own trailing identifier cell (VisibleTrackInfo::
       // getColumnWidth()'s own +1 budgets exactly this, for a color-

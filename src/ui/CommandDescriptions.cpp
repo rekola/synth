@@ -20,8 +20,8 @@ commandDescription(std::string_view name) {
       {"cycle-monitor", "Cycle the track's input monitoring: Auto, In, Off"},
       {"delete-track", "Delete the current track"},
       {"double-clip-length", "Double the clip's length"},
-      {"edit-step-decrease", "Move the cursor fewer rows after entering a note"},
-      {"edit-step-increase", "Move the cursor more rows after entering a note"},
+      {"edit-step-decrease", "Make the cursor one row lower: it moves one row less after an entry"},
+      {"edit-step-increase", "Make the cursor one row higher, up to a bar: it moves one row more after an entry"},
       {"exchange-point-and-mark", "Swap the cursor and the other end of the selection"},
       {"humanize-region", "Loosen the region's timing and velocity slightly"},
       {"halve-clip-length", "Halve the clip's length"},
@@ -107,8 +107,8 @@ commandDescription(std::string_view name) {
   };
   constexpr std::string_view kEditStep = "set-edit-step-";
   if (name.substr(0, kEditStep.size()) == kEditStep && name.size() == kEditStep.size() + 1) {
-    return name.back() == '0' ? "Keep the cursor in place after entering a note"
-                              : "Move the cursor " + std::string(1, name.back()) + " rows after entering a note";
+    return name.back() == '1' ? "Make the cursor one row high: it moves one row after an entry"
+                              : "Make the cursor " + std::string(1, name.back()) + " rows high: it moves as many rows after an entry";
   }
   auto colon = name.find(':');
   auto it = descriptions.find(colon == std::string_view::npos ? name : name.substr(0, colon));

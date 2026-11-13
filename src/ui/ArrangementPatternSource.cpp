@@ -127,6 +127,10 @@ bool ArrangementPatternSource::startsBeat(int, int row) const {
   return bars.rowInBar(row) % bars.beatRows(row) == 0;
 }
 
+int ArrangementPatternSource::barRows(RowAddress address) const {
+  return song().getArrangementBars().barRows(std::max(address.row, 0));
+}
+
 double ArrangementPatternSource::trackScrollRate(int) const {
   if (!controller_.getPlaybackInfo().isPlaying()) return 0.0;
   // A row is a sixteenth.

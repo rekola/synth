@@ -446,3 +446,84 @@ TEST(chord_palette_is_accepted_by_the_next_note) {
   CHECK(f.row(0) == (V{C, Ds, E}));
   CHECK(f.row(1) == (V{F, A, 53 + C}));
 }
+
+namespace {
+
+// The same fixture, for the cursor's height: the edit step.
+struct HeightFixture : ChordFixture {
+  int cursorRow() const { return controller->getPlaybackInfo().getAbsolutePosition(); }
+  // Notes in the first `columns` note columns of rows 0 to `rows` - 1.
+  void fill(int rows, int columns) {
+    auto & song = controller->getSong();
+    {
+      Song::Edit edit(song, "fill");
+      for (int r = 0; r < rows; r++) {
+        auto target = resolveEditTarget(song, track_id, r);
+        for (int c = 0; c < columns; c++) target.pattern->setNote(target.effective_row, c, Note(kC + c, 0x40, 0));
+      }
+    }
+    controller->ensureNoteColumns(track_id, columns);
+    ui->step();
+  }
+};
+
+} // namespace
+
+TEST(cursor_height_is_the_edit_step_from_one_row_to_a_bar) {
+  HeightFixture f;
+  f.execute("edit-step-decrease");
+  CHECK(f.shows("one row high"));
+  f.execute("set-edit-step-4");
+  CHECK(f.shows("Edit step: 4"));
+  f.execute("edit-step-increase");
+  CHECK(f.shows("Edit step: 5"));
+  // A bar of 4/4 is 16 rows.
+  for (int i = 0; i < 11; i++) f.execute("edit-step-increase");
+  CHECK(f.shows("Edit step: 16"));
+  f.execute("edit-step-increase");
+  CHECK(f.shows("one bar, 16 rows"));
+  // A shorter bar reduces it.
+  {
+    auto & song = f.controller->getSong();
+    Song::Edit edit(song, "signature");
+    song.setTimeSignature(TimeSignature{3, 4});
+  }
+  f.ui->step();
+  f.execute("edit-step-increase");
+  CHECK(f.shows("one bar, 12 rows"));
+  f.execute("edit-step-decrease");
+  CHECK(f.shows("Edit step: 11"));
+}
+
+TEST(cursor_moves_down_by_its_height_after_an_entry_that_writes_its_first_row) {
+  HeightFixture f;
+  f.execute("set-edit-step-4");
+  f.down('z');
+  f.up('z');
+  CHECK(f.row(0) == (V{C}));
+  CHECK(f.cursorRow() == 4);
+  f.down('c');
+  f.up('c');
+  for (int r : {1, 2, 3, 5}) CHECK(f.row(r).empty());
+  CHECK(f.row(4) == (V{E}));
+  CHECK(f.cursorRow() == 8);
+}
+
+TEST(delete_and_backspace_empty_every_cell_under_the_cursor) {
+  HeightFixture f;
+  f.fill(8, 4);
+  f.widen(2); // three columns
+  f.execute("set-edit-step-4");
+  f.press(cellui::Key::Delete);
+  // The fourth column and the rows below the cursor stay.
+  for (int r = 0; r < 4; r++) CHECK(f.row(r) == (V{-1, -1, -1, 3}));
+  for (int r = 4; r < 8; r++) CHECK(f.row(r) == (V{0, 1, 2, 3}));
+  CHECK(f.cursorRow() == 0);
+  // Backspace empties the cursor's cells and steps back by its height.
+  for (int i = 0; i < 6; i++) f.press(cellui::Key::Down);
+  f.execute("set-edit-step-2");
+  f.press(cellui::Key::Backspace);
+  for (int r : {4, 5}) CHECK(f.row(r) == (V{0, 1, 2, 3}));
+  for (int r : {6, 7}) CHECK(f.row(r) == (V{-1, -1, -1, 3}));
+  CHECK(f.cursorRow() == 4);
+}

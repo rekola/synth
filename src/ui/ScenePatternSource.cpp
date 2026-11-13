@@ -83,6 +83,10 @@ bool ScenePatternSource::startsBeat(int block, int row) const {
   return row >= 0 && row % song().getSceneBeatRows(block) == 0;
 }
 
+int ScenePatternSource::barRows(RowAddress address) const {
+  return song().getSceneBarRows(std::clamp(address.block, 0, std::max(blockCount() - 1, 0)));
+}
+
 RowAddress
 ScenePatternSource::clamp(RowAddress address) const {
   address.block = std::clamp(address.block, 0, blockCount() - 1);

@@ -43,15 +43,25 @@ What the pattern editor adds to the notes played when its cursor is wider
 than one note column: the other notes of a chord of the song's scale that
 contains them (user-interface.md, Chord entry). Otonal and utonal songs only.
 
+<<<<<<< HEAD
 **Chord palette**
 The list of a degree's chords the pattern editor offers for the notes of an
 entry or the note under the cursor; moving through it writes and plays each
 (user-interface.md, Chord palette).
+=======
+**Cursor height**
+How many rows the pattern editor's cursor covers, from 1 to one bar: the same
+value as the edit step. Its first row is the cursor's position.
+>>>>>>> origin/main
 
 **Cursor width**
 How many note columns of its row the pattern editor's cursor covers, 1 to 4;
 the size of the chord an entry is completed to. Not the region, which the
 mark makes.
+
+**Edit step**
+How many rows the pattern editor's cursor moves down after an entry, from 1
+to one bar. It is also the cursor's height.
 
 **Clip launcher**
 The grid of clips inside Live View: one column per track, one row per scene,
