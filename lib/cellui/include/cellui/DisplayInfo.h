@@ -55,6 +55,9 @@ struct DisplayInfo {
   // Whether a plane's content can be shown shifted by a fraction of a cell
   // (Plane::setScrollOffset()), so a view can scroll smoothly.
   bool smooth_scroll = false;
+  // Whether a band's border is drawn on the display, as lines on the cell edges (the terminal with kitty
+  // graphics) or as the window's own border (smooth_scroll displays); else the application tints.
+  bool cell_borders = false;
   // Whether the display lays out text itself, so Plane::putText() can set it
   // in a proportional face; any other has the cells' own.
   bool proportional_text = false;

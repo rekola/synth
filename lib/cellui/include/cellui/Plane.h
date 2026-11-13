@@ -96,6 +96,8 @@ class Plane {
   virtual KeymapProfile keymapProfile() const { return KeymapProfile::TERMINAL; }
   // Whether setScrollOffset() shifts a plane here.
   virtual bool smoothScroll() const { return false; }
+  // Whether the display draws a band's border (DisplayInfo::cell_borders): the application tints where not.
+  virtual bool cellBorders() const { return false; }
   // The plane's size in pixels, when the display can show pixels here;
   // false when it cannot (no image protocol, or the cell size unknown), and
   // a chart then draws in cells.

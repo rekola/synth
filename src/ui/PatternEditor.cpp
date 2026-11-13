@@ -2810,7 +2810,7 @@ void PatternEditor::updateCursorBands(const StyleProvider & styles, const std::v
       auto & play = getController().getPlaybackInfo();
       bool playhead = source_->cursorLocked() || (play.isPlaying() && source_->cursorFollowsTransport());
       double lines = playhead ? 1.0 : cursorRows(source_->cursor());
-      if (smooth_cursor_)
+      if (getPlane().cellBorders())
         strip(*cursor_border_plane_, at, cursor_x0_, cursor_x1_ - cursor_x0_, styles.highlight_bg_color, 0.0f, cellui::BlendMode::NORMAL, 1.0, sub ? cursor_sub_x0_ : 0.0, sub ? sub_cols : 0.0, lines);
       else
         strip(*cursor_border_plane_, at, cursor_x0_, cursor_x1_ - cursor_x0_, styles.highlight_bg_color, 0.25f, cellui::BlendMode::NORMAL, 0.0, 0.0, 0.0, lines);
