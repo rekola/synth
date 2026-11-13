@@ -250,12 +250,16 @@ other chords written short say how many notes they have. One entry is one
 undo step.
 
 A played note is written and sounds as its key goes down. The completion
-comes when no further key has been pressed for about 0.1 s, or when the keys
-are all released, whichever is first: held keys are joined by the added
-notes, and after a quick tap the whole chord sounds for a moment. Another key
+comes when no further key has been pressed for about 0.08 s, or when the keys
+are all released, whichever is first. The added notes are written together
+and sound one after another from the lowest, the same 0.08 s apart: with C
+held, E follows 0.08 s after the key press and G 0.08 s after E. After a
+quick tap, released before the 0.08 s have passed, the time the key was down
+is the time between the notes, and the chord rings on for a moment. Keys
+released while notes are still to come end the chord there. Another key
 pressed while keys are held works the chord out again from the held notes.
 The cursor steps on when the keys are released. On a terminal that reports
-no key releases the completion comes when the 0.1 s have passed, and the
+no key releases the completion comes when the 0.08 s have passed, and the
 cursor steps on then.
 
 Nothing is added when the cursor is one column wide, when you play as many

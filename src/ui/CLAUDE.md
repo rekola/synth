@@ -174,13 +174,15 @@ Controller-level and per-widget commands. Not migrated: `StatusLine`,
   follow the notes and are no undo steps.
 - With a wide cursor a note key goes to `enterChordKey()`, not the single-note
   path: a `ChordEntry` collects the keys of one entry (held together, or
-  within `ChordGrouper::kWindow` where no release is reported), writes each
+  within `kCompletionInterval` where no release is reported), writes each
   as it is pressed, and `applyChordCompletion()` rewrites the cursor's columns
   with `chords::complete()`'s first result (`model/Chords.h`: the lists,
   names and completion, otonal and utonal only) when the deadline passes
   (`tickChordEntry()`, from `render()`) or the last key is released. A held
   key's voice stays on the column it started on, whatever column its note is
-  written in; added notes sound on free columns (`freeVoiceColumn()`). The
+  written in; added notes sound on free columns (`freeVoiceColumn()`),
+  one after another (`Arpeggio`, an interval apart; a tap's length after a
+  quick tap), though they are written at once. The
   entry holds the note-held undo group open, so it is one step, and breaks
   the typing run on both sides.
 
