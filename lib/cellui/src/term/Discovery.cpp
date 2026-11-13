@@ -386,6 +386,7 @@ Capabilities Discovery::result() const {
   else if (env_.pixels_override == "iterm2") caps.pixels = PixelProtocol::ITERM2;
   if (caps.display.cell_px_height <= 0 || caps.display.cell_px_width <= 0) caps.pixels = PixelProtocol::NONE;
   caps.display.pictures = caps.pixels != PixelProtocol::NONE;
+  caps.display.cell_borders = caps.pixels == PixelProtocol::KITTY;
   return caps;
 }
 
