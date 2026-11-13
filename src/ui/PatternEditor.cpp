@@ -692,6 +692,13 @@ PatternEditor::PatternEditor(Plane & parent)
   keymap_.bind(KeymapProfile::DESKTOP, KeyStroke::pack('r', true, false, false, false), "rename");
   keymap_.bind(KeyStroke::pack(Key::Up, false, false, false, false), "move-row-up");        // plain Up (was inline handling)
   keymap_.bind(KeyStroke::pack(Key::Down, false, false, false, false), "move-row-down");    // plain Down
+  keymap_.bind(KeyStroke::pack(Key::Right, true, false, true, false), "widen-cursor");      // Ctrl+Shift+Right
+  keymap_.bind(KeyStroke::pack(Key::Left, true, false, true, false), "narrow-cursor");      // Ctrl+Shift+Left
+  // Emacs's keys for the next and previous item of a history; the desktop's step through candidates.
+  keymap_.bind(KeymapProfile::TERMINAL, KeyStroke::pack('n', false, true, false, false), "next-chord");
+  keymap_.bind(KeymapProfile::TERMINAL, KeyStroke::pack('p', false, true, false, false), "previous-chord");
+  keymap_.bind(KeymapProfile::DESKTOP, KeyStroke::pack('.', true, false, false, false), "next-chord");
+  keymap_.bind(KeymapProfile::DESKTOP, KeyStroke::pack(',', true, false, false, false), "previous-chord");
 
   assertCommandBindingsValid();
 }
@@ -4970,26 +4977,20 @@ void PatternEditor::closeChordPalette(bool accept) {
 }
 
 bool PatternEditor::chordPaletteKey(const cellui::KeyDown & e) {
-  // The commands that act on the open palette, by whatever keys they are bound to.
+  // One key each, the ones the commands are bound to: the two that open the
+  // palette move in it, the cursor's width keys size it, keyboard-quit cancels.
   if (auto name = keymap_.lookup(KeyStroke::pack(e.key, e.mods.ctrl, e.mods.alt, e.mods.shift, e.mods.meta), keymapProfile())) {
     if (*name == "next-chord" || *name == "previous-chord" || *name == "widen-cursor" || *name == "narrow-cursor") return commands_.execute(*name);
+    if (*name == "keyboard-quit") {
+      closeChordPalette(false);
+      return true;
+    }
   }
-  bool plain = !e.mods.ctrl && !e.mods.alt && !e.mods.meta && !e.mods.shift;
-  bool terminal = keymapProfile() == KeymapProfile::TERMINAL;
-  bool ctrl_only = e.mods.ctrl && !e.mods.alt && !e.mods.meta && !e.mods.shift;
-  int letter = e.key >= 'A' && e.key <= 'Z' ? e.key - 'A' + 'a' : e.key;
-  if ((plain && e.key == Key::Down) || (terminal && ctrl_only && letter == 'n')) {
-    stepChordPalette(1);
-  } else if ((plain && e.key == Key::Up) || (terminal && ctrl_only && letter == 'p')) {
-    stepChordPalette(-1);
-  } else if (plain && e.key == Key::Enter) {
+  if (e.key == Key::Enter && !e.mods.ctrl && !e.mods.alt && !e.mods.meta && !e.mods.shift) {
     if (!e.repeat) closeChordPalette(true);
-  } else if ((plain && e.key == Key::Escape) || (terminal && ctrl_only && letter == 'g')) {
-    closeChordPalette(false);
-  } else {
-    return false;
+    return true;
   }
-  return true;
+  return false;
 }
 
 void PatternEditor::renderChordPalette() {
@@ -5043,7 +5044,7 @@ void PatternEditor::renderChordPalette() {
   plane.putstr(list_rows, 0, blank);
   auto title = fmt::format("Chord: {} notes", palette.size);
   plane.putstr(list_rows, 1, Utf8::truncateToWidth(title, cols - 2), cellui::kBoldFace);
-  const std::string hint = "Up/Down choose  Enter accept  Esc cancel";
+  const std::string hint = bindingFor("next-chord") + " next  " + bindingFor("previous-chord") + " previous  Enter accept  " + bindingFor("keyboard-quit") + " cancel";
   int hint_width = Utf8::displayWidth(hint);
   if (Utf8::displayWidth(title) + hint_width + 4 <= cols) {
     set(quiet, styles.picker_bg_color);

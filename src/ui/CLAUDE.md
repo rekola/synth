@@ -198,8 +198,9 @@ Controller-level and per-widget commands. Not migrated: `StatusLine`,
 - The chord palette (`next-chord`/`previous-chord`, `ChordPalette`) is the
   editor's own panel on a child plane over its bottom rows, not a modal
   dialog: `keyDown()` gives it its keys first (`chordPaletteKey()`: the keys
-  bound to its four commands, the arrows, Enter, Escape; any other key
-  accepts and is then handled as usual), and `isReaderActive()` keeps global
+  bound to its four commands and to `keyboard-quit`, and Enter, one key for
+  each thing; any other key, an arrow included, accepts and is then handled
+  as usual), and `isReaderActive()` keeps global
   shortcuts off them. It acts on `last_entry_` (the notes played, recorded by
   both entry paths) while the song's version and the cursor are as
   `settleLastEntry()` left them, else on the note in the cursor's first

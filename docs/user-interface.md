@@ -33,6 +33,8 @@ works in both. The commands that have one so far:
 | `set-mark` (start a selection; on the desktop Shift+arrows set it and extend it) | Shift+Up/Down/Left/Right | C-SPC |
 | `keyboard-quit` (cancel the selection) | Escape | C-g |
 | `mark-whole-buffer` (select all) | Ctrl+A | C-x h |
+| `widen-cursor`, `narrow-cursor` (the pattern editor's cursor, in note columns; the size of the chords in the open chord palette) | Ctrl+Shift+Right, Ctrl+Shift+Left | C-S-Right, C-S-Left |
+| `next-chord`, `previous-chord` (open the chord palette, and move in it) | Ctrl+., Ctrl+, | M-n, M-p |
 | `toggle-stop-button` (clip grid) | Ctrl+E | |
 | `stop-track-clips` (the cursor track's clips, not the others) | Ctrl+Enter | |
 | `back-to-arrangement` | F10 | F10 |
@@ -335,13 +337,15 @@ writes another.
   `next-chord` opens on the one after it and `previous-chord` on the one
   before; otherwise on the first, or the last. Pressing again moves on, round
   the list, so one key steps through the choices.
-- **Moving** (Up and Down; C-n and C-p as well on the terminal keymap) writes
-  the selected chord in place of the last and plays it on the track's
-  instrument, tuned as it sounds in the song, for a moment or until the
-  selection moves. A chord of fewer notes empties the columns it leaves.
-- **Enter** accepts; so does any other key, which then does what it always
-  does, and a click. **Escape** (C-g on the terminal keymap) cancels and puts
-  back the notes that were there when the palette opened.
+- **Moving** is the same two commands again, so one key steps through the
+  choices. Each move writes the selected chord in place of the last and plays
+  it on the track's instrument, tuned as it sounds in the song, for a moment
+  or until the selection moves. A chord of fewer notes empties the columns
+  it leaves.
+- **Enter** accepts; so does any other key, an arrow included, which then
+  does what it always does, and a click. `keyboard-quit` (C-g, or Escape on
+  the desktop keymap) cancels and puts back the notes that were there when
+  the palette opened.
 - One session is one undo step, however many chords were tried.
 
 ## Just intonation

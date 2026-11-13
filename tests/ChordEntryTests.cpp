@@ -27,7 +27,11 @@ enum Step { C = 0,
 struct ChordFixture : UIFixture {
   explicit ChordFixture(Scale scale = Scale::OTONAL, std::optional<cellui::KeymapProfile> keymap = {})
       : UIFixture("", UI::View::ARRANGEMENT, {}, keymap) {
-    for (int i = 0; i < 4 && terminal.info().focus != "pattern-editor"; i++) otherWindow();
+    // By name: the key for it is the terminal keymap's.
+    for (int i = 0; i < 4 && terminal.info().focus != "pattern-editor"; i++) {
+      controller->sendCommand("other-window");
+      ui->step();
+    }
     CHECK(terminal.info().focus == "pattern-editor");
     controller->getSong().setScale(scale);
     ui->step();
@@ -305,17 +309,17 @@ TEST(chord_palette_steps_through_the_chords_of_the_entry_just_made) {
   CHECK(f.row(0) == (V{C, Ds, F}));
   CHECK(f.shows("C narrow major"));
   CHECK(f.shows("Chord: 3 notes"));
-  f.press(cellui::Key::Down);
+  f.meta('n');
   CHECK(f.row(0) == (V{C, Ds, Fsu}));
   CHECK(f.shows("C mirror diminished"));
-  f.ctrl('n');
+  f.meta('n');
   CHECK(f.row(0) == (V{C, E, F}));
-  f.press(cellui::Key::Down);
+  f.meta('n');
   CHECK(f.row(0) == (V{C, Ds, E}));
   // Round to the first, with no chord twice.
-  f.press(cellui::Key::Down);
+  f.meta('n');
   CHECK(f.row(0) == (V{C, E, G}));
-  f.press(cellui::Key::Up);
+  f.meta('p');
   CHECK(f.row(0) == (V{C, Ds, E}));
   f.press(cellui::Key::Enter);
   CHECK(!f.shows("Chord: 3 notes"));
@@ -339,12 +343,12 @@ TEST(chord_palette_completes_notes_played_with_a_cursor_of_one_column) {
   CHECK(f.shows("Chord: 4 notes"));
   CHECK(f.row(0) == (V{C, Ds, F, A}));
   CHECK(f.shows("C D♯ F♯↑ A♯↑") && f.shows("C D♯ E A♯↑"));
-  f.press(cellui::Key::Down);
+  f.meta('n');
   CHECK(f.row(0) == (V{C, Ds, Fsu, Asu}));
-  f.press(cellui::Key::Down);
+  f.meta('n');
   CHECK(f.row(0) == (V{C, Ds, E, Asu}));
   // Cancelling puts back what was there.
-  f.press(cellui::Key::Escape);
+  f.ctrl('g');
   CHECK(f.row(0) == (V{C, Ds}));
   CHECK(!f.shows("Chord: 4 notes"));
 }
@@ -355,7 +359,7 @@ TEST(chord_palette_size_changes_without_the_cursor) {
   f.up('z');
   f.execute("next-chord");
   CHECK(f.row(0) == (V{C, E, G, Asu}));
-  f.execute("narrow-cursor");
+  f.press(cellui::Key::Left, kModCtrl | cellui::kModShift);
   CHECK(f.shows("Chord: 3 notes"));
   CHECK(f.row(0) == (V{C, E, G}));
   f.execute("narrow-cursor");
@@ -398,12 +402,12 @@ TEST(chord_palette_opens_on_a_chord_entered_earlier) {
   f.press(cellui::Key::Up);
   f.press(cellui::Key::Up);
   CHECK(f.row(0) == (V{C, E, G}));
-  f.execute("next-chord");
+  f.meta('n');
   // The present chord is the first line, so the palette is on the second.
   CHECK(f.row(0) == (V{C, Ds, F}));
-  f.press(cellui::Key::Up);
+  f.meta('p');
   CHECK(f.row(0) == (V{C, E, G}));
-  f.press(cellui::Key::Escape);
+  f.ctrl('g');
   CHECK(f.row(1) == (V{F, A, 53 + C}));
 }
 
@@ -445,6 +449,39 @@ TEST(chord_palette_is_accepted_by_the_next_note) {
   CHECK(!f.shows("Chord: 3 notes"));
   CHECK(f.row(0) == (V{C, Ds, E}));
   CHECK(f.row(1) == (V{F, A, 53 + C}));
+}
+
+// The desktop keymap has its own keys, and Escape cancels there.
+TEST(chord_palette_on_the_desktop_keymap) {
+  ChordFixture f(Scale::OTONAL, cellui::KeymapProfile::DESKTOP);
+  f.press(cellui::Key::Right, kModCtrl | cellui::kModShift);
+  f.press(cellui::Key::Right, kModCtrl | cellui::kModShift);
+  CHECK(f.shows("Cursor width: 3"));
+  f.down('z');
+  f.up('z');
+  CHECK(f.row(0) == (V{C, E, G}));
+  f.press('.', kModCtrl);
+  CHECK(f.row(0) == (V{C, Ds, F}));
+  f.press(',', kModCtrl);
+  CHECK(f.row(0) == (V{C, E, G}));
+  f.press(',', kModCtrl);
+  CHECK(f.row(0) == (V{C, Ds, E}));
+  f.press(cellui::Key::Escape);
+  CHECK(!f.shows("Chord: 3 notes"));
+  CHECK(f.row(0) == (V{C, E, G}));
+}
+
+// An arrow is no palette key: it accepts the chord and moves the cursor.
+TEST(chord_palette_is_accepted_by_an_arrow) {
+  ChordFixture f;
+  f.widen(2);
+  f.down('z');
+  f.up('z');
+  f.meta('n');
+  CHECK(f.row(0) == (V{C, Ds, F}));
+  f.press(cellui::Key::Down);
+  CHECK(!f.shows("Chord: 3 notes"));
+  CHECK(f.row(0) == (V{C, Ds, F}));
 }
 
 namespace {

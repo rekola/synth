@@ -58,7 +58,8 @@ class PatternEditor : public UIElement {
   // is open, UI::keyDown() must not let a global keybinding (Space/
   // toggle-playing, C-x C-c/quit, ...) steal a keystroke meant for it.
   bool isReaderActive() const { return inline_editor_.isOpen() || chord_palette_.open; }
-  bool wantsBareEscape() const override { return chord_palette_.open; }
+  // The chord palette is cancelled by keyboard-quit's key, which is Escape on the desktop keymap only.
+  bool wantsBareEscape() const override { return chord_palette_.open && keymapProfile() == cellui::KeymapProfile::DESKTOP; }
   // The focus level is still easing: the loop keeps drawing frames.
   bool isAnimating() const {
     return fades_.active() || focus_fade_drawn_ || rowsShifted() || flash_decaying_ || chord_entry_.pending || palette_drawn_ != chord_palette_.open || audition_.active || !arpeggio_.values.empty();
