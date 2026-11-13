@@ -112,6 +112,7 @@ class BufferPlane : public Plane {
 
   void showReader(const std::string & prompt, int y, int x, int rows, int cols, const std::string & initial_text,
                   std::optional<Color> text_color) override;
+  void setReaderBackdrop(const Color & c) override;
   std::string closeReader() override;
   bool readerActive() const override { return editor_ != nullptr; }
   std::string getReaderContents() const override { return editor_ ? editor_->text() : ""; }
@@ -245,6 +246,7 @@ class BufferPlane : public Plane {
   std::unique_ptr<LineEditor> editor_;
   std::unique_ptr<BufferPlane> reader_plane_;
   Color reader_color_;
+  std::optional<Color> reader_backdrop_;
   int reader_x_ = 0;
   int reader_cursor_ = 0;
   std::unique_ptr<BufferPlane> indicator_;

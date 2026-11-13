@@ -243,6 +243,9 @@ class Plane {
 			   const std::string & initial_text = "",
 			   std::optional<Color> text_color = std::nullopt) = 0;
   // Closes the field and returns what was typed.
+  // Makes the open field opaque in this colour, hiding what is under it (a
+  // header's own name); without one it is transparent. Default: no-op.
+  virtual void setReaderBackdrop(const Color &) { }
   virtual std::string closeReader() = 0;
   virtual bool readerActive() const = 0;
   // What has been typed so far, without ending the session - a prompt with
