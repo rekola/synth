@@ -58,7 +58,7 @@ class PatternEditor : public UIElement {
   bool isReaderActive() const { return inline_editor_.isOpen(); }
   // The focus level is still easing: the loop keeps drawing frames.
   bool isAnimating() const {
-    return fades_.active() || focus_fade_drawn_ || rowsShifted() || flash_decaying_ || chord_entry_.pending || audition_.active;
+    return fades_.active() || focus_fade_drawn_ || rowsShifted() || flash_decaying_ || chord_entry_.pending || audition_.active || !arpeggio_.values.empty();
   }
 
   // The cursor covers this many note columns of its row, from its own
@@ -419,7 +419,7 @@ private:
 
   // One entry with a cursor wider than a column: the notes played together,
   // which the editor completes to a chord of the song's scale once no
-  // further key has come for ChordGrouper::kWindow or every key is released.
+  // further key has come for kCompletionInterval or every key is released.
   struct ChordEntry {
     bool open = false;
     bool hold = false;    // the display reports key releases
@@ -447,6 +447,20 @@ private:
   };
   Audition audition_;
   static constexpr std::chrono::milliseconds kAuditionTime{600};
+  static constexpr std::chrono::milliseconds kCompletionInterval{80};
+  // The notes a completion added, sounding one after another from the lowest:
+  // kCompletionInterval apart, or as far apart as a quick tap was long. Only
+  // the sound is spread out; the notes are written at once.
+  struct Arpeggio {
+    int track_id = -1;
+    int from_column = 0;
+    bool audition = false;   // after the keys were released: the audition ends the notes
+    std::vector<int> values; // still to sound, rising
+    std::chrono::steady_clock::time_point next;
+    std::chrono::steady_clock::duration interval{};
+  };
+  Arpeggio arpeggio_;
+  void playArpeggio(std::chrono::steady_clock::time_point now);
   bool enterChordKey(const cellui::KeyDown & e, int track_id, int midi_note, int note_column, RowAddress point, int delay, bool transport_owns_row);
   // Writes the completion of the entry's notes, if there is one. `released`:
   // no key is held, so the chord is played for a moment.
