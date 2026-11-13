@@ -2724,7 +2724,7 @@ void PatternEditor::updateCursorBands(const StyleProvider & styles, const std::v
       // brightness, then the highlight's own hue is put back over it (inverting
       // colours alone turns the hue round).
       // The border leaves out the field, which stands alone as the inverted block.
-      if (smooth_cursor_)
+      if (getPlane().cellBorders())
         strip(*cursor_border_plane_, at, cursor_x0_, cursor_x1_ - cursor_x0_, styles.highlight_bg_color, 0.0f, cellui::BlendMode::NORMAL, 1.0, sub ? cursor_sub_x0_ : 0.0, sub ? sub_cols : 0.0);
       else
         strip(*cursor_border_plane_, at, cursor_x0_, cursor_x1_ - cursor_x0_, styles.highlight_bg_color, 0.25f);

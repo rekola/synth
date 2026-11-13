@@ -90,6 +90,8 @@ class BufferPlane : public Plane {
   // are shown unshifted otherwise (root only).
   void setSmoothScroll(bool smooth) { smooth_scroll_ = smooth; }
   bool smoothScroll() const override { return root().smooth_scroll_; }
+  void setCellBorders(bool on) { cell_borders_ = on; }
+  bool cellBorders() const override { return root().cell_borders_ || root().smooth_scroll_; }
   void erase() override {
     local_.clear(0, 0, local_.rows(), local_.cols());
     // Kept, so the same picture drawn again after erase() is not sent again.
@@ -258,6 +260,7 @@ class BufferPlane : public Plane {
   double display_scale_ = 1.0;
   KeymapProfile keymap_profile_ = KeymapProfile::TERMINAL;
   bool smooth_scroll_ = false;
+  bool cell_borders_ = false;
   bool proportional_text_ = false;
   // The runs this plane's cells are marked with, by local index; the frame's,
   // in the order composed (root only).

@@ -90,6 +90,7 @@ TEST(discovery_kitty) {
   CHECK(c.colors == ColorDepth::TRUECOLOR);
   CHECK(c.kitty_keyboard);
   CHECK(c.pixels == PixelProtocol::KITTY && c.kitty_graphics_animation);
+  CHECK(c.display.cell_borders);
   CHECK(c.sync == SyncForm::NONE);  // reported, but not used on kitty
   CHECK(c.display.sextants && c.quadrants && c.distinct_default_bg);
 }

@@ -213,6 +213,21 @@ TEST(terminal_ui_modal_backdrop_is_pictures_where_the_terminal_shows_them) {
   for (auto & p : f.terminal.images()) CHECK(!p.image->stretched());
 }
 
+// The note cursor is a border where the display draws one (a kitty terminal), a tint where not.
+TEST(terminal_ui_note_cursor_is_a_cell_border_where_the_display_draws_borders) {
+  for (bool borders : {false, true}) {
+    cellui::DisplayInfo display;
+    display.pictures = true;
+    display.cell_px_height = 20;
+    display.cell_px_width = 10;
+    display.cell_borders = borders;
+    UIFixture f(fixture("center_note.xml"), UI::View::ARRANGEMENT, display);
+    f.otherWindow(); // the pattern editor
+    f.ui->step();
+    CHECK(f.terminal.info().borders.empty() != borders);
+  }
+}
+
 // A backend that reports releases (a window, a kitty-protocol terminal) sends
 // the release of the Enter that ran the command after the dialog is open; it
 // must not close it.
