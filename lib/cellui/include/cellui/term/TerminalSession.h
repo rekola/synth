@@ -206,6 +206,7 @@ class TerminalSession : public Backend {
     CursorRequest cursor;
     std::vector<ImagePlacement> images;
     std::vector<BackdropLayer> layers;
+    std::vector<CellBorder> borders;
   };
   std::optional<Held> held_;
   // SYNTH_LINK_STATS=<file>: a line a second of what the link carried (see logLinkStats()).
@@ -234,7 +235,7 @@ class TerminalSession : public Backend {
   void drainOutput(std::chrono::milliseconds limit);
   void pumpFrame();
   void sendFrame(const CellBuffer & frame, const CursorRequest & cursor, const std::vector<ImagePlacement> & images,
-                 const std::vector<BackdropLayer> & layers);
+                 const std::vector<BackdropLayer> & layers, const std::vector<CellBorder> & borders);
   std::string fenceBytes();
 };
 

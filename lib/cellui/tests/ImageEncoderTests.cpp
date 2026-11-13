@@ -1074,3 +1074,91 @@ TEST(the_picture_encoder_makes_the_same_bytes_for_every_kind_of_picture) {
   }
   CHECK(all == 0x061fff1a2051dd63ull);
 }
+
+// Cell borders: each edge of a colour is a picture sent once and kept; a bordered cell is one placement per
+// edge, put without moving the cursor, and a frame sends only the placements that came and went.
+namespace {
+
+CellBorder border(int row, int col, uint8_t edges, Color color = Color(255, 0, 0)) { return CellBorder{ row, col, edges, color }; }
+
+size_t uploads(const std::string & s) { return count(s, "a=t,"); }
+size_t placements(const std::string & s) { return count(s, "a=p,"); }
+size_t removals(const std::string & s) { return count(s, "a=d,d=i,"); }
+
+}  // namespace
+
+TEST(kitty_borders_upload_four_pictures_once_and_place_each_edge) {
+  CellBuffer b(4, 8);
+  ImageEncoder enc(profile(PixelProtocol::KITTY));
+  std::string first = enc.encode(b, {}, false, { border(1, 2, EDGE_TOP | EDGE_BOTTOM | EDGE_LEFT | EDGE_RIGHT) });
+  CHECK(uploads(first) == 4);
+  CHECK(placements(first) == 4);
+  CHECK(removals(first) == 0);
+  // One placement per edge, the cell's own corner and the edge's pixel offset (cells are 2x6 pixels).
+  CHECK(count(first, "\x1b[2;3H") == 4);
+  CHECK(count(first, "X=0,Y=0,C=1,z=1") == 2);  // top and left; the right and bottom edges follow
+  CHECK(count(first, "X=1,Y=0,C=1") == 1);
+  CHECK(count(first, "X=0,Y=5,C=1") == 1);
+  // The same frame again sends nothing at all.
+  CHECK(enc.encode(b, {}, false, { border(1, 2, 15) }).empty());
+}
+
+TEST(kitty_borders_follow_a_moved_cell_and_keep_the_pictures) {
+  CellBuffer b(4, 8);
+  ImageEncoder enc(profile(PixelProtocol::KITTY));
+  enc.encode(b, {}, false, { border(1, 2, 15) });
+  // Moved: the four old placements go (the pictures stay), four new ones come, nothing is uploaded.
+  std::string moved = enc.encode(b, {}, false, { border(1, 3, 15) });
+  CHECK(removals(moved) == 4);
+  CHECK(count(moved, "a=d,d=I") == 0);
+  CHECK(placements(moved) == 4);
+  CHECK(uploads(moved) == 0);
+  CHECK(count(moved, "\x1b[2;4H") == 4);
+  // Only the edges that differ change.
+  std::string fewer = enc.encode(b, {}, false, { border(1, 3, EDGE_TOP | EDGE_LEFT) });
+  CHECK(removals(fewer) == 2 && placements(fewer) == 0);
+  // Gone altogether, then back: no upload for the colour it has.
+  std::string gone = enc.encode(b, {}, false, {});
+  CHECK(removals(gone) == 2 && placements(gone) == 0);
+  std::string back = enc.encode(b, {}, false, { border(0, 0, EDGE_RIGHT) });
+  CHECK(uploads(back) == 0 && placements(back) == 1);
+}
+
+TEST(kitty_borders_make_pictures_for_a_new_colour_and_a_clear_places_them_again) {
+  CellBuffer b(4, 8);
+  ImageEncoder enc(profile(PixelProtocol::KITTY));
+  enc.encode(b, {}, false, { border(0, 0, EDGE_TOP) });
+  std::string other = enc.encode(b, {}, false, { border(0, 0, EDGE_TOP, Color(0, 255, 0)) });
+  CHECK(uploads(other) == 4 && placements(other) == 1 && removals(other) == 1);
+  // The screen was cleared: what was placed is gone and goes up again, from the pictures kept.
+  std::string cleared = enc.encode(b, {}, true, { border(0, 0, EDGE_TOP, Color(0, 255, 0)) });
+  CHECK(uploads(cleared) == 0 && placements(cleared) == 1 && removals(cleared) == 0);
+  // clear() frees the pictures of both colours, and the next frame sends them anew.
+  std::string freed = enc.clear();
+  CHECK(count(freed, "a=d,d=I") == 8);
+  CHECK(uploads(enc.encode(b, {}, false, { border(0, 0, EDGE_TOP) })) == 4);
+}
+
+TEST(kitty_borders_are_for_kitty_with_a_known_cell_size_only) {
+  CellBuffer b(4, 8);
+  for (PixelProtocol protocol : { PixelProtocol::NONE, PixelProtocol::SIXEL, PixelProtocol::ITERM2 }) {
+    ImageEncoder enc(profile(protocol));
+    CHECK(enc.encode(b, {}, false, { border(1, 1, 15) }).empty());
+  }
+  ImageEncoder::Profile unknown = profile(PixelProtocol::KITTY);
+  unknown.cell_px_height = 0;
+  CHECK(ImageEncoder(unknown).encode(b, {}, false, { border(1, 1, 15) }).empty());
+}
+
+TEST(kitty_a_refused_border_upload_is_sent_again) {
+  CellBuffer b(4, 8);
+  // Cells big enough for a deflated upload to pay.
+  ImageEncoder::Profile big = profile(PixelProtocol::KITTY);
+  big.cell_px_height = big.cell_px_width = 40;
+  ImageEncoder enc(big);
+  enc.encode(b, {}, false, { border(1, 1, EDGE_TOP) });
+  // Picture ids are shared with the other pictures; the first border picture is 1.
+  enc.handleKittyReply("i=1;EINVAL:could not decompress");
+  std::string again = enc.encode(b, {}, false, { border(1, 1, EDGE_TOP) });
+  CHECK(uploads(again) == 4 && placements(again) == 1);
+}

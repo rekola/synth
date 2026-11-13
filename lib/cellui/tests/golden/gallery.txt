@@ -89,3 +89,7 @@ idle      selected  pressed   off
 ╭───╮     ╭───╮     ╭───╮     ╭───╮
 │-20│     │-10│     │-6 │     │off│
 ╰─A─╯     ╰─B─╯     ╰─M─╯     ╰─A─╯
+
+Cell borders
+
+ all edges   no left     no right    gap

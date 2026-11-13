@@ -561,6 +561,7 @@ InteractiveUI::render() {
   info.elevations = root_plane_->takeElevations();
   info.text_runs = root_plane_->takeTextRuns();
   info.mouse_cursors = root_plane_->takeMouseCursors();
+  info.borders = root_plane_->takeBorders();
   if (backend_.wantsFrameInfo()) {
     info.planes = root_plane_->describe();
     info.focus = focusName();

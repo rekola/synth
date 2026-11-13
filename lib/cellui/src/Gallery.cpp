@@ -296,6 +296,30 @@ Gallery::Gallery(Plane & plane, const Theme & theme, const DisplayInfo & display
     page.skip(1 + Dial::kRows);
   }
 
+  page.skip();
+  page.heading("Cell borders");
+  {
+    // A band's border drawn on the edges of the cells it reaches: whole, with a span left out at a
+    // side or in the middle (a display that has pictures draws each edge as a line over the cells).
+    struct Sample { const char * name; double skip_col, skip_cols; };
+    const Sample border_samples[] = {
+      {"all edges", 0, 0}, {"no left", 0, 3}, {"no right", 7, 3}, {"gap", 3, 4},
+    };
+    int col = 0;
+    for (auto & sample : border_samples) {
+      auto sample_plane = plane.createChild();
+      sample_plane->resize(3, 10);
+      sample_plane->move(page.row(), col);
+      sample_plane->setFgColor(theme.text_primary);
+      sample_plane->setBgColor(theme.surface_panel);
+      sample_plane->putstr(1, 0, utf8::padToWidth(std::string(" ") + sample.name, 10));
+      sample_plane->setBand(Band{ 0.0, 3.0, 0, 10, theme.accent, 0.0f, BlendMode::NORMAL, 0.0f, theme.accent, 1.0f, 1.0, sample.skip_col, sample.skip_cols });
+      border_planes_.push_back(std::move(sample_plane));
+      col += 12;
+    }
+    page.skip(3);
+  }
+
   rows_ = page.row();
 }
 
