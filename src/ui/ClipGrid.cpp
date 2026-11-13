@@ -426,6 +426,7 @@ ClipGrid::startTrackRename(const Song & song, const std::vector<int> & track_ids
   field.col = edit_col;
   field.width = edit_width;
   field.initial_text = track->getName();
+  field.backdrop = synthStyles().heading_bg_color; // opaque over the header's own name
   inline_editor_.open(field, [this, track_id](std::string text) {
     auto & target_song = getController().getSong();
     if (target_song.getMasterTrack().getChildByInternalId(track_id)) {

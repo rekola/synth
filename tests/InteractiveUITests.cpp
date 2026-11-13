@@ -475,9 +475,14 @@ TEST(info_line_shows_the_tempo_and_signature_after_the_position_and_follows_the_
 TEST(terminal_ui_clip_grid_track_rename_shows_the_typed_name) {
   UIFixture f(fixture("terminal_ui_live.xml"), UI::View::LIVE);
   f.execute("rename-track");
+  f.type("abc");
+  f.press(cellui::Key::Enter);
+  // Editing a name leaves no copy of the old one under the field.
+  f.execute("rename-track");
   f.type("Qz");
   std::string row;
   for (int c = 30; c < 70; c++) row += f.terminal.frame().at(1, c).text;
-  CHECK(row.find("Qz") != std::string::npos);
+  CHECK(row.find("abcQz") != std::string::npos);
+  CHECK(row.find("abc") == row.rfind("abc"));
   f.press(cellui::Key::Escape);
 }
