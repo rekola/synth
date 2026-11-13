@@ -12,6 +12,8 @@ class AlsaAudio : public AudioAPI {
   explicit AlsaAudio(int _freq, short _channels) : AudioAPI(_freq, _channels) { }
   ~AlsaAudio();
 
+  uint64_t xrunCount() const override;
+
   // `devices` says what to open (see DeviceSettings.h); "default" otherwise.
   // A named device that can't be opened or isn't there falls back to the
   // system default, with a warning - a stale saved choice (an unplugged

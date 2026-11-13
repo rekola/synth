@@ -131,7 +131,11 @@ frames back; when the application is the limit the estimate only says what it se
 
 To see what a link carries today, run the application with `SYNTH_LINK_STATS=<file>`: the terminal
 backend then writes a line a second with the frames and bytes sent (pictures, placement, the rest),
-the pacer's bandwidth and round trip, and the pictures uploaded by size.
+the pacer's bandwidth and round trip, and the pictures uploaded by size. The line also says how much CPU the UI thread spent that second and what share of it went
+to each stage of making a picture (`picture_render`, `backdrop`, `cell_encode`, `image_encode` and, inside it,
+`deflate`, `base64`, `png`, `sixel_palette`, `sixel_map`, `sixel_encode`; a stage that holds others is not to be summed
+with them). `SYNTH_AUDIO_STATS=<file>` has the audio thread's line a second: its blocks, their CPU time, how late a
+block started, and the device's xruns. `tools/pacing/cpu_load.py` runs both over the link classes.
 
 Colours stay on every terminal that has any: an 8- or 16-colour terminal gets a theme made
 of its own palette's hues (so track colours stay apart), and there is no automatic grey. A

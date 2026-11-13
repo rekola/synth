@@ -1,3 +1,4 @@
+#include <cellui/StageStats.h>
 #include <cellui/Dial.h>
 
 #include <canvas/Context.h>
@@ -26,6 +27,7 @@ canvas::Color toCanvas(const Color & c) {
 }  // namespace
 
 std::vector<uint32_t> render(const DialReading & reading, const DialLook & look, unsigned width, unsigned height, float scale) {
+  StageTimer timer(Stage::PICTURE_RENDER);
   std::vector<uint32_t> out;
   if (width == 0 || height == 0) return out;
   auto context = cellui::nativeContext(width, height);

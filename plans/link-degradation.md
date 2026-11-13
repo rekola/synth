@@ -612,6 +612,32 @@ deflate ratio on real charts is known.
      3.4 already do), drop to a cheaper deflate level when the CPU is the limit and the link is not,
      and keep encoding off the UI thread's critical path if a stage still dominates (a worker thread at
      lower priority than the audio, handing back the finished bytes).
+   - **Measured** (x86, 4 cores, no SIMD path for the encoder, a null audio device with 21 ms blocks;
+     `tools/pacing/cpu_load.py`, a line a second of `SYNTH_LINK_STATS` and `SYNTH_AUDIO_STATS`, 10 s of each run
+     after a warm-up, demo3 playing; percent of one core of the UI thread's CPU time):
+
+     | scenario (class) | kitty UI | kitty biggest stages | Sixel UI | Sixel biggest stages |
+     |---|---|---|---|---|
+     | Live View (full) | 22 | picture render 5.5, image encode 3.5 (deflate 2.6) | 41 | image encode 24 (palette 6.7, map 9.7, bytes 7) |
+     | Arrangement (full) | 22 | picture render 5.7, image encode 2.9 | 48 | image encode 28 (palette 7.7, map 11.3, bytes 9) |
+     | About dialog, blur live (full) | 56 | backdrop 23, image encode 11 (deflate 9) | 86 | image encode 49, backdrop 21 |
+     | Live View (15 Hz) | 28 | image encode 9.8 (palette PNG 8.5) | 31 | image encode 13 |
+     | Live View (5 Hz, 1 Hz) | 14 | picture render 0.6, image encode 2.4 | 13 | image encode 0.9 |
+     | About dialog (30, 15 Hz: the blur is kept) | 32-39 | backdrop 6, picture render 5 | 29 | backdrop 6.8 |
+
+     The rest of the UI thread (layout, the widgets, composing the planes) is the other half: 10 to 12 of the 22
+     points of Live View at full speed, and what is left at 5 Hz.
+     The audio thread, in every run: 1.5 to 2.1 % of a block's time rendering (the worst block 5 ms of 21), no
+     xruns, no late block (a late one starts more than 1.5 blocks after the one before), the longest gap between
+     blocks 22 to 34 ms. The same on one core shared with three busy loops (UI-thread CPU 5 to 15 % less, the longest gap
+     about 29 ms) and with twelve (gap 25 to 30 ms, worst block 2.4 ms, still none late). On Linux the audio thread has
+     no priority of its own, so that is the scheduler's fairness: a thread that sleeps most of the time is woken first.
+     So on this machine the UI costs the audio nothing, even starved; what it costs is its own frames. The slowest
+     machine (a Raspberry Pi class board over SSH) has not been measured, and cannot be from here.
+     What the figures say to cut, in order of CPU at full speed: the Sixel encode (24 to 49 points: the palette 7 to 10
+     and the map 10 to 12, and the bytes 7 to 9), the blur (10 to 23, drawing the tiles with canvas), a picture's
+     render (5), deflate (2.5, and 9 with the blur), the palette PNG at 15 Hz (8.5, of which the palette and map are 6).
+     Not worth it: the cell encode (about 1) and base64 (0.07 to 0.3).
    - **Done when** the UI under the slowest class and the busiest scenario costs the audio thread no
      missed blocks on the slowest machine, with the per-stage figures recorded here.
 

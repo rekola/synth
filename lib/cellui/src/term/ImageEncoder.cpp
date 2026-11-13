@@ -1,3 +1,4 @@
+#include <cellui/StageStats.h>
 #include <cellui/term/ImageEncoder.h>
 
 #include <cellui/term/Deflate.h>
@@ -19,6 +20,7 @@ constexpr int kCubeLevels[6] = {0, 95, 135, 175, 215, 255};
 constexpr size_t kKittyChunk = 4096;
 
 std::string base64(const std::vector<uint8_t> & data) {
+  StageTimer timer(Stage::BASE64);
   static const char table[] = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
   std::string out;
   out.reserve((data.size() + 2) / 3 * 4);
@@ -205,6 +207,7 @@ ImageEncoder::Profile ImageEncoder::Profile::from(const Capabilities & caps) {
 }
 
 std::vector<uint8_t> encodePng(const Image & image, int x0, int y0, int width, int height) {
+  StageTimer timer(Stage::PNG);
   // The scanlines, each led by filter type 0 (none).
   std::vector<uint8_t> raw;
   raw.reserve(static_cast<size_t>(height) * (static_cast<size_t>(width) * 4 + 1));
@@ -280,6 +283,7 @@ void gridColour(uint32_t p, const Dither * dither, int x, int y, int & r, int & 
 // pixels times its widest range at the weighted median of that channel; a box's register is its mean.
 SixelPalette makeSixelPalette(const Image & image, int x0, int y0, int width, int height, const std::vector<bool> & keep, int registers,
                               bool grid = false, const Dither * dither = nullptr) {
+  StageTimer timer(Stage::SIXEL_PALETTE);
   // A picture with more colours than registers is a gradient (a blurred backdrop): it is dithered, where a
   // flat one (text, a chart) stays as it is.
   bool gradient = false;
@@ -408,6 +412,7 @@ SixelPalette xtermPalette() {
 // draw); `transparent` says whether any pixel was, or the height is not a whole number of Sixel bands.
 std::vector<int> mapToRegisters(const SixelPalette & palette, const Image & image, int x0, int y0, int width, int height,
                                 const std::vector<bool> & keep, const Dither & dither, bool & transparent) {
+  StageTimer timer(Stage::SIXEL_MAP);
   auto pixel = [&](int x, int y) {
     return image.pixels[static_cast<size_t>(y0 + y) * static_cast<size_t>(image.width) + static_cast<size_t>(x0 + x)];
   };
@@ -499,6 +504,7 @@ std::vector<int> mapToRegisters(const SixelPalette & palette, const Image & imag
 
 std::string encodeSixelWith(const SixelPalette & palette, const Image & image, int x0, int y0, int width, int height,
                             const std::vector<bool> & keep, const Dither & dither) {
+  StageTimer timer(Stage::SIXEL_ENCODE);
   bool transparent = false;
   std::vector<int> regs = mapToRegisters(palette, image, x0, y0, width, height, keep, dither, transparent);
   std::set<int> used;
@@ -600,6 +606,7 @@ Indexed indexPicture(const Image & image, int x, int y, int width, int height, i
 }  // namespace
 
 std::vector<uint8_t> encodePalettePng(const Image & image, int x0, int y0, int width, int height, int colours, bool dither) {
+  StageTimer timer(Stage::PNG);
   Indexed picture = indexPicture(image, x0, y0, width, height, std::min(colours, 256), dither);
   int bits = picture.palette.rgb.size() <= 16 ? 4 : 8;
   size_t row_bytes = bits == 4 ? (static_cast<size_t>(width) + 1) / 2 : static_cast<size_t>(width);
@@ -1087,6 +1094,7 @@ std::string ImageEncoder::iterm2(const CellBuffer & frame, const ImagePlacement 
 }
 
 std::string ImageEncoder::encode(const CellBuffer & frame, const std::vector<ImagePlacement> & images, bool cleared) {
+  StageTimer timer(Stage::IMAGE_ENCODE);
   std::string out;
   sizes_ = {};
   if (profile_.protocol == PixelProtocol::NONE) return out;

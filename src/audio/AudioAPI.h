@@ -29,6 +29,8 @@ class AudioAPI {
   virtual WaitResult wait(Notifier & wake, bool want_capture, int timeout_ms) = 0;
 
   virtual void play(const AudioBuffer & data, Logger & logger) = 0;
+  // Underruns and overruns the device has had so far (0 for a backend that does not count them).
+  virtual uint64_t xrunCount() const { return 0; }
   virtual AudioBuffer record(Logger & logger) = 0;
   virtual size_t getFrameCount() const = 0;
   virtual void startRecording() = 0;
