@@ -635,11 +635,36 @@ deflate ratio on real charts is known.
      So on this machine the UI costs the audio nothing, even starved; what it costs is its own frames. The slowest
      machine (a Raspberry Pi class board over SSH) has not been measured, and cannot be from here.
      What the figures say to cut, in order of CPU at full speed: the Sixel encode (24 to 49 points: the palette 7 to 10
-     and the map 10 to 12, and the bytes 7 to 9), the blur (10 to 23, drawing the tiles with canvas), a picture's
-     render (5), deflate (2.5, and 9 with the blur), the palette PNG at 15 Hz (8.5, of which the palette and map are 6).
+     and the map 10 to 12, and the bytes 7 to 9), a picture's render (5), deflate (2.5), the palette PNG at 15 Hz (8.5, of
+     which the palette and map are 6). The blur (10 to 23 points of drawing the tiles with canvas, and the deflate and
+     Sixel bytes of its pictures) is not cut here: it is phase 9, where the algorithm is chosen first.
      Not worth it: the cell encode (about 1) and base64 (0.07 to 0.3).
    - **Done when** the UI under the slowest class and the busiest scenario costs the audio thread no
      missed blocks on the slowest machine, with the per-stage figures recorded here.
+
+9. **The Sixel blur** (3.7, the backdrop). The blurred backdrop of a dialog is the biggest single cost on a Sixel
+   terminal (phase 8: 10 to 23 points of a core of drawing and blurring tiles at full speed, and a Sixel picture of
+   about 250 kB when it appears, which shows as a slide of about 50 ms on xterm) and the one with a visible
+   quality problem. The algorithm is chosen first, by measurement, before any of it is made faster. What is
+   known: a palette made from each tile gives the right colours at 252 kB and 52 ms; the terminal's own 256-colour
+   palette gives about half the bytes and time (118 kB, 27 ms) in greys with dither dots, and is what the blur uses
+   now; fixed cubes of 512 or 1000 colours are no faster dithered (214 to 220 kB) and posterise undithered (19 kB);
+   registers are private to each Sixel on xterm, so a palette sent once does not last. To try, each against the
+   others on a harness that prints, for the same dialog over the same songs: the bytes, the CPU of the blur and
+   of the encode, the time until the first picture and until the last, and an error against a reference blur
+   (mean colour distance and visible banding):
+   - **Progressive**: the fast default-palette blur first, then each block redone with a palette of its own, block
+     by block, so nothing slides in and the colours settle as they arrive; how many blocks a frame, and in which order.
+   - **One palette for the whole backdrop** (one set of colours chosen from all its tiles, sent once in the first
+     tile and shared: only if a terminal keeps registers between pictures, `?1070`), against a palette a tile.
+   - **A palette shaped for the content**: a static one with fine steps in the dark bluish range a dark backdrop
+     lives in, a few for the rest, and one per theme.
+   - **Less to draw**: the blur drawn once on a quarter-size picture and enlarged (by the terminal where it can,
+     by repeating pixels where it cannot), a box-filter approximation of the blur in place of canvas, a tile redone
+     only when the cells under it changed (already so), and a static backdrop that is not redrawn at all.
+   - **Where the time goes** first, with the stage timers (`backdrop`, `deflate`, `sixel_*`) on the blur alone.
+   Done when one algorithm is chosen on the figures, its colours are not visibly worse than the cells under it, the
+   blur appears in one frame at full speed without a slide, and the per-stage figures are recorded here.
 
 ## 6. Decisions
 
