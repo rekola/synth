@@ -1,0 +1,704 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<song key="C" scale="kitmum" temperament="53edo" tempo="76" timeSignature="4/4">
+    <instruments from="kit">
+        <instrument id="i1" from="string.plucked.harp"/>
+        <instrument id="i2" from="string.plucked.harp"/>
+        <instrument id="i3" from="reed.double.oboe"/>
+        <instrument id="i4" from="reed.double.oboe"/>
+    </instruments>
+    <tracks id="master" collapsed="false">
+        <track id="lyre" sendA="-36" azimuth="-20" distance="1" elevation="0" instrument="i1"/>
+        <track id="lyre8vb" sendA="-36" azimuth="-6" distance="1" elevation="0" instrument="i2"/>
+        <track id="drone" sendMain="-9.000003" sendA="-35.917606" azimuth="30" distance="1" elevation="0" instrument="i1"/>
+        <track id="aulos" sendMain="-12.006526" sendA="-36" azimuth="8" distance="1.2" elevation="0" instrument="i3"/>
+        <track id="aulos2" sendMain="-12.006526" sendA="-36" azimuth="14" distance="1.3" elevation="0" instrument="i4"/>
+        <track id="aulosdrone" sendMain="-12.006526" sendA="-36" azimuth="20" distance="1.6" elevation="0" instrument="i4"/>
+        <percussionTrack id="tympanon" name="Tympanon" azimuth="-30" distance="2" elevation="0"/>
+        <percussionTrack id="kymbala" name="Kymbala" azimuth="34" distance="2.5" elevation="0"/>
+    </tracks>
+    <notes>Oxyrhynchus Hymn
+The Christian hymn of P.Oxy. XV 1786: the earliest Christian hymn with musical
+notation, and one of the last pieces written down in the ancient Greek
+notation. Source: M. L. West, Ancient Greek Music (Oxford 1992), no. 51,
+pp. 324-325. The papyrus was copied in the later 3rd c. AD at Oxyrhynchus,
+Egypt, and is kept in Oxford. The notation is Hypolydian and purely diatonic,
+with a compass of one octave.
+
+...ytaneo sigato, med' astra phaesphora lampesthon, ... potamon rhothion
+pasai; hymnounton d' hemon patera k'hyion k'hagion pneuma, pasai dynameis
+epiphonounton: Amen, amen. Kratos, ainos aei kai doxa theoi doteri monoi
+panton agathon. Amen, amen.
+In sense: let all be silent, let the light-bearing stars not shine, let the
+rushing rivers be still; while we sing of Father, Son and Holy Spirit, let all
+the powers answer "Amen, amen". Might, praise and glory for ever to God, the
+only giver of all good things. Amen, amen.
+
+Pitch: West prints the melody a tone below the notated pitch, with final d.
+Here it is a further tone lower, with final C, so that it lies on the same
+scale as the Seikilos song: kitmum, the Mixolydian mode on C of the Pythagorean
+gamut, C D E F G A B-flat = 1/1 9/8 81/64 4/3 3/2 27/16 16/9. In 53-EDO's
+notation the Pythagorean E, A and B-flat are written E-up, A-up and
+B-flat-down. The melody runs from B-flat to B-flat and rests on C and F.
+
+Rhythm: anapaestic, a long syllable being a quarter and a short an eighth,
+with the papyrus's own rests before "sigato" and "hymnounton" (bars 4 and 9)
+and after "pneuma" (bar 12). One row is a sixteenth.
+
+Gaps: only the last part of the hymn survives, and West's transcription has
+seven lost notes inside it and one break. Nothing is invented. Each lost note
+is marked ??? at its row on the four melody tracks: row 32 (first note), rows
+84 and 86 (bar 6, "lam-"), row 92 (bar 6, "-thon"), row 152 (bar 10, "pa-")
+and rows 250 and 254 (bar 16, "a-ei"). The break before "potamon" is marked
+~~~ at row 96 (bar 7); West leaves half a bar for it, but its real length is
+unknown. The drones and drum carry on through all of them.
+
+The papyrus gives pitch and rhythm only. Our realisation choices: the tempo (a
+quarter at 76); the aulos (double reed-pipe, here an oboe) carrying the sung
+line in place of the voice, two pipes, the second a few milliseconds late; the
+lyre doubling it, with a second lyre an octave below; a lyre drone on C and G
+at each bar and a low drone pipe on C; a frame drum (tympanon) on each bar;
+small cymbals (kymbala) where a new clause begins, on each Amen and on the
+final chord; a two-bar anabole in which the lyre runs through its open strings
+and settles on the fifth; and a two-bar outro that echoes the cadence and
+settles on C and G while the tempo broadens from 76 to 64.</notes>
+    <arrangement>
+        <tempo row="320" bpm="72"/>
+        <tempo row="328" bpm="68"/>
+        <tempo row="336" bpm="64"/>
+        <pattern track="kymbala">
+            <note row="48" velocity="80">TRM</note>
+            <note row="128" velocity="72">TRM</note>
+            <note row="192" velocity="72">TRM</note>
+            <note row="224" velocity="80">TRM</note>
+            <note row="240" velocity="72">TRM</note>
+            <note row="304" velocity="80">TRM</note>
+            <note row="336" velocity="88">TRM</note>
+        </pattern>
+        <pattern track="tympanon">
+            <note row="24" velocity="110">CGL</note>
+            <note row="30" velocity="60">CGM</note>
+            <note row="32" velocity="133">CGL</note>
+            <note row="40" velocity="84">CGM</note>
+            <note row="44" velocity="56">CGM</note>
+            <note row="48" velocity="133">CGL</note>
+            <note row="56" velocity="84">CGM</note>
+            <note row="60" velocity="56">CGM</note>
+            <note row="64" velocity="133">CGL</note>
+            <note row="72" velocity="84">CGM</note>
+            <note row="76" velocity="56">CGM</note>
+            <note row="80" velocity="133">CGL</note>
+            <note row="88" velocity="84">CGM</note>
+            <note row="92" velocity="56">CGM</note>
+            <note row="96" velocity="133">CGL</note>
+            <note row="104" velocity="84">CGM</note>
+            <note row="108" velocity="56">CGM</note>
+            <note row="112" velocity="133">CGL</note>
+            <note row="120" velocity="84">CGM</note>
+            <note row="124" velocity="56">CGM</note>
+            <note row="128" velocity="133">CGL</note>
+            <note row="136" velocity="84">CGM</note>
+            <note row="140" velocity="56">CGM</note>
+            <note row="144" velocity="133">CGL</note>
+            <note row="152" velocity="84">CGM</note>
+            <note row="156" velocity="56">CGM</note>
+            <note row="160" velocity="133">CGL</note>
+            <note row="168" velocity="84">CGM</note>
+            <note row="172" velocity="56">CGM</note>
+            <note row="176" velocity="133">CGL</note>
+            <note row="184" velocity="84">CGM</note>
+            <note row="188" velocity="56">CGM</note>
+            <note row="192" velocity="133">CGL</note>
+            <note row="200" velocity="84">CGM</note>
+            <note row="204" velocity="56">CGM</note>
+            <note row="208" velocity="133">CGL</note>
+            <note row="216" velocity="84">CGM</note>
+            <note row="220" velocity="56">CGM</note>
+            <note row="224" velocity="133">CGL</note>
+            <note row="232" velocity="84">CGM</note>
+            <note row="236" velocity="56">CGM</note>
+            <note row="240" velocity="133">CGL</note>
+            <note row="248" velocity="84">CGM</note>
+            <note row="252" velocity="56">CGM</note>
+            <note row="256" velocity="133">CGL</note>
+            <note row="264" velocity="84">CGM</note>
+            <note row="268" velocity="56">CGM</note>
+            <note row="272" velocity="133">CGL</note>
+            <note row="280" velocity="84">CGM</note>
+            <note row="284" velocity="56">CGM</note>
+            <note row="288" velocity="133">CGL</note>
+            <note row="296" velocity="84">CGM</note>
+            <note row="300" velocity="56">CGM</note>
+            <note row="304" velocity="133">CGL</note>
+            <note row="312" velocity="84">CGM</note>
+            <note row="316" velocity="56">CGM</note>
+            <note row="320" velocity="120">CGL</note>
+            <note row="336" velocity="80">CGL</note>
+        </pattern>
+        <pattern track="aulosdrone">
+            <note row="16" velocity="52" fx="+00">C-3</note>
+            <note row="344">OFF</note>
+        </pattern>
+        <pattern track="aulos2">
+            <note row="32">???</note>
+            <note row="34" velocity="88" delay="10" fx="+00">F-4</note>
+            <note row="36" velocity="88" delay="10" fx="+00">G-4</note>
+            <note row="38" velocity="88" delay="10" fx="+00">F-4</note>
+            <note row="40" velocity="88" delay="10" fx="+00">E↑4</note>
+            <note row="42" velocity="88" delay="10" fx="+00">C-4</note>
+            <note row="44" velocity="88" delay="10" fx="+00">D-4</note>
+            <note row="46" velocity="88" delay="10" fx="+00">C-4</note>
+            <note row="48">OFF</note>
+            <note row="52" velocity="88" delay="10" fx="+00">C-4</note>
+            <note row="56" velocity="88" delay="10" fx="+00">F-4</note>
+            <note row="58" velocity="88" delay="10" fx="+00">G-4</note>
+            <note row="60" velocity="88" delay="10" fx="+00">G-4</note>
+            <note row="64" velocity="88" delay="10" fx="+00">A↑4</note>
+            <note row="68" velocity="88" delay="10" fx="+00">A↑4</note>
+            <note row="70" velocity="88" delay="10" fx="+00">B𝄭4</note>
+            <note row="72" velocity="88" delay="10" fx="+00">A↑4</note>
+            <note row="74" velocity="88" delay="10" fx="+00">A↑4</note>
+            <note row="76" velocity="88" delay="10" fx="+00">G-4</note>
+            <note row="80" velocity="88" delay="10" fx="+00">G-4</note>
+            <note row="82" velocity="88" delay="10" fx="+00">C-4</note>
+            <note row="84">???</note>
+            <note row="86">???</note>
+            <note row="88" velocity="88" delay="10" fx="+00">G-4</note>
+            <note row="90" velocity="88" delay="10" fx="+00">F-4</note>
+            <note row="92">???</note>
+            <note row="96">~~~</note>
+            <note row="104" velocity="88" delay="10" fx="+00">F-4</note>
+            <note row="106" velocity="88" delay="10" fx="+00">G-4</note>
+            <note row="108" velocity="88" delay="10" fx="+00">A↑4</note>
+            <note row="110" velocity="88" delay="10" fx="+00">B𝄭4</note>
+            <note row="112" velocity="88" delay="10" fx="+00">G-4</note>
+            <note row="113" velocity="88" delay="10" fx="+00">A↑4</note>
+            <note row="114" velocity="88" delay="10" fx="+00">A↑4</note>
+            <note row="116" velocity="88" delay="10" fx="+00">F-4</note>
+            <note row="118" velocity="88" delay="10" fx="+00">E↑4</note>
+            <note row="120" velocity="88" delay="10" fx="+00">G-4</note>
+            <note row="122" velocity="88" delay="10" fx="+00">F-4</note>
+            <note row="124" velocity="88" delay="10" fx="+00">A↑4</note>
+            <note row="126" velocity="88" delay="10" fx="+00">G-4</note>
+            <note row="128">OFF</note>
+            <note row="132" velocity="88" delay="10" fx="+00">C-4</note>
+            <note row="136" velocity="88" delay="10" fx="+00">F-4</note>
+            <note row="138" velocity="88" delay="10" fx="+00">G-4</note>
+            <note row="140" velocity="88" delay="10" fx="+00">C-4</note>
+            <note row="144" velocity="88" delay="10" fx="+00">E↑4</note>
+            <note row="146" velocity="88" delay="10" fx="+00">F-4</note>
+            <note row="148" velocity="88" delay="10" fx="+00">B𝄭3</note>
+            <note row="152">???</note>
+            <note row="154" velocity="88" delay="10" fx="+00">D-4</note>
+            <note row="156" velocity="88" delay="10" fx="+00">D-4</note>
+            <note row="160" velocity="88" delay="10" fx="+00">C-4</note>
+            <note row="164" velocity="88" delay="10" fx="+00">D-4</note>
+            <note row="166" velocity="88" delay="10" fx="+00">B𝄭3</note>
+            <note row="168" velocity="88" delay="10" fx="+00">C-4</note>
+            <note row="169" velocity="88" delay="10" fx="+00">D-4</note>
+            <note row="170" velocity="88" delay="10" fx="+00">C-4</note>
+            <note row="172" velocity="88" delay="10" fx="+00">C-4</note>
+            <note row="174" velocity="88" delay="10" fx="+00">F-4</note>
+            <note row="176" velocity="88" delay="10" fx="+00">G-4</note>
+            <note row="178" velocity="88" delay="10" fx="+00">A↑4</note>
+            <note row="180" velocity="88" delay="10" fx="+00">A↑4</note>
+            <note row="184">OFF</note>
+            <note row="192" velocity="88" delay="10" fx="+00">A↑4</note>
+            <note row="194" velocity="88" delay="10" fx="+00">C-4</note>
+            <note row="196" velocity="88" delay="10" fx="+00">C-4</note>
+            <note row="200" velocity="88" delay="10" fx="+00">C-4</note>
+            <note row="202" velocity="88" delay="10" fx="+00">F-4</note>
+            <note row="204" velocity="88" delay="10" fx="+00">E↑4</note>
+            <note row="208" velocity="88" delay="10" fx="+00">E↑4</note>
+            <note row="210" velocity="88" delay="10" fx="+00">E↑4</note>
+            <note row="212" velocity="88" delay="10" fx="+00">E↑4</note>
+            <note row="216" velocity="88" delay="10" fx="+00">E↑4</note>
+            <note row="218" velocity="88" delay="10" fx="+00">G-4</note>
+            <note row="220" velocity="88" delay="10" fx="+00">G-4</note>
+            <note row="224" velocity="88" delay="10" fx="+00">A↑4</note>
+            <note row="228" velocity="88" delay="10" fx="+00">A↑4</note>
+            <note row="230" velocity="88" delay="10" fx="+00">B𝄭4</note>
+            <note row="231" velocity="88" delay="10" fx="+00">F-4</note>
+            <note row="232" velocity="88" delay="10" fx="+00">A↑4</note>
+            <note row="234" velocity="88" delay="10" fx="+00">G-4</note>
+            <note row="236" velocity="88" delay="10" fx="+00">G-4</note>
+            <note row="238" velocity="88" delay="10" fx="+00">F-4</note>
+            <note row="240" velocity="88" delay="10" fx="+00">F-4</note>
+            <note row="242" velocity="88" delay="10" fx="+00">F-4</note>
+            <note row="244" velocity="88" delay="10" fx="+00">F-4</note>
+            <note row="246" velocity="88" delay="10" fx="+00">E↑4</note>
+            <note row="248" velocity="88" delay="10" fx="+00">C-4</note>
+            <note row="250">???</note>
+            <note row="252" velocity="88" delay="10" fx="+00">D-4</note>
+            <note row="254">???</note>
+            <note row="256" velocity="88" delay="10" fx="+00">D-4</note>
+            <note row="260" velocity="88" delay="10" fx="+00">C-4</note>
+            <note row="262" velocity="88" delay="10" fx="+00">D-4</note>
+            <note row="263" velocity="88" delay="10" fx="+00">B𝄭3</note>
+            <note row="264" velocity="88" delay="10" fx="+00">C-4</note>
+            <note row="266" velocity="88" delay="10" fx="+00">D-4</note>
+            <note row="268" velocity="88" delay="10" fx="+00">D-4</note>
+            <note row="270" velocity="88" delay="10" fx="+00">E↑4</note>
+            <note row="271" velocity="88" delay="10" fx="+00">F-4</note>
+            <note row="272" velocity="88" delay="10" fx="+00">F-4</note>
+            <note row="274" velocity="88" delay="10" fx="+00">G-4</note>
+            <note row="276" velocity="88" delay="10" fx="+00">G-4</note>
+            <note row="280" velocity="88" delay="10" fx="+00">E↑4</note>
+            <note row="282" velocity="88" delay="10" fx="+00">F-4</note>
+            <note row="284" velocity="88" delay="10" fx="+00">D-4</note>
+            <note row="288" velocity="88" delay="10" fx="+00">F-4</note>
+            <note row="290" velocity="88" delay="10" fx="+00">G-4</note>
+            <note row="292" velocity="88" delay="10" fx="+00">G-4</note>
+            <note row="294" velocity="88" delay="10" fx="+00">F-4</note>
+            <note row="296" velocity="88" delay="10" fx="+00">E↑4</note>
+            <note row="298" velocity="88" delay="10" fx="+00">C-4</note>
+            <note row="300" velocity="88" delay="10" fx="+00">D-4</note>
+            <note row="302" velocity="88" delay="10" fx="+00">C-4</note>
+            <note row="304" velocity="88" delay="10" fx="+00">D-4</note>
+            <note row="306" velocity="88" delay="10" fx="+00">E↑4</note>
+            <note row="307" velocity="88" delay="10" fx="+00">F-4</note>
+            <note row="308" velocity="88" delay="10" fx="+00">F-4</note>
+            <note row="310" velocity="88" delay="10" fx="+00">G-4</note>
+            <note row="311" velocity="88" delay="10" fx="+00">F-4</note>
+            <note row="312" velocity="88" delay="10" fx="+00">E↑4</note>
+            <note row="314" velocity="88" delay="10" fx="+00">C-4</note>
+            <note row="316" velocity="88" delay="10" fx="+00">D-4</note>
+            <note row="318" velocity="88" delay="10" fx="+00">C-4</note>
+            <note row="330" velocity="0">OFF</note>
+        </pattern>
+        <pattern track="aulos">
+            <note row="32">???</note>
+            <note row="34" velocity="112" fx="+00">F-4</note>
+            <note row="36" velocity="112" fx="+00">G-4</note>
+            <note row="38" velocity="112" fx="+00">F-4</note>
+            <note row="40" velocity="112" fx="+00">E↑4</note>
+            <note row="42" velocity="112" fx="+00">C-4</note>
+            <note row="44" velocity="112" fx="+00">D-4</note>
+            <note row="46" velocity="112" fx="+00">C-4</note>
+            <note row="48">OFF</note>
+            <note row="52" velocity="112" fx="+00">C-4</note>
+            <note row="56" velocity="112" fx="+00">F-4</note>
+            <note row="58" velocity="112" fx="+00">G-4</note>
+            <note row="60" velocity="112" fx="+00">G-4</note>
+            <note row="64" velocity="112" fx="+00">A↑4</note>
+            <note row="68" velocity="112" fx="+00">A↑4</note>
+            <note row="70" velocity="112" fx="+00">B𝄭4</note>
+            <note row="72" velocity="112" fx="+00">A↑4</note>
+            <note row="74" velocity="112" fx="+00">A↑4</note>
+            <note row="76" velocity="112" fx="+00">G-4</note>
+            <note row="80" velocity="112" fx="+00">G-4</note>
+            <note row="82" velocity="112" fx="+00">C-4</note>
+            <note row="84">???</note>
+            <note row="86">???</note>
+            <note row="88" velocity="112" fx="+00">G-4</note>
+            <note row="90" velocity="112" fx="+00">F-4</note>
+            <note row="92">???</note>
+            <note row="96">~~~</note>
+            <note row="104" velocity="112" fx="+00">F-4</note>
+            <note row="106" velocity="112" fx="+00">G-4</note>
+            <note row="108" velocity="112" fx="+00">A↑4</note>
+            <note row="110" velocity="112" fx="+00">B𝄭4</note>
+            <note row="112" velocity="112" fx="+00">G-4</note>
+            <note row="113" velocity="112" fx="+00">A↑4</note>
+            <note row="114" velocity="112" fx="+00">A↑4</note>
+            <note row="116" velocity="112" fx="+00">F-4</note>
+            <note row="118" velocity="112" fx="+00">E↑4</note>
+            <note row="120" velocity="112" fx="+00">G-4</note>
+            <note row="122" velocity="112" fx="+00">F-4</note>
+            <note row="124" velocity="112" fx="+00">A↑4</note>
+            <note row="126" velocity="112" fx="+00">G-4</note>
+            <note row="128">OFF</note>
+            <note row="132" velocity="112" fx="+00">C-4</note>
+            <note row="136" velocity="112" fx="+00">F-4</note>
+            <note row="138" velocity="112" fx="+00">G-4</note>
+            <note row="140" velocity="112" fx="+00">C-4</note>
+            <note row="144" velocity="112" fx="+00">E↑4</note>
+            <note row="146" velocity="112" fx="+00">F-4</note>
+            <note row="148" velocity="112" fx="+00">B𝄭3</note>
+            <note row="152">???</note>
+            <note row="154" velocity="112" fx="+00">D-4</note>
+            <note row="156" velocity="112" fx="+00">D-4</note>
+            <note row="160" velocity="112" fx="+00">C-4</note>
+            <note row="164" velocity="112" fx="+00">D-4</note>
+            <note row="166" velocity="112" fx="+00">B𝄭3</note>
+            <note row="168" velocity="112" fx="+00">C-4</note>
+            <note row="169" velocity="112" fx="+00">D-4</note>
+            <note row="170" velocity="112" fx="+00">C-4</note>
+            <note row="172" velocity="112" fx="+00">C-4</note>
+            <note row="174" velocity="112" fx="+00">F-4</note>
+            <note row="176" velocity="112" fx="+00">G-4</note>
+            <note row="178" velocity="112" fx="+00">A↑4</note>
+            <note row="180" velocity="112" fx="+00">A↑4</note>
+            <note row="184">OFF</note>
+            <note row="192" velocity="112" fx="+00">A↑4</note>
+            <note row="194" velocity="112" fx="+00">C-4</note>
+            <note row="196" velocity="112" fx="+00">C-4</note>
+            <note row="200" velocity="112" fx="+00">C-4</note>
+            <note row="202" velocity="112" fx="+00">F-4</note>
+            <note row="204" velocity="112" fx="+00">E↑4</note>
+            <note row="208" velocity="112" fx="+00">E↑4</note>
+            <note row="210" velocity="112" fx="+00">E↑4</note>
+            <note row="212" velocity="112" fx="+00">E↑4</note>
+            <note row="216" velocity="112" fx="+00">E↑4</note>
+            <note row="218" velocity="112" fx="+00">G-4</note>
+            <note row="220" velocity="112" fx="+00">G-4</note>
+            <note row="224" velocity="112" fx="+00">A↑4</note>
+            <note row="228" velocity="112" fx="+00">A↑4</note>
+            <note row="230" velocity="112" fx="+00">B𝄭4</note>
+            <note row="231" velocity="112" fx="+00">F-4</note>
+            <note row="232" velocity="112" fx="+00">A↑4</note>
+            <note row="234" velocity="112" fx="+00">G-4</note>
+            <note row="236" velocity="112" fx="+00">G-4</note>
+            <note row="238" velocity="112" fx="+00">F-4</note>
+            <note row="240" velocity="112" fx="+00">F-4</note>
+            <note row="242" velocity="112" fx="+00">F-4</note>
+            <note row="244" velocity="112" fx="+00">F-4</note>
+            <note row="246" velocity="112" fx="+00">E↑4</note>
+            <note row="248" velocity="112" fx="+00">C-4</note>
+            <note row="250">???</note>
+            <note row="252" velocity="112" fx="+00">D-4</note>
+            <note row="254">???</note>
+            <note row="256" velocity="112" fx="+00">D-4</note>
+            <note row="260" velocity="112" fx="+00">C-4</note>
+            <note row="262" velocity="112" fx="+00">D-4</note>
+            <note row="263" velocity="112" fx="+00">B𝄭3</note>
+            <note row="264" velocity="112" fx="+00">C-4</note>
+            <note row="266" velocity="112" fx="+00">D-4</note>
+            <note row="268" velocity="112" fx="+00">D-4</note>
+            <note row="270" velocity="112" fx="+00">E↑4</note>
+            <note row="271" velocity="112" fx="+00">F-4</note>
+            <note row="272" velocity="112" fx="+00">F-4</note>
+            <note row="274" velocity="112" fx="+00">G-4</note>
+            <note row="276" velocity="112" fx="+00">G-4</note>
+            <note row="280" velocity="112" fx="+00">E↑4</note>
+            <note row="282" velocity="112" fx="+00">F-4</note>
+            <note row="284" velocity="112" fx="+00">D-4</note>
+            <note row="288" velocity="112" fx="+00">F-4</note>
+            <note row="290" velocity="112" fx="+00">G-4</note>
+            <note row="292" velocity="112" fx="+00">G-4</note>
+            <note row="294" velocity="112" fx="+00">F-4</note>
+            <note row="296" velocity="112" fx="+00">E↑4</note>
+            <note row="298" velocity="112" fx="+00">C-4</note>
+            <note row="300" velocity="112" fx="+00">D-4</note>
+            <note row="302" velocity="112" fx="+00">C-4</note>
+            <note row="304" velocity="112" fx="+00">D-4</note>
+            <note row="306" velocity="112" fx="+00">E↑4</note>
+            <note row="307" velocity="112" fx="+00">F-4</note>
+            <note row="308" velocity="112" fx="+00">F-4</note>
+            <note row="310" velocity="112" fx="+00">G-4</note>
+            <note row="311" velocity="112" fx="+00">F-4</note>
+            <note row="312" velocity="112" fx="+00">E↑4</note>
+            <note row="314" velocity="112" fx="+00">C-4</note>
+            <note row="316" velocity="112" fx="+00">D-4</note>
+            <note row="318" velocity="112" fx="+00">C-4</note>
+            <note row="330" velocity="0">OFF</note>
+        </pattern>
+        <pattern track="drone">
+            <note row="16" velocity="161" fx="+00">C-3</note>
+            <note row="16" column="1" velocity="161" fx="+00">G-3</note>
+            <note row="32" velocity="181" fx="+00">C-3</note>
+            <note row="32" column="1" velocity="181" fx="+00">G-3</note>
+            <note row="48" velocity="181" fx="+00">C-3</note>
+            <note row="48" column="1" velocity="181" fx="+00">G-3</note>
+            <note row="64" velocity="181" fx="+00">C-3</note>
+            <note row="64" column="1" velocity="181" fx="+00">G-3</note>
+            <note row="80" velocity="181" fx="+00">C-3</note>
+            <note row="80" column="1" velocity="181" fx="+00">G-3</note>
+            <note row="96" velocity="181" fx="+00">C-3</note>
+            <note row="96" column="1" velocity="181" fx="+00">G-3</note>
+            <note row="112" velocity="181" fx="+00">C-3</note>
+            <note row="112" column="1" velocity="181" fx="+00">G-3</note>
+            <note row="128" velocity="181" fx="+00">C-3</note>
+            <note row="128" column="1" velocity="181" fx="+00">G-3</note>
+            <note row="144" velocity="181" fx="+00">C-3</note>
+            <note row="144" column="1" velocity="181" fx="+00">G-3</note>
+            <note row="160" velocity="181" fx="+00">C-3</note>
+            <note row="160" column="1" velocity="181" fx="+00">G-3</note>
+            <note row="176" velocity="181" fx="+00">C-3</note>
+            <note row="176" column="1" velocity="181" fx="+00">G-3</note>
+            <note row="192" velocity="181" fx="+00">C-3</note>
+            <note row="192" column="1" velocity="181" fx="+00">G-3</note>
+            <note row="208" velocity="181" fx="+00">C-3</note>
+            <note row="208" column="1" velocity="181" fx="+00">G-3</note>
+            <note row="224" velocity="181" fx="+00">C-3</note>
+            <note row="224" column="1" velocity="181" fx="+00">G-3</note>
+            <note row="240" velocity="181" fx="+00">C-3</note>
+            <note row="240" column="1" velocity="181" fx="+00">G-3</note>
+            <note row="256" velocity="181" fx="+00">C-3</note>
+            <note row="256" column="1" velocity="181" fx="+00">G-3</note>
+            <note row="272" velocity="181" fx="+00">C-3</note>
+            <note row="272" column="1" velocity="181" fx="+00">G-3</note>
+            <note row="288" velocity="181" fx="+00">C-3</note>
+            <note row="288" column="1" velocity="181" fx="+00">G-3</note>
+            <note row="304" velocity="181" fx="+00">C-3</note>
+            <note row="304" column="1" velocity="181" fx="+00">G-3</note>
+            <note row="320" velocity="161" fx="+00">C-3</note>
+            <note row="320" column="1" velocity="161" fx="+00">G-3</note>
+            <note row="336" velocity="120" fx="+00">C-3</note>
+            <note row="336" column="1" velocity="120" fx="+00">G-3</note>
+        </pattern>
+        <pattern track="lyre">
+            <note row="0" velocity="52" fx="+00">G-3</note>
+            <note row="2" velocity="52" fx="+00">A↑3</note>
+            <note row="4" velocity="56" fx="+00">B𝄭3</note>
+            <note row="6" velocity="60" fx="+00">C-4</note>
+            <note row="8" velocity="60" fx="+00">D-4</note>
+            <note row="10" velocity="64" fx="+00">E↑4</note>
+            <note row="12" velocity="64" fx="+00">F-4</note>
+            <note row="14" velocity="68" fx="+00">G-4</note>
+            <note row="20" velocity="72" fx="+00">C-4</note>
+            <note row="20" column="1" velocity="72" fx="+00">G-4</note>
+            <note row="32">???</note>
+            <note row="34" velocity="80" fx="+00">F-4</note>
+            <note row="36" velocity="80" fx="+00">G-4</note>
+            <note row="38" velocity="80" fx="+00">F-4</note>
+            <note row="40" velocity="80" fx="+00">E↑4</note>
+            <note row="42" velocity="80" fx="+00">C-4</note>
+            <note row="44" velocity="80" fx="+00">D-4</note>
+            <note row="46" velocity="80" fx="+00">C-4</note>
+            <note row="52" velocity="80" fx="+00">C-4</note>
+            <note row="56" velocity="80" fx="+00">F-4</note>
+            <note row="58" velocity="80" fx="+00">G-4</note>
+            <note row="60" velocity="80" fx="+00">G-4</note>
+            <note row="64" velocity="80" fx="+00">A↑4</note>
+            <note row="68" velocity="80" fx="+00">A↑4</note>
+            <note row="70" velocity="80" fx="+00">B𝄭4</note>
+            <note row="72" velocity="80" fx="+00">A↑4</note>
+            <note row="74" velocity="80" fx="+00">A↑4</note>
+            <note row="76" velocity="80" fx="+00">G-4</note>
+            <note row="80" velocity="80" fx="+00">G-4</note>
+            <note row="82" velocity="80" fx="+00">C-4</note>
+            <note row="84">???</note>
+            <note row="86">???</note>
+            <note row="88" velocity="80" fx="+00">G-4</note>
+            <note row="90" velocity="80" fx="+00">F-4</note>
+            <note row="92">???</note>
+            <note row="96">~~~</note>
+            <note row="104" velocity="80" fx="+00">F-4</note>
+            <note row="106" velocity="80" fx="+00">G-4</note>
+            <note row="108" velocity="80" fx="+00">A↑4</note>
+            <note row="110" velocity="80" fx="+00">B𝄭4</note>
+            <note row="112" velocity="80" fx="+00">G-4</note>
+            <note row="113" velocity="80" fx="+00">A↑4</note>
+            <note row="114" velocity="80" fx="+00">A↑4</note>
+            <note row="116" velocity="80" fx="+00">F-4</note>
+            <note row="118" velocity="80" fx="+00">E↑4</note>
+            <note row="120" velocity="80" fx="+00">G-4</note>
+            <note row="122" velocity="80" fx="+00">F-4</note>
+            <note row="124" velocity="80" fx="+00">A↑4</note>
+            <note row="126" velocity="80" fx="+00">G-4</note>
+            <note row="132" velocity="80" fx="+00">C-4</note>
+            <note row="136" velocity="80" fx="+00">F-4</note>
+            <note row="138" velocity="80" fx="+00">G-4</note>
+            <note row="140" velocity="80" fx="+00">C-4</note>
+            <note row="144" velocity="80" fx="+00">E↑4</note>
+            <note row="146" velocity="80" fx="+00">F-4</note>
+            <note row="148" velocity="80" fx="+00">B𝄭3</note>
+            <note row="152">???</note>
+            <note row="154" velocity="80" fx="+00">D-4</note>
+            <note row="156" velocity="80" fx="+00">D-4</note>
+            <note row="160" velocity="80" fx="+00">C-4</note>
+            <note row="164" velocity="80" fx="+00">D-4</note>
+            <note row="166" velocity="80" fx="+00">B𝄭3</note>
+            <note row="168" velocity="80" fx="+00">C-4</note>
+            <note row="169" velocity="80" fx="+00">D-4</note>
+            <note row="170" velocity="80" fx="+00">C-4</note>
+            <note row="172" velocity="80" fx="+00">C-4</note>
+            <note row="174" velocity="80" fx="+00">F-4</note>
+            <note row="176" velocity="80" fx="+00">G-4</note>
+            <note row="178" velocity="80" fx="+00">A↑4</note>
+            <note row="180" velocity="80" fx="+00">A↑4</note>
+            <note row="192" velocity="80" fx="+00">A↑4</note>
+            <note row="194" velocity="80" fx="+00">C-4</note>
+            <note row="196" velocity="80" fx="+00">C-4</note>
+            <note row="200" velocity="80" fx="+00">C-4</note>
+            <note row="202" velocity="80" fx="+00">F-4</note>
+            <note row="204" velocity="80" fx="+00">E↑4</note>
+            <note row="208" velocity="80" fx="+00">E↑4</note>
+            <note row="210" velocity="80" fx="+00">E↑4</note>
+            <note row="212" velocity="80" fx="+00">E↑4</note>
+            <note row="216" velocity="80" fx="+00">E↑4</note>
+            <note row="218" velocity="80" fx="+00">G-4</note>
+            <note row="220" velocity="80" fx="+00">G-4</note>
+            <note row="224" velocity="80" fx="+00">A↑4</note>
+            <note row="228" velocity="80" fx="+00">A↑4</note>
+            <note row="230" velocity="80" fx="+00">B𝄭4</note>
+            <note row="231" velocity="80" fx="+00">F-4</note>
+            <note row="232" velocity="80" fx="+00">A↑4</note>
+            <note row="234" velocity="80" fx="+00">G-4</note>
+            <note row="236" velocity="80" fx="+00">G-4</note>
+            <note row="238" velocity="80" fx="+00">F-4</note>
+            <note row="240" velocity="80" fx="+00">F-4</note>
+            <note row="242" velocity="80" fx="+00">F-4</note>
+            <note row="244" velocity="80" fx="+00">F-4</note>
+            <note row="246" velocity="80" fx="+00">E↑4</note>
+            <note row="248" velocity="80" fx="+00">C-4</note>
+            <note row="250">???</note>
+            <note row="252" velocity="80" fx="+00">D-4</note>
+            <note row="254">???</note>
+            <note row="256" velocity="80" fx="+00">D-4</note>
+            <note row="260" velocity="80" fx="+00">C-4</note>
+            <note row="262" velocity="80" fx="+00">D-4</note>
+            <note row="263" velocity="80" fx="+00">B𝄭3</note>
+            <note row="264" velocity="80" fx="+00">C-4</note>
+            <note row="266" velocity="80" fx="+00">D-4</note>
+            <note row="268" velocity="80" fx="+00">D-4</note>
+            <note row="270" velocity="80" fx="+00">E↑4</note>
+            <note row="271" velocity="80" fx="+00">F-4</note>
+            <note row="272" velocity="80" fx="+00">F-4</note>
+            <note row="274" velocity="80" fx="+00">G-4</note>
+            <note row="276" velocity="80" fx="+00">G-4</note>
+            <note row="280" velocity="80" fx="+00">E↑4</note>
+            <note row="282" velocity="80" fx="+00">F-4</note>
+            <note row="284" velocity="80" fx="+00">D-4</note>
+            <note row="288" velocity="80" fx="+00">F-4</note>
+            <note row="290" velocity="80" fx="+00">G-4</note>
+            <note row="292" velocity="80" fx="+00">G-4</note>
+            <note row="294" velocity="80" fx="+00">F-4</note>
+            <note row="296" velocity="80" fx="+00">E↑4</note>
+            <note row="298" velocity="80" fx="+00">C-4</note>
+            <note row="300" velocity="80" fx="+00">D-4</note>
+            <note row="302" velocity="80" fx="+00">C-4</note>
+            <note row="304" velocity="80" fx="+00">D-4</note>
+            <note row="306" velocity="80" fx="+00">E↑4</note>
+            <note row="307" velocity="80" fx="+00">F-4</note>
+            <note row="308" velocity="80" fx="+00">F-4</note>
+            <note row="310" velocity="80" fx="+00">G-4</note>
+            <note row="311" velocity="80" fx="+00">F-4</note>
+            <note row="312" velocity="80" fx="+00">E↑4</note>
+            <note row="314" velocity="80" fx="+00">C-4</note>
+            <note row="316" velocity="80" fx="+00">D-4</note>
+            <note row="318" velocity="80" fx="+00">C-4</note>
+            <note row="320" velocity="72" fx="+00">E↑4</note>
+            <note row="324" velocity="64" fx="+00">D-4</note>
+            <note row="328" velocity="60" fx="+00">C-4</note>
+            <note row="336" velocity="68" fx="+00">C-4</note>
+            <note row="336" column="1" velocity="68" fx="+00">G-4</note>
+        </pattern>
+        <pattern track="lyre8vb">
+            <note row="32">???</note>
+            <note row="34" velocity="40" fx="+00">F-3</note>
+            <note row="36" velocity="40" fx="+00">G-3</note>
+            <note row="38" velocity="40" fx="+00">F-3</note>
+            <note row="40" velocity="40" fx="+00">E↑3</note>
+            <note row="42" velocity="40" fx="+00">C-3</note>
+            <note row="44" velocity="40" fx="+00">D-3</note>
+            <note row="46" velocity="40" fx="+00">C-3</note>
+            <note row="52" velocity="40" fx="+00">C-3</note>
+            <note row="56" velocity="40" fx="+00">F-3</note>
+            <note row="58" velocity="40" fx="+00">G-3</note>
+            <note row="60" velocity="40" fx="+00">G-3</note>
+            <note row="64" velocity="40" fx="+00">A↑3</note>
+            <note row="68" velocity="40" fx="+00">A↑3</note>
+            <note row="70" velocity="40" fx="+00">B𝄭3</note>
+            <note row="72" velocity="40" fx="+00">A↑3</note>
+            <note row="74" velocity="40" fx="+00">A↑3</note>
+            <note row="76" velocity="40" fx="+00">G-3</note>
+            <note row="80" velocity="40" fx="+00">G-3</note>
+            <note row="82" velocity="40" fx="+00">C-3</note>
+            <note row="84">???</note>
+            <note row="86">???</note>
+            <note row="88" velocity="40" fx="+00">G-3</note>
+            <note row="90" velocity="40" fx="+00">F-3</note>
+            <note row="92">???</note>
+            <note row="96">~~~</note>
+            <note row="104" velocity="40" fx="+00">F-3</note>
+            <note row="106" velocity="40" fx="+00">G-3</note>
+            <note row="108" velocity="40" fx="+00">A↑3</note>
+            <note row="110" velocity="40" fx="+00">B𝄭3</note>
+            <note row="112" velocity="40" fx="+00">G-3</note>
+            <note row="113" velocity="40" fx="+00">A↑3</note>
+            <note row="114" velocity="40" fx="+00">A↑3</note>
+            <note row="116" velocity="40" fx="+00">F-3</note>
+            <note row="118" velocity="40" fx="+00">E↑3</note>
+            <note row="120" velocity="40" fx="+00">G-3</note>
+            <note row="122" velocity="40" fx="+00">F-3</note>
+            <note row="124" velocity="40" fx="+00">A↑3</note>
+            <note row="126" velocity="40" fx="+00">G-3</note>
+            <note row="132" velocity="40" fx="+00">C-3</note>
+            <note row="136" velocity="40" fx="+00">F-3</note>
+            <note row="138" velocity="40" fx="+00">G-3</note>
+            <note row="140" velocity="40" fx="+00">C-3</note>
+            <note row="144" velocity="40" fx="+00">E↑3</note>
+            <note row="146" velocity="40" fx="+00">F-3</note>
+            <note row="148" velocity="40" fx="+00">B𝄭2</note>
+            <note row="152">???</note>
+            <note row="154" velocity="40" fx="+00">D-3</note>
+            <note row="156" velocity="40" fx="+00">D-3</note>
+            <note row="160" velocity="40" fx="+00">C-3</note>
+            <note row="164" velocity="40" fx="+00">D-3</note>
+            <note row="166" velocity="40" fx="+00">B𝄭2</note>
+            <note row="168" velocity="40" fx="+00">C-3</note>
+            <note row="169" velocity="40" fx="+00">D-3</note>
+            <note row="170" velocity="40" fx="+00">C-3</note>
+            <note row="172" velocity="40" fx="+00">C-3</note>
+            <note row="174" velocity="40" fx="+00">F-3</note>
+            <note row="176" velocity="40" fx="+00">G-3</note>
+            <note row="178" velocity="40" fx="+00">A↑3</note>
+            <note row="180" velocity="40" fx="+00">A↑3</note>
+            <note row="192" velocity="40" fx="+00">A↑3</note>
+            <note row="194" velocity="40" fx="+00">C-3</note>
+            <note row="196" velocity="40" fx="+00">C-3</note>
+            <note row="200" velocity="40" fx="+00">C-3</note>
+            <note row="202" velocity="40" fx="+00">F-3</note>
+            <note row="204" velocity="40" fx="+00">E↑3</note>
+            <note row="208" velocity="40" fx="+00">E↑3</note>
+            <note row="210" velocity="40" fx="+00">E↑3</note>
+            <note row="212" velocity="40" fx="+00">E↑3</note>
+            <note row="216" velocity="40" fx="+00">E↑3</note>
+            <note row="218" velocity="40" fx="+00">G-3</note>
+            <note row="220" velocity="40" fx="+00">G-3</note>
+            <note row="224" velocity="40" fx="+00">A↑3</note>
+            <note row="228" velocity="40" fx="+00">A↑3</note>
+            <note row="230" velocity="40" fx="+00">B𝄭3</note>
+            <note row="231" velocity="40" fx="+00">F-3</note>
+            <note row="232" velocity="40" fx="+00">A↑3</note>
+            <note row="234" velocity="40" fx="+00">G-3</note>
+            <note row="236" velocity="40" fx="+00">G-3</note>
+            <note row="238" velocity="40" fx="+00">F-3</note>
+            <note row="240" velocity="40" fx="+00">F-3</note>
+            <note row="242" velocity="40" fx="+00">F-3</note>
+            <note row="244" velocity="40" fx="+00">F-3</note>
+            <note row="246" velocity="40" fx="+00">E↑3</note>
+            <note row="248" velocity="40" fx="+00">C-3</note>
+            <note row="250">???</note>
+            <note row="252" velocity="40" fx="+00">D-3</note>
+            <note row="254">???</note>
+            <note row="256" velocity="40" fx="+00">D-3</note>
+            <note row="260" velocity="40" fx="+00">C-3</note>
+            <note row="262" velocity="40" fx="+00">D-3</note>
+            <note row="263" velocity="40" fx="+00">B𝄭2</note>
+            <note row="264" velocity="40" fx="+00">C-3</note>
+            <note row="266" velocity="40" fx="+00">D-3</note>
+            <note row="268" velocity="40" fx="+00">D-3</note>
+            <note row="270" velocity="40" fx="+00">E↑3</note>
+            <note row="271" velocity="40" fx="+00">F-3</note>
+            <note row="272" velocity="40" fx="+00">F-3</note>
+            <note row="274" velocity="40" fx="+00">G-3</note>
+            <note row="276" velocity="40" fx="+00">G-3</note>
+            <note row="280" velocity="40" fx="+00">E↑3</note>
+            <note row="282" velocity="40" fx="+00">F-3</note>
+            <note row="284" velocity="40" fx="+00">D-3</note>
+            <note row="288" velocity="40" fx="+00">F-3</note>
+            <note row="290" velocity="40" fx="+00">G-3</note>
+            <note row="292" velocity="40" fx="+00">G-3</note>
+            <note row="294" velocity="40" fx="+00">F-3</note>
+            <note row="296" velocity="40" fx="+00">E↑3</note>
+            <note row="298" velocity="40" fx="+00">C-3</note>
+            <note row="300" velocity="40" fx="+00">D-3</note>
+            <note row="302" velocity="40" fx="+00">C-3</note>
+            <note row="304" velocity="40" fx="+00">D-3</note>
+            <note row="306" velocity="40" fx="+00">E↑3</note>
+            <note row="307" velocity="40" fx="+00">F-3</note>
+            <note row="308" velocity="40" fx="+00">F-3</note>
+            <note row="310" velocity="40" fx="+00">G-3</note>
+            <note row="311" velocity="40" fx="+00">F-3</note>
+            <note row="312" velocity="40" fx="+00">E↑3</note>
+            <note row="314" velocity="40" fx="+00">C-3</note>
+            <note row="316" velocity="40" fx="+00">D-3</note>
+            <note row="318" velocity="40" fx="+00">C-3</note>
+            <note row="320" velocity="36" fx="+00">E↑3</note>
+            <note row="324" velocity="32" fx="+00">D-3</note>
+            <note row="328" velocity="30" fx="+00">C-3</note>
+        </pattern>
+    </arrangement>
+</song>

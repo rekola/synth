@@ -53,6 +53,7 @@ class InteractiveUI : public UI {
   void refresh() override;
   void clearLastRow();
   void applyTheme(const Theme & theme) override;
+  Theme::Hints themeHints() const override;
   void setReducedMotion(bool reduced) override;
   // The app's choices for a link class (see PerformanceProfile.h).
   void applyProfile(cellui::LinkClass cls);

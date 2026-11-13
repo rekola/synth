@@ -1,3 +1,4 @@
+#include <cellui/StageStats.h>
 #include <cellui/WaveformImage.h>
 
 #include <canvas/Context.h>
@@ -21,6 +22,7 @@ canvas::Color toCanvas(const Color & c) {
 
 std::vector<uint32_t> render(const std::vector<float> & slices, const Color & fg, const Color & bg, const Color & guide, unsigned width,
                              unsigned height, float scale) {
+  StageTimer timer(Stage::PICTURE_RENDER);
   std::vector<uint32_t> out(static_cast<size_t>(width) * height, 0);
   if (width == 0 || height == 0) return out;
 

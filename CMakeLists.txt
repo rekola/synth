@@ -150,6 +150,7 @@ add_library(synth_engine STATIC
 	src/audio/TimeStretcher.cpp
 	src/model/PatternBlockOps.cpp
 	src/model/JustIntonation.cpp
+	src/model/Chords.cpp
 	src/model/PatternGrid.cpp
 	src/model/ArrangementOps.cpp
 	src/ui/PatternScroll.cpp

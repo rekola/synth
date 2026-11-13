@@ -69,11 +69,13 @@ class UI : public UIElement {
   // from the select-theme command.
   bool setTheme(const std::string & name) {
     Theme theme;
-    if (!Theme::byName(name, theme)) return false;
+    if (!Theme::byName(name, theme, themeHints())) return false;
     theme_name_ = name;
     applyTheme(theme);
     return true;
   }
+  // What the display says about its own colours, for a theme made of them (Theme::ansi16()).
+  virtual Theme::Hints themeHints() const { return {}; }
   // The backend takes the colours and redraws.
   virtual void applyTheme(const Theme & /*theme*/) { }
   // Motion off (--reduced-motion): colours change at once and nothing pulses.

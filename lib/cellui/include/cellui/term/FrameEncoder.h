@@ -1,5 +1,6 @@
 #pragma once
 
+#include <cellui/Ansi16.h>
 #include <cellui/CellBuffer.h>
 #include <cellui/term/Capabilities.h>
 
@@ -16,6 +17,8 @@ int nearest256(const Color & c);
 // One of the 8 basic colours: greys by brightness, others by which
 // components are at least half on.
 int nearest8(const Color & c);
+// The nearest of the 16 colours of the standard palette (cellui/Ansi16.h).
+int nearest16(const Color & c);
 
 // What the encoder needs to know about the terminal.
 struct EncoderProfile {
@@ -24,6 +27,11 @@ struct EncoderProfile {
   SyncForm sync = SyncForm::NONE;
   // A background equal to this is nudged off it (see Capabilities).
   std::optional<Color> distinct_from;
+  // The terminal's own text and background colours, where known. At 16 colours and fewer a colour
+  // equal to one is sent as the terminal's default (SGR 39, 49), so the user's terminal theme
+  // decides the text and background. With no colour at all they are what highlights and dim text
+  // are told from (white on black when unknown).
+  std::optional<Color> default_fg, default_bg;
 
   static EncoderProfile from(const Capabilities & caps);
 };
@@ -85,6 +93,8 @@ class FrameEncoder {
   Ink ink(const std::optional<Color> & c, bool background) const;
   void moveTo(std::string & out, int y, int x);
   void pen(std::string & out, const CellBuffer::Cell & cell);
+  // Reverse video and dim for a cell, with no colour to say it by.
+  void monoStyle(const CellBuffer::Cell & cell, bool & reverse, bool & dim) const;
 
   EncoderProfile profile_;
   std::optional<CellBuffer> last_;
@@ -97,6 +107,8 @@ class FrameEncoder {
   bool pen_known_ = false;
   Ink fg_, bg_;
   bool bold_ = false, italic_ = false, underline_ = false;
+  // With no colour (ColorDepth::NONE): reverse video marks a highlight and dim a quiet grey text.
+  bool reverse_ = false, dim_ = false;
 };
 
 }  // namespace cellui::term

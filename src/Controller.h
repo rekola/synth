@@ -859,6 +859,14 @@ class Controller {
   // never reads it.
   void addNoteColumn(int track_id);
   void removeNoteColumn(int track_id);
+  // Note columns that follow the notes, not undo steps of their own: at
+  // least `columns` (up to LeafTrack::kMaxNoteColumns), and the empty ones
+  // at the right end removed again.
+  void ensureNoteColumns(int track_id, int columns);
+  void trimNoteColumns(int track_id);
+  // Saves the current song without the empty note columns at the right end
+  // of its tracks; the current track keeps its own in the editor.
+  void saveTrimmed(const std::string & filename);
 
   // Sets slot 0 (A) or 1 (B) of the shared send bus (Song::setBusSlotKind())
   // to a fresh, default-parameter instance of `kind`, and - same reasoning

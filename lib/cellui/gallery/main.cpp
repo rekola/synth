@@ -79,6 +79,7 @@ std::string colorName(cellui::term::ColorDepth d) {
   switch (d) {
     case cellui::term::ColorDepth::NONE: return "mono";
     case cellui::term::ColorDepth::C8: return "8";
+    case cellui::term::ColorDepth::C16: return "16";
     case cellui::term::ColorDepth::C256: return "256";
     case cellui::term::ColorDepth::TRUECOLOR: return "24bit";
   }

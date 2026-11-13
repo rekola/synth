@@ -283,3 +283,61 @@ TEST(encoder_writes_a_lit_cell_bold_for_its_first_moments_only) {
   f.write(0, 0, "J", lit);
   CHECK(e.encode(f).find("\x1b[1;") != std::string::npos);
 }
+
+namespace {
+
+CellBuffer::Style colours(const Color & fg, const Color & bg) {
+  CellBuffer::Style s;
+  s.fg = fg;
+  s.bg = bg;
+  return s;
+}
+
+}  // namespace
+
+TEST(encoder_16_colours_use_the_bright_codes_and_the_palettes_own_values) {
+  // The standard palette's own values come back as their own index.
+  for (int i = 0; i < 16; i++) CHECK(nearest16(ansi16Color(i)) == i);
+  FrameEncoder e(profile(ColorDepth::C16));
+  CellBuffer f(3, 20);
+  f.write(0, 0, "a", colours(ansi16Color(1), ansi16Color(4)));    // red on blue: 31, 44
+  f.write(0, 1, "b", colours(ansi16Color(9), ansi16Color(12)));   // bright red on bright blue: 91, 104
+  CHECK(same(e.encode(f), kClear + "\x1b[31;44ma\x1b[91;104mb"));
+}
+
+TEST(encoder_16_and_8_colours_leave_the_terminals_own_defaults_to_the_terminal) {
+  for (ColorDepth depth : {ColorDepth::C16, ColorDepth::C8}) {
+    EncoderProfile p = profile(depth);
+    p.default_fg = Color("#d0d0d0");
+    p.default_bg = Color("#101010");
+    FrameEncoder e(p);
+    CellBuffer f(2, 10);
+    // Text and background in exactly the terminal's colours: no colour code at all.
+    f.write(0, 0, "x", colours(Color("#d0d0d0"), Color("#101010")));
+    f.write(0, 1, "y", colours(ansi16Color(2), Color("#101010")));
+    CHECK(same(e.encode(f), kClear + "x\x1b[32my"));
+  }
+}
+
+TEST(encoder_without_colour_marks_a_highlight_by_reverse_video_and_a_grey_text_by_dim) {
+  EncoderProfile p = profile(ColorDepth::NONE);
+  p.default_fg = Color("#f0f0f0");
+  p.default_bg = Color("#101010");
+  FrameEncoder e(p);
+  CellBuffer f(2, 20);
+  f.write(0, 0, "a", colours(Color("#f0f0f0"), Color("#101010")));  // the terminal's own: plain
+  f.write(0, 1, "b", colours(Color("#050505"), Color("#75d4eb")));  // a bright bar: reverse
+  f.write(0, 2, "c", colours(Color("#7a7a7a"), Color("#1c1c1c")));  // a quiet grey: dim
+  f.write(0, 3, "d", colours(Color("#f0f0f0"), Color("#2c2c2c")));  // a raised surface is no highlight
+  CHECK(same(e.encode(f), kClear + "a\x1b[7mb\x1b[2;27mc\x1b[22md"));
+  // A highlight over a bold cell keeps the bold; ending a bold that dim shares keeps the dim.
+  CellBuffer g(2, 20);
+  CellBuffer::Style bold;
+  bold.weight = 700;
+  bold.fg = Color("#7a7a7a");
+  bold.bg = Color("#1c1c1c");
+  g.write(0, 0, "e", bold);
+  g.write(0, 1, "f", colours(Color("#7a7a7a"), Color("#1c1c1c")));
+  FrameEncoder h(p);
+  CHECK(same(h.encode(g), kClear + "\x1b[1;2me\x1b[22;2mf"));
+}

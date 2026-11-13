@@ -222,7 +222,7 @@ timing (and missed-vsync counts) at exit.
   split sequences), `Discovery`/`Capabilities` (start-up queries with a
   deadline; true colour is also found by setting a 24-bit background and reading the pen back with DECRQSS, which xterm answers with the colour only when it keeps 24 bits; display scale guessed from the cell size, light/dark from the
   default colours, which picks the default `--theme`), `FrameEncoder` (frame
-  diff as escape sequences; a foreground lit past white, a channel above `kLitBold`, is written bold
+  diff as escape sequences; colour depth NONE/8/16/256/24-bit, found from `TERM` or `CELLUI_COLORS`; at 16 and 8 colours a colour equal to the terminal's own text or background is sent as the default, and with no colour a background far from the terminal's own is reverse video and a quiet grey text is dim; a foreground lit past white, a channel above `kLitBold`, is written bold
   for its first `kBoldHold` seconds lit (a latch per cell, on a clock a test can set): a terminal's
   way of brighter, so an app never asks a weight for a flash and the bold shows on every lit
   cell for the same short time, whatever the colour does after), `ImageEncoder` (kitty graphics, iTerm2 inline
@@ -279,15 +279,19 @@ cell), and pictures as `GdkTexture`s uploaded only when new or re-versioned
 and laid over the backgrounds — so a chart changing every frame redoes no
 text. The app's descriptors are GSources on GTK's main context; events wait
 behind an eventfd that is `inputFd()`. Keys are taken in the capture phase
-with real press/repeat/release; the pointer's motion is reported with or
+with real press/repeat/release (a dead key and the keys after it go through a simple input
+method context, which joins them into the character they make, sent as a press and a release;
+the other keys never do, so their presses and releases stay as they are); the pointer's motion is reported with or
 without a button held (a drag), at each new cell; wheel is buttons 4-7; paste is Ctrl+Shift+V / Shift+Insert.
 Backdrops: each layer is drawn, then the stack so far again under a GSK blur
 node and a dim inside the backdrop's cells — the window never makes the blur
 itself. Shadows: two GSK outset shadows (a key light from the upper left,
 offset down by half the height, and a faint ambient one) around every
 `FrameInfo::elevations` area no later backdrop covers, then height by height
-the cells of every area as high or higher again over them, plus a light top
-and dark bottom edge per area. Glow: a glyph whose foreground is lit past white
+the cells of every area as high or higher again over them (the frame's own
+cells as one node made once a frame, `paintedNode()`, under a clip - never a
+walk over the cells for each area, since a screen of cards has many), plus a
+light top and dark bottom edge per area. Glow: a glyph whose foreground is lit past white
 (a `Color` channel above 1, from 0.6 above it at full strength) gets a glow, drawn
 over the backgrounds and under the text as a small cached texture: the glyph blurred
 tight and wide once on the CPU for a glyph in a face (`glowSprite()`, a white texture

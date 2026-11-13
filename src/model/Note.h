@@ -22,9 +22,10 @@
 // and undefined (an empty cell, or one with only fx). A lost note and a lacuna
 // make no sound but end the previous note in their column, as an OFF does. Never
 // the velocity: velocity 0 is a real note-on, one that starts from silence.
-// There is one 8-bit velocity, always present on a note-on, a lost note, a
-// lacuna, an OFF and aftertouch: the strike velocity, the release velocity (the
-// "lift") and the pressure.
+// There is one 8-bit velocity, always present on a note-on, an OFF and
+// aftertouch: the strike velocity, the release velocity (the "lift") and the
+// pressure. A lost note and a lacuna have neither velocity nor delay: they are
+// not played, and setVelocity()/setDelay() leave them alone.
 class Note {
  public:
   Note() = default;
@@ -37,7 +38,9 @@ class Note {
                                                                        : input_value == "~~~"   ? kLacuna
                                                                                                 : clampValue(stringToKey(tuning, input_value, default_octave)),
                      _velocity)),
-        delay_(clampDelay(_delay)) {}
+        delay_(clampDelay(_delay)) {
+    if (isLost() || isLacuna()) *this = isLost() ? lost() : lacuna(); // no velocity or delay
+  }
 
   // An OFF with release velocity `lift` (8-bit).
   static Note off(int lift = constants::NEUTRAL_VELOCITY, int delay = 0) {
@@ -48,18 +51,16 @@ class Note {
   }
   // A note that began on this row whose pitch is unknown; it makes no sound but
   // ends the previous note in its column.
-  static Note lost(int velocity = constants::DEFAULT_NOTE_ON_VELOCITY, int delay = 0) {
+  static Note lost() {
     Note n;
-    n.packed_ = pack(kLost, velocity);
-    n.delay_ = clampDelay(delay);
+    n.packed_ = pack(kLost, constants::NEUTRAL_VELOCITY);
     return n;
   }
   // A span of missing notes, from this row until the column's next cell; it makes
   // no sound but ends the previous note in its column.
-  static Note lacuna(int velocity = constants::DEFAULT_NOTE_ON_VELOCITY, int delay = 0) {
+  static Note lacuna() {
     Note n;
-    n.packed_ = pack(kLacuna, velocity);
-    n.delay_ = clampDelay(delay);
+    n.packed_ = pack(kLacuna, constants::NEUTRAL_VELOCITY);
     return n;
   }
   // Pressure on whatever sounds in the column: a velocity and no value.
@@ -83,9 +84,9 @@ class Note {
     else if (code == -3)
       n = off(velocity, delay);
     else if (code == -4)
-      n = lost(velocity, delay);
+      n = lost();
     else if (code == -5)
-      n = lacuna(velocity, delay);
+      n = lacuna();
     if (!n.isDefined()) n.setVelocity(velocity);
     return n;
   }
@@ -175,9 +176,18 @@ class Note {
   bool isOff() const { return value() == kOff; }
   bool isAftertouch() const { return value() == kAftertouch; }
 
-  // Held to 0-255.
-  void setVelocity(int v) { packed_ = (packed_ & ~(static_cast<uint32_t>(velocity::kMax) << kVelocityShift)) | (clampVelocity(v) << kVelocityShift); }
-  void setDelay(int d) { delay_ = clampDelay(d); }
+  // A note-on, an OFF or aftertouch has a velocity and a delay; a lost note and a
+  // lacuna have neither (and an empty cell has none to show).
+  bool hasVelocityAndDelay() const { return isNoteOn() || isOff() || isAftertouch(); }
+
+  // Held to 0-255. Not for a lost note or a lacuna.
+  void setVelocity(int v) {
+    if (isLost() || isLacuna()) return;
+    packed_ = (packed_ & ~(static_cast<uint32_t>(velocity::kMax) << kVelocityShift)) | (clampVelocity(v) << kVelocityShift);
+  }
+  void setDelay(int d) {
+    if (!isLost() && !isLacuna()) delay_ = clampDelay(d);
+  }
 
   void clear() {
     packed_ = pack(kUndefined, constants::NEUTRAL_VELOCITY);
@@ -572,9 +582,9 @@ class Note {
       if (pos0 < pos1) {
 	auto s = line.substr(pos0, pos1 - pos0);
         if (s == "~~~") {
-          r.push_back(lacuna(velocity, delay));
+          r.push_back(lacuna()); // it has no velocity or delay, whatever the file says
         } else if (s == "???") {
-          r.push_back(lost(velocity, delay));
+          r.push_back(lost());
         } else if (s == "off" || s == "OFF") {
           r.push_back(off(velocity, delay));
         } else {
@@ -621,7 +631,7 @@ static_assert(sizeof(Note) == 8, "Note must stay 8 bytes");
 // The Note-taking overload of getFrequencyFor() (Tuning.h) lives here
 // rather than there, since Tuning.h is included by Note.h and can't
 // include it back without the two headers including each other.
-inline float getFrequencyFor(Tuning tuning, const Note & note) {
+inline float getFrequencyFor(Tuning tuning, const Note note) {
   if (!note.isNoteOn()) {
     return 0.0f;
   }

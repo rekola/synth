@@ -87,6 +87,8 @@ int keyFor(guint keyval, unsigned & mods) {
     case GDK_KEY_KP_Space: return ' ';
     default: break;
   }
+  // A dead key makes no character of its own: the input method joins it to the next key.
+  if (keyval >= GDK_KEY_dead_grave && keyval <= GDK_KEY_dead_greek) return 0;
   // Modifiers, locks and the other keys that make no character.
   if (keyval >= GDK_KEY_Shift_L && keyval <= GDK_KEY_Hyper_R) return 0;
   if (keyval == GDK_KEY_ISO_Level3_Shift || keyval == GDK_KEY_ISO_Level5_Shift || keyval == GDK_KEY_Mode_switch) return 0;
@@ -238,6 +240,13 @@ struct Window::Impl {
 
 
   std::set<guint> held_keys;
+  // Joins dead keys and compose sequences into the character they make. Only a dead key, and the
+  // keys that follow it until the sequence ends, go through it: the other keys' presses and releases
+  // are wanted as they are.
+  GtkIMContext * im_context = nullptr;
+  bool composing = false;
+  // The keys whose press the input method took: their release is nothing too.
+  std::set<guint> consumed_keys;
   int last_row = -1, last_col = -1;
   // The pointer's position in cells, with the fraction.
   float last_fy = -1, last_fx = -1;
@@ -287,7 +296,8 @@ struct Window::Impl {
     if (band.glow) gsk_render_node_unref(band.glow);
     band = {};
   }
-  void appendShadows(GtkSnapshot * snap, const Painted & top, GskRenderNode * below, const std::vector<GskRenderNode *> & stacks);
+  GskRenderNode * paintedNode(const Painted & painted, const CellBuffer & cells);
+  void appendShadows(GtkSnapshot * snap, GskRenderNode * top, GskRenderNode * below, const std::vector<GskRenderNode *> & stacks);
   void forgetTextures() {
     for (Painted & p : painted) release(p);
     for (auto & [key, entry] : image_textures) {
@@ -297,7 +307,8 @@ struct Window::Impl {
   }
   void allocated(int width, int height);
   void pasteClipboard();
-  bool keyEvent(guint keyval, GdkModifierType state, bool pressed, guint keycode);
+  bool keyEvent(GtkEventController * controller, guint keyval, GdkModifierType state, bool pressed, guint keycode);
+  void commitText(const char * text);
   void buttonEvent(int button, double x, double y, bool pressed, GdkModifierType state);
   void motionEvent(double x, double y, GdkModifierType state);
   void updateMouseCursor();
@@ -625,11 +636,15 @@ const Window::Impl::Painted & Window::Impl::paint(size_t slot, const CellBuffer 
     p.shape = shape;
   }
   const Color & window_bg = *display_info.default_bg;
+  const Color & default_fg = *display_info.default_fg;
   for (size_t i = 0; i < count; i++) {
     int r0 = static_cast<int>(i) * kBandRows, r1 = std::min(r0 + kBandRows, cells.rows());
     Painted::Band & band = p.bands[i];
 
-    Print bg_print, text_print;
+    // The glow has a print of its own, of the strengths: the cells' printed colours are
+    // the visible ones (scaled to white). All three are taken in one walk over the cells.
+    Print bg_print, text_print, glow_print;
+    bool any_glow = false;
     bg_print.add(static_cast<uint64_t>(r0) << 32 | static_cast<uint32_t>(cells.cols()));
     bg_print.add(transparent);
     text_print.add(static_cast<uint64_t>(r0) << 32 | static_cast<uint32_t>(cells.cols()));
@@ -645,6 +660,14 @@ const Window::Impl::Painted & Window::Impl::paint(size_t slot, const CellBuffer 
         text_print.add(cell.fg);
         text_print.add(static_cast<uint64_t>(cell.zoom) << 1 | static_cast<uint64_t>(cell.zoom_joined));
         text_print.add(static_cast<uint64_t>(shownWeight(cell.weight)) << 2 | static_cast<uint64_t>(cell.italic) << 1 | static_cast<uint64_t>(cell.underline));
+        int text_level = glowLevel(cell.fg.value_or(default_fg));
+        if (text_level == 0) continue;
+        any_glow = true;
+        glow_print.add(static_cast<uint64_t>(r) << 32 | static_cast<uint32_t>(c));
+        glow_print.add(cell.text);
+        glow_print.add(cell.fg);
+        glow_print.add(static_cast<uint64_t>(text_level) << 9 | static_cast<uint64_t>(cell.zoom) << 1 | static_cast<uint64_t>(cell.zoom_joined));
+        glow_print.add(static_cast<uint64_t>(shownWeight(cell.weight)) << 1 | static_cast<uint64_t>(cell.italic));
       }
     }
 
@@ -666,25 +689,7 @@ const Window::Impl::Painted & Window::Impl::paint(size_t slot, const CellBuffer 
       stats.raster_ms_max = std::max(stats.raster_ms_max, ms);
     }
 
-    // The glow: only cells lit past white have any, and a band with none keeps no node.
-    // The cells' printed colours are the visible ones (scaled to white), so the glow has
-    // a print of its own, of the strengths.
-    Print glow_print;
-    bool any_glow = false;
-    const Color & default_fg = *display_info.default_fg;
-    for (int r = r0; r < r1; r++) {
-      for (int c = 0; c < cells.cols(); c++) {
-        const CellBuffer::Cell & cell = cells.at(r, c);
-        int text_level = hasText(cell) ? glowLevel(cell.fg.value_or(default_fg)) : 0;
-        if (text_level == 0) continue;
-        any_glow = true;
-        glow_print.add(static_cast<uint64_t>(r) << 32 | static_cast<uint32_t>(c));
-        glow_print.add(cell.text);
-        glow_print.add(cell.fg);
-        glow_print.add(static_cast<uint64_t>(text_level) << 9 | static_cast<uint64_t>(cell.zoom) << 1 | static_cast<uint64_t>(cell.zoom_joined));
-        glow_print.add(static_cast<uint64_t>(shownWeight(cell.weight)) << 1 | static_cast<uint64_t>(cell.italic));
-      }
-    }
+    // Only cells lit past white have a glow, and a band with none keeps no node.
     uint64_t glow_value = any_glow ? glow_print.value() : 0;
     if (!band.glow_valid || band.glow_print != glow_value) {
       if (band.glow) gsk_render_node_unref(band.glow);
@@ -1173,10 +1178,21 @@ void Window::Impl::appendPainted(GtkSnapshot * snap, const Painted & p, const Ce
   if (shifted) gtk_snapshot_restore(snap);
 }
 
+// A layer's cells as one node, for what draws them more than once in a frame; null when
+// they show nothing.
+GskRenderNode * Window::Impl::paintedNode(const Painted & p, const CellBuffer & cells) {
+  GtkSnapshot * s = gtk_snapshot_new();
+  appendPainted(s, p, &cells);
+  return gtk_snapshot_free_to_node(s);
+}
+
 // A soft shadow around every plane above the base that nothing blurs, the
 // higher the softer and the further down: drawn over the frame, outside the
 // plane, and under every plane higher than it, which is drawn again over it.
-void Window::Impl::appendShadows(GtkSnapshot * snap, const Painted & top, GskRenderNode * below, const std::vector<GskRenderNode *> & stacks) {
+// `top` is the frame's own cells as a node (paintedNode()), so drawing an area
+// again is that node under a clip and never a walk over the cells: a screen of
+// cards has many areas.
+void Window::Impl::appendShadows(GtkSnapshot * snap, GskRenderNode * top, GskRenderNode * below, const std::vector<GskRenderNode *> & stacks) {
   const Color & bg = *display_info.default_bg;
   bool dark = bg.luminance() < 0.21f;
   stats.shadows = 0;
@@ -1207,7 +1223,7 @@ void Window::Impl::appendShadows(GtkSnapshot * snap, const Painted & top, GskRen
   // layer below it, from the stack so far with the frame over it.
   auto redraw = [&](const ElevatedArea & a) {
     if (a.layer < layers.size() && below) gtk_snapshot_append_node(snap, below);
-    appendPainted(snap, top, &frame);
+    if (top) gtk_snapshot_append_node(snap, top);
   };
   // What shows in the corners a radius cuts away: what lay under them (the
   // stack below, or the cell's colour) with the area's shadow over it. Drawn
@@ -1286,7 +1302,7 @@ void Window::Impl::appendShadows(GtkSnapshot * snap, const Painted & top, GskRen
         if (band.elevation < e || !graphene_rect_intersection(&band.rect, &reach, &meet)) continue;
         gtk_snapshot_push_clip(snap, &band.rect);
         gtk_snapshot_append_node(snap, below);
-        appendPainted(snap, top, &frame);
+        if (top) gtk_snapshot_append_node(snap, top);
         gtk_snapshot_pop(snap);
       }
       for (size_t j = i; j < elevations.size(); j++) {
@@ -1369,9 +1385,10 @@ void Window::Impl::snapshot(GtkSnapshot * snap) {
   if (frame.rows() > 0 && frame.cols() > 0 && rasterizer) {
     if (layers.empty()) {
       gtk_snapshot_append_color(snap, &background, &all);
-      const Painted & top = paint(0, frame, false);
-      appendPainted(snap, top, &frame);
+      GskRenderNode * top = paintedNode(paint(0, frame, false), frame);
+      if (top) gtk_snapshot_append_node(snap, top);
       appendShadows(snap, top, nullptr, {});
+      if (top) gsk_render_node_unref(top);
     } else {
       // Each backdrop blurs and dims everything below it, on the GPU: what
       // is composed so far is a node, drawn as it is and again, blurred,
@@ -1506,9 +1523,10 @@ void Window::Impl::snapshot(GtkSnapshot * snap) {
         stacks.push_back(below);
       }
       gtk_snapshot_append_node(snap, below);
-      const Painted & top = paint(layers.size(), frame, true);
-      appendPainted(snap, top, &frame);
+      GskRenderNode * top = paintedNode(paint(layers.size(), frame, true), frame);
+      if (top) gtk_snapshot_append_node(snap, top);
       appendShadows(snap, top, below, stacks);
+      if (top) gsk_render_node_unref(top);
       for (GskRenderNode * node : stacks) gsk_render_node_unref(node);
     }
     // Layers that are gone leave their textures.
@@ -1551,8 +1569,20 @@ void Window::Impl::pasteClipboard() {
       this);
 }
 
-bool Window::Impl::keyEvent(guint keyval, GdkModifierType state, bool pressed, guint keycode) {
+bool Window::Impl::keyEvent(GtkEventController * controller, guint keyval, GdkModifierType state, bool pressed, guint keycode) {
   unsigned mods = modsFrom(state);
+  if (!pressed && consumed_keys.erase(keycode)) return true;
+  bool dead = keyval >= GDK_KEY_dead_grave && keyval <= GDK_KEY_dead_greek;
+  if (pressed && im_context && (dead || composing)) {
+    // The input method takes it: a dead key starts a sequence and the next key ends it, with the
+    // character as the commit.
+    GdkEvent * event = gtk_event_controller_get_current_event(controller);
+    if (event && gtk_im_context_filter_key(im_context, TRUE, gdk_event_get_surface(event), gdk_event_get_device(event), gdk_event_get_time(event), keycode,
+                                           state, static_cast<int>(gdk_key_event_get_layout(event)))) {
+      consumed_keys.insert(keycode);
+      return true;
+    }
+  }
   if (pressed && ((keyval == GDK_KEY_Insert && (mods & kModShift)) || ((keyval == GDK_KEY_V || keyval == GDK_KEY_v) && (mods & kModCtrl) && (mods & kModShift)))) {
     pasteClipboard();
     return true;
@@ -1567,6 +1597,17 @@ bool Window::Impl::keyEvent(guint keyval, GdkModifierType state, bool pressed, g
   }
   push(BackendEvent::makeInput(keyInput(key, mods, kind)));
   return true;
+}
+
+// The text the input method made of a dead key and the keys after it: each character as a key
+// pressed and released.
+void Window::Impl::commitText(const char * text) {
+  for (const char * p = text; *p; p = g_utf8_next_char(p)) {
+    int key = static_cast<int>(g_utf8_get_char(p));
+    if (key <= 0) continue;
+    push(BackendEvent::makeInput(keyInput(key, 0, Input::Kind::PRESS)));
+    push(BackendEvent::makeInput(keyInput(key, 0, Input::Kind::RELEASE)));
+  }
 }
 
 void Window::Impl::buttonEvent(int button, double x, double y, bool pressed, GdkModifierType state) {
@@ -1658,15 +1699,24 @@ std::unique_ptr<Window> Window::open(const WindowOptions & options, std::string 
   // the focus otherwise.
   GtkEventController * keys = gtk_event_controller_key_new();
   gtk_event_controller_set_propagation_phase(keys, GTK_PHASE_CAPTURE);
-  g_signal_connect(keys, "key-pressed", G_CALLBACK(+[](GtkEventControllerKey *, guint keyval, guint keycode, GdkModifierType state, gpointer data) -> gboolean {
-                     return static_cast<Impl *>(data)->keyEvent(keyval, state, true, keycode);
+  g_signal_connect(keys, "key-pressed", G_CALLBACK(+[](GtkEventControllerKey * controller, guint keyval, guint keycode, GdkModifierType state, gpointer data) -> gboolean {
+                     return static_cast<Impl *>(data)->keyEvent(GTK_EVENT_CONTROLLER(controller), keyval, state, true, keycode);
                    }),
                    self);
-  g_signal_connect(keys, "key-released", G_CALLBACK(+[](GtkEventControllerKey *, guint keyval, guint keycode, GdkModifierType state, gpointer data) {
-                     static_cast<Impl *>(data)->keyEvent(keyval, state, false, keycode);
+  g_signal_connect(keys, "key-released", G_CALLBACK(+[](GtkEventControllerKey * controller, guint keyval, guint keycode, GdkModifierType state, gpointer data) {
+                     static_cast<Impl *>(data)->keyEvent(GTK_EVENT_CONTROLLER(controller), keyval, state, false, keycode);
                    }),
                    self);
+  impl.im_context = gtk_im_context_simple_new();
+  g_signal_connect(impl.im_context, "commit", G_CALLBACK(+[](GtkIMContext *, const char * text, gpointer data) {
+                     static_cast<Impl *>(data)->commitText(text);
+                   }),
+                   self);
+  g_signal_connect(impl.im_context, "preedit-start", G_CALLBACK(+[](GtkIMContext *, gpointer data) { static_cast<Impl *>(data)->composing = true; }), self);
+  g_signal_connect(impl.im_context, "preedit-end", G_CALLBACK(+[](GtkIMContext *, gpointer data) { static_cast<Impl *>(data)->composing = false; }), self);
   gtk_widget_add_controller(impl.window, keys);
+  gtk_im_context_set_client_widget(impl.im_context, impl.window);
+  gtk_im_context_focus_in(impl.im_context);
 
   GtkGesture * click = gtk_gesture_click_new();
   gtk_gesture_single_set_button(GTK_GESTURE_SINGLE(click), 0);
@@ -1736,6 +1786,7 @@ Window::~Window() {
   for (auto & entry : impl_->cell_fonts) pango_font_description_free(entry.second);
   if (impl_->cell_base) pango_font_description_free(impl_->cell_base);
   if (impl_->text_context) g_object_unref(impl_->text_context);
+  if (impl_->im_context) g_object_unref(impl_->im_context);
   if (impl_->input_fd >= 0) ::close(impl_->input_fd);
   if (impl_->wake_fd >= 0) ::close(impl_->wake_fd);
 }

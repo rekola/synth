@@ -3,6 +3,7 @@
 #include <cellui/Backend.h>
 #include <cellui/CellBuffer.h>
 #include <cellui/PollEventLoop.h>
+#include <cellui/StageStats.h>
 #include <cellui/term/BackdropEmulation.h>
 #include <cellui/term/Capabilities.h>
 #include <cellui/term/FrameEncoder.h>
@@ -11,6 +12,7 @@
 #include <cellui/term/InputParser.h>
 #include <cellui/term/OutputQueue.h>
 
+#include <array>
 #include <chrono>
 #include <cstdio>
 #include <deque>
@@ -212,6 +214,9 @@ class TerminalSession : public Backend {
   FrameBytes link_log_mark_;
   size_t link_log_frames_ = 0;
   std::map<std::string, ImageEncoder::PictureStat> link_log_pictures_;
+  // The stage totals and the thread's CPU time at the last line, for the line's differences.
+  std::array<int64_t, kStageCount> link_log_stages_{};
+  int64_t link_log_cpu_ = 0;
   void logLinkStats(std::chrono::steady_clock::time_point now);
   // Once a second: the class, from the bandwidth estimate, but only on a second the link held frames back
   // (otherwise the estimate says what the application sent, not what the link carries) and not in

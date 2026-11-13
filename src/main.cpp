@@ -71,7 +71,7 @@ printUsage() {
       "  --view VIEW            live or arrangement: the view to start in (default live)\n"
       "  --keymap KEYMAP        gui or terminal: the key bindings to use instead of the\n"
       "                         display's own (the window uses gui, the terminal terminal)\n"
-      "  --theme THEME          dark, light or original (default: from the terminal's colours)\n"
+      "  --theme THEME          dark, light, original, ansi16 or ansi8 (default: from the terminal's colours)\n"
       "  --reduced-motion       no easing or pulsing (also SYNTH_REDUCED_MOTION=1)\n"
       "  --link-class CLASS     auto, full, 30, 15, 5 or 1: take the link to the display to be\n"
       "                         this fast instead of measuring it\n"
@@ -99,7 +99,7 @@ int main(int argc, char *argv[]) {
   // benefit. --samplerate still overrides this.
   ChannelConfiguration channel_config(48000, kAmbisonicOrder); // default to the highest supported order
   CommonOptions common;                                        // --stereo, --legacy-binaural, --licenses, --render
-  string theme_name = "dark"; // --theme dark|light|original: the terminal UI's colours
+  string theme_name = "dark";                                  // --theme dark|light|original|ansi16|ansi8: the terminal UI's colours
   bool theme_given = false;
   // --reduced-motion (or SYNTH_REDUCED_MOTION=1): no easing, no pulsing.
   bool reduced_motion = getenv("SYNTH_REDUCED_MOTION") != nullptr && strcmp(getenv("SYNTH_REDUCED_MOTION"), "0") != 0;
@@ -182,8 +182,8 @@ int main(int argc, char *argv[]) {
     } else if (strcmp(argv[i], "--theme") == 0) {
       Theme probe;
       if (i + 1 >= argc || !Theme::byName(argv[i + 1], probe)) {
-	fmt::print(stderr, "--theme requires 'dark', 'light' or 'original'\n");
-	exit(1);
+        fmt::print(stderr, "--theme requires 'dark', 'light', 'original', 'ansi16' or 'ansi8'\n");
+        exit(1);
       }
       theme_name = argv[i + 1];
       theme_given = true;
@@ -426,7 +426,13 @@ int main(int argc, char *argv[]) {
   // cleared) instead of the process being killed.
   installShutdownSignalHandlers();
 
-  if (!theme_given) theme_name = light ? "light" : "dark";
+  if (!theme_given) {
+    // A terminal of 16 or 8 colours gets a theme made of them; any other the modern look, by its background.
+    int palette = backend->display().palette_colours;
+    theme_name = palette == 16 ? "ansi16" : palette == 8 ? "ansi8"
+                                        : light          ? "light"
+                                                         : "dark";
+  }
   InteractiveUI ui(*backend);
   ui.setInitialView(initial_view);
   if (keymap_profile) ui.setKeymapProfile(*keymap_profile);

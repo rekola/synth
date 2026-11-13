@@ -217,8 +217,8 @@ static vector<MenuSectionSpec> menuSpec(vector<MenuItemSpec> buffer_items) {
                          {"Toggle Solo", "C-\\", "toggle-solo"},
                          {"Cycle Monitor (Auto/In/Off)", "", "cycle-monitor"},
                          {nullptr, nullptr, nullptr},
-                         {"Add Note Column", "C-S-Right", "add-note-column"},
-                         {"Remove Note Column", "C-S-Left", "remove-note-column"},
+                         {"Add Note Column", "", "add-note-column"},
+                         {"Remove Note Column", "", "remove-note-column"},
                      }},
       // Clip playback and clip content. Launching is quantized to the bar,
       // like a Launchpad Live-View pad.
@@ -611,6 +611,10 @@ InteractiveUI::clearLastRow() {
   if (rows < 1) return;
   setBgDefault();
   putstr(rows - 1, 0, std::string(static_cast<size_t>(cols), ' '));
+}
+
+Theme::Hints InteractiveUI::themeHints() const {
+  return {backend_.display().default_fg, backend_.display().default_bg};
 }
 
 void

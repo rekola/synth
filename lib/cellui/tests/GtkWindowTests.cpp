@@ -191,6 +191,33 @@ TEST(gtk_window_glows_where_a_colour_is_lit_past_white) {
   CHECK(drawn(Color::linear(0.6f, 0.6f, 0.6f)) == 0);
 }
 
+// Raised areas are drawn again over the shadows below them, from the frame's cells laid out
+// once: the cells are not walked again for each area (a screen of cards has many).
+TEST(gtk_window_lays_the_frame_out_once_however_many_areas_are_raised) {
+  gtk::Window * w = theWindow();
+  if (!w) return;
+  StyleProvider styles;
+  CellBuffer screen(w->rows(), w->cols());
+  BufferPlane root(screen, styles);
+  root.setFgColor(Color::linear(2.5f, 2.5f, 2.5f));
+  root.putstr(1, 1, "C-4");
+  root.setFgColor(Color::linear(0.6f, 0.6f, 0.6f));
+  for (int i = 0; i < 6; i++) {
+    root.setLift(1.0f + static_cast<float>(i % 2), false, true);
+    root.putstr(3 + 2 * i, 2, "card");
+  }
+  root.setLift(0.0f, false, true);
+  root.refresh();
+  FrameInfo info;
+  info.elevations = root.takeElevations();
+  CHECK(info.elevations.size() == 6);
+  size_t before = w->stats().frames;
+  w->present(screen, {}, root.images(), &info);
+  CHECK(pumpUntil(*w, [&] { return w->stats().frames > before; }));
+  CHECK(w->stats().shadows == 6);
+  CHECK(w->stats().glows == 1);
+}
+
 // A glow texture is made once for a glyph in a colour and kept: showing it again makes none.
 TEST(gtk_window_keeps_the_glow_of_a_glyph) {
   gtk::Window * w = theWindow();
@@ -638,7 +665,7 @@ TEST(gtk_window_input_from_the_display) {
 
   // A key: press, then release.
   xdotool("key a");
-  CHECK(gather(2));
+  CHECK(gather(2)); 
   if (got.size() >= 2) {
     CHECK(got[0].type == BackendEvent::Type::INPUT && got[0].input.getId() == 'a' && got[0].input.getKind() == Input::Kind::PRESS);
     CHECK(got[1].input.getId() == 'a' && got[1].input.getKind() == Input::Kind::RELEASE);
@@ -652,6 +679,30 @@ TEST(gtk_window_input_from_the_display) {
     CHECK(got[0].input.getId() == ' ' && got[0].input.hasCtrl());
     CHECK(got[2].input.getId() == 'a' && got[2].input.hasShift() && got[2].input.getTrueCaseId() == 'A');
     CHECK(got[4].input.getId() == Key::Up);
+  }
+
+  // A dead key joins the next key. On a Finnish layout ~ is AltGr and the dead diaeresis key, so
+  // it takes a space after it; the dead key itself is nothing.
+  if (std::system("setxkbmap fi > /dev/null 2>&1") == 0) {
+    got.clear();
+    xdotool("key ISO_Level3_Shift+dead_diaeresis space");
+    CHECK(gather(2));
+    if (got.size() >= 2) {
+      CHECK(got[0].input.getId() == '~' && got[0].input.getKind() == Input::Kind::PRESS);
+      CHECK(got[1].input.getId() == '~' && got[1].input.getKind() == Input::Kind::RELEASE);
+    }
+    // And a dead key with a letter makes the accented letter.
+    got.clear();
+    xdotool("key dead_diaeresis a");
+    CHECK(gather(2));
+    if (got.size() >= 2) CHECK(got[0].input.getId() == 0xe4 && got[0].input.getKind() == Input::Kind::PRESS);
+    // Keys after it are not held back.
+    got.clear();
+    xdotool("key a");
+    CHECK(gather(2));
+    if (got.size() >= 2) CHECK(got[0].input.getId() == 'a' && got[1].input.getKind() == Input::Kind::RELEASE);
+    int restored = std::system("setxkbmap us > /dev/null 2>&1");
+    (void)restored;
   }
 
   // Alt comes with the key as the Alt modifier, for the M-x shortcut.

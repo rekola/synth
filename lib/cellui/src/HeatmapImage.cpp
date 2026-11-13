@@ -1,3 +1,4 @@
+#include <cellui/StageStats.h>
 #include <cellui/HeatmapImage.h>
 
 #include <canvas/Context.h>
@@ -12,6 +13,7 @@ namespace heatmap_image {
 
 std::vector<uint32_t> render(const std::vector<float> & brightness, const std::vector<float> & saturation, int cols, int rows,
                              const std::vector<HeatmapChart::Marker> & markers, unsigned width, unsigned height, const StyleProvider & styles) {
+  StageTimer timer(Stage::PICTURE_RENDER);
   std::vector<uint32_t> out(static_cast<size_t>(width) * height, 0);
   const size_t cells = static_cast<size_t>(std::max(cols, 0)) * static_cast<size_t>(std::max(rows, 0));
   if (width == 0 || height == 0 || cells == 0 || brightness.size() != cells || saturation.size() != cells) return out;

@@ -37,8 +37,7 @@ void humanizeNote(Note & note, const HumanizeAmount & amount, NoiseGenerator & r
   note.setDelay(static_cast<short>(clamp(delay, 0, 255)));
 }
 
-
-bool isPitched(const Note & note) {
+bool isPitched(const Note note) {
   return note.isNoteOn();
 }
 
@@ -466,7 +465,7 @@ static int nearestStep(double cents, int edo) {
   return static_cast<int>(std::ceil(cents * edo / 1200.0 - 0.5 - 1e-9));
 }
 
-Note convertNoteTuning(const Note & note, Tuning from, Tuning to, int from_anchor, int to_anchor) {
+Note convertNoteTuning(const Note note, Tuning from, Tuning to, int from_anchor, int to_anchor) {
   int from_edo = edoStepsFor(from), to_edo = edoStepsFor(to);
   if (from == to || from_edo <= 0 || to_edo <= 0 || note.getValue() < 0) return note;
   double interval = (note.getValue() - from_anchor) * 1200.0 / from_edo + note.getTuningCorrectionCents();
@@ -642,4 +641,18 @@ void tuneNewNote(const Song & song, int track_id, Note & note) {
   if (!isPitched(note) || isPercussionTrack(song, track_id)) return;
   auto scale = just_intonation::scaleCorrectionsFor(song.getTuning(), song.getScale(), song.getKey());
   if (auto cents = scale.forNote(note.getValue())) note.setTuningCorrection(*cents);
+}
+
+int usedNoteColumns(const Song & song, int track_id) {
+  VisibleTrackInfo info;
+  info.num_subtracks_ = 0;
+  auto arrangement = song.getArrangement();
+  auto patterns = arrangement.getPatternsByTrack();
+  for (auto & [id, pattern] : patterns) {
+    if (id == track_id) pattern.updateSubtrackInfo(info);
+  }
+  for (auto clip : song.getClips(track_id)) {
+    if (!clip.hasSample()) clip.getLeafPattern().updateSubtrackInfo(info);
+  }
+  return info.num_subtracks_;
 }

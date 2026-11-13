@@ -105,27 +105,31 @@ The application draws on several traditions.
   [53edo_note_numbers.txt](docs/53edo_note_numbers.txt); see John Fonville,
   "Ben Johnston's Extended Just Intonation: A Guide for Interpreters",
   *Perspectives of New Music* 29/2 (1991).
-- **Otonal and utonal.** The application's two default scales. They mirror
-  each other around the tonic and are drawn from one gamut of 33 just
-  ratios: the 7-limit tonality diamond (every ratio between two of 1, 3, 5
-  and 7; Max Meyer, 1929, the smaller form of Harry Partch's diamond in
-  *Genesis of a Music*, 1949) and its extension. Each scale is a ladder of complete steps, and an artist can stay
-  on a small one or move up and down, even within a song. The smallest is one
-  seventh chord: C E G A♯↑ = 4:5:6:7 in **otonal**, C E𝄫 F A♭ in **utonal**,
-  its mirror. A second chord gives the 7-note core, C D♯ E F G A A♯↑ = 1/1
-  7/6 5/4 4/3 3/2 5/3 7/4 (harmonics 12, 14, 15, 16, 18, 20 and 21 of the F
-  a fifth below the tonic), in utonal C E𝄫 E♭ F G A♭ B𝄫. Further steps of 8,
-  10, 13 and 18 notes each add a seventh chord or two: the tritone, the
-  semitones either side of the tonic, the second degree, and a last pair 35
-  cents from the tonic. A chord uses only intervals that are ratios of the
-  gamut, and on every step every note has a seventh chord. Nothing drifts:
-  each note has one fixed ratio, and no chord holds a near-pure interval.
-  Partch's own otonalities and utonalities are chords, not scales; the
-  scales, the extension and their chords are the author's own. With just
-  intonation every note sounds at its exact ratio; without it, 53-EDO is
-  within 7 cents up to 13 notes.
-  [extended-diamond.md](docs/extended-diamond.md) has the steps, their
-  chords and the gamut.
+- **Otonal and utonal.** The application's two default scales, given here in
+  the key of C; they can be built on any tonic. They mirror each other
+  around the tonic and are drawn from one gamut of 33 just ratios: the
+  7-limit tonality diamond (every ratio between two of 1, 3, 5 and 7; Max
+  Meyer, 1929, the smaller form of Harry Partch's diamond in *Genesis of a
+  Music*, 1949) and its extension. All but ten of its notes stand at a
+  superparticular ratio from the tonic or its octave; the ten superpartient
+  ones are dissonant by design. Each scale grows from the tonic by splitting
+  intervals at their arithmetic and harmonic means, in steps of 1, 3, 7, 15
+  and 18 notes, and an artist can stay on a small step or move up and down,
+  even within a song. In C the 3-note step is C F G, which both scales
+  share. The 7-note core in **otonal** is C D♯ E F G A A♯↑ = 1/1 7/6 5/4 4/3
+  3/2 5/3 7/4, harmonics 12, 14, 15, 16, 18, 20 and 21 of the F a fifth
+  below the tonic: the 4:5:6:7 chords C E G A♯↑ and F A C D♯ put together.
+  In **utonal** it is the same turned upside down, C E𝄫 E♭ F G A♭ B𝄫 = 1/1
+  8/7 6/5 4/3 3/2 8/5 12/7. The 15-note scale is everything a scale produces
+  from itself, and the 18-note scale adds three notes that arise between the
+  two scales. A chord uses only intervals that are ratios of the gamut, and
+  from 7 notes on every note has a seventh chord. Nothing drifts: each note
+  has one fixed ratio, and no chord holds a near-pure interval. Partch's own
+  otonalities and utonalities are chords, not scales; the scales, the
+  extension and their chords are the author's own. With just intonation
+  every note sounds at its exact ratio; without it, 53-EDO is within 10
+  cents up to 15 notes. [extended-diamond.md](docs/extended-diamond.md) has
+  the steps, their chords and the gamut.
 
 ### Pianos and Just Intervals
 

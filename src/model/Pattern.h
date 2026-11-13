@@ -140,10 +140,10 @@ class Pattern : public SongObject {
     clearCommands(num_rows - 1);
   }
 
-  const Note & getNote(int row, int note_column) const {
+  Note getNote(int row, int note_column) const {
     auto it = notes_.find(static_cast<unsigned short>(row));
     if (it != notes_.end() && note_column < static_cast<int>(it->second.size())) return it->second[static_cast<size_t>(note_column)];
-    return empty_note;
+    return {};
   }
 
   const std::vector<Note> & getNotes(int row) const {
@@ -304,7 +304,6 @@ private:
 
   std::string name_;
 
-  static inline Note empty_note;
   static inline std::vector<Note> empty_notes;
   static inline Command empty_command;
   static inline std::vector<Command> empty_commands;

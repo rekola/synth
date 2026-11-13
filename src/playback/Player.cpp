@@ -1,5 +1,6 @@
 #include <cstdio>
 #include "Player.h"
+#include "AudioStats.h"
 #include "../audio/AudioAPI.h"
 #include "../Controller.h"
 #include "../util/Logger.h"
@@ -760,6 +761,7 @@ Player::play(AudioAPI & audio) {
   auto & event_queue = controller_->getPlaybackEventQueue();
 
   audio_ = &audio;
+  AudioStats audio_stats;
 
   auto mixer = createMixer(controller_->getChannelConfiguration(), controller_->getMixerType(), controller_->getUseLegacyBinaural());
   // No eager SongState construction here (unlike the single-global-state_
@@ -870,6 +872,7 @@ Player::play(AudioAPI & audio) {
             }
           }
           if (ready.playback) {
+            audio_stats.begin(static_cast<double>(audio.getFrameCount()) / static_cast<double>(channel_config_.getAudioOutSampleRate()));
             // Every live buffer's own SongState renders and accumulates into
             // the same shared `mixer` this block - a single mixer->reset()
             // here, not one per renderBlock() call (reset_mixer=false below),
@@ -943,13 +946,15 @@ Player::play(AudioAPI & audio) {
 	    mixer->accumulate(renderMetronome(audio.getFrameCount()));
 
 	    auto master = mixer->encode();
-	    audio.play(master, logger);
+            audio_stats.rendered();
+            audio.play(master, logger);
+            audio_stats.log(audio.xrunCount());
 
-	    // Measured right after the write, when the playback queue is at
-	    // its fullest. The playback stream runs continuously (silence
-	    // included), so its depth is valid whether or not the transport
-	    // plays; capture's is valid whenever capture runs.
-	    if (!capture_needed) {
+            // Measured right after the write, when the playback queue is at
+            // its fullest. The playback stream runs continuously (silence
+            // included), so its depth is valid whether or not the transport
+            // plays; capture's is valid whenever capture runs.
+            if (!capture_needed) {
 	      latency_frames_ = -1;
 	      latency_nominal_ = false;
 	    } else if (--latency_countdown_ <= 0) {

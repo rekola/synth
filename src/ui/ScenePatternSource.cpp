@@ -463,9 +463,14 @@ void ScenePatternSource::collectTrackInfo(RowAddress, int, std::unordered_map<in
   // window scrolls, and a width derived from it would change as it does.
   const Song & s = song();
   for (auto track_id : s.getRootTrackIds()) {
+    auto & info = track_info[track_id];
+    int digits = 2;
     for (auto clip : s.getClips(track_id)) {
-      if (!clip.hasSample()) clip.getLeafPattern().updateSubtrackInfo(track_info[track_id]);
+      if (!clip.hasSample()) clip.getLeafPattern().updateSubtrackInfo(info);
+      // Hex digits the clip's last row needs; the width grows only when one does.
+      while ((std::max(clip.getLength(), 1) - 1) >> (4 * digits) > 0) digits++;
     }
+    info.row_number_width_ = digits + 1;
   }
 }
 

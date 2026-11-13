@@ -57,7 +57,15 @@ class PatternEditor : public UIElement {
   // toggle-playing, C-x C-c/quit, ...) steal a keystroke meant for it.
   bool isReaderActive() const { return inline_editor_.isOpen(); }
   // The focus level is still easing: the loop keeps drawing frames.
-  bool isAnimating() const { return fades_.active() || focus_fade_drawn_ || rowsShifted() || flash_decaying_; }
+  bool isAnimating() const {
+    return fades_.active() || focus_fade_drawn_ || rowsShifted() || flash_decaying_ || chord_entry_.pending || audition_.active || !arpeggio_.values.empty();
+  }
+
+  // The cursor covers this many note columns of its row, from its own
+  // rightward (fewer where the track ends); notes played are completed to a
+  // chord that wide.
+  static constexpr int kMaxCursorWidth = 4;
+  int getCursorWidth() const { return cursor_width_; }
 
   // Aborts the locator/track-name editor without committing anything -
   // used by StatusLine so opening M-x takes focus away from it rather than
@@ -367,7 +375,15 @@ private:
   // on for MIDI note numbers). Populated on a fresh note-on press, erased
   // and used to target the right STOP_NOTE on that same key's eventual
   // Kitty-protocol release - see keyDown()'s raw note-entry code.
-  struct ActiveKeyboardNote { int note_column, row, track_id; int cleared_to = -1; };
+  // `note_column` is where the key's voice sounds. A key of a chord entry
+  // (`chord`) is written by the entry, not necessarily in that column.
+  struct ActiveKeyboardNote {
+    int note_column, row, track_id;
+    int cleared_to = -1;
+    int value = -1;
+    bool chord = false;
+    int order = 0;
+  };
   std::unordered_map<int, ActiveKeyboardNote> active_keyboard_notes_;
 
   // True iff some other currently-held key already occupies (track_id,
@@ -393,6 +409,68 @@ private:
   // active_keyboard_notes_ goes back to empty, so a manually-started
   // session is never stopped just because a held note key was released.
   bool auto_started_playback_ = false;
+
+  int cursor_width_ = 1;
+  void changeCursorWidth(int delta);
+  // The track the cursor is in: its empty note columns at the right end go
+  // when the cursor leaves it.
+  int columns_track_id_ = -1;
+  void syncNoteColumns(const Song & song);
+
+  // One entry with a cursor wider than a column: the notes played together,
+  // which the editor completes to a chord of the song's scale once no
+  // further key has come for kCompletionInterval or every key is released.
+  struct ChordEntry {
+    bool open = false;
+    bool hold = false;    // the display reports key releases
+    bool pending = false; // the completion is still to come
+    bool applied = false; // a completion is written
+    int track_id = -1;
+    RowAddress row;
+    int column = 0; // the cursor's first note column
+    int width = 1;
+    int delay = 0;
+    int written = 0; // note columns written, from `column`
+    int next_order = 0;
+    std::vector<int> given;        // the notes played, in the order played
+    std::vector<int> voices;       // columns sounding with no release to end them
+    std::vector<int> added_voices; // columns where added notes sound with the held keys
+    std::chrono::steady_clock::time_point deadline;
+  };
+  ChordEntry chord_entry_;
+  // A chord written after its keys were released, sounding for a moment.
+  struct Audition {
+    bool active = false;
+    int track_id = -1;
+    std::vector<int> columns;
+    std::chrono::steady_clock::time_point until;
+  };
+  Audition audition_;
+  static constexpr std::chrono::milliseconds kAuditionTime{600};
+  static constexpr std::chrono::milliseconds kCompletionInterval{80};
+  // The notes a completion added, sounding one after another from the lowest:
+  // kCompletionInterval apart, or as far apart as a quick tap was long. Only
+  // the sound is spread out; the notes are written at once.
+  struct Arpeggio {
+    int track_id = -1;
+    int from_column = 0;
+    bool audition = false;   // after the keys were released: the audition ends the notes
+    std::vector<int> values; // still to sound, rising
+    std::chrono::steady_clock::time_point next;
+    std::chrono::steady_clock::duration interval{};
+  };
+  Arpeggio arpeggio_;
+  void playArpeggio(std::chrono::steady_clock::time_point now);
+  bool enterChordKey(const cellui::KeyDown & e, int track_id, int midi_note, int note_column, RowAddress point, int delay, bool transport_owns_row);
+  // Writes the completion of the entry's notes, if there is one. `released`:
+  // no key is held, so the chord is played for a moment.
+  void applyChordCompletion(bool released);
+  void finishChordEntry();
+  void endAudition();
+  // Applies a completion whose time has come and ends an audition.
+  void tickChordEntry();
+  int freeVoiceColumn(int track_id, int from) const;
+  Note chordNote(const Song & song, int value) const;
 
   // Rows the cursor still owes the notes entered while keys were held: a
   // chord's keys all land on one row, and the cursor steps once the last

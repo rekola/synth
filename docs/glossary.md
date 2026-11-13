@@ -38,6 +38,16 @@ and fifth, like C E G). Not to be confused with a keyboard
 *shortcut* (a key with its modifiers, `KeyStroke` in the code) or a *key
 sequence* (several shortcuts in a row, such as `C-x C-s`).
 
+**Chord completion**
+What the pattern editor adds to the notes played when its cursor is wider
+than one note column: the other notes of a chord of the song's scale that
+contains them (user-interface.md, Chord entry). Otonal and utonal songs only.
+
+**Cursor width**
+How many note columns of its row the pattern editor's cursor covers, 1 to 4;
+the size of the chord an entry is completed to. Not the region, which the
+mark makes.
+
 **Clip launcher**
 The grid of clips inside Live View: one column per track, one row per scene,
 each slot triggered on the next bar. On a Launchpad it is the pad grid in the
@@ -51,7 +61,8 @@ thirteen are the 7-limit tonality diamond (every ratio between two of 1, 3,
 means gives, the larger otonal and the smaller utonal: (9/8, 10/9),
 (15/14, 16/15) and (49/48, 50/49), each with its mirror, which with (3/2,
 4/3), (5/4, 6/5) and (7/6, 8/7) are the only six pairs with no prime above
-7. Ten further notes are dissonant by design, the tritones 7/5 and 10/7
+7. Ten further notes are superpartient (see superparticular and
+superpartient), the tritones 7/5 and 10/7
 among them; each gives a pair its seventh chord. A chord in this gamut is
 any set of notes whose intervals are all ratios of the gamut. The gamut
 mirrors itself around the tonic. In 53-EDO its ratios lie on 29 keys, four
@@ -127,11 +138,13 @@ scale is tuned with the whole extended diamond, so the two can be played
 together.
 
 **Lacuna**
-A span of missing notes, written `~~~` (typed with `~` in the note column), from its
-row until the next cell in the column. Like a lost note it has a velocity and a delay
-but no value, makes no sound and ends the previous note in its column, as an OFF does.
-Where a lost note stands for one note whose pitch is gone, a lacuna stands for a stretch
-where the source is broken off and the notes are not known at all.
+A gap in a text: the place where a manuscript is torn or worn away and some of what
+was written is lost (Latin *lacuna*, a hole). Editors of such texts mark one in
+the edition. In a pattern a lacuna, written `~~~` (typed with `~` in the note
+column), stands for a stretch of notes that are missing from the source, from its row
+until the next cell in the column. It has no value, velocity or delay, makes no sound
+and ends the previous note in its column, as an OFF does. A *lost note* is the smaller
+case: a note was there, but its pitch is gone.
 
 **Lift**
 An OFF's velocity: how fast the key is let go. It scales the release time of
@@ -161,7 +174,7 @@ editor and the arrangement grid's header. It is an arrangement object too.
 
 **Lost note**
 A note that began on this row whose pitch is gone, written `???` (typed with `?` in
-the note column). It has a velocity and a delay like any note but no value, and it
+the note column). It has no value, no velocity and no delay, and it
 makes no sound, but it ends the previous note in its column, as an OFF does. It is for transcriptions of music that survives
 incompletely, such as the Delphic Paean of Athenaeus, where some of the notes are
 unknown.
@@ -200,29 +213,31 @@ just-intonation literature. See otonal and utonal.
 
 **Otonal and utonal**
 Two scales that mirror each other around the tonic (r → 2/r), drawn
-from the extended diamond. Both are given here on C. Each is a ladder
-of complete steps: on every step each note has a seventh chord made
-of the step’s notes, a harmonic seventh 4:5:6:7 or its mirror
-1/7:1/6:1/5:1/4, read upward from the degree; its fourth note is
-often dropped. The smallest step is one chord, C E G A♯↑ in otonal
-and C E𝄫 F A♭ in utonal. A second chord, F A C D♯, gives the 7-note
-core: otonal 1/1 7/6 5/4 4/3 3/2 5/3 7/4, on C: C D♯ E F G A A♯↑, all
-harmonics (12, 14, 15, 16, 18, 20, 21) of one fundamental, so the
-core is otonal in Harry Partch’s sense; the fundamental is not the
-tonic but the note a fifth below it (F for C otonal), the tonic
-sitting on identity 3. The utonal core is the same turned upside
-down: 1/1 8/7 6/5 4/3 3/2 8/5 12/7, on C: C E𝄫 E♭ F G A♭ B𝄫,
-undertones of the note a fifth above the tonic. The steps above add
-the tritone (8 notes: F♯↑, in utonal G♭↓), the semitones either side
-of the tonic (10 notes: D♭↓ and B), the second degree (13 notes: D,
-F♭ and B♭, in utonal D↓, G♯ and B♭↓) and a last pair 35 cents from
-the tonic (18 notes). The application’s scale is the full 18 notes;
-which step a piece uses, and when it moves up or down, is the
-artist’s choice. Only the cores are a single series. Each core
-contains a septimal pentatonic as a melodic subscale (otonal
-C D♯ F G A♯↑, utonal C E𝄫 F G B𝄫). Partch’s Otonalities and
-Utonalities are chords, not scales; these scales and their chords are
-the author’s own. Their chords are tabled in extended-diamond.md.
+from the extended diamond. Both are given here on C. Each grows from
+the tonic by splitting intervals at their arithmetic and harmonic
+means, in steps of 1, 3, 7, 15 and 18 notes; every step holds all the
+notes that splitting the step before produces. The 3-note step is C,
+F and G, which both scales share. The 7-note core is the chords
+C E G A♯↑ and F A C D♯ put together: otonal 1/1 7/6 5/4 4/3 3/2 5/3
+7/4, on C: C D♯ E F G A A♯↑, all harmonics (12, 14, 15, 16, 18, 20,
+21) of one fundamental, so the core is otonal in Harry Partch’s
+sense; the fundamental is not the tonic but the note a fifth below it
+(F for C otonal), the tonic sitting on identity 3. The utonal core is
+the same turned upside down: 1/1 8/7 6/5 4/3 3/2 8/5 12/7, on C:
+C E𝄫 E♭ F G A♭ B𝄫, undertones of the note a fifth above the tonic.
+The 15-note scale is everything a scale produces from itself (otonal
+adds D𝄫 D♭↓ D F♭ F♯↑ F𝄪 B♭ B), and the 18-note scale adds three
+notes that arise only between the two scales (otonal D𝄪 G𝄪 B♯).
+From 7 notes on each note has a seventh chord made of the step’s
+notes, a harmonic seventh 4:5:6:7 or its mirror 1/7:1/6:1/5:1/4, read
+upward from the degree; its fourth note is often dropped. The
+application’s scale is the full 18 notes; which step a piece uses,
+and when it moves up or down, is the artist’s choice. Only the cores
+are a single series. Each core contains a septimal pentatonic as a
+melodic subscale (otonal C D♯ F G A♯↑, utonal C E𝄫 F G B𝄫). Partch’s
+Otonalities and Utonalities are chords, not scales; these scales and
+their chords are the author’s own. Their chords are tabled in
+extended-diamond.md.
 
 **Performance effect**
 An effect held on a track from the Launchpad's Custom grid (stutter,
@@ -299,6 +314,19 @@ pitch-shifted from it to the song's when it plays.
 **Strike point**
 Where a hammer or pluck meets the string, as a fraction of its length. Modes
 with a node there are not excited: at 1/8, the 8th, 16th and 24th partials.
+
+**Superparticular and superpartient**
+Two classes of ratio in ancient and medieval theory. A superparticular
+ratio (Greek *epimoric*) exceeds the unison by one part, (n+1)/n: 3/2, 5/4,
+16/15. A superpartient ratio (*epimeric*) exceeds it by several parts: 5/3,
+7/5, 9/7. Every ratio between the unison and the octave is one or the other,
+and Pythagorean theory counted only multiple and superparticular ratios as
+consonant. In the extended diamond a superparticular note stands at a
+superparticular ratio from the tonic or from its octave (5/3 lies 6/5 below
+the octave); these are the notes of the pairs. A superpartient note does so
+from neither. There are ten: 7/5 and 10/7, 9/7 and 14/9, 35/24 and 48/35,
+49/40 and 60/49, 49/30 and 80/49. They are dissonant by design, and each
+gives a pair its seventh chord.
 
 **Swing**
 A timing feel that delays the second note of each eighth-note pair (4 rows),
