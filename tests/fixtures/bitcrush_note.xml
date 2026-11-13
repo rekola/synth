@@ -12,7 +12,7 @@
   </tracks>
   <arrangement>
     <pattern track="0">
-      <note row="0" velocity="127" value="C-4" />
+      <note row="0" velocity="255" value="C-4" />
     </pattern>
   </arrangement>
 </song>

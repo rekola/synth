@@ -27,33 +27,33 @@
   </tracks>
   <arrangement>
     <pattern track="0">
-      <note row="0" velocity="100" value="C-2" />
+      <note row="0" velocity="201" value="C-2" />
       <note row="5" value="OFF" />
-      <note row="6" velocity="100" value="C-3" />
+      <note row="6" velocity="201" value="C-3" />
       <note row="11" value="OFF" />
     </pattern>
     <pattern track="1">
-      <note row="12" velocity="100" value="C-2" />
+      <note row="12" velocity="201" value="C-2" />
       <note row="17" value="OFF" />
-      <note row="18" velocity="100" value="C-3" />
+      <note row="18" velocity="201" value="C-3" />
       <note row="23" value="OFF" />
     </pattern>
     <pattern track="2">
-      <note row="24" velocity="100" value="C-2" />
+      <note row="24" velocity="201" value="C-2" />
       <note row="29" value="OFF" />
-      <note row="30" velocity="100" value="C-3" />
+      <note row="30" velocity="201" value="C-3" />
       <note row="35" value="OFF" />
     </pattern>
     <pattern track="3">
-      <note row="36" velocity="100" value="C-2" />
+      <note row="36" velocity="201" value="C-2" />
       <note row="41" value="OFF" />
-      <note row="42" velocity="100" value="C-3" />
+      <note row="42" velocity="201" value="C-3" />
       <note row="47" value="OFF" />
     </pattern>
     <pattern track="4">
-      <note row="48" velocity="100" value="C-2" />
+      <note row="48" velocity="201" value="C-2" />
       <note row="53" value="OFF" />
-      <note row="54" velocity="100" value="C-3" />
+      <note row="54" velocity="201" value="C-3" />
       <note row="59" value="OFF" />
     </pattern>
   </arrangement>

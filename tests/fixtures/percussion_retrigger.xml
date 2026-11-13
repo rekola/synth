@@ -11,8 +11,8 @@
   </tracks>
   <arrangement>
     <pattern track="0">
-      <note row="0" velocity="100" value="BD"/>
-      <note row="8" velocity="100" value="BD"/>
+      <note row="0" velocity="201" value="BD"/>
+      <note row="8" velocity="201" value="BD"/>
     </pattern>
   </arrangement>
 </song>

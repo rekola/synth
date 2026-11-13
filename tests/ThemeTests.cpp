@@ -235,7 +235,7 @@ TEST(note_flash_lights_a_dim_colour_as_far_as_a_bright_one) {
 }
 
 TEST(note_flash_is_stronger_for_a_louder_note) {
-  CHECK_NEAR(StyleProvider::velocityFlash(127), 1.0f, 1e-6f);
+  CHECK_NEAR(StyleProvider::velocityFlash(255), 1.0f, 1e-6f);
   CHECK_NEAR(StyleProvider::velocityFlash(0), 0.5f, 1e-6f);
   CHECK(StyleProvider::velocityFlash(0x28) < StyleProvider::velocityFlash(0x60));
   CHECK_NEAR(StyleProvider::velocityFlash(500), 1.0f, 1e-6f);

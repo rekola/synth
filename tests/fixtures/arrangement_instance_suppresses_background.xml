@@ -15,7 +15,7 @@
   </clips>
   <arrangement>
     <pattern track="0">
-      <note row="0" velocity="80" value="C-4" />
+      <note row="0" velocity="161" value="C-4" />
     </pattern>
     <instance track="0" row="0" clip="c0"/>
     <instance track="0" row="8"/>

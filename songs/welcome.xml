@@ -11,38 +11,38 @@
   <clips>
     <clip track="drums" id="verse" name="Verse" length="8">
       <pattern>
-        <note row="0" velocity="100" value="BD"/>
-        <note row="2" velocity="90" value="CH"/>
-        <note row="4" velocity="100" value="SD"/>
-        <note row="6" velocity="90" value="CH"/>
+        <note row="0" velocity="201" value="BD"/>
+        <note row="2" velocity="181" value="CH"/>
+        <note row="4" velocity="201" value="SD"/>
+        <note row="6" velocity="181" value="CH"/>
       </pattern>
     </clip>
     <clip track="drums" id="fill" name="Fill" length="8">
       <pattern>
-        <note row="0" velocity="100" value="SD"/>
-        <note row="1" velocity="90" value="SD"/>
-        <note row="2" velocity="100" value="SD"/>
-        <note row="3" velocity="90" value="SD"/>
-        <note row="4" velocity="110" value="BD"/>
-        <note row="5" velocity="90" value="CH"/>
-        <note row="6" velocity="90" value="CH"/>
-        <note row="7" velocity="120" value="CH"/>
+        <note row="0" velocity="201" value="SD"/>
+        <note row="1" velocity="181" value="SD"/>
+        <note row="2" velocity="201" value="SD"/>
+        <note row="3" velocity="181" value="SD"/>
+        <note row="4" velocity="221" value="BD"/>
+        <note row="5" velocity="181" value="CH"/>
+        <note row="6" velocity="181" value="CH"/>
+        <note row="7" velocity="241" value="CH"/>
       </pattern>
     </clip>
     <clip track="bass" id="groove" name="Groove" length="8">
       <pattern>
-        <note row="0" velocity="100" value="C-2"/>
-        <note row="2" velocity="90" value="C-2"/>
-        <note row="4" velocity="100" value="G-2"/>
-        <note row="6" velocity="90" value="G-2"/>
+        <note row="0" velocity="201" value="C-2"/>
+        <note row="2" velocity="181" value="C-2"/>
+        <note row="4" velocity="201" value="G-2"/>
+        <note row="6" velocity="181" value="G-2"/>
       </pattern>
     </clip>
     <clip track="bass" id="walk" name="Walk" length="8">
       <pattern>
-        <note row="0" velocity="100" value="C-2"/>
-        <note row="2" velocity="95" value="D-2"/>
-        <note row="4" velocity="100" value="E-2"/>
-        <note row="6" velocity="95" value="G-2"/>
+        <note row="0" velocity="201" value="C-2"/>
+        <note row="2" velocity="191" value="D-2"/>
+        <note row="4" velocity="201" value="E-2"/>
+        <note row="6" velocity="191" value="G-2"/>
       </pattern>
     </clip>
   </clips>

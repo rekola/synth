@@ -33,11 +33,11 @@ using namespace sf2fixture;
 
 namespace {
 
-// Frames a voice takes to end after an OFF with release velocity `lift7`,
+// Frames a voice takes to end after an OFF with release velocity `lift`,
 // rendered in blocks of 64 after the note has been held for a while.
-int framesToEnd(VoiceState & voice, int lift7) {
+int framesToEnd(VoiceState & voice, int lift) {
   for (int i = 0; i < 8; i++) voice.render(512);
-  voice.setReleaseVelocity(lift7);
+  voice.setReleaseVelocity(lift);
   voice.stopNote();
   int frames = 0;
   while (voice.isActive() && frames < 44100 * 60) {
@@ -48,7 +48,7 @@ int framesToEnd(VoiceState & voice, int lift7) {
 }
 
 // A one-second-release envelope around `child`, played and released.
-int envelopeReleaseFrames(std::shared_ptr<Track> child, int lift7) {
+int envelopeReleaseFrames(std::shared_ptr<Track> child, int lift) {
   EnvelopeFilter filter;
   MemoryParameterSource params;
   params.set("attack", 0.0f);
@@ -59,40 +59,42 @@ int envelopeReleaseFrames(std::shared_ptr<Track> child, int lift7) {
   filter.addChild(std::move(child));
   ChannelConfiguration config(44100, 1);
   auto voice = filter.playNote(config, SphericalPosition{}, SpatialMode::AUTO, Tuning::EDO12, 1.0f, 0.8f, 60, SendLevels{}, NoteCoordinate{});
-  return framesToEnd(*voice, lift7);
+  return framesToEnd(*voice, lift);
 }
 
 void checkReleaseScaling(const std::function<int(int)> & frames_for) {
-  const float base = static_cast<float>(frames_for(64));
+  const float base = static_cast<float>(frames_for(128));
   CHECK(base > 1000.0f);
   CHECK_NEAR(static_cast<float>(frames_for(0)) / base, 4.0f, 0.1f);
-  CHECK_NEAR(static_cast<float>(frames_for(127)) / base, 0.2551f, 0.03f);
+  CHECK_NEAR(static_cast<float>(frames_for(255)) / base, 0.2527f, 0.03f);
 }
 
 } // namespace
 
-TEST(velocity_converts_between_7_bits_and_a_level) {
-  CHECK(velocity::floatTo7(0.0f) == 0);
-  CHECK(velocity::floatTo7(1.0f) == 127);
-  CHECK(velocity::floatTo7(2.0f) == 127);
-  for (int v = 0; v <= 127; v++) CHECK(velocity::floatTo7(velocity::toFloat(v)) == v);
+TEST(velocity_converts_between_8_bits_and_a_level) {
+  CHECK(velocity::fromFloat(0.0f) == 0);
+  CHECK(velocity::fromFloat(1.0f) == 255);
+  CHECK(velocity::fromFloat(2.0f) == 255);
+  for (int v = 0; v <= 255; v++) CHECK(velocity::fromFloat(velocity::toFloat(v)) == v);
+  CHECK(velocity::from7(0) == 0 && velocity::from7(127) == 255);
+  for (int v = 0; v <= 127; v++) CHECK(velocity::to7(velocity::from7(v)) == v);
 }
 
 TEST(release_time_factor_follows_the_lift) {
-  CHECK(velocity::releaseTimeFactor(64) == 1.0f);
+  CHECK(velocity::releaseTimeFactor(128) == 1.0f);
   CHECK_NEAR(velocity::releaseTimeFactor(0), 4.0f, 1e-5f);
-  CHECK_NEAR(velocity::releaseTimeFactor(127), 0.2551f, 1e-3f);
-  CHECK_NEAR(velocity::releaseTimeFactor(96), 0.5f, 1e-5f);
+  CHECK_NEAR(velocity::releaseTimeFactor(255), 0.2527f, 1e-3f);
+  CHECK_NEAR(velocity::releaseTimeFactor(192), 0.5f, 1e-5f);
 }
 
 TEST(sf2_release_seconds_add_timecents_within_the_spec_range) {
-  CHECK(velocity::sf2ReleaseSeconds(0.7f, 64) == 0.7f);
+  CHECK(velocity::sf2ReleaseSeconds(0.7f, 128) == 0.7f);
   CHECK_NEAR(velocity::sf2ReleaseSeconds(1.0f, 0), 4.0f, 1e-4f);
-  CHECK_NEAR(velocity::sf2ReleaseSeconds(1.0f, 127), 0.2551f, 1e-3f);
+  CHECK_NEAR(velocity::sf2ReleaseSeconds(1.0f, 255), 0.2527f, 1e-3f);
   CHECK(velocity::sf2ReleaseSeconds(0.0f, 0) == 0.0f); // a pinned instant release stays so
   // The range of the release generators: -12000 to 8000 timecents.
   CHECK_NEAR(velocity::sf2ReleaseSeconds(60.0f, 0), std::exp2(8000.0f / 1200.0f), 0.01f);
-  CHECK_NEAR(velocity::sf2ReleaseSeconds(0.002f, 127), std::exp2(-12000.0f / 1200.0f), 1e-6f);
+  CHECK_NEAR(velocity::sf2ReleaseSeconds(0.002f, 255), std::exp2(-12000.0f / 1200.0f), 1e-6f);
 }
 
 TEST(a_note_is_8_bytes_and_keeps_its_kind) {
@@ -114,13 +116,13 @@ TEST(a_note_is_8_bytes_and_keeps_its_kind) {
   // Out-of-range ints are held to the range, not wrapped through a narrower type.
   Note held(60, 100);
   held.setVelocity(300);
-  CHECK(held.getVelocity() == 127);
+  CHECK(held.getVelocity() == 255);
   held.setVelocity(65536 + 5);
-  CHECK(held.getVelocity() == 127);
+  CHECK(held.getVelocity() == 255);
   held.setVelocity(-70000);
   CHECK(held.getVelocity() == 0);
-  CHECK(Note(60, 65536 + 5).getVelocity() == 127);
-  CHECK(Note::off(1000).getVelocity() == 127);
+  CHECK(Note(60, 65536 + 5).getVelocity() == 255);
+  CHECK(Note::off(1000).getVelocity() == 255);
   CHECK(Note(60, 100, 65536 + 5).getDelay() == 255);
   // No value: aftertouch. No velocity: an empty cell, or fx only.
   CHECK(Note(-1, 50).isAftertouch() && !Note(-1, 50).isNoteOn());
@@ -177,9 +179,9 @@ TEST(a_velocity_0_note_on_renders_silent_without_being_an_off) {
 
 TEST(envelope_release_scales_with_the_lift) {
   EnvelopeState envelope(44100, Envelope(0.0f, 0.0f, 1.0f, 1.0f), 60, 100, true);
-  auto frames = [&](int lift7) {
+  auto frames = [&](int lift) {
     EnvelopeState e = envelope;
-    e.beginRelease(e.parameters.release_ * velocity::releaseTimeFactor(lift7));
+    e.beginRelease(e.parameters.release_ * velocity::releaseTimeFactor(lift));
     int n = 0;
     while (!e.isDone() && n < 44100 * 20) {
       e.process(1);
@@ -187,21 +189,21 @@ TEST(envelope_release_scales_with_the_lift) {
     }
     return n;
   };
-  CHECK(std::abs(frames(64) - 44100) <= 1);
+  CHECK(std::abs(frames(128) - 44100) <= 1);
   CHECK(std::abs(frames(0) - 4 * 44100) <= 2);
-  CHECK_NEAR(static_cast<float>(frames(127)), 0.2551f * 44100.0f, 20.0f);
+  CHECK_NEAR(static_cast<float>(frames(255)), 0.2527f * 44100.0f, 20.0f);
 }
 
 TEST(user_instrument_release_scales_with_the_lift) {
-  checkReleaseScaling([](int lift7) { return envelopeReleaseFrames(std::make_shared<Oscillator>(WaveformType::SINE), lift7); });
+  checkReleaseScaling([](int lift) { return envelopeReleaseFrames(std::make_shared<Oscillator>(WaveformType::SINE), lift); });
 }
 
 TEST(additive_release_scales_with_the_lift) {
-  checkReleaseScaling([](int lift7) { return envelopeReleaseFrames(std::make_shared<Additive>(), lift7); });
+  checkReleaseScaling([](int lift) { return envelopeReleaseFrames(std::make_shared<Additive>(), lift); });
 }
 
 TEST(padsynth_release_scales_with_the_lift) {
-  checkReleaseScaling([](int lift7) { return envelopeReleaseFrames(std::make_shared<PadSynth>(), lift7); });
+  checkReleaseScaling([](int lift) { return envelopeReleaseFrames(std::make_shared<PadSynth>(), lift); });
 }
 
 TEST(soundfont_release_scales_with_the_lift) {
@@ -212,11 +214,11 @@ TEST(soundfont_release_scales_with_the_lift) {
   auto fixture_path = (std::filesystem::path(TESTS_SCRATCH_DIR) / "velocity_sf2_release_fixture.sf2").string();
   writeMinimalSf2(fixture_path, presets);
   SoundFont sf(fixture_path);
-  checkReleaseScaling([&](int lift7) {
+  checkReleaseScaling([&](int lift) {
     auto instrument = sf.createInstrument(0);
     ChannelConfiguration config(44100, 1);
     auto voice = instrument->playNote(config, SphericalPosition{}, SpatialMode::AUTO, Tuning::EDO12, 1.0f, 0.8f, 60, SendLevels{}, NoteCoordinate{});
-    return framesToEnd(*voice, lift7);
+    return framesToEnd(*voice, lift);
   });
 }
 
@@ -225,7 +227,7 @@ TEST(an_off_event_carries_its_release_velocity) {
   context.addPendingOff(1, 0, 0, Tuning::EDO12, velocity::toFloat(20));
   auto & event = context.getPendingEvents(1)[0][0];
   CHECK(event.isOff());
-  CHECK(velocity::floatTo7(event.getVelocity()) == 20);
+  CHECK(velocity::fromFloat(event.getVelocity()) == 20);
 }
 
 namespace {
@@ -250,7 +252,7 @@ TEST(velocities_lifts_and_aftertouch_survive_a_save_and_reload) {
   song.getArrangement().setNote(1, id, 0, Note::off(0));
   song.getArrangement().setNote(2, id, 0, Note(60, 100));
   song.getArrangement().setNote(3, id, 0, Note::off());
-  song.getArrangement().setNote(4, id, 0, Note::off(127, 9));
+  song.getArrangement().setNote(4, id, 0, Note::off(255, 9));
   song.getArrangement().setNote(5, id, 0, Note::aftertouch(90, 7));
   song.getArrangement().setNote(6, id, 0, Note::aftertouch(0));
   song.getArrangement().setNote(7, id, 0, Note::aftertouch(constants::NEUTRAL_VELOCITY));
@@ -274,7 +276,7 @@ TEST(velocities_lifts_and_aftertouch_survive_a_save_and_reload) {
   CHECK(at(1).isOff() && at(1).getVelocity() == 0);
   CHECK(at(2).isNoteOn() && at(2).getVelocity() == 100);
   CHECK(at(3).isOff() && at(3).getVelocity() == constants::NEUTRAL_VELOCITY);
-  CHECK(at(4).isOff() && at(4).getVelocity() == 127 && at(4).getDelay() == 9);
+  CHECK(at(4).isOff() && at(4).getVelocity() == 255 && at(4).getDelay() == 9);
   CHECK(at(5).isAftertouch() && at(5).getVelocity() == 90 && at(5).getDelay() == 7);
   CHECK(at(6).isAftertouch() && at(6).getVelocity() == 0);
   CHECK(at(7).isAftertouch() && at(7).getVelocity() == constants::NEUTRAL_VELOCITY);

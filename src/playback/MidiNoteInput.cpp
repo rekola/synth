@@ -87,12 +87,12 @@ MidiNoteInput::handle(const MidiEvent & ev, Controller & controller, int track_i
     held_[ev.getNote()] = { column, track_id };
     controller.endNotePressure(track_id, column);
     if (controller.isMonitoring(track_id)) {
-      queue.push(make_unique<PlaybackControlEvent>(PlaybackControlEvent::PLAY_NOTE, buffer, track_id, column, note_value, ev.getVelocity()));
+      queue.push(make_unique<PlaybackControlEvent>(PlaybackControlEvent::PLAY_NOTE, buffer, track_id, column, note_value, velocity::from7(ev.getVelocity())));
     }
     if (!options.write) return false;
     auto target = resolve(track_id);
     Song::Edit edit(song, "enter note", Song::Edit::Kind::CONTENT);
-    Note note(note_value, ev.getVelocity(), current_delay);
+    Note note(note_value, velocity::from7(ev.getVelocity()), current_delay);
     tuneNewNote(song, track_id, note);
     target.pattern->setNote(target.effective_row, column, note);
     return true;
@@ -112,7 +112,7 @@ MidiNoteInput::handle(const MidiEvent & ev, Controller & controller, int track_i
     return info.isPlaying() ? info.getAbsolutePosition() : -1;
   };
   Song::Edit edit(song, "note pressure", Song::Edit::Kind::CONTENT);
-  auto pressure = controller.notePressure(row, held_track_id, column, static_cast<short>(ev.getVelocity()), current_delay, write_row, transport_row);
+  auto pressure = controller.notePressure(row, held_track_id, column, static_cast<short>(velocity::from7(ev.getVelocity())), current_delay, write_row, transport_row);
   queue.push(make_unique<PlaybackControlEvent>(PlaybackControlEvent::NOTE_PRESSURE, buffer, held_track_id, column, note_value, pressure));
   if (!options.pressure_follows_transport) {
     edit.discard();
