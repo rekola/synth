@@ -165,13 +165,13 @@ paths:
 
 ## Song file, scenes, bars
 
-- A `Note` is a `Kind` (none, on, off, aftertouch) plus one 7-bit velocity.
+- A `Note` is a `Kind` (none, on, off, aftertouch) plus one 8-bit velocity.
   **Never tell an OFF by velocity 0**: velocity 0 is a real note-on that starts
   in exact silence (`velocity::kSilentGainDb`). An OFF's velocity is its *lift*, fixed
   when the OFF arrives and handed to the voices
   (`VoiceState::setReleaseVelocity()`), where it scales release times. File:
   `<note>`'s `velocity` attribute is the note-on's velocity, the OFF's lift or
-  the aftertouch pressure (neutral 64 omitted, except for aftertouch); the text
+  the aftertouch pressure (neutral 128 omitted, except for aftertouch); the text
   is the note, `OFF` or `???` (a lost note: it began here but its pitch is
   gone; it makes no sound and ends the column's previous note) or `~~~` (a lacuna: a
   span of missing notes, the same way), and aftertouch has none, like its empty note column.

@@ -340,10 +340,10 @@ timing and decay. Here it appears as:
   additive.md.
 
 **Velocity**
-How hard a note is struck, 0 to 127 (two hex digits, `00` to `7f`). One field per
+How hard a note is struck, 0 to 255 (two hex digits, `00` to `ff`; one bit more than a MIDI 1.0 velocity, which is widened on input). One field per
 note: on a note-on the strike velocity, on an OFF the *lift*, on aftertouch the
 pressure. Velocity 0 is a real note-on that starts from silence; an OFF is its own
-kind of cell and is never told by its velocity. 64 is *neutral velocity*, what code
+kind of cell and is never told by its velocity. 128 is *neutral velocity*, what code
 gives a note made without one and what a song file leaves out; the editor and the
-pad controllers give a new note-on 100 (the *default note-on velocity*) and a new
+pad controllers give a new note-on 200 (the *default note-on velocity*) and a new
 OFF the neutral one.

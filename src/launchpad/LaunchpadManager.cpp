@@ -1907,7 +1907,7 @@ void LaunchpadManager::handlePadEvent(const LaunchpadPadEvent & ev, Controller &
       note_column++;
     }
 
-    auto velocity = LaunchpadProtocol::getModelInfo(ev.getModel()).velocity_sensitive ? static_cast<short>(ev.getVelocity()) : static_cast<short>(constants::DEFAULT_NOTE_ON_VELOCITY); // same default as keyboard entry
+    auto velocity = LaunchpadProtocol::getModelInfo(ev.getModel()).velocity_sensitive ? static_cast<short>(velocity::from7(ev.getVelocity())) : static_cast<short>(constants::DEFAULT_NOTE_ON_VELOCITY); // same default as keyboard entry
 
     recordActiveNote(device_id, ev.getX(), ev.getY(), {note_column, row, track_id});
 
@@ -2129,7 +2129,7 @@ void LaunchpadManager::handlePadEvent(const LaunchpadPadEvent & ev, Controller &
       // and plays the same row average that gets recorded.
       Song::Edit edit(song, "note pressure");
       if (!write_pressure) edit.discard();
-      auto pressure = controller.notePressure(row, held_track, column, static_cast<short>(ev.getVelocity()), delay, write_row, current_row);
+      auto pressure = controller.notePressure(row, held_track, column, static_cast<short>(velocity::from7(ev.getVelocity())), delay, write_row, current_row);
       event_queue.push(make_unique<PlaybackControlEvent>(PlaybackControlEvent::NOTE_PRESSURE, controller.getActiveBufferName(), held_track, column, note_value, pressure));
     }
   }

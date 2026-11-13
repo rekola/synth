@@ -27,33 +27,33 @@
         <clip track="guitar" id="guitar1" name="Scene 1"/>
         <clip track="guitar" id="guitar2" name="Scene 2" length="64">
             <pattern>
-                <note row="4" velocity="10">A♯4</note>
-                <note row="4" column="1" velocity="10">C-5</note>
-                <note row="4" column="2" velocity="10">D♯5</note>
-                <note row="10" velocity="10">A-4</note>
-                <note row="10" column="1" velocity="10">C-5</note>
-                <note row="10" column="2" velocity="10">E-5</note>
-                <note row="18" velocity="10">G-4</note>
-                <note row="18" column="1" velocity="10">A♯4</note>
-                <note row="18" column="2" velocity="10">C-5</note>
-                <note row="28" velocity="10">F-4</note>
-                <note row="28" column="1" velocity="10">A-4</note>
-                <note row="28" column="2" velocity="10">C-5</note>
-                <note row="36" velocity="10">A♯4</note>
-                <note row="36" column="1" velocity="10">C-5</note>
-                <note row="36" column="2" velocity="10">D♯5</note>
-                <note row="42" velocity="10">A-4</note>
-                <note row="42" column="1" velocity="10">C-5</note>
-                <note row="42" column="2" velocity="10">E-5</note>
-                <note row="46" velocity="10">G-4</note>
-                <note row="46" column="1" velocity="10">A♯4</note>
-                <note row="46" column="2" velocity="10">C-5</note>
-                <note row="52" velocity="10">G-4</note>
-                <note row="52" column="1" velocity="10">A♯4</note>
-                <note row="52" column="2" velocity="10">C-5</note>
-                <note row="56" velocity="10">F-4</note>
-                <note row="56" column="1" velocity="10">A-4</note>
-                <note row="56" column="2" velocity="10">C-5</note>
+                <note row="4" velocity="20">A♯4</note>
+                <note row="4" column="1" velocity="20">C-5</note>
+                <note row="4" column="2" velocity="20">D♯5</note>
+                <note row="10" velocity="20">A-4</note>
+                <note row="10" column="1" velocity="20">C-5</note>
+                <note row="10" column="2" velocity="20">E-5</note>
+                <note row="18" velocity="20">G-4</note>
+                <note row="18" column="1" velocity="20">A♯4</note>
+                <note row="18" column="2" velocity="20">C-5</note>
+                <note row="28" velocity="20">F-4</note>
+                <note row="28" column="1" velocity="20">A-4</note>
+                <note row="28" column="2" velocity="20">C-5</note>
+                <note row="36" velocity="20">A♯4</note>
+                <note row="36" column="1" velocity="20">C-5</note>
+                <note row="36" column="2" velocity="20">D♯5</note>
+                <note row="42" velocity="20">A-4</note>
+                <note row="42" column="1" velocity="20">C-5</note>
+                <note row="42" column="2" velocity="20">E-5</note>
+                <note row="46" velocity="20">G-4</note>
+                <note row="46" column="1" velocity="20">A♯4</note>
+                <note row="46" column="2" velocity="20">C-5</note>
+                <note row="52" velocity="20">G-4</note>
+                <note row="52" column="1" velocity="20">A♯4</note>
+                <note row="52" column="2" velocity="20">C-5</note>
+                <note row="56" velocity="20">F-4</note>
+                <note row="56" column="1" velocity="20">A-4</note>
+                <note row="56" column="2" velocity="20">C-5</note>
             </pattern>
         </clip>
         <clip track="guitar" stop="false"/>
@@ -65,103 +65,103 @@
         </clip>
         <clip track="pad" id="pad2" name="Scene 2" length="64">
             <pattern>
-                <note row="4" velocity="5">C-4</note>
-                <note row="36" velocity="5">C-4</note>
+                <note row="4" velocity="10">C-4</note>
+                <note row="36" velocity="10">C-4</note>
             </pattern>
         </clip>
         <clip track="pad" stop="false"/>
         <clip track="harp" id="harp1" name="Scene 1" length="60">
             <pattern>
-                <note row="0" velocity="30">C-4</note>
-                <note row="4" velocity="30">A♯4</note>
-                <note row="8" velocity="30">C-4</note>
-                <note row="10" velocity="30">A-4</note>
-                <note row="14" velocity="30">G-4</note>
-                <note row="18" velocity="30">G-4</note>
-                <note row="22" velocity="30">G-4</note>
-                <note row="24" velocity="30">E-4</note>
-                <note row="28" velocity="30">F-4</note>
-                <note row="32" velocity="30">C-4</note>
-                <note row="34" velocity="30">D♯4</note>
-                <note row="36" velocity="30">A♯4</note>
-                <note row="40" velocity="30">C-4</note>
-                <note row="42" velocity="30">A-4</note>
-                <note row="46" velocity="30">G-4</note>
-                <note row="50" velocity="30">G-4</note>
-                <note row="52" velocity="30">D♯4</note>
-                <note row="54" velocity="30">E-4</note>
-                <note row="56" velocity="30">F-4</note>
+                <note row="0" velocity="60">C-4</note>
+                <note row="4" velocity="60">A♯4</note>
+                <note row="8" velocity="60">C-4</note>
+                <note row="10" velocity="60">A-4</note>
+                <note row="14" velocity="60">G-4</note>
+                <note row="18" velocity="60">G-4</note>
+                <note row="22" velocity="60">G-4</note>
+                <note row="24" velocity="60">E-4</note>
+                <note row="28" velocity="60">F-4</note>
+                <note row="32" velocity="60">C-4</note>
+                <note row="34" velocity="60">D♯4</note>
+                <note row="36" velocity="60">A♯4</note>
+                <note row="40" velocity="60">C-4</note>
+                <note row="42" velocity="60">A-4</note>
+                <note row="46" velocity="60">G-4</note>
+                <note row="50" velocity="60">G-4</note>
+                <note row="52" velocity="60">D♯4</note>
+                <note row="54" velocity="60">E-4</note>
+                <note row="56" velocity="60">F-4</note>
                 <command row="59" data="ZB00"/>
             </pattern>
         </clip>
         <clip track="harp" id="harp2" name="Scene 2" length="64">
             <pattern>
-                <note row="0" velocity="30">C-4</note>
-                <note row="4" velocity="30">A♯4</note>
-                <note row="8" velocity="30">C-4</note>
-                <note row="10" velocity="30">A-4</note>
-                <note row="14" velocity="30">G-4</note>
-                <note row="18" velocity="30">G-4</note>
-                <note row="22" velocity="30">G-4</note>
-                <note row="24" velocity="30">E-4</note>
-                <note row="28" velocity="30">F-4</note>
-                <note row="32" velocity="30">C-4</note>
-                <note row="34" velocity="30">D♯4</note>
-                <note row="36" velocity="30">A♯4</note>
-                <note row="40" velocity="30">C-4</note>
-                <note row="42" velocity="30">A-4</note>
-                <note row="46" velocity="30">G-4</note>
-                <note row="50" velocity="30">G-4</note>
-                <note row="52" velocity="30">D♯4</note>
-                <note row="54" velocity="30">E-4</note>
-                <note row="56" velocity="30">F-4</note>
+                <note row="0" velocity="60">C-4</note>
+                <note row="4" velocity="60">A♯4</note>
+                <note row="8" velocity="60">C-4</note>
+                <note row="10" velocity="60">A-4</note>
+                <note row="14" velocity="60">G-4</note>
+                <note row="18" velocity="60">G-4</note>
+                <note row="22" velocity="60">G-4</note>
+                <note row="24" velocity="60">E-4</note>
+                <note row="28" velocity="60">F-4</note>
+                <note row="32" velocity="60">C-4</note>
+                <note row="34" velocity="60">D♯4</note>
+                <note row="36" velocity="60">A♯4</note>
+                <note row="40" velocity="60">C-4</note>
+                <note row="42" velocity="60">A-4</note>
+                <note row="46" velocity="60">G-4</note>
+                <note row="50" velocity="60">G-4</note>
+                <note row="52" velocity="60">D♯4</note>
+                <note row="54" velocity="60">E-4</note>
+                <note row="56" velocity="60">F-4</note>
             </pattern>
         </clip>
         <clip track="harp" stop="false"/>
         <clip track="perc" id="perc1" name="Scene 1" length="60">
             <pattern>
-                <note row="4" velocity="20">RD2 </note>
-                <note row="28" velocity="20">SPL </note>
-                <note row="58" velocity="20">CH </note>
+                <note row="4" velocity="40">RD2 </note>
+                <note row="28" velocity="40">SPL </note>
+                <note row="58" velocity="40">CH </note>
                 <command row="59" data="ZB00"/>
             </pattern>
         </clip>
         <clip track="perc" id="perc2" name="Scene 2" length="64">
             <pattern>
-                <note row="0" velocity="20">HT </note>
-                <note row="4" velocity="20">CH </note>
-                <note row="10" velocity="20">CH </note>
-                <note row="18" velocity="20">CH </note>
-                <note row="26" velocity="20">CH </note>
-                <note row="28" velocity="20">CH </note>
-                <note row="36" velocity="20">CH </note>
-                <note row="42" velocity="20">CH </note>
-                <note row="46" velocity="20">CH </note>
-                <note row="52" velocity="20">CH </note>
-                <note row="56" velocity="20">CH </note>
-                <note row="60" velocity="20">RD </note>
+                <note row="0" velocity="40">HT </note>
+                <note row="4" velocity="40">CH </note>
+                <note row="10" velocity="40">CH </note>
+                <note row="18" velocity="40">CH </note>
+                <note row="26" velocity="40">CH </note>
+                <note row="28" velocity="40">CH </note>
+                <note row="36" velocity="40">CH </note>
+                <note row="42" velocity="40">CH </note>
+                <note row="46" velocity="40">CH </note>
+                <note row="52" velocity="40">CH </note>
+                <note row="56" velocity="40">CH </note>
+                <note row="60" velocity="40">RD </note>
             </pattern>
         </clip>
         <clip track="perc" id="perc3" name="Scene 3" length="64">
             <pattern>
-                <note row="0" velocity="20">HT </note>
-                <note row="4" velocity="20">CH </note>
-                <note row="8" velocity="20">HT </note>
-                <note row="10" velocity="20">CH </note>
-                <note row="14" velocity="20">HT </note>
-                <note row="18" velocity="20">CH </note>
-                <note row="22" velocity="20">CH </note>
-                <note row="26" velocity="20">HT </note>
-                <note row="28" velocity="20">CH </note>
-                <note row="32" velocity="20">HT </note>
-                <note row="36" velocity="20">CH </note>
-                <note row="40" velocity="20">HT </note>
-                <note row="42" velocity="20">CH </note>
-                <note row="46" velocity="20">HT </note>
-                <note row="50" velocity="20">CH </note>
-                <note row="52" velocity="20">OH </note>
-                <note row="56" velocity="20">CH </note>
-                <note row="60" velocity="20">RD </note>
+                <note row="0" velocity="40">HT </note>
+                <note row="4" velocity="40">CH </note>
+                <note row="8" velocity="40">HT </note>
+                <note row="10" velocity="40">CH </note>
+                <note row="14" velocity="40">HT </note>
+                <note row="18" velocity="40">CH </note>
+                <note row="22" velocity="40">CH </note>
+                <note row="26" velocity="40">HT </note>
+                <note row="28" velocity="40">CH </note>
+                <note row="32" velocity="40">HT </note>
+                <note row="36" velocity="40">CH </note>
+                <note row="40" velocity="40">HT </note>
+                <note row="42" velocity="40">CH </note>
+                <note row="46" velocity="40">HT </note>
+                <note row="50" velocity="40">CH </note>
+                <note row="52" velocity="40">OH </note>
+                <note row="56" velocity="40">CH </note>
+                <note row="60" velocity="40">RD </note>
             </pattern>
         </clip>
     </clips>

@@ -40,36 +40,36 @@
     <clips>
         <clip track="comp" id="clip1" length="112">
             <pattern>
-                <note row="0" velocity="40" fx="+00">C-3</note>
-                <note row="2" velocity="40" fx="-01">E𝄫3</note>
-                <note row="8" velocity="40" fx="-01">E𝄫3</note>
-                <note row="16" velocity="40" fx="-05">F-3</note>
-                <note row="18" velocity="40" fx="+05">G-3</note>
-                <note row="20" velocity="40" fx="-05">F-3</note>
-                <note row="22" velocity="40" fx="+05">G-3</note>
-                <note row="24" velocity="40" fx="-05">F-3</note>
-                <note row="28" velocity="40" fx="-01">E𝄫3</note>
-                <note row="32" velocity="40" fx="+00">C-3</note>
-                <note row="34" velocity="40" fx="-01">E𝄫3</note>
-                <note row="40" velocity="40" fx="-01">E𝄫3</note>
-                <note row="48" velocity="40" fx="-05">F-3</note>
-                <note row="50" velocity="40" fx="+05">G-3</note>
-                <note row="52" velocity="40" fx="-05">F-3</note>
-                <note row="54" velocity="40" fx="+05">G-3</note>
-                <note row="56" velocity="40" fx="-05">F-3</note>
-                <note row="60" velocity="40" fx="-01">E𝄫3</note>
-                <note row="64" velocity="40" fx="+00">C-3</note>
-                <note row="66" velocity="40" fx="-0A">B♭2</note>
-                <note row="72" velocity="40" fx="-0A">B♭2</note>
-                <note row="80" velocity="40" fx="-01">E𝄫3</note>
-                <note row="82" velocity="40" fx="+06">E♭3</note>
-                <note row="84" velocity="40" fx="-01">E𝄫3</note>
-                <note row="86" velocity="40" fx="+06">E♭3</note>
-                <note row="88" velocity="40" fx="-01">E𝄫3</note>
-                <note row="92" velocity="40" fx="-0A">B♭2</note>
-                <note row="96" velocity="40" fx="-06">A-2</note>
-                <note row="98" velocity="40" fx="+05">G-2</note>
-                <note row="104" velocity="40" fx="+05">G-2</note>
+                <note row="0" velocity="80" fx="+00">C-3</note>
+                <note row="2" velocity="80" fx="-01">E𝄫3</note>
+                <note row="8" velocity="80" fx="-01">E𝄫3</note>
+                <note row="16" velocity="80" fx="-05">F-3</note>
+                <note row="18" velocity="80" fx="+05">G-3</note>
+                <note row="20" velocity="80" fx="-05">F-3</note>
+                <note row="22" velocity="80" fx="+05">G-3</note>
+                <note row="24" velocity="80" fx="-05">F-3</note>
+                <note row="28" velocity="80" fx="-01">E𝄫3</note>
+                <note row="32" velocity="80" fx="+00">C-3</note>
+                <note row="34" velocity="80" fx="-01">E𝄫3</note>
+                <note row="40" velocity="80" fx="-01">E𝄫3</note>
+                <note row="48" velocity="80" fx="-05">F-3</note>
+                <note row="50" velocity="80" fx="+05">G-3</note>
+                <note row="52" velocity="80" fx="-05">F-3</note>
+                <note row="54" velocity="80" fx="+05">G-3</note>
+                <note row="56" velocity="80" fx="-05">F-3</note>
+                <note row="60" velocity="80" fx="-01">E𝄫3</note>
+                <note row="64" velocity="80" fx="+00">C-3</note>
+                <note row="66" velocity="80" fx="-0A">B♭2</note>
+                <note row="72" velocity="80" fx="-0A">B♭2</note>
+                <note row="80" velocity="80" fx="-01">E𝄫3</note>
+                <note row="82" velocity="80" fx="+06">E♭3</note>
+                <note row="84" velocity="80" fx="-01">E𝄫3</note>
+                <note row="86" velocity="80" fx="+06">E♭3</note>
+                <note row="88" velocity="80" fx="-01">E𝄫3</note>
+                <note row="92" velocity="80" fx="-0A">B♭2</note>
+                <note row="96" velocity="80" fx="-06">A-2</note>
+                <note row="98" velocity="80" fx="+05">G-2</note>
+                <note row="104" velocity="80" fx="+05">G-2</note>
             </pattern>
         </clip>
         <clip track="comp" id="clip2">
@@ -92,46 +92,46 @@
         </clip>
         <clip track="track1" id="clip6" length="112">
             <pattern>
-                <note row="0" velocity="40" fx="+00">C-4</note>
-                <note row="2" velocity="40" fx="-01">E𝄫4</note>
-                <note row="4" velocity="40" fx="-05">F-4</note>
-                <note row="6" velocity="40" fx="+05">G-4</note>
-                <note row="8" velocity="40" fx="+00">C-4</note>
-                <note row="10" velocity="40" fx="-01">E𝄫4</note>
-                <note row="12" velocity="40" fx="-05">F-4</note>
-                <note row="14" velocity="40" fx="+05">G-4</note>
-                <note row="16" velocity="40" fx="+00">C-4</note>
-                <note row="18" velocity="40" fx="-01">E𝄫4</note>
-                <note row="20" velocity="40" fx="-05">F-4</note>
-                <note row="22" velocity="40" fx="+05">G-4</note>
-                <note row="24" velocity="40" fx="+00">C-4</note>
-                <note row="26" velocity="40" fx="-01">E𝄫4</note>
-                <note row="28" velocity="40" fx="-05">F-4</note>
-                <note row="30" velocity="40" fx="+05">G-4</note>
-                <note row="32" velocity="40" fx="+00">C-4</note>
-                <note row="34" velocity="40" fx="-01">E𝄫4</note>
-                <note row="36" velocity="40" fx="-05">F-4</note>
-                <note row="38" velocity="40" fx="+05">G-4</note>
-                <note row="40" velocity="40" fx="+00">C-4</note>
-                <note row="42" velocity="40" fx="-01">E𝄫4</note>
-                <note row="44" velocity="40" fx="-05">F-4</note>
-                <note row="46" velocity="40" fx="+05">G-4</note>
-                <note row="48" velocity="40" fx="+00">C-4</note>
-                <note row="50" velocity="40" fx="-01">E𝄫4</note>
-                <note row="52" velocity="40" fx="-05">F-4</note>
-                <note row="54" velocity="40" fx="+05">G-4</note>
-                <note row="56" velocity="40" fx="+00">C-4</note>
-                <note row="58" velocity="40" fx="-01">E𝄫4</note>
-                <note row="60" velocity="40" fx="-05">F-4</note>
-                <note row="62" velocity="40" fx="+05">G-4</note>
-                <note row="64" velocity="40" fx="+00">C-4</note>
-                <note row="66" velocity="40" fx="-0A">B♭3</note>
-                <note row="68" velocity="40" fx="+06">E♭3</note>
-                <note row="70" velocity="40" fx="-04">C𝄪3</note>
-                <note row="72" velocity="40" fx="-0A">B♭3</note>
-                <note row="74" velocity="40" fx="+00">C-4</note>
-                <note row="76" velocity="40" fx="-04">C𝄪4</note>
-                <note row="78" velocity="40" fx="+06">E♭4</note>
+                <note row="0" velocity="80" fx="+00">C-4</note>
+                <note row="2" velocity="80" fx="-01">E𝄫4</note>
+                <note row="4" velocity="80" fx="-05">F-4</note>
+                <note row="6" velocity="80" fx="+05">G-4</note>
+                <note row="8" velocity="80" fx="+00">C-4</note>
+                <note row="10" velocity="80" fx="-01">E𝄫4</note>
+                <note row="12" velocity="80" fx="-05">F-4</note>
+                <note row="14" velocity="80" fx="+05">G-4</note>
+                <note row="16" velocity="80" fx="+00">C-4</note>
+                <note row="18" velocity="80" fx="-01">E𝄫4</note>
+                <note row="20" velocity="80" fx="-05">F-4</note>
+                <note row="22" velocity="80" fx="+05">G-4</note>
+                <note row="24" velocity="80" fx="+00">C-4</note>
+                <note row="26" velocity="80" fx="-01">E𝄫4</note>
+                <note row="28" velocity="80" fx="-05">F-4</note>
+                <note row="30" velocity="80" fx="+05">G-4</note>
+                <note row="32" velocity="80" fx="+00">C-4</note>
+                <note row="34" velocity="80" fx="-01">E𝄫4</note>
+                <note row="36" velocity="80" fx="-05">F-4</note>
+                <note row="38" velocity="80" fx="+05">G-4</note>
+                <note row="40" velocity="80" fx="+00">C-4</note>
+                <note row="42" velocity="80" fx="-01">E𝄫4</note>
+                <note row="44" velocity="80" fx="-05">F-4</note>
+                <note row="46" velocity="80" fx="+05">G-4</note>
+                <note row="48" velocity="80" fx="+00">C-4</note>
+                <note row="50" velocity="80" fx="-01">E𝄫4</note>
+                <note row="52" velocity="80" fx="-05">F-4</note>
+                <note row="54" velocity="80" fx="+05">G-4</note>
+                <note row="56" velocity="80" fx="+00">C-4</note>
+                <note row="58" velocity="80" fx="-01">E𝄫4</note>
+                <note row="60" velocity="80" fx="-05">F-4</note>
+                <note row="62" velocity="80" fx="+05">G-4</note>
+                <note row="64" velocity="80" fx="+00">C-4</note>
+                <note row="66" velocity="80" fx="-0A">B♭3</note>
+                <note row="68" velocity="80" fx="+06">E♭3</note>
+                <note row="70" velocity="80" fx="-04">C𝄪3</note>
+                <note row="72" velocity="80" fx="-0A">B♭3</note>
+                <note row="74" velocity="80" fx="+00">C-4</note>
+                <note row="76" velocity="80" fx="-04">C𝄪4</note>
+                <note row="78" velocity="80" fx="+06">E♭4</note>
             </pattern>
         </clip>
         <clip track="track1" id="clip7">
@@ -178,14 +178,14 @@
         </clip>
         <clip track="track3" id="clip9" name="Clip 1" length="112">
             <pattern>
-                <note row="0" velocity="40" fx="+00">C-3</note>
-                <note row="0" column="1" velocity="40" fx="+00">C-4</note>
-                <note row="0" column="2" velocity="40" fx="-01">E𝄫4</note>
-                <note row="0" column="3" velocity="40" fx="-05">F-4</note>
-                <note row="32" velocity="40" fx="+00">C-3</note>
-                <note row="32" column="1" velocity="40" fx="+00">C-4</note>
-                <note row="32" column="2" velocity="40" fx="-01">E𝄫4</note>
-                <note row="32" column="3" velocity="40" fx="-05">F-4</note>
+                <note row="0" velocity="80" fx="+00">C-3</note>
+                <note row="0" column="1" velocity="80" fx="+00">C-4</note>
+                <note row="0" column="2" velocity="80" fx="-01">E𝄫4</note>
+                <note row="0" column="3" velocity="80" fx="-05">F-4</note>
+                <note row="32" velocity="80" fx="+00">C-3</note>
+                <note row="32" column="1" velocity="80" fx="+00">C-4</note>
+                <note row="32" column="2" velocity="80" fx="-01">E𝄫4</note>
+                <note row="32" column="3" velocity="80" fx="-05">F-4</note>
             </pattern>
         </clip>
         <clip track="track3" id="clip11">

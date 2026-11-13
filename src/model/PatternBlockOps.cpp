@@ -33,7 +33,7 @@ void humanizeNote(Note & note, const HumanizeAmount & amount, NoiseGenerator & r
   if (!note.isNoteOn()) return;
   auto velocity = note.getVelocity() + static_cast<int>(lround(rng.next() * static_cast<float>(amount.velocity)));
   auto delay = note.getDelay() + static_cast<int>(lround((rng.next() + 1.0f) * 0.5f * static_cast<float>(amount.delay)));
-  note.setVelocity(static_cast<short>(clamp(velocity, 0, 127)));
+  note.setVelocity(static_cast<short>(clamp(velocity, 0, velocity::kMax)));
   note.setDelay(static_cast<short>(clamp(delay, 0, 255)));
 }
 

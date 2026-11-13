@@ -390,8 +390,8 @@ Player::handlePlaybackControlEvent(PlaybackControlEvent & ev) {
               track_state->noteOn(column, *instrument, tuning, note.getVelocityAsFloat(), note.getValue(),
                                   NoteCoordinate(state.getSongStructure().getOrdinalFor(*track), live_note_counter_++, column), note_override);
             } else {
-	      track_state->notePressure(column, midi_velocity / 127.0f);
-	    }
+              track_state->notePressure(column, velocity::toFloat(midi_velocity));
+            }
 	  }
 	}
       }

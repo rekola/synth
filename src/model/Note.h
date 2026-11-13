@@ -22,13 +22,13 @@
 // and undefined (an empty cell, or one with only fx). A lost note and a lacuna
 // make no sound but end the previous note in their column, as an OFF does. Never
 // the velocity: velocity 0 is a real note-on, one that starts from silence.
-// There is one 7-bit velocity, always present on a note-on, a lost note, a
+// There is one 8-bit velocity, always present on a note-on, a lost note, a
 // lacuna, an OFF and aftertouch: the strike velocity, the release velocity (the
 // "lift") and the pressure.
 class Note {
  public:
   Note() = default;
-  // A note-on; aftertouch for a negative value (no value). The velocity is 7-bit.
+  // A note-on; aftertouch for a negative value (no value). The velocity is 8-bit.
   explicit Note(int _value, int _velocity = constants::NEUTRAL_VELOCITY, int _delay = 0)
       : packed_(pack(_value < 0 ? kAftertouch : clampValue(_value), _velocity)), delay_(clampDelay(_delay)) {}
   // A note-on, or an OFF for the text "off"/"OFF" (the velocity is then its lift).
@@ -39,7 +39,7 @@ class Note {
                      _velocity)),
         delay_(clampDelay(_delay)) {}
 
-  // An OFF with release velocity `lift` (7-bit).
+  // An OFF with release velocity `lift` (8-bit).
   static Note off(int lift = constants::NEUTRAL_VELOCITY, int delay = 0) {
     Note n;
     n.packed_ = pack(kOff, lift);
@@ -98,7 +98,7 @@ class Note {
   // not something any caller actually needed.
   // -1 unless the cell is a note-on.
   int getValue() const { return isNoteOn() ? static_cast<int>(packed_ & kValueMask) : -1; }
-  short getVelocity() const { return static_cast<short>((packed_ >> kVelocityShift) & velocity::kMax7); }
+  short getVelocity() const { return static_cast<short>((packed_ >> kVelocityShift) & velocity::kMax); }
   // 0-1. A note-on at velocity 0 is exactly 0: the voice starts silent.
   float getVelocityAsFloat() const { return velocity::toFloat(getVelocity()); }
   short getDelay() const { return delay_; }
@@ -175,8 +175,8 @@ class Note {
   bool isOff() const { return value() == kOff; }
   bool isAftertouch() const { return value() == kAftertouch; }
 
-  // Held to 0-127.
-  void setVelocity(int v) { packed_ = (packed_ & ~(static_cast<uint32_t>(velocity::kMax7) << kVelocityShift)) | (clampVelocity(v) << kVelocityShift); }
+  // Held to 0-255.
+  void setVelocity(int v) { packed_ = (packed_ & ~(static_cast<uint32_t>(velocity::kMax) << kVelocityShift)) | (clampVelocity(v) << kVelocityShift); }
   void setDelay(int d) { delay_ = clampDelay(d); }
 
   void clear() {
@@ -589,19 +589,19 @@ class Note {
   }
 
  private:
-  // 8 bytes: one word holding the value (25 bits) and the velocity (7), then the
+  // 8 bytes: one word holding the value (24 bits) and the velocity (8), then the
   // delay and the three fx characters. The top five values are the other types.
-  static constexpr int kVelocityShift = 25;
+  static constexpr int kVelocityShift = 24;
   static constexpr uint32_t kValueMask = (1u << kVelocityShift) - 1;
   static constexpr uint32_t kUndefined = kValueMask, kOff = kValueMask - 1, kAftertouch = kValueMask - 2, kLost = kValueMask - 3,
                             kLacuna = kValueMask - 4;
   static constexpr uint32_t kMaxValue = kValueMask - 5;
   static constexpr uint32_t clampValue(int value) { return static_cast<uint32_t>(std::clamp<int64_t>(value, 0, kMaxValue)); }
   static constexpr uint32_t pack(uint32_t value, int velocity) {
-    return (static_cast<uint32_t>(std::clamp(velocity, 0, 127)) << kVelocityShift) | value;
+    return (static_cast<uint32_t>(std::clamp(velocity, 0, velocity::kMax)) << kVelocityShift) | value;
   }
   uint32_t value() const { return packed_ & kValueMask; }
-  static uint32_t clampVelocity(int v) { return static_cast<uint32_t>(std::clamp(v, 0, velocity::kMax7)); }
+  static uint32_t clampVelocity(int v) { return static_cast<uint32_t>(std::clamp(v, 0, velocity::kMax)); }
   static uint8_t clampDelay(int d) { return static_cast<uint8_t>(std::clamp(d, 0, 255)); }
 
   uint32_t packed_ = pack(kUndefined, constants::NEUTRAL_VELOCITY);

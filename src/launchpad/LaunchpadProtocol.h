@@ -100,7 +100,7 @@ namespace LaunchpadProtocol {
   struct RawEvent {
     int x, y;
     EventKind kind;
-    int velocity; // 0-127; press velocity, or aftertouch pressure
+    int velocity; // 0-127 (MIDI 1.0); press velocity, or aftertouch pressure
   };
 
   // Decodes a buffer of raw incoming MIDI bytes into pad events. Assumes no

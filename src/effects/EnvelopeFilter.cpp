@@ -100,12 +100,12 @@ public:
   float getLevel() const { return envelope_state_.getLevel(); }
 
   // The release velocity of the OFF that is about to stop the note.
-  void setReleaseVelocity(int lift7) { lift7_ = lift7; }
+  void setReleaseVelocity(int lift) { lift_ = lift; }
 
   void stopNote() {
     // let children play. The release time is scaled by the lift: 64 leaves it
     // exactly as authored, 0 makes it four times longer.
-    envelope_state_.beginRelease(envelope_state_.parameters.release_ * velocity::releaseTimeFactor(lift7_));
+    envelope_state_.beginRelease(envelope_state_.parameters.release_ * velocity::releaseTimeFactor(lift_));
   }
 
   // Reclaims this voice quickly without a hard cut - see VoiceState::
@@ -129,7 +129,7 @@ public:
 
 private:
   EnvelopeState envelope_state_;
-  int lift7_ = constants::NEUTRAL_VELOCITY;
+  int lift_ = constants::NEUTRAL_VELOCITY;
 };
 
 class EnvelopeFilterTrackState : public EffectTrackState {
@@ -156,9 +156,9 @@ public:
 
  float getOwnLoudnessFactor() const override { return dsp_.getLevel(); }
 
- void setReleaseVelocity(int lift7) override {
-   dsp_.setReleaseVelocity(lift7);
-   VoiceState::setReleaseVelocity(lift7); // an envelope nested under this one scales its own
+ void setReleaseVelocity(int lift) override {
+   dsp_.setReleaseVelocity(lift);
+   VoiceState::setReleaseVelocity(lift); // an envelope nested under this one scales its own
  }
  void stopNote() override { dsp_.stopNote(); }
  void fastRelease() override { dsp_.fastRelease(); }

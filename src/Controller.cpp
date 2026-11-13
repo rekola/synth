@@ -1687,7 +1687,7 @@ short
 Controller::notePressure(int row, int track_id, int note_column, short velocity, int delay, const PressureWriter & write_row, const PressureRowSource & current_row) {
   constexpr int row_units = 256;
   constexpr int max_filled_rows = 256;
-  auto clamp_pressure = [](int v) { return static_cast<short>(std::clamp(v, 1, 127)); };
+  auto clamp_pressure = [](int v) { return static_cast<short>(std::clamp(v, 1, velocity::kMax)); };
   auto & st = pressure_states_[{ track_id, note_column }];
   delay = std::clamp(delay, 0, row_units - 1);
 

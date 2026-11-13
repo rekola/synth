@@ -147,13 +147,13 @@ public:
     return false;
   }
 
-  // `lift7`: the release velocity of the OFF that stops them.
-  void stopVoices(int column, int lift7 = constants::NEUTRAL_VELOCITY) {
+  // `lift`: the release velocity of the OFF that stops them.
+  void stopVoices(int column, int lift = constants::NEUTRAL_VELOCITY) {
     auto it = voices_.find(column);
     if (it != voices_.end()) {
       for (auto & voice : it->second) {
         if (!voice->isActive()) continue;
-        voice->setReleaseVelocity(lift7);
+        voice->setReleaseVelocity(lift);
         voice->stopNote();
       }
     }
