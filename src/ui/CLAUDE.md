@@ -172,6 +172,14 @@ Controller-level and per-widget commands. Not migrated: `StatusLine`,
   the right end when the cursor leaves the track, and `Controller::
   saveTrimmed()` writes none to the file. Both are `SYNC` edits: columns
   follow the notes and are no undo steps.
+- The cursor has a height too, which is the edit step (`edit_step_size`, one
+  value: `edit-step-increase`/`-decrease`, `set-edit-step-1`..`9`), from 1 to
+  the bar at the cursor (`PatternSource::barRows()`; `fitEditStep()` reduces
+  it in `render()` and `keyDown()` when the bar is shorter). Entry and every
+  command act on the first row; the rows below are only drawn
+  (`StyleProvider::cursorBodyTint()`, in `renderRow()`, not while the cursor
+  is a playhead) - except Delete and Backspace, which empty the whole
+  rectangle (`cursorRows()` cuts it off at the pattern's end).
 - With a wide cursor a note key goes to `enterChordKey()`, not the single-note
   path: a `ChordEntry` collects the keys of one entry (held together, or
   within `ChordGrouper::kWindow` where no release is reported), writes each

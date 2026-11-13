@@ -94,8 +94,10 @@ class PatternEditor : public UIElement {
   // (getRootTrackIds()) for the Song::setCurrentTrackId() sync described
   // above, and this header only forward-declares Song.
   void setCursorTrack(int track_index);
+  // The edit step is the cursor's height in rows: one value, 1 to a bar.
   int getEditStepSize() const { return edit_step_size; }
-  static constexpr int kMaxEditStep = 64;
+  // The bar at the cursor, in rows.
+  int maxEditStep() const;
 
   // Arrangement mode (the default) edits the arrangement and placed clips, with
   // the transport as the cursor row; Live mode edits clips directly,
@@ -599,6 +601,10 @@ private:
   // playing track's playhead. True then.
   void changeEditStep(int delta);
   void setEditStep(int step);
+  // The rows the cursor at `point` covers: its height, cut off where the pattern ends.
+  int cursorRows(RowAddress point) const;
+  // Reduces the edit step to the bar the cursor is in.
+  void fitEditStep();
   bool reportLockedCursor();
   // `delta_rows` cut short at the edge of the pattern an open selection was
   // marked in (0, with a status message, when already there).

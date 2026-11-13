@@ -56,7 +56,8 @@ characters: the command without its device-index digit, which is always an
 implicit `-`/`0` there (so a note's `R24` is the row command `-R24`). A
 character that is not set is `.` in the file and `·` on screen. It is
 stored on the note (`fx` attribute, `---` when unset) and edited like the
-effect column; Delete/Backspace clear all three characters. Typed in the effect
+effect column; Delete/Backspace clear all three characters, for every note under
+the cursor (user-interface.md, The cursor's height and the edit step). Typed in the effect
 column a command acts on the whole track, in a note's fx column on that note
 alone. Any other command typed in the fx column is stored but does nothing.
 

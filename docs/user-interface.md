@@ -210,11 +210,46 @@ while a take is still recording, and they leave a clip that is playing (or
 queued, or being recorded) alone: an undo that would change its notes says so
 and waits until the clip is stopped.
 
+## The cursor's height and the edit step
+
+The pattern editor's cursor is a rectangle. Its height is the **edit step**:
+the number of rows the cursor moves down after an entry. They are one value,
+so changing the edit step changes the height at once.
+
+| Shortcut (both keymaps) | Command | Action |
+|---|---|---|
+| Ctrl-+ | `edit-step-increase` | One row higher |
+| Ctrl-- | `edit-step-decrease` | One row lower |
+| Ctrl-1 ... Ctrl-9 | `set-edit-step-1` ... `set-edit-step-9` | That many rows |
+
+Each of them shows the new edit step on the status line.
+
+- The cursor's position is its first row. Notes, chords and every command
+  that acts at the cursor act there. The first row is drawn as a cursor one row
+  high is; the rows below it are tinted faintly across the cursor's width.
+  Nothing is entered or played in those rows: they show where the next entry
+  will go, which is the row just below the last of them.
+- The height is at least 1 and at most one bar at the cursor (16 rows in 4/4).
+  There is no edit step of 0 any more: `set-edit-step-0` and Ctrl-0 are gone, and
+  the cursor always moves on after an entry. Where the bar is shorter than the
+  cursor (after a change of time signature, or in a scene or a part of the
+  arrangement with shorter bars), the height is reduced to the bar and stays so.
+- At the end of a clip the cursor is drawn only over the rows that exist.
+  The view scrolls to keep the first row in sight, and the whole cursor where
+  it fits.
+- **Delete and Backspace** empty everything under the cursor: every row and
+  every column it covers. In a note column those are the notes (with their
+  velocity, delay and fx), in a note's fx column the fx of those notes, in the
+  effect column the commands of those rows. Delete leaves the cursor where
+  it is; Backspace then moves it up by its height.
+- While the cursor is a playhead (the transport running in Arrangement view,
+  or a playing clip in Live View) only its first row is shown.
+
 ## Chord entry
 
 The pattern editor's cursor is 1 to 4 note columns wide. `widen-cursor`
 extends it to the right and `narrow-cursor` takes columns off its right end;
-the left edge stays. It lies within one row and one track, and keeps its width
+the left edge stays. It lies within one track, and keeps its width
 as it moves and after an entry, until you change it. The width has nothing to
 do with the mark: neither changes the other. With no mark, the region is the
 cursor, so cut, copy and transpose take all the columns it covers.
