@@ -1196,7 +1196,15 @@ std::string ImageEncoder::sixel(const CellBuffer & frame, const ImagePlacement &
     // A blurred backdrop (stretched over its cells) at full quality goes out in the terminal's default
     // palette where it has the registers for it: quicker than one made from the picture, in duller colours.
     bool fixed = p.image->stretched() && quality_ == PictureQuality::FULL && profile_.sixel_registers_total >= kXtermRegisters;
-    SixelPalette palette = fixed ? xtermPalette() : makeSixelPalette(img, x, y, w, h, all, registers, true, &palette_dither);
+    // EXPERIMENT: CELLUI_BLUR_REGISTERS=N draws the blur in a palette of N registers made from each tile.
+    if (const char * blur_registers = std::getenv("CELLUI_BLUR_REGISTERS")) {
+      if (p.image->stretched() && quality_ == PictureQuality::FULL) {
+        fixed = false;
+        registers = std::max(2, std::atoi(blur_registers));
+      }
+    }
+    bool on_grid = !(std::getenv("CELLUI_BLUR_GRID") && std::atoi(std::getenv("CELLUI_BLUR_GRID")) == 0 && p.image->stretched());
+    SixelPalette palette = fixed ? xtermPalette() : makeSixelPalette(img, x, y, w, h, all, registers, on_grid, &palette_dither);
     // The cells to send are a row of them at a time, from the first that changed to the last: each Sixel
     // carries the definitions of its registers, which cost more than the cells between two changes.
     std::vector<std::pair<int, int>> spans(static_cast<size_t>(r.rows), {r.cols, -1});

@@ -567,8 +567,8 @@ deflate ratio on real charts is known.
    the bytes of the start-up 22.8 kB to 8.8 kB. The 16-position table is done (`SendFader.h`: the Launchpad rows,
    the `YMxy`/`YAxy`/`YBxy` nibble and the dial's `step` share it). The four looks are done too (normal, pressed,
    hover, selected; the selection no longer eases through colours, so a position has four pictures at
-   most, and the letter is already in the picture, so a set per letter). Still to do: a gallery grid of
-   all of them.
+   most, and the letter is already in the picture, so a set per letter). A gallery grid of all of them was
+   dropped.
 5. **App profile** (3.6, 3.7): scope/meter rates and off, animations, page scrolling, hover, mouse
    reporting. UI tests per class with `TestBackend`; a harness run at 50 kB/s asserts the editor
    stays usable (key latency, fps). Done (`src/ui/PerformanceProfile.h`, applied by
@@ -658,7 +658,7 @@ deflate ratio on real charts is known.
    - **Done when** the UI under the slowest class and the busiest scenario costs the audio thread no
      missed blocks on the slowest machine, with the per-stage figures recorded here.
 
-9. **The Sixel blur** (3.7, the backdrop). The blurred backdrop of a dialog is the biggest single cost on a Sixel
+9. **The terminal blur** (3.7, the backdrop; the palette parts are Sixel's, the drawing is kitty's too). The blurred backdrop of a dialog is the biggest single cost on a Sixel
    terminal (phase 8: 10 to 23 points of a core of drawing and blurring tiles at full speed, and a Sixel picture of
    about 250 kB when it appears, which shows as a slide of about 50 ms on xterm) and the one with a visible
    quality problem. The algorithm is chosen first, by measurement, before any of it is made faster. What is
@@ -679,6 +679,16 @@ deflate ratio on real charts is known.
      by repeating pixels where it cannot), a box-filter approximation of the blur in place of canvas, a tile redone
      only when the cells under it changed (already so), and a static backdrop that is not redrawn at all.
    - **Where the time goes** first, with the stage timers (`backdrop`, `deflate`, `sixel_*`) on the blur alone.
+   - **Measured so far** (xterm, the About dialog over demo3 playing; the blur frame as bytes and the time xterm took
+     to take it in): the terminal's default palette 118 kB, 36 ms (greys, dither dots); a palette of 128 registers made
+     from each tile 252 kB, 48 ms (the right tone); 64 registers 247 kB, 51 ms; 32 registers 234 kB, 48 ms. A tile's
+     colours were dithered twice, onto the terminal's 101 levels and then between the registers, which made the runs
+     short; with the first pass left out (`CELLUI_BLUR_GRID=0`) 64 registers 195 kB, 40 ms; 32 149 kB, 38 ms; 24 129 kB,
+     34 ms; 20 118 kB, 33 ms (the same bytes as the default palette, in the right tone); 16 104 kB, 31 ms (soft contours
+     show in the lighter parts). So a palette of about 20 registers made from each tile, dithered once, matches the
+     default palette's bytes and time with the colours right. Not yet tried: one palette for the whole backdrop (so
+     tiles do not differ at their seams), the default palette's entries as the base of a small one, and the effect on
+     other themes.
    Done when one algorithm is chosen on the figures, its colours are not visibly worse than the cells under it, the
    blur appears in one frame at full speed without a slide, and the per-stage figures are recorded here.
 
