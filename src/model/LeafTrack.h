@@ -60,7 +60,10 @@ class LeafTrack : public Track {
   // it. Never below 1 - that's what showNoteColumn()=false is
   // for (a different concept: hiding note columns entirely).
   int getMinNoteColumns() const { return min_note_columns_; }
-  void setMinNoteColumns(int n) { min_note_columns_ = n < 1 ? 1 : n; }
+  // The most note columns a track shows by this floor; the cursor stops widening there.
+  static constexpr int kMaxNoteColumns = 8;
+  void setMinNoteColumns(int n) { min_note_columns_ = n < 1 ? 1 : n > kMaxNoteColumns ? kMaxNoteColumns
+                                                                                      : n; }
 
   bool isSolo() const { return solo_; }
   void setSolo(bool s) { solo_ = s; }

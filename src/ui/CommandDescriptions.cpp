@@ -37,6 +37,7 @@ commandDescription(std::string_view name) {
       {"mark-whole-buffer", "Select everything in the song"},
       {"merge-clip-to-background", "Copy the clip's notes into the track's own pattern"},
       {"move-row-down", "Move the cursor down a row"},
+      {"narrow-cursor", "Make the cursor one note column narrower"},
       {"move-row-up", "Move the cursor up a row"},
       {"next-buffer", "Switch to the next open song"},
       {"octave-down", "Play and enter notes an octave lower"},
@@ -99,6 +100,7 @@ commandDescription(std::string_view name) {
       {"transpose-region-up", "Transpose the selection up one step"},
       {"undo", "Undo the last change"},
       {"undo-redo", "Redo the last undone change"},
+      {"widen-cursor", "Make the cursor one note column wider, for entering chords"},
       {"yank", "Paste the clipboard at the cursor"},
   };
   constexpr std::string_view kEditStep = "set-edit-step-";

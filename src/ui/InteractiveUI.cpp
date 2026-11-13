@@ -217,8 +217,8 @@ static vector<MenuSectionSpec> menuSpec(vector<MenuItemSpec> buffer_items) {
                          {"Toggle Solo", "C-\\", "toggle-solo"},
                          {"Cycle Monitor (Auto/In/Off)", "", "cycle-monitor"},
                          {nullptr, nullptr, nullptr},
-                         {"Add Note Column", "C-S-Right", "add-note-column"},
-                         {"Remove Note Column", "C-S-Left", "remove-note-column"},
+                         {"Add Note Column", "", "add-note-column"},
+                         {"Remove Note Column", "", "remove-note-column"},
                      }},
       // Clip playback and clip content. Launching is quantized to the bar,
       // like a Launchpad Live-View pad.

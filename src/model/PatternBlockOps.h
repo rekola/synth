@@ -62,6 +62,10 @@ IntonationContext intonationContextOf(const Song & song);
 // other note is left untuned.
 void tuneNewNote(const Song & song, int track_id, Note & note);
 
+// The note columns a track's notes use anywhere in the song (its background
+// and its clips): the widest row. 0 for a track with no notes.
+int usedNoteColumns(const Song & song, int track_id);
+
 // How many pitched notes an apply touched, and how many of those had another
 // fx that the correction replaced.
 struct TuningSummary {

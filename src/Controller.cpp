@@ -8,6 +8,7 @@
 #endif
 #include "util/Paths.h"
 
+#include "model/PatternBlockOps.h"
 #include "model/Song.h"
 #include "model/TrackType.h"
 #include "model/LeafTrack.h"
@@ -227,7 +228,7 @@ Controller::Controller(ChannelConfiguration _channel_config) : channel_config(_c
 
   commands_.define("save-buffer", [this]() {
     auto song = getCurrentSong();
-    song->save(getActiveBufferName());
+    saveTrimmed(getActiveBufferName());
     last_saved_versions_[getActiveBufferName()] = song->getSaveMark();
   });
   // Folds a clip's placement back into its track's own background content,
@@ -635,7 +636,7 @@ Controller::hasAnyUnsavedChanges() const {
 void
 Controller::saveSongAs(const string & filename) {
   auto song = getCurrentSong();
-  song->save(filename);
+  saveTrimmed(filename);
   renameActiveBuffer(filename, song->getSaveMark());
 }
 
@@ -1208,6 +1209,35 @@ Controller::removeNoteColumn(int track_id) {
   Song::Edit edit(*song, "remove note column");
   auto columns = leaf_track->getMinNoteColumns() - 1;
   song->editTrack(track_id, [&](Track & track) { leafOf(track).setMinNoteColumns(columns); });
+}
+
+void Controller::ensureNoteColumns(int track_id, int columns) {
+  auto song = getCurrentSong();
+  auto leaf_track = asLeafTrack(song->getMasterTrack().getChildByInternalId(track_id));
+  columns = std::min(columns, LeafTrack::kMaxNoteColumns);
+  if (!leaf_track || leaf_track->getMinNoteColumns() >= columns) return;
+  Song::Edit edit(*song, "add note column", Song::Edit::Kind::STRUCTURE, Song::Edit::Origin::SYNC);
+  song->editTrack(track_id, [&](Track & track) { leafOf(track).setMinNoteColumns(columns); });
+}
+
+void Controller::trimNoteColumns(int track_id) {
+  auto song = getCurrentSong();
+  auto leaf_track = asLeafTrack(song->getMasterTrack().getChildByInternalId(track_id));
+  if (!leaf_track) return;
+  auto columns = std::max(usedNoteColumns(*song, track_id), 1);
+  if (leaf_track->getMinNoteColumns() <= columns) return;
+  Song::Edit edit(*song, "remove note column", Song::Edit::Kind::STRUCTURE, Song::Edit::Origin::SYNC);
+  song->editTrack(track_id, [&](Track & track) { leafOf(track).setMinNoteColumns(columns); });
+}
+
+void Controller::saveTrimmed(const std::string & filename) {
+  auto song = getCurrentSong();
+  auto current_id = song->getCurrentTrackId();
+  auto current = asLeafTrack(song->getMasterTrack().getChildByInternalId(current_id));
+  int kept = current ? current->getMinNoteColumns() : 0;
+  for (auto track_id : song->getRootTrackIds()) trimNoteColumns(track_id);
+  song->save(filename);
+  if (kept > 0) ensureNoteColumns(current_id, kept);
 }
 
 void

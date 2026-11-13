@@ -38,6 +38,16 @@ and fifth, like C E G). Not to be confused with a keyboard
 *shortcut* (a key with its modifiers, `KeyStroke` in the code) or a *key
 sequence* (several shortcuts in a row, such as `C-x C-s`).
 
+**Chord completion**
+What the pattern editor adds to the notes played when its cursor is wider
+than one note column: the other notes of a chord of the song's scale that
+contains them (user-interface.md, Chord entry). Otonal and utonal songs only.
+
+**Cursor width**
+How many note columns of its row the pattern editor's cursor covers, 1 to 4;
+the size of the chord an entry is completed to. Not the region, which the
+mark makes.
+
 **Clip launcher**
 The grid of clips inside Live View: one column per track, one row per scene,
 each slot triggered on the next bar. On a Launchpad it is the pad grid in the
