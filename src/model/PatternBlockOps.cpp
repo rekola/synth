@@ -643,3 +643,17 @@ void tuneNewNote(const Song & song, int track_id, Note & note) {
   auto scale = just_intonation::scaleCorrectionsFor(song.getTuning(), song.getScale(), song.getKey());
   if (auto cents = scale.forNote(note.getValue())) note.setTuningCorrection(*cents);
 }
+
+int usedNoteColumns(const Song & song, int track_id) {
+  VisibleTrackInfo info;
+  info.num_subtracks_ = 0;
+  auto arrangement = song.getArrangement();
+  auto patterns = arrangement.getPatternsByTrack();
+  for (auto & [id, pattern] : patterns) {
+    if (id == track_id) pattern.updateSubtrackInfo(info);
+  }
+  for (auto clip : song.getClips(track_id)) {
+    if (!clip.hasSample()) clip.getLeafPattern().updateSubtrackInfo(info);
+  }
+  return info.num_subtracks_;
+}

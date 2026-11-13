@@ -210,6 +210,61 @@ while a take is still recording, and they leave a clip that is playing (or
 queued, or being recorded) alone: an undo that would change its notes says so
 and waits until the clip is stopped.
 
+## Chord entry
+
+The pattern editor's cursor is 1 to 4 note columns wide. `widen-cursor`
+extends it to the right and `narrow-cursor` takes columns off its right end;
+the left edge stays. It lies within one row and one track, and keeps its width
+as it moves and after an entry, until you change it. The width has nothing to
+do with the mark: neither changes the other. With no mark, the region is the
+cursor, so cut, copy and transpose take all the columns it covers.
+
+**Note columns follow the notes.** Widening the cursor past a track's last
+note column adds one, and so does a chord, a paste or a recording that needs
+more; a track has at most 8. Narrowing removes none, and a track never loses
+a column while the cursor is in it. The empty columns at the right end of a
+track go when the cursor leaves the track and when the song is saved (an
+empty column with a used one to its right stays). `add-note-column` and
+`remove-note-column` are in the command palette and have no shortcut.
+
+**Completion.** In a song whose scale is otonal or utonal, a cursor of N
+columns (N above 1) completes the notes you play to a chord of N notes of the
+scale. The lowest note played is the degree. Its chords
+([extended-diamond.md](extended-diamond.md)) are tried in order: the seventh
+chords, a stand-alone triad, then the major sevenths and the 7♯9 chords. The
+first that contains every other note played, octaves aside, is written: the
+notes played keep their octaves, and the chord's other notes are added from
+its lowest upward, within the octave above the lowest note played, until
+there are N. A chord of fewer notes than N is written whole and not padded.
+Nothing is ever added below the lowest note played, so E with A♯↑ at four
+columns gives E G A♯↑ C.
+
+The chord is written in rising order from the cursor's first column, on one
+row, the added notes with the velocity and delay of the played ones; every
+column under the cursor is rewritten, and one the chord does not use is
+emptied. The status line shows its name: "C harmonic seventh", or "F harmonic
+seventh / D♯" for a chord read upward from another of its notes. Three notes
+that make a major, minor, narrow major, narrow minor, septimal diminished or
+mirror diminished triad on the lowest take the triad's name ("C major");
+other chords written short say how many notes they have. One entry is one
+undo step.
+
+A played note is written and sounds as its key goes down. The completion
+comes when no further key has been pressed for about 0.1 s, or when the keys
+are all released, whichever is first: held keys are joined by the added
+notes, and after a quick tap the whole chord sounds for a moment. Another key
+pressed while keys are held works the chord out again from the held notes.
+The cursor steps on when the keys are released. On a terminal that reports
+no key releases the completion comes when the 0.1 s have passed, and the
+cursor steps on then.
+
+Nothing is added when the cursor is one column wide, when you play as many
+notes as the cursor is wide or more (all are written, the track gaining
+columns if it needs them), when the lowest note is not a note of the scale,
+and when no chord of the degree contains all the notes, which the status line
+says. Other scales have no chords: the cursor widens all the same, and notes
+played together are written side by side as they are played.
+
 ## Just intonation
 
 `apply-just-intonation-region` (M-x or the Edit menu, no key binding) gives

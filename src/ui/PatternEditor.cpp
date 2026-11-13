@@ -16,6 +16,7 @@
 #include "../playback/MidiNoteInput.h"
 #include "../playback/PlaybackControlEvent.h"
 #include "../model/ArrangementOps.h"
+#include "../model/Chords.h"
 #include "../model/Clip.h"
 #include "../util/Utf8.h"
 
@@ -651,6 +652,9 @@ PatternEditor::PatternEditor(Plane & parent)
     getController().removeNoteColumn(track_id);
   });
 
+  commands_.define("widen-cursor", [this]() { changeCursorWidth(1); });
+  commands_.define("narrow-cursor", [this]() { changeCursorWidth(-1); });
+
   // "send-a-mode"/"send-b-mode" are NOT defined here (or anywhere in
   // commands_) - they mutate nothing outside a single Launchpad device's
   // own transient UI state (which grid mode it's showing), never Song/
@@ -685,8 +689,6 @@ PatternEditor::PatternEditor(Plane & parent)
   keymap_.bind(KeymapProfile::DESKTOP, KeyStroke::pack('r', true, false, false, false), "rename");
   keymap_.bind(KeyStroke::pack(Key::Up, false, false, false, false), "move-row-up");        // plain Up (was inline handling)
   keymap_.bind(KeyStroke::pack(Key::Down, false, false, false, false), "move-row-down");    // plain Down
-  keymap_.bind(KeyStroke::pack(Key::Right, true, false, true, false), "add-note-column");   // Ctrl+Shift+Right
-  keymap_.bind(KeyStroke::pack(Key::Left, true, false, true, false), "remove-note-column"); // Ctrl+Shift+Left
 
   assertCommandBindingsValid();
 }
@@ -1214,6 +1216,8 @@ PatternEditor::getEffectiveSelectionBounds(const Song & song, const vector<int> 
     auto max_note = max(track_info.num_subtracks_ - 1, 0);
     b.note_lo = clamp(track_info.getNoteNumber(k_lo), 0, max_note);
     b.note_hi = clamp(track_info.getNoteNumber(k_hi), 0, max_note);
+    // With no mark the region is the cursor, as wide as it is.
+    if (!has_mark) b.note_hi = min(b.note_lo + cursor_width_ - 1, max_note);
   }
   if (b.scope != SelectionScope::COMMAND) clampToSources(b); // commands live on the background, whatever supplies the notes
 
@@ -1259,8 +1263,10 @@ PatternEditor::render(const StyleProvider & styles, bool refresh, bool focused) 
   } rows_guard(*this);
   auto & info = getController().getPlaybackInfo();
   auto & song = getController().getSong();
+  tickChordEntry();
+  syncNoteColumns(song);
   syncCursorTrack(song);
-  getController().setNoteHeld(!active_keyboard_notes_.empty()); // heals a hold whose release never arrived
+  getController().setNoteHeld(!active_keyboard_notes_.empty() || chord_entry_.open); // heals a hold whose release never arrived
   auto point = source_->cursor();
   {
     auto last_row = std::max(song.getArrangementLength(), point.row + 1) - 1;
@@ -1796,6 +1802,13 @@ PatternEditor::loadEditingState(const string & name) {
 
 void
 PatternEditor::handleBufferChanged() {
+  // Track ids and an open entry belong to the song that was left.
+  columns_track_id_ = -1;
+  audition_ = Audition();
+  if (chord_entry_.open) {
+    chord_entry_ = ChordEntry();
+    getController().setNoteHeld(false);
+  }
   // Prune any buffer_states_ entry for a name that isn't actually open any
   // more - reached whenever a buffer gets killed, or renamed (its old key
   // stops being open the moment Controller::renameActiveBuffer() renames
@@ -2036,7 +2049,20 @@ bool PatternEditor::keyUp(const cellui::KeyUp & e) {
   // write an explicit off at the row the transport has since reached
   // - unless that's still the note's own row, which would erase the
   // note it belongs to instead of ending it.
-  if (transport_owns_row) {
+  if (held.chord) {
+    // A chord entry ends with its last key: the completion still owed is
+    // written now, and the offs go in all its columns together.
+    if (active_keyboard_notes_.empty() && chord_entry_.open) {
+      if (chord_entry_.pending) applyChordCompletion(true);
+      auto release_row = info.getAbsolutePosition();
+      if (transport_owns_row && release_row != held.row) {
+        for (int i = 0; i < chord_entry_.written; i++) {
+          getController().writeReleaseOff(auto_record_cleared_rows_, auto_started_playback_, release_row, held.track_id, chord_entry_.column + i, info.getCurrentDelay());
+        }
+      }
+      finishChordEntry();
+    }
+  } else if (transport_owns_row) {
     auto release_row = info.getAbsolutePosition();
     if (release_row != held.row) {
       getController().writeReleaseOff(auto_record_cleared_rows_, auto_started_playback_, release_row, held.track_id, held.note_column, info.getCurrentDelay());
@@ -2105,6 +2131,9 @@ bool PatternEditor::keyDown(const cellui::KeyDown & e) {
 
   // While the locator or track-name editor is open it owns every key.
   if (inline_editor_.key(e)) return true;
+
+  // A chord entry whose time is up is completed before the next key acts.
+  tickChordEntry();
 
   pointer_scroll_ = false;
 
@@ -2486,7 +2515,12 @@ bool PatternEditor::keyDown(const cellui::KeyDown & e) {
 
         if (is_repeat && midi_note >= 0) return true; // already sounding - nothing to redo
 
-	// Without key releases a chord can't be told from quick taps by hold
+        // A cursor wider than a column takes the keys played together as one chord entry.
+        if (midi_note >= 0 && !e.mods.shift && cursor_width_ > 1 && entry_track && song.getTuningForTrack(*entry_track) != Tuning::PERCUSSION) {
+          return enterChordKey(e, track_id, midi_note, note_column, point, current_delay, transport_owns_row);
+        }
+
+        // Without key releases a chord can't be told from quick taps by hold
 	// state, but its keys arrive together: one that does goes onto the
 	// chord's row, in the next note column, and leaves the cursor where the
 	// chord's first key put it.
@@ -4106,7 +4140,9 @@ PatternEditor::renderRow(const StyleProvider & styles, int heading_height, const
             cursor_sub_x1_ = current_pos;
           }
           bool cursor_fx = track_info.isTrackFxColumn(current_cursor.col);
-          if (track_info.isTrackFxColumn(k) == cursor_fx && (cursor_fx || track_info.getNoteNumber(k) == track_info.getNoteNumber(current_cursor.col))) {
+          int cursor_note = track_info.getNoteNumber(current_cursor.col);
+          bool under_cursor = cursor_fx || (track_info.getNoteNumber(k) >= cursor_note && track_info.getNoteNumber(k) < cursor_note + cursor_width_);
+          if (track_info.isTrackFxColumn(k) == cursor_fx && under_cursor) {
             cursor_x0_ = cursor_x0_ < 0 ? cell_x0 : std::min(cursor_x0_, cell_x0);
             cursor_x1_ = std::max(cursor_x1_, current_pos);
           }
@@ -4363,4 +4399,238 @@ PatternEditor::renderRow(const StyleProvider & styles, int heading_height, const
       }
     }
   }
+}
+
+void PatternEditor::changeCursorWidth(int delta) {
+  auto & controller = getController();
+  auto & song = controller.getSong();
+  auto track_ids = trackIds(song);
+  if (track_ids.empty() || current_cursor.track < 0 || current_cursor.track >= static_cast<int>(track_ids.size())) return;
+  int width = cursor_width_ + delta;
+  if (width < 1) {
+    controller.log("The cursor is one column wide");
+    return;
+  }
+  if (width > kMaxCursorWidth) {
+    controller.log(fmt::format("The cursor is at its widest ({} columns)", kMaxCursorWidth));
+    return;
+  }
+  if (delta > 0) {
+    auto track_id = track_ids[static_cast<size_t>(current_cursor.track)];
+    auto track = song.getMasterTrack().getChildByInternalId(track_id);
+    auto info = getTrackInfoFor(song, track_id);
+    bool on_notes = track && dynamic_cast<const LeafTrack *>(track) && track->getType() != TrackType::SAMPLE && info.has_note_column_ && !info.collapsed_ &&
+                    !current_cursor.isOnLocator() && !info.isTrackFxColumn(current_cursor.col);
+    if (!on_notes) {
+      controller.log("The cursor widens over note columns only");
+      return;
+    }
+    // Past the track's last note column, the track gains one.
+    int columns = info.getNoteNumber(current_cursor.col) + width;
+    if (columns > LeafTrack::kMaxNoteColumns) {
+      controller.log(fmt::format("A track has at most {} note columns", LeafTrack::kMaxNoteColumns));
+      return;
+    }
+    if (columns > info.num_subtracks_) controller.ensureNoteColumns(track_id, columns);
+  }
+  cursor_width_ = width;
+  force_full_redraw_ = true;
+  controller.log(fmt::format("Cursor width: {}", width));
+}
+
+void PatternEditor::syncNoteColumns(const Song & song) {
+  auto track_ids = trackIds(song);
+  int track_id = new_cursor.track >= 0 && new_cursor.track < static_cast<int>(track_ids.size()) ? track_ids[static_cast<size_t>(new_cursor.track)] : -1;
+  if (track_id == columns_track_id_) return;
+  if (columns_track_id_ >= 0) getController().trimNoteColumns(columns_track_id_);
+  columns_track_id_ = track_id;
+}
+
+Note PatternEditor::chordNote(const Song & song, int value) const {
+  Note note(value, constants::DEFAULT_NOTE_ON_VELOCITY, chord_entry_.delay);
+  tuneNewNote(song, chord_entry_.track_id, note);
+  return note;
+}
+
+int PatternEditor::freeVoiceColumn(int track_id, int from) const {
+  auto taken = [&](int column) {
+    for (auto & [key, note] : active_keyboard_notes_) {
+      if (note.track_id == track_id && note.note_column == column) return true;
+    }
+    auto & s = chord_entry_;
+    return std::find(s.voices.begin(), s.voices.end(), column) != s.voices.end() ||
+           std::find(s.added_voices.begin(), s.added_voices.end(), column) != s.added_voices.end();
+  };
+  int column = from;
+  while (taken(column)) column++;
+  return column;
+}
+
+bool PatternEditor::enterChordKey(const cellui::KeyDown & e, int track_id, int midi_note, int note_column, RowAddress point, int delay, bool transport_owns_row) {
+  auto & controller = getController();
+  auto & song = controller.getSong();
+  auto & queue = controller.getPlaybackEventQueue();
+  auto buffer = controller.getActiveBufferName();
+  endAudition();
+  if (chord_entry_.open && (chord_entry_.track_id != track_id || chord_entry_.hold != e.release_reported)) finishChordEntry();
+  auto & s = chord_entry_;
+
+  bool rewrite = false;
+  if (!s.open) {
+    // The entry is an undo step of its own, not part of a run of typed notes.
+    song.breakTypingRun();
+    controller.setNoteHeld(true);
+    s = ChordEntry();
+    s.open = true;
+    s.hold = e.release_reported;
+    s.track_id = track_id;
+    s.row = point;
+    s.column = note_column;
+    s.width = cursor_width_;
+    s.delay = delay;
+  } else if (s.applied) {
+    // Another key while keys are held: the chord is worked out again from
+    // the held notes, and what the earlier completion added goes.
+    for (auto column : s.added_voices) queue.push(make_unique<PlaybackControlEvent>(PlaybackControlEvent::STOP_NOTE, buffer, track_id, column));
+    s.added_voices.clear();
+    std::vector<std::pair<int, int>> held;
+    for (auto & [key, note] : active_keyboard_notes_) {
+      if (note.chord) held.emplace_back(note.order, note.value);
+    }
+    std::sort(held.begin(), held.end());
+    s.given.clear();
+    for (auto & [order, value] : held) s.given.push_back(value);
+    s.applied = false;
+    rewrite = true;
+  }
+  if (std::find(s.given.begin(), s.given.end(), midi_note) != s.given.end()) return true;
+  s.given.push_back(midi_note);
+
+  int count = static_cast<int>(s.given.size());
+  {
+    Song::Edit edit(song, "enter chord", Song::Edit::Kind::CONTENT);
+    auto target = source_->edit(track_id, s.row);
+    if (rewrite) {
+      int columns = std::max({s.width, s.written, count});
+      for (int i = 0; i < columns; i++) {
+        target.pattern->setNote(target.effective_row, s.column + i, i < count ? chordNote(song, s.given[static_cast<size_t>(i)]) : Note());
+      }
+      s.written = count;
+    } else {
+      target.pattern->setNote(target.effective_row, s.column + count - 1, chordNote(song, midi_note));
+      s.written = std::max(s.written, count);
+    }
+  }
+  controller.ensureNoteColumns(track_id, s.column + count);
+
+  int voice = freeVoiceColumn(track_id, s.column);
+  if (controller.isMonitoring(track_id)) {
+    queue.push(make_unique<PlaybackControlEvent>(PlaybackControlEvent::PLAY_NOTE, buffer, track_id, voice, midi_note, constants::DEFAULT_NOTE_ON_VELOCITY));
+  }
+  if (s.hold) {
+    ActiveKeyboardNote held{voice, controller.getPlaybackInfo().getAbsolutePosition(), track_id};
+    held.value = midi_note;
+    held.chord = true;
+    held.order = s.next_order++;
+    active_keyboard_notes_[e.key] = held;
+  } else {
+    s.voices.push_back(voice);
+  }
+  s.pending = true;
+  s.deadline = e.timestamp + ChordGrouper::kWindow;
+  row_edited = true;
+  if (!transport_owns_row) pending_step_ = edit_step_size;
+  return true;
+}
+
+void PatternEditor::applyChordCompletion(bool released) {
+  auto & controller = getController();
+  auto & song = controller.getSong();
+  auto & s = chord_entry_;
+  s.pending = false;
+  auto track = song.getMasterTrack().getChildByInternalId(s.track_id);
+  if (!track) return;
+  chords::ScaleChords scale(song.getScale(), song.getTuningForTrack(*track), song.getKey());
+  auto result = chords::complete(scale, s.given, s.width);
+  if (result.status == chords::Status::NO_CHORD) controller.log("No chord of the scale contains these notes");
+  if (result.status != chords::Status::OK) return;
+
+  // Every column under the cursor is rewritten, in rising order; one the chord does not use is emptied.
+  auto & chord = result.chords[0];
+  int count = static_cast<int>(chord.notes.size());
+  {
+    Song::Edit edit(song, "complete chord", Song::Edit::Kind::CONTENT);
+    auto target = source_->edit(s.track_id, s.row);
+    int columns = std::max({s.width, s.written, count});
+    for (int i = 0; i < columns; i++) {
+      target.pattern->setNote(target.effective_row, s.column + i, i < count ? chordNote(song, chord.notes[static_cast<size_t>(i)]) : Note());
+    }
+  }
+  s.written = count;
+  s.applied = true;
+  controller.ensureNoteColumns(s.track_id, s.column + count);
+  controller.log(chord.name);
+  row_edited = true;
+  if (!controller.isMonitoring(s.track_id)) return;
+
+  auto & queue = controller.getPlaybackEventQueue();
+  auto buffer = controller.getActiveBufferName();
+  auto play = [&](int column, int value) {
+    queue.push(make_unique<PlaybackControlEvent>(PlaybackControlEvent::PLAY_NOTE, buffer, s.track_id, column, value, constants::DEFAULT_NOTE_ON_VELOCITY));
+  };
+  bool given_sound = !released || !s.voices.empty();
+  std::vector<int> played;
+  for (auto value : chord.notes) {
+    // The notes still sounding are joined by the added ones; after a quick tap the whole chord is played.
+    if (given_sound && std::find(s.given.begin(), s.given.end(), value) != s.given.end()) continue;
+    int column = freeVoiceColumn(s.track_id, s.column);
+    play(column, value);
+    s.added_voices.push_back(column);
+    played.push_back(column);
+  }
+  if (released) {
+    audition_.active = true;
+    audition_.track_id = s.track_id;
+    audition_.columns = s.voices;
+    audition_.columns.insert(audition_.columns.end(), played.begin(), played.end());
+    audition_.until = std::chrono::steady_clock::now() + kAuditionTime;
+    s.voices.clear();
+    s.added_voices.clear();
+  }
+}
+
+void PatternEditor::finishChordEntry() {
+  auto & s = chord_entry_;
+  if (!s.open) return;
+  auto & controller = getController();
+  for (auto column : s.added_voices) {
+    controller.getPlaybackEventQueue().push(make_unique<PlaybackControlEvent>(PlaybackControlEvent::STOP_NOTE, controller.getActiveBufferName(), s.track_id, column));
+  }
+  s = ChordEntry();
+  controller.setNoteHeld(false);
+  controller.getSong().breakTypingRun();
+}
+
+void PatternEditor::endAudition() {
+  if (!audition_.active) return;
+  auto & controller = getController();
+  for (auto column : audition_.columns) {
+    controller.getPlaybackEventQueue().push(make_unique<PlaybackControlEvent>(PlaybackControlEvent::STOP_NOTE, controller.getActiveBufferName(), audition_.track_id, column));
+  }
+  audition_ = Audition();
+}
+
+void PatternEditor::tickChordEntry() {
+  auto now = std::chrono::steady_clock::now();
+  if (chord_entry_.open && chord_entry_.pending && now >= chord_entry_.deadline) {
+    // With no releases to wait for, the entry ends here and the cursor steps on.
+    bool released = !chord_entry_.hold;
+    applyChordCompletion(released);
+    if (released) {
+      finishChordEntry();
+      if (pending_step_ != 0) source_->moveCursor(limitToSelectionPattern(pending_step_));
+      pending_step_ = 0;
+    }
+  }
+  if (audition_.active && now >= audition_.until) endAudition();
 }
