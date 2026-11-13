@@ -16,6 +16,8 @@
 #include "ScenePatternSource.h"
 #include "InlineEditor.h"
 #include "LevelMeter.h"
+#include "../model/Chords.h"
+#include "../model/Version.h"
 
 #include <cellui/Fade.h>
 #include <cellui/WheelAcceleration.h>
@@ -55,10 +57,11 @@ class PatternEditor : public UIElement {
   // Mirrors StatusLine::isReaderActive(): while this widget's inline editor
   // is open, UI::keyDown() must not let a global keybinding (Space/
   // toggle-playing, C-x C-c/quit, ...) steal a keystroke meant for it.
-  bool isReaderActive() const { return inline_editor_.isOpen(); }
+  bool isReaderActive() const { return inline_editor_.isOpen() || chord_palette_.open; }
+  bool wantsBareEscape() const override { return chord_palette_.open; }
   // The focus level is still easing: the loop keeps drawing frames.
   bool isAnimating() const {
-    return fades_.active() || focus_fade_drawn_ || rowsShifted() || flash_decaying_ || chord_entry_.pending || audition_.active || !arpeggio_.values.empty();
+    return fades_.active() || focus_fade_drawn_ || rowsShifted() || flash_decaying_ || chord_entry_.pending || palette_drawn_ != chord_palette_.open || audition_.active || !arpeggio_.values.empty();
   }
 
   // The cursor covers this many note columns of its row, from its own
@@ -471,6 +474,56 @@ private:
   void tickChordEntry();
   int freeVoiceColumn(int track_id, int from) const;
   Note chordNote(const Song & song, int value) const;
+
+  // The last note entry: what the chord palette acts on while nothing has
+  // been edited or moved since. `given` are the notes played, not the ones a
+  // completion added.
+  struct LastEntry {
+    bool valid = false;
+    bool fresh = false; // the cursor has yet to step on from it
+    int track_id = -1;
+    RowAddress row;
+    int column = 0;
+    std::vector<int> given;
+    Version version;
+    RowAddress cursor;
+    int cursor_track = 0, cursor_col = 0;
+  };
+  LastEntry last_entry_;
+  void recordEntryNote(int track_id, RowAddress row, int column, int value);
+  // Notes where the song and the cursor are once the entry's step is made.
+  void settleLastEntry();
+
+  // The chord palette: the completions of some given notes at a size, one a
+  // line; moving the selection writes the selected chord and plays it.
+  struct ChordPalette {
+    bool open = false;
+    int track_id = -1;
+    RowAddress row;
+    int column = 0;
+    std::vector<int> given;
+    int size = 4;
+    int span = 0; // note columns the session rewrites, from `column`
+    std::vector<Note> original;
+    std::vector<chords::Completion> lines;
+    std::vector<std::string> spelled; // each line's notes by name
+    int selected = 0;
+  };
+  ChordPalette chord_palette_;
+  static constexpr int kPaletteColumns = 4;
+  int palette_size_ = 4; // the size last used with a cursor of one column
+  bool palette_drawn_ = false;
+  std::unique_ptr<Plane> palette_plane_;
+  // Opens the palette on the next (1) or previous (-1) chord, or moves an open one.
+  void stepChordPalette(int direction);
+  void fillChordPalette();
+  void writePaletteChord();
+  void resizeChordPalette(int delta);
+  void closeChordPalette(bool accept);
+  bool chordPaletteKey(const cellui::KeyDown & e);
+  void renderChordPalette();
+  // The pitched notes side by side from a note column, at most kPaletteColumns.
+  std::vector<int> chordAt(int track_id, RowAddress row, int column);
 
   // Rows the cursor still owes the notes entered while keys were held: a
   // chord's keys all land on one row, and the cursor steps once the last

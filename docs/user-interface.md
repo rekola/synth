@@ -269,6 +269,45 @@ and when no chord of the degree contains all the notes, which the status line
 says. Other scales have no chords: the cursor widens all the same, and notes
 played together are written side by side as they are played.
 
+## Chord palette
+
+`next-chord` and `previous-chord` open the chord palette, a list of a
+degree's chords to choose from, across the bottom rows of the pattern editor
+like the command palette. It works like a candidate window in Japanese text
+input: the chord is already written when the palette opens, and each move
+writes another.
+
+- **What it acts on.** If the last thing you did was enter notes, and nothing
+  has been edited or moved since, it acts on that entry, although the cursor
+  has stepped on: the given notes are the notes you played, not the ones a
+  completion added. Otherwise it acts at the cursor, and the note in the
+  cursor's first column is the one given note. To change a chord entered
+  earlier, put the cursor on its lowest note and open the palette. With no
+  note there, a note that is not a note of the scale, or a song whose scale
+  is not otonal or utonal, the palette does not open and the status line says
+  why.
+- **Size.** The chords of the palette have 2 to 4 notes. The size starts at
+  the cursor's width; with a cursor of one column, at the size last used
+  there, 4 the first time. So with a narrow cursor you can play one or more
+  notes and open the palette to complete them. While it is open,
+  `widen-cursor` and `narrow-cursor` change the size and leave the cursor's
+  width alone.
+- **Lines.** One line per completion of the given notes at that size, found
+  as for [chord entry](#chord-entry) and in the same order, no chord twice:
+  its name, then its notes.
+- **Opening steps on.** If the chord now in the pattern is in the list,
+  `next-chord` opens on the one after it and `previous-chord` on the one
+  before; otherwise on the first, or the last. Pressing again moves on, round
+  the list, so one key steps through the choices.
+- **Moving** (Up and Down; C-n and C-p as well on the terminal keymap) writes
+  the selected chord in place of the last and plays it on the track's
+  instrument, tuned as it sounds in the song, for a moment or until the
+  selection moves. A chord of fewer notes empties the columns it leaves.
+- **Enter** accepts; so does any other key, which then does what it always
+  does, and a click. **Escape** (C-g on the terminal keymap) cancels and puts
+  back the notes that were there when the palette opened.
+- One session is one undo step, however many chords were tried.
+
 ## Just intonation
 
 `apply-just-intonation-region` (M-x or the Edit menu, no key binding) gives

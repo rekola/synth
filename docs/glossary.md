@@ -43,6 +43,11 @@ What the pattern editor adds to the notes played when its cursor is wider
 than one note column: the other notes of a chord of the song's scale that
 contains them (user-interface.md, Chord entry). Otonal and utonal songs only.
 
+**Chord palette**
+The list of a degree's chords the pattern editor offers for the notes of an
+entry or the note under the cursor; moving through it writes and plays each
+(user-interface.md, Chord palette).
+
 **Cursor width**
 How many note columns of its row the pattern editor's cursor covers, 1 to 4;
 the size of the chord an entry is completed to. Not the region, which the
