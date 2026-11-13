@@ -691,15 +691,25 @@ void BufferPlane::drawReader() {
   p.erase();
   p.style_ = CellBuffer::Style{};
   p.style_.fg = reader_color_;
+  if (reader_backdrop_) {
+    p.style_.bg = *reader_backdrop_;
+    p.putstr(0, 0, std::string(static_cast<size_t>(p.getDim().second), ' '));
+  }
   LineEditor::View v = editor_->view(p.getDim().second);
   p.putstr(0, 0, v.text);
   reader_cursor_ = v.cursor_column;
+}
+
+void BufferPlane::setReaderBackdrop(const Color & c) {
+  reader_backdrop_ = c;
+  drawReader();
 }
 
 std::string BufferPlane::closeReader() {
   std::string text = editor_ ? editor_->text() : "";
   if (root().active_reader_ == this) root().active_reader_ = nullptr;
   editor_.reset();
+  reader_backdrop_.reset();
   reader_plane_.reset();
   indicator_.reset();
   return text;
