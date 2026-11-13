@@ -1,10 +1,12 @@
 #pragma once
 
+#include <cellui/CellBorder.h>
 #include <cellui/CellBuffer.h>
 #include <cellui/Image.h>
 #include <cellui/LinkStatus.h>
 #include <cellui/term/Capabilities.h>
 
+#include <array>
 #include <cstdint>
 #include <map>
 #include <set>
@@ -81,7 +83,11 @@ class ImageEncoder {
 
   // `frame` is the composed frame, its image cells marked; `cleared` says
   // the screen is cleared before these bytes, taking every image with it.
-  std::string encode(const CellBuffer & frame, const std::vector<ImagePlacement> & images, bool cleared);
+  // `borders` are the cell borders to show (kitty only; see CellBorder): each edge is a placement of a
+  // picture made once per colour and edge and kept for good, so a frame sends only the placements
+  // that came and went.
+  std::string encode(const CellBuffer & frame, const std::vector<ImagePlacement> & images, bool cleared,
+                     const std::vector<CellBorder> & borders = {});
   // The bytes the last encode() made: picture data (kitty uploads, Sixel and
   // iTerm2 images) and placement (positioning, placements and deletions).
   struct Sizes {
@@ -145,6 +151,7 @@ class ImageEncoder {
   };
 
   void uploadKitty(const Image & img, uint32_t id, std::string & out);
+  std::string kittyBorders(const std::vector<CellBorder> & borders, bool cleared);
   std::string kittySharedPlacement(const CellBuffer & frame, const ImagePlacement & p, Shown & shown, bool fresh, bool cleared);
   void evictSharedUploads(const std::set<uint32_t> & in_use, std::string & out);
   std::string kitty(const CellBuffer & frame, const ImagePlacement & p, Shown & shown, bool fresh, bool cleared);
@@ -167,6 +174,14 @@ class ImageEncoder {
   std::set<uint32_t> deflated_ids_;  // kitty ids uploaded compressed and not yet confirmed
   Sizes sizes_;
   std::map<std::string, PictureStat> picture_stats_;
+
+  // (kitty) The border pictures, one for each edge (CellEdge order) of a colour (0xRRGGBB), uploaded on
+  // first use and never freed or evicted while the application runs (clear() frees them).
+  std::map<uint32_t, std::array<uint32_t, 4>> border_images_;
+  // What is placed: (row, col, edge index, colour) and its placement id.
+  using BorderKey = std::array<uint32_t, 4>;
+  std::map<BorderKey, uint32_t> border_placed_;
+  uint32_t next_border_place_ = 0;
 };
 
 // The pixels encoded as Sixel: covered pixels (where `keep` says false, one

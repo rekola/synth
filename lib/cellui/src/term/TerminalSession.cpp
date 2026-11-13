@@ -598,7 +598,7 @@ void TerminalSession::pumpFrame() {
   if (!frame_presented_ && held_) {
     Held held = std::move(*held_);
     held_.reset();
-    sendFrame(held.frame, held.cursor, held.images, held.layers);
+    sendFrame(held.frame, held.cursor, held.images, held.layers, held.borders);
   }
 }
 
@@ -609,20 +609,22 @@ void TerminalSession::present(const CellBuffer & frame, const CursorRequest & cu
     updateMouseCursor();
   }
   static const std::vector<BackdropLayer> kNoLayers;
+  static const std::vector<CellBorder> kNoBorders;
   const std::vector<BackdropLayer> & layers = info ? info->backdrops : kNoLayers;
+  const std::vector<CellBorder> & borders = info ? info->borders : kNoBorders;
   if (!pacing_ || in_frame_) {
     held_.reset();
-    sendFrame(frame, cursor, images, layers);
+    sendFrame(frame, cursor, images, layers, borders);
     return;
   }
   // Presented outside a turn of the pacer's (a status message, say): the
   // latest one is kept and sent when a frame may start.
-  held_ = Held{frame, cursor, images, layers};
+  held_ = Held{frame, cursor, images, layers, borders};
   pacer_.requestFrame();
 }
 
 void TerminalSession::sendFrame(const CellBuffer & frame, const CursorRequest & cursor, const std::vector<ImagePlacement> & images,
-                                const std::vector<BackdropLayer> & layers) {
+                                const std::vector<BackdropLayer> & layers, const std::vector<CellBorder> & borders) {
   frame_presented_ = true;
   // What the link is worth decides how many colours a picture keeps.
   images_.setPictureQuality(pictureQualityFor(link_.status().cls));
@@ -634,10 +636,10 @@ void TerminalSession::sendFrame(const CellBuffer & frame, const CursorRequest & 
     std::vector<ImagePlacement> placements = images;
     backdrops_.setMode(backdropModeFor(link_.status().cls, caps_.display.pictures && caps_.display.cell_px_height > 0));
     backdrops_.apply(shown, placements, layers, caps_.display);
-    std::string pixels = images_.encode(shown, placements, encoder_.willClear(shown));
+    std::string pixels = images_.encode(shown, placements, encoder_.willClear(shown), borders);
     body = encoder_.encode(shown, cursor, pixels);
   } else {
-    std::string pixels = images_.encode(frame, images, encoder_.willClear(frame));
+    std::string pixels = images_.encode(frame, images, encoder_.willClear(frame), borders);
     body = encoder_.encode(frame, cursor, pixels);
   }
   if (body.empty()) return;  // nothing changed: no bytes, no frame

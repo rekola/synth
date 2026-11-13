@@ -1,6 +1,7 @@
 #pragma once
 
 #include <cellui/BackdropLayer.h>
+#include <cellui/CellBorder.h>
 #include <cellui/MouseCursor.h>
 #include <cellui/TextStyle.h>
 
@@ -96,6 +97,9 @@ struct FrameInfo {
   // (lowest first): the last one over a cell sets its shape, and a cell none
   // covers has the arrow. Always given.
   std::vector<CursorArea> mouse_cursors;
+  // The borders to draw over cells, in screen cells, for a display that draws bands by whole cells
+  // and has pictures. Always given.
+  std::vector<CellBorder> borders;
 };
 
 // The pointer's shape over a cell.

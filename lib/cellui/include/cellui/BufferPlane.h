@@ -169,6 +169,9 @@ class BufferPlane : public Plane {
   // The areas planes asked a pointer shape for in the last refresh(), lowest
   // first (root only).
   std::vector<CursorArea> takeMouseCursors() { return std::move(mouse_cursors_); }
+  // The cell borders of the bands the last refresh() laid over whole cells (the display cannot draw a
+  // band by parts of a cell), minus the cells a plane above wrote to (root only).
+  std::vector<CellBorder> takeBorders() { return std::move(borders_); }
   // The areas of the planes that have an owner (Plane::owner()) in the last
   // refresh(), lowest first: the last one over a cell is the topmost (root
   // only).
@@ -267,6 +270,10 @@ class BufferPlane : public Plane {
   mutable std::vector<BackdropLayer> layers_;
   mutable std::vector<ElevatedArea> elevations_;
   std::vector<CursorArea> mouse_cursors_;
+  mutable std::vector<CellBorder> borders_;
+  // Forgets the borders on a cell something was drawn over.
+  void coverBorders(int row, int col) const;
+  void addBandBorders(const Band & band, int row, int col, int row_lo, int row_hi, int col_lo, int col_hi) const;
   std::vector<HitArea> hit_areas_;
   bool flat_ = false;
   bool themed_bases_ = false;

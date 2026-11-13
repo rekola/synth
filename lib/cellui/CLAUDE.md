@@ -123,7 +123,13 @@ carries the app's object as an opaque `getAppContext()`.
   encoded sRGB). The window draws it as a GSK blend node cross-faded by alpha;
   a display that cannot scroll by parts of a cell gets the band laid over the
   whole cells it reaches, blending their colours — one primitive, the same
-  look everywhere. `Plane::setBlend(mode, alpha)` blends a whole plane the
+  look everywhere. On such a display the band's border (any fill alpha) is composed into
+  `CellBorder`s (`FrameInfo::borders`, screen cells, `CellEdge` bits: the edges `bandBorder()` gives, by
+  whole cells; width, radius and alpha are not used; a cell a later plane writes to loses its border). The
+  kitty encoder draws each as a placement of a 1-pixel picture over the cell
+  (`ImageEncoder::encode(..., borders)`: four pictures per colour, one for each edge, uploaded once and kept
+  for good, freed only by `clear()`; placed with `C=1`, diffed frame to frame, a removal keeps the
+  picture). Other displays ignore them. `Plane::setBlend(mode, alpha)` blends a whole plane the
   same way. `Band::lift` raises a band above shadows so a lower area's shadow
   never falls on a cursor or playhead.
 - `Plane::drawSharedImageAt(row, col, ImageKey{kind, id}, w, h, render)`: a picture

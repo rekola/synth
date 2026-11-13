@@ -38,6 +38,7 @@ struct Page {
   std::unique_ptr<cellui::Gallery> gallery;
   // The proportional text a display sets itself; cells mark the run they belong to.
   std::vector<cellui::TextRun> text_runs;
+  std::vector<cellui::CellBorder> borders;
 
   explicit Page(const cellui::DisplayInfo & display) {
     plane.setProportionalText(display.proportional_text);
@@ -48,6 +49,7 @@ struct Page {
     gallery = std::make_unique<cellui::Gallery>(plane, theme, display);
     plane.refresh();
     text_runs = plane.takeTextRuns();
+    borders = plane.takeBorders();
   }
 };
 
@@ -71,6 +73,10 @@ struct Page {
   for (auto & placement : images) placement.row -= top;
   cellui::FrameInfo info;
   info.text_runs = page.text_runs;
+  for (cellui::CellBorder border : page.borders) {
+    border.row -= top;
+    if (border.row >= 0 && border.row < view) info.borders.push_back(border);
+  }
   backend.present(screen, {}, images, &info);
 }
 
