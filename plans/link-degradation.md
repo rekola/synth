@@ -612,8 +612,75 @@ deflate ratio on real charts is known.
      3.4 already do), drop to a cheaper deflate level when the CPU is the limit and the link is not,
      and keep encoding off the UI thread's critical path if a stage still dominates (a worker thread at
      lower priority than the audio, handing back the finished bytes).
+   - **Measured** (x86, 4 cores, no SIMD path for the encoder, a null audio device with 21 ms blocks;
+     `tools/pacing/cpu_load.py`, a line a second of `SYNTH_LINK_STATS` and `SYNTH_AUDIO_STATS`, 10 s of each run
+     after a warm-up, demo3 playing; percent of one core of the UI thread's CPU time):
+
+     | scenario (class) | kitty UI | kitty biggest stages | Sixel UI | Sixel biggest stages |
+     |---|---|---|---|---|
+     | Live View (full) | 22 | picture render 5.5, image encode 3.5 (deflate 2.6) | 41 | image encode 24 (palette 6.7, map 9.7, bytes 7) |
+     | Arrangement (full) | 22 | picture render 5.7, image encode 2.9 | 48 | image encode 28 (palette 7.7, map 11.3, bytes 9) |
+     | About dialog, blur live (full) | 56 | backdrop 23, image encode 11 (deflate 9) | 86 | image encode 49, backdrop 21 |
+     | Live View (15 Hz) | 28 | image encode 9.8 (palette PNG 8.5) | 31 | image encode 13 |
+     | Live View (5 Hz, 1 Hz) | 14 | picture render 0.6, image encode 2.4 | 13 | image encode 0.9 |
+     | About dialog (30, 15 Hz: the blur is kept) | 32-39 | backdrop 6, picture render 5 | 29 | backdrop 6.8 |
+
+     The rest of the UI thread (layout, the widgets, composing the planes) is the other half: 10 to 12 of the 22
+     points of Live View at full speed, and what is left at 5 Hz.
+     The audio thread, in every run: 1.5 to 2.1 % of a block's time rendering (the worst block 5 ms of 21), no
+     xruns, no late block (a late one starts more than 1.5 blocks after the one before), the longest gap between
+     blocks 22 to 34 ms. The same on one core shared with three busy loops (UI-thread CPU 5 to 15 % less, the longest gap
+     about 29 ms) and with twelve (gap 25 to 30 ms, worst block 2.4 ms, still none late). On Linux the audio thread has
+     no priority of its own, so that is the scheduler's fairness: a thread that sleeps most of the time is woken first.
+     So on this machine the UI costs the audio nothing, even starved; what it costs is its own frames. The slowest
+     machine (a Raspberry Pi class board over SSH) has not been measured, and cannot be from here.
+     What the figures say to cut, in order of CPU at full speed: the Sixel encode (24 to 49 points: the palette 7 to 10
+     and the map 10 to 12, and the bytes 7 to 9), a picture's render (5), deflate (2.5), the palette PNG at 15 Hz (8.5, of
+     which the palette and map are 6). The blur (10 to 23 points of drawing the tiles with canvas, and the deflate and
+     Sixel bytes of its pictures) is not cut here: it is phase 9, where the algorithm is chosen first.
+     Not worth it: the cell encode (about 1) and base64 (0.07 to 0.3).
+   - **First cuts** (`cellui_sixel_bench` for the encoder alone, `cpu_load.py` for the application; the bytes are the same:
+     `the_picture_encoder_makes_the_same_bytes_for_every_kind_of_picture` holds a hash made by the code before). The
+     Sixel encode: the colour counts in flat open-addressing tables in place of hash maps, the 101-level and dither
+     arithmetic from tables made from the same expressions, one pass a band to set each register's bits where each
+     register's pixels were gone over again, the nearest-register search over all registers in one loop a compiler
+     vectorises, a radix sort of the colours. A 328x80 spectrum as Sixel went from 4.3 to 1.6 ms and a 232x80 heatmap
+     from 5.8 to 2.7 ms; the palette PNG of the 15 Hz class from 2.0 to 1.3 ms and from 2.8 to 1.9 ms. In the application
+     (UI-thread CPU, percent of a core, demo3 playing): Sixel Live View at full speed 41 to 23 (image encode 24 to 9),
+     Arrangement 48 to 31 (28 to 12), Live View at 15 Hz 31 to 20 (13 to 5.7); kitty at 15 Hz 28 to 20 (the palette PNG
+     8.5 to 4.4). The audio thread: unchanged (1.5 to 1.8 % of a block, no late block).
+     Looked at and left: deflate runs at 300 to 460 MB/s on x86 and the NEON and AVX2 paths cannot be tried here; a
+     picture's render is 0.2 ms for a spectrum and 0.8 ms for the heatmap, all of it cairo's highest-quality filter
+     scaling the 26x14 grid up (a bilinear scaler of our own takes 0.1 ms but differs from it by 19 levels on average,
+     100 at worst, on a contrasty grid: a change of look, so a decision, not a cut). Still open: a palette kept from
+     one frame to the next while a picture's colours hold (it changes the bytes and so needs the error measured) and
+     the encode off the UI thread.
    - **Done when** the UI under the slowest class and the busiest scenario costs the audio thread no
      missed blocks on the slowest machine, with the per-stage figures recorded here.
+
+9. **The Sixel blur** (3.7, the backdrop). The blurred backdrop of a dialog is the biggest single cost on a Sixel
+   terminal (phase 8: 10 to 23 points of a core of drawing and blurring tiles at full speed, and a Sixel picture of
+   about 250 kB when it appears, which shows as a slide of about 50 ms on xterm) and the one with a visible
+   quality problem. The algorithm is chosen first, by measurement, before any of it is made faster. What is
+   known: a palette made from each tile gives the right colours at 252 kB and 52 ms; the terminal's own 256-colour
+   palette gives about half the bytes and time (118 kB, 27 ms) in greys with dither dots, and is what the blur uses
+   now; fixed cubes of 512 or 1000 colours are no faster dithered (214 to 220 kB) and posterise undithered (19 kB);
+   registers are private to each Sixel on xterm, so a palette sent once does not last. To try, each against the
+   others on a harness that prints, for the same dialog over the same songs: the bytes, the CPU of the blur and
+   of the encode, the time until the first picture and until the last, and an error against a reference blur
+   (mean colour distance and visible banding):
+   - **Progressive**: the fast default-palette blur first, then each block redone with a palette of its own, block
+     by block, so nothing slides in and the colours settle as they arrive; how many blocks a frame, and in which order.
+   - **One palette for the whole backdrop** (one set of colours chosen from all its tiles, sent once in the first
+     tile and shared: only if a terminal keeps registers between pictures, `?1070`), against a palette a tile.
+   - **A palette shaped for the content**: a static one with fine steps in the dark bluish range a dark backdrop
+     lives in, a few for the rest, and one per theme.
+   - **Less to draw**: the blur drawn once on a quarter-size picture and enlarged (by the terminal where it can,
+     by repeating pixels where it cannot), a box-filter approximation of the blur in place of canvas, a tile redone
+     only when the cells under it changed (already so), and a static backdrop that is not redrawn at all.
+   - **Where the time goes** first, with the stage timers (`backdrop`, `deflate`, `sixel_*`) on the blur alone.
+   Done when one algorithm is chosen on the figures, its colours are not visibly worse than the cells under it, the
+   blur appears in one frame at full speed without a slide, and the per-stage figures are recorded here.
 
 ## 6. Decisions
 

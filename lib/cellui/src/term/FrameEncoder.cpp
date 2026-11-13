@@ -1,3 +1,4 @@
+#include <cellui/StageStats.h>
 #include <cellui/term/FrameEncoder.h>
 
 #include <cellui/Ansi16.h>
@@ -243,6 +244,7 @@ void FrameEncoder::pen(std::string & out, const CellBuffer::Cell & cell) {
 }
 
 std::string FrameEncoder::encode(const CellBuffer & frame, const CursorRequest & cursor, const std::string & images) {
+  StageTimer timer(Stage::CELL_ENCODE);
   int rows = frame.rows(), cols = frame.cols();
   std::string body;
   if (full_ || !last_ || last_->rows() != rows || last_->cols() != cols) {

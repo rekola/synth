@@ -1,3 +1,4 @@
+#include <cellui/StageStats.h>
 #include <cellui/LineImage.h>
 
 #include <canvas/Context.h>
@@ -22,6 +23,7 @@ canvas::Color toCanvas(const Color & c, float alpha = 1.0f) {
 
 std::vector<uint32_t> render(const std::vector<float> & levels, unsigned width, unsigned height, const StyleProvider & styles,
                              float scale) {
+  StageTimer timer(Stage::PICTURE_RENDER);
   std::vector<uint32_t> out(static_cast<size_t>(width) * height, 0);
   if (width == 0 || height == 0 || levels.size() != width) return out;
 

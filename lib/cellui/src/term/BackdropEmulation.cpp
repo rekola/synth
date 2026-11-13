@@ -1,3 +1,4 @@
+#include <cellui/StageStats.h>
 #include <cellui/term/BackdropEmulation.h>
 
 #include <algorithm>
@@ -431,6 +432,7 @@ void BackdropEmulation::applyLayer(CellBuffer & out, std::vector<ImagePlacement>
 
 void BackdropEmulation::apply(CellBuffer & frame, std::vector<ImagePlacement> & images, const std::vector<BackdropLayer> & layers,
                               const DisplayInfo & display) {
+  StageTimer timer(Stage::BACKDROP);
   for (auto & f : filtered_) f.used = false;
   for (auto & t : tiles_) t.used = false;
   for (auto & r : regions_) r.used = false;

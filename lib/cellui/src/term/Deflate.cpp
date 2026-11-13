@@ -1,3 +1,4 @@
+#include <cellui/StageStats.h>
 #include <cellui/term/Deflate.h>
 
 #include <algorithm>
@@ -643,6 +644,7 @@ uint32_t crc32(const uint8_t * data, size_t size, uint32_t crc) {
 }
 
 std::vector<uint8_t> zlibCompress(const uint8_t * data, size_t size, int level) {
+  StageTimer timer(Stage::DEFLATE);
   level = std::clamp(level, 1, 3);
   // Small pictures cost little to search well, and the fast search does worst on them.
   if (size < 4096) level = std::max(level, 2);
