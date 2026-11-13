@@ -195,6 +195,18 @@ Controller-level and per-widget commands. Not migrated: `StatusLine`,
   entry holds the note-held undo group open, so it is one step, and breaks
   the typing run on both sides.
 
+- The chord palette (`next-chord`/`previous-chord`, `ChordPalette`) is the
+  editor's own panel on a child plane over its bottom rows, not a modal
+  dialog: `keyDown()` gives it its keys first (`chordPaletteKey()`: the keys
+  bound to its four commands, the arrows, Enter, Escape; any other key
+  accepts and is then handled as usual), and `isReaderActive()` keeps global
+  shortcuts off them. It acts on `last_entry_` (the notes played, recorded by
+  both entry paths) while the song's version and the cursor are as
+  `settleLastEntry()` left them, else on the note in the cursor's first
+  column. Its lines are `chords::complete()` at the palette's size;
+  `writePaletteChord()` rewrites the columns and auditions the chord. The
+  session holds the note-held undo group open; cancel writes `original` back.
+
 ## Cursor, focus and colours
 
 - A cursor shows only while the window has focus (`StyleProvider::

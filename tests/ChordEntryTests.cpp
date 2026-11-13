@@ -18,6 +18,7 @@ enum Step { C = 0,
             Ds = 12,
             E = 17,
             F = 22,
+            Fsu = 26,
             G = 31,
             A = 39,
             Asu = 43 };
@@ -290,6 +291,160 @@ TEST(saving_removes_the_empty_note_columns_from_the_file_only) {
   auto & song = loaded.controller->getSong();
   auto track = dynamic_cast<const LeafTrack *>(song.getMasterTrack().getChildByInternalId(song.getRootTrackIds()[0]));
   CHECK(track && track->getMinNoteColumns() == 1);
+}
+
+// The palette key after an entry acts on that entry and steps through the
+// degree's chords, each written in place.
+TEST(chord_palette_steps_through_the_chords_of_the_entry_just_made) {
+  ChordFixture f;
+  f.widen(2);
+  f.down('z');
+  f.up('z');
+  CHECK(f.row(0) == (V{C, E, G}));
+  f.execute("next-chord");
+  CHECK(f.row(0) == (V{C, Ds, F}));
+  CHECK(f.shows("C narrow major"));
+  CHECK(f.shows("Chord: 3 notes"));
+  f.press(cellui::Key::Down);
+  CHECK(f.row(0) == (V{C, Ds, Fsu}));
+  CHECK(f.shows("C mirror diminished"));
+  f.ctrl('n');
+  CHECK(f.row(0) == (V{C, E, F}));
+  f.press(cellui::Key::Down);
+  CHECK(f.row(0) == (V{C, Ds, E}));
+  // Round to the first, with no chord twice.
+  f.press(cellui::Key::Down);
+  CHECK(f.row(0) == (V{C, E, G}));
+  f.press(cellui::Key::Up);
+  CHECK(f.row(0) == (V{C, Ds, E}));
+  f.press(cellui::Key::Enter);
+  CHECK(!f.shows("Chord: 3 notes"));
+  CHECK(f.row(0) == (V{C, Ds, E}));
+  // The whole session is one undo step, the entry another.
+  f.execute("undo");
+  CHECK(f.row(0) == (V{C, E, G}));
+  f.execute("undo");
+  CHECK(f.row(0).empty());
+}
+
+TEST(chord_palette_completes_notes_played_with_a_cursor_of_one_column) {
+  ChordFixture f;
+  f.down('z');
+  f.down('x');
+  f.up('z');
+  f.up('x');
+  CHECK(f.row(0) == (V{C, Ds}));
+  // Four notes the first time; the notes played are the given ones.
+  f.execute("next-chord");
+  CHECK(f.shows("Chord: 4 notes"));
+  CHECK(f.row(0) == (V{C, Ds, F, A}));
+  CHECK(f.shows("C D♯ F♯↑ A♯↑") && f.shows("C D♯ E A♯↑"));
+  f.press(cellui::Key::Down);
+  CHECK(f.row(0) == (V{C, Ds, Fsu, Asu}));
+  f.press(cellui::Key::Down);
+  CHECK(f.row(0) == (V{C, Ds, E, Asu}));
+  // Cancelling puts back what was there.
+  f.press(cellui::Key::Escape);
+  CHECK(f.row(0) == (V{C, Ds}));
+  CHECK(!f.shows("Chord: 4 notes"));
+}
+
+TEST(chord_palette_size_changes_without_the_cursor) {
+  ChordFixture f;
+  f.down('z');
+  f.up('z');
+  f.execute("next-chord");
+  CHECK(f.row(0) == (V{C, E, G, Asu}));
+  f.execute("narrow-cursor");
+  CHECK(f.shows("Chord: 3 notes"));
+  CHECK(f.row(0) == (V{C, E, G}));
+  f.execute("narrow-cursor");
+  CHECK(f.row(0) == (V{C, E}));
+  f.execute("narrow-cursor"); // no smaller than two
+  CHECK(f.shows("Chord: 2 notes"));
+  f.execute("widen-cursor");
+  CHECK(f.row(0) == (V{C, E, G}));
+  f.press(cellui::Key::Enter);
+  // The cursor is still one column wide, and the size is remembered.
+  f.down('v');
+  f.up('v');
+  CHECK(f.row(1) == (V{F}));
+  f.execute("next-chord");
+  CHECK(f.shows("Chord: 3 notes"));
+  CHECK(f.row(1) == (V{F, A, 53 + C}));
+}
+
+TEST(chord_palette_writes_a_short_chord_and_empties_the_rest) {
+  ChordFixture f;
+  f.widen(3);
+  f.down('n');
+  f.up('n');
+  CHECK(f.row(0) == (V{A, 53 + C, 53 + Ds, 53 + F}));
+  f.execute("next-chord");
+  CHECK(f.shows("A minor"));
+  CHECK(f.row(0) == (V{A, 53 + C, 53 + E}));
+  f.press(cellui::Key::Enter);
+  CHECK(f.row(0) == (V{A, 53 + C, 53 + E}));
+}
+
+// Away from the entry the palette acts at the cursor, on the note in its first column.
+TEST(chord_palette_opens_on_a_chord_entered_earlier) {
+  ChordFixture f;
+  f.widen(2);
+  f.down('z');
+  f.up('z');
+  f.down('v');
+  f.up('v');
+  f.press(cellui::Key::Up);
+  f.press(cellui::Key::Up);
+  CHECK(f.row(0) == (V{C, E, G}));
+  f.execute("next-chord");
+  // The present chord is the first line, so the palette is on the second.
+  CHECK(f.row(0) == (V{C, Ds, F}));
+  f.press(cellui::Key::Up);
+  CHECK(f.row(0) == (V{C, E, G}));
+  f.press(cellui::Key::Escape);
+  CHECK(f.row(1) == (V{F, A, 53 + C}));
+}
+
+TEST(chord_palette_says_why_it_does_not_open) {
+  {
+    ChordFixture f(Scale::MAJOR);
+    f.down('z');
+    f.up('z');
+    f.execute("next-chord");
+    CHECK(f.shows("The song's scale has no chords"));
+    CHECK(f.row(0) == (V{C}));
+  }
+  {
+    ChordFixture f;
+    f.execute("next-chord");
+    CHECK(f.shows("No note under the cursor"));
+  }
+  {
+    ChordFixture f;
+    f.controller->getSong().setKey(9);
+    f.down('z');
+    f.up('z');
+    f.execute("next-chord");
+    CHECK(f.shows("is not a note of the song's scale"));
+    CHECK(f.row(0) == (V{C}));
+  }
+}
+
+// Any other key accepts the chord and does what it does.
+TEST(chord_palette_is_accepted_by_the_next_note) {
+  ChordFixture f;
+  f.widen(2);
+  f.down('z');
+  f.up('z');
+  f.execute("previous-chord");
+  CHECK(f.row(0) == (V{C, Ds, E}));
+  f.down('v');
+  f.up('v');
+  CHECK(!f.shows("Chord: 3 notes"));
+  CHECK(f.row(0) == (V{C, Ds, E}));
+  CHECK(f.row(1) == (V{F, A, 53 + C}));
 }
 
 namespace {
