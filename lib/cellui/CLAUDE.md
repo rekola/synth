@@ -152,7 +152,11 @@ carries the app's object as an opaque `getAppContext()`.
 - Backdrops are the backend's to apply: `refresh()` sets what is composed
   below each one aside as a `BackdropLayer` (cells, blur, dim, tint,
   rectangle; `FrameInfo::backdrops`, bottom first) and leaves the frame with
-  only what is above, so no backend's work shows in `BufferPlane`.
+  only what is above, so no backend's work shows in `BufferPlane`. Each
+  layer holds a whole frame of cells (a screen of scrolled planes has one per
+  plane), so they are moved, never copied: set aside by a swap, and handed to
+  a backend with `Backend::presentTaking()`, which takes the `FrameInfo` (the
+  GTK window keeps its contents; the default copies through `present()`).
 
 ## Text, pictures and the pointer
 

@@ -156,6 +156,20 @@ TEST(scene_source_scenes_are_the_used_clip_rows_plus_one_empty_one) {
   CHECK(source.blockLength(2) == 2 * f.rows); // as long as its longest clip
 }
 
+// The scenes' lengths are kept between frames; an edit to a clip shows at once.
+TEST(scene_source_a_scene_follows_its_clip_length_after_an_edit) {
+  Fixture f;
+  auto & song = f.song();
+  placeClip(song, f.track_id, 1, 2 * f.rows, true);
+  ScenePatternSource source(f.controller);
+  CHECK(source.blockLength(1) == 2 * f.rows);
+  song.ensureClipAt(f.track_id, 1).setLength(3 * f.rows);
+  CHECK(source.blockLength(1) == 3 * f.rows);
+  placeClip(song, f.track_id, 12, f.rows, true);
+  CHECK(source.blockCount() == 14);
+  CHECK(source.blockLength(12) == f.rows);
+}
+
 TEST(scene_source_reads_a_looping_clip_repeating_and_a_one_shot_ending) {
   Fixture f;
   auto & song = f.song();

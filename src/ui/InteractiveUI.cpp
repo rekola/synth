@@ -567,7 +567,7 @@ InteractiveUI::render() {
     info.planes = root_plane_->describe();
     info.focus = focusName();
   }
-  backend_.present(screen_, cursor, root_plane_->images(), &info);
+  backend_.presentTaking(screen_, cursor, root_plane_->images(), std::move(info));
 }
 
 void InteractiveUI::setLinkPin(std::optional<cellui::LinkClass> pin) {

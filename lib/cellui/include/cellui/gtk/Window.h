@@ -58,6 +58,7 @@ class Window : public Backend {
 
   void present(const CellBuffer & frame, const CursorRequest & cursor = {}, const std::vector<ImagePlacement> & images = {},
                const FrameInfo * info = nullptr) override;
+  void presentTaking(const CellBuffer & frame, const CursorRequest & cursor, const std::vector<ImagePlacement> & images, FrameInfo && info) override;
   void redraw() override;
   // A frame is rendered in a tick of the window's frame clock, which runs
   // only while one is wanted: a static UI draws and ticks nothing.
