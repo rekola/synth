@@ -4,9 +4,11 @@ A pattern row's effect column holds a 4-character command: a 2-character
 mnemonic followed by a 2-digit hex argument (or two separate hex nibbles,
 where noted) - e.g. `ZB00`. Character validation in the editor is
 permissive (any letter, not just the mnemonics below), but only the
-commands in the per-note and "Other implemented" tables below actually do anything during playback;
-everything else is accepted and stored but currently a no-op (see
-`SongState.h`'s own command-handling loop).
+commands in the per-note and "Other implemented" tables below actually do anything during playback.
+Anything else is accepted and stored but is *invalid* (`Command::isValid()`):
+the pattern editor shows it in red and playback skips it. Invalid are an
+unknown mnemonic, a planned one, a device digit other than `-`/`0` on a
+device command, an argument with a `-` left in it, and `ZTxx` below `20`.
 
 The effect column follows the tracker tradition described in the README. The
 mnemonic's first character is either `Z` (a global command, not

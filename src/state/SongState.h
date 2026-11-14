@@ -148,10 +148,10 @@ class SongState : public TrackState {
   // `edo_steps` is the song tuning's steps per octave, the unit of 0Uxx/0Dxx.
   void applyRowCommands(const Pattern & pattern, int pattern_row, int track_id, int frame_offset, bool breaks_only = false, int edo_steps = 0) {
     for (auto & command : pattern.getCommandsAt(pattern_row)) {
-	if (!command.isDefined()) continue;
-	if (breaks_only && !command.isPatternBreak()) continue;
-        if (command.isTempoSet()) {
-          continue; // applied before the row's other commands (rowTempo())
+      if (!command.isDefined() || !command.isValid()) continue;
+      if (breaks_only && !command.isPatternBreak()) continue;
+      if (command.isTempoSet()) {
+        continue; // applied before the row's other commands (rowTempo())
         } else if (command.isPatternBreak()) {
           pending_break_ = true;
           pending_break_row_ = command.getBreakRow();

@@ -32,6 +32,7 @@ class StyleProvider : public cellui::StyleProvider {
     clip_recording_color = p.state_recording;
     clip_armed_color = p.state_recording_dim;
     command_column_color = p.command_column;
+    invalid_command_color = p.invalid_command;
     clip_text_color = p.text_on_track;
     mute_color = p.mute;
     solo_color = p.solo;
@@ -125,6 +126,7 @@ class StyleProvider : public cellui::StyleProvider {
   Color window_bar_accent_bg_color;
 
   Color command_column_color;
+  Color invalid_command_color;
 
   // Text drawn on a clip's own track color (a clip's name, a placed
   // instance's digit).
