@@ -363,7 +363,7 @@ nothing else:
 | --- | --- |
 | major, minor | duodene (Ellis's 12 notes: 1/1 16/15 9/8 6/5 5/4 4/3 45/32 3/2 8/5 5/3 9/5 15/8) |
 | otonal, utonal | the extended diamond (33 ratios; [extended-diamond.md](extended-diamond.md)) |
-| the seven Babylonian modes (nīš tuḫrim, išartum, embūbum, nīd qablim, qablītum, kitmum, pītum) | Pythagorean (53-EDO only) |
+| the seven Babylonian modes (nīš tuḫrim, išartum, embūbum, nīd qablim, qablītum, kitmum, pītum) and Phrygian tonos | Pythagorean (53-EDO only) |
 | none, the maqamat | no gamut: tempered, no corrections |
 
 Each key, a step above the song's key, gets the gamut note whose nearest step
@@ -456,7 +456,7 @@ notes between them on the home row (the tritone on `g`, between F and G), and
 the notes that cluster round the tonic and the tritone on the upper row. The
 `[` and `]` keys are octave down and up, so B♯ is on `p`. A song with any
 other scale (or none) keeps its own layouts, which do not follow the scale;
-the Babylonian modes and the maqām Rāst have theirs. The Launchpad's step view
+the Babylonian modes, Phrygian tonos (ten degrees on `z` to `/`) and the maqām Rāst have theirs. The Launchpad's step view
 steps through all eighteen notes of the scale.
 
 ## Terminal

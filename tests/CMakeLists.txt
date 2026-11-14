@@ -27,6 +27,7 @@ add_executable(synth_tests
 	SeikilosTests.cpp
 	ArrangementChangesTests.cpp
 	MesomedesTests.cpp
+	AthenaeusTests.cpp
 	KeyboardNotesTests.cpp
 	SpatialPlacementTests.cpp
 	TuningCorrectionOpsTests.cpp
