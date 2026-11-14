@@ -439,25 +439,29 @@ See `launchpad.md` for the gestures.
 
 ### Note keyboard
 
-The laptop/PC keyboard plays notes on the lower row `z x c v b n m , . -` and
-the rows above it. In an otonal or utonal song all eighteen notes of the scale
+The laptop/PC keyboard plays notes on the row `q w e r t y u i o p` and the
+rows around it. In an otonal or utonal song all eighteen notes of the scale
 are on keys, with the same layout shape in both (spellings as in
 [extended-diamond.md](extended-diamond.md)). The keys are staggered, so a key
-on the home row sits between two keys of the lower row, and the note on it
+on the number row sits between two keys of the `q` row, and the note on it
 lies between theirs:
 
-| Key | `z` | `q` | `w` | `s` | `x` | `d` | `c` | `f` | `v` | `t` | `g` | `y` | `b` | `h` | `n` | `j` | `m` | `k` | `o` | `p` | `,` | `.` | `-` |
+| Key | `q` | `1` | `s` | `2` | `w` | `3` | `e` | `4` | `r` | `f` | `5` | `g` | `t` | `6` | `y` | `7` | `u` | `8` | `k` | `l` | `i` | `o` | `p` |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
 | otonal | C | D𝄫 | D♭↓ | D | D♯ | D𝄪 | E | F♭ | F | | F♯↑ | F𝄪 | G | G𝄪 | A | | A♯↑ | B♭ | B | B♯ | C′ | D♯′ | E′ |
 | utonal | C | D𝄫 | D♭↓ | D↓ | E𝄫 | | E♭ | F𝄫 | F | G𝄫 | G♭↓ | | G | G♯ | A♭ | A♭↑ | B𝄫 | B♭↓ | B | B♯ | C′ | E𝄫′ | E♭′ |
 
-The seven core notes (the 7-note step of the scale) are on the lower row, the
-notes between them on the home row (the tritone on `g`, between F and G), and
-the notes that cluster round the tonic and the tritone on the upper row. The
-`[` and `]` keys are octave down and up, so B♯ is on `p`. A song with any
-other scale (or none) keeps its own layouts, which do not follow the scale;
-the Babylonian modes, Phrygian tonos (ten degrees on `z` to `/`) and the maqām Rāst have theirs. The Launchpad's step view
-steps through all eighteen notes of the scale.
+The seven core notes (the 7-note step of the scale) are on the `q` row, the
+notes between them on the number row (the tritone on `5`, between F and G), and
+the notes that cluster round the tonic and the tritone on `1` and the home row
+below (`s`, `f`, `g`; not `a`, the note-off key), with B and B♯ on `k` and `l`.
+The `[` and `]` keys are octave down and up. In a song in one of the Pythagorean
+scales (the seven Babylonian modes, Phrygian tonos) the scale's degrees are on
+`q w e r t y u i o p` in ascending order, followed by the tonic and second an
+octave up where keys remain; Phrygian tonos has ten degrees and fills the row.
+A song with any other scale (or none) keeps its own layouts, which do not follow
+the scale; the maqām Rāst has its own. The Launchpad's step view steps through
+all eighteen notes of the scale.
 
 ## Terminal
 
