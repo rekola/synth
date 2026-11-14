@@ -1150,15 +1150,16 @@ TEST(kitty_borders_are_for_kitty_with_a_known_cell_size_only) {
   CHECK(ImageEncoder(unknown).encode(b, {}, false, { border(1, 1, 15) }).empty());
 }
 
-TEST(kitty_a_refused_border_upload_is_sent_again) {
+TEST(kitty_an_error_on_a_border_picture_frees_its_placements_and_sends_them_again) {
   CellBuffer b(4, 8);
-  // Cells big enough for a deflated upload to pay.
-  ImageEncoder::Profile big = profile(PixelProtocol::KITTY);
-  big.cell_px_height = big.cell_px_width = 40;
-  ImageEncoder enc(big);
-  enc.encode(b, {}, false, { border(1, 1, EDGE_TOP) });
-  // Picture ids are shared with the other pictures; the first border picture is 1.
-  enc.handleKittyReply("i=1;EINVAL:could not decompress");
-  std::string again = enc.encode(b, {}, false, { border(1, 1, EDGE_TOP) });
-  CHECK(uploads(again) == 4 && placements(again) == 1);
+  ImageEncoder enc(profile(PixelProtocol::KITTY));
+  enc.encode(b, {}, false, { border(1, 1, EDGE_TOP | EDGE_LEFT) });
+  // Whatever the error, the terminal's placements of that colour may be out of step with ours: every
+  // picture is freed by id alone (which takes all its placements with it) and the colour starts again.
+  CHECK(!enc.handleKittyReply("i=1;ENOENT:no such image").empty());
+  std::string again = enc.encode(b, {}, false, { border(1, 1, EDGE_TOP | EDGE_LEFT) });
+  CHECK(count(again, "a=d,d=I") == 4 && count(again, "a=d,d=i,") == 0);
+  CHECK(uploads(again) == 4 && placements(again) == 2);
+  // The pictures are never deflated or PNGs, so an error is never taken for a refused compression.
+  CHECK(enc.compressing());
 }

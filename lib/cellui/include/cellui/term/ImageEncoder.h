@@ -182,6 +182,8 @@ class ImageEncoder {
   using BorderKey = std::array<uint32_t, 4>;
   std::map<BorderKey, uint32_t> border_placed_;
   uint32_t next_border_place_ = 0;
+  // Deletions queued by an error on a border picture, sent with the next frame's borders.
+  std::string border_pending_;
 };
 
 // The pixels encoded as Sixel: covered pixels (where `keep` says false, one
