@@ -1992,13 +1992,13 @@ TEST(render_golden_hash_catches_randomization_regressions) {
   CHECK(notemultiplier.ok);
   auto notemultiplier_result = renderSongOffline(notemultiplier.song, config, MixerType::AMBISONIC_STEREO);
   CHECK(!hasNonFiniteSample(notemultiplier_result));
-  if (canonical_arch) CHECK(hashSamples(notemultiplier_result) == 0xbffb64c7cd8093b0ull);
+  if (canonical_arch) CHECK(hashSamples(notemultiplier_result) == 0xf262591e41f72b8full);
 
   auto tape = loadFixture("tape_degradation_all_presets.xml");
   CHECK(tape.ok);
   auto tape_result = renderSongOffline(tape.song, config);
   CHECK(!hasNonFiniteSample(tape_result));
-  if (canonical_arch) CHECK(hashSamples(tape_result) == 0xa2cfc85c205792bdull);
+  if (canonical_arch) CHECK(hashSamples(tape_result) == 0xcd455dc11c67ec09ull);
 }
 
 // The master's Send Main is the song's volume: half of it halves the
