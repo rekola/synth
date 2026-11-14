@@ -652,7 +652,11 @@ deflate ratio on real charts is known.
      Looked at and left: deflate runs at 300 to 460 MB/s on x86 and the NEON and AVX2 paths cannot be tried here; a
      picture's render is 0.2 ms for a spectrum and 0.8 ms for the heatmap, all of it cairo's highest-quality filter
      scaling the 26x14 grid up (a bilinear scaler of our own takes 0.1 ms but differs from it by 19 levels on average,
-     100 at worst, on a contrasty grid: a change of look, so a decision, not a cut). Still open: a palette kept from
+     100 at worst, on a contrasty grid: a change of look, so a decision, not a cut; made since: the heatmap is enlarged by nearest
+     neighbour (`scaleImageNearest()`), each cell a block of one colour, and cairo no longer scales anything; the
+     terminal's stretched pictures keep the bilinear `scaleImage()`. The picture has 19 colours and deflates to 675 bytes at
+     zlib 6 on a 16x8 grid, where cairo's smooth one had 369 colours and 3.4 kB and an exact bilinear one 1029 colours and
+     15 kB; the look is hard-edged cells, to be softened by the highlight bloom). Still open: a palette kept from
      one frame to the next while a picture's colours hold (it changes the bytes and so needs the error measured) and
      the encode off the UI thread.
    - **Done when** the UI under the slowest class and the busiest scenario costs the audio thread no
