@@ -50,8 +50,10 @@ jobs:
       - name: Configure
         run: cmake -B build -DSYNTH_MARCH=x86-64-v2
 
+      # A bare -j is unlimited under make and exhausts the runner's memory;
+      # cap at one job per core.
       - name: Build
-        run: cmake --build build -j
+        run: cmake --build build -j"$(nproc)"
 
       - name: Test
         run: ctest --test-dir build --output-on-failure
@@ -60,7 +62,7 @@ jobs:
       - name: Cell UI on its own
         run: |
           cmake -S lib/cellui -B build-cellui
-          cmake --build build-cellui -j
+          cmake --build build-cellui -j"$(nproc)"
           ctest --test-dir build-cellui --output-on-failure
           ./build-cellui/cellui_gallery --plain | head -5
 
