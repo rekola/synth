@@ -358,6 +358,10 @@ struct SixelPalette {
   std::unordered_map<uint32_t, int> index;  // (exact) colour -> register
   // The registers' levels a channel at a time, for a search that goes over them all (see finish()).
   std::vector<int> red, green, blue;
+  // A palette made by makeGridPalette(): registers on the 101 levels, `fred`.. their levels as grid * 255 / 100
+  // (not rounded to 8 bits), which the dither's arithmetic uses.
+  bool grid_float = false;
+  std::vector<float> fred, fgreen, fblue;
 
   // Called when the registers are all there: lays them out for paletteNearest().
   void finish() {
@@ -426,16 +430,16 @@ void gridColour(uint32_t p, const Dither * dither, int x, int y, int & r, int & 
 
 // The pixels' colours cut into at most `registers` boxes, repeatedly splitting the box with the most
 // pixels times its widest range at the weighted median of that channel; a box's register is its mean.
+SixelPalette makeGridPalette(const Image & image, int x0, int y0, int width, int height, const std::vector<bool> & keep, int registers);
+
 SixelPalette makeSixelPalette(const Image & image, int x0, int y0, int width, int height, const std::vector<bool> & keep, int registers,
                               bool grid = false, const Dither * dither = nullptr) {
+  if (dither && dither->mix) return makeGridPalette(image, x0, y0, width, height, keep, registers);
   StageTimer timer(Stage::SIXEL_PALETTE);
   // A picture with more colours than registers is a gradient (a blurred backdrop): it is dithered, where a
   // flat one (text, a chart) stays as it is.
   bool gradient = false;
-  const bool mix = dither && dither->mix;
-  if (mix) {
-    // the colours are only put on the terminal's levels (below), never dithered first
-  } else if (grid && dither && dither->method != Dither::Method::NEAREST && dither->gradient) {
+  if (grid && dither && dither->method != Dither::Method::NEAREST && dither->gradient) {
     gradient = true;
   } else if (grid && dither && dither->method != Dither::Method::NEAREST) {
     ColourCounts distinct(static_cast<size_t>(std::max(2, registers)) * 2);
@@ -563,10 +567,143 @@ SixelPalette xtermPalette() {
   return palette;
 }
 
-// Ordered dither for any palette: the colour's candidates are the registers that, one after another, come
-// nearest it with the error of the ones before carried on; sorted by brightness, the Bayer threshold picks
-// one, so the registers' average over a patch is the colour and no two neighbours need agree.
+// ---- The custom palette of a blurred backdrop (CELLUI_BLUR_MIX): registers on the 101 levels, pixels never.
+// A register's working value is its grid level * 255 / 100, as a float; the dither measures against those.
 constexpr int kMixCandidates = 16;
+// The most the carried error may reach in a channel, in 8-bit levels: a colour the palette cannot get near
+// must not make it grow without bound.
+constexpr float kMixErrorLimit = 64.0f;
+
+float gridWorking(int grid_level) { return static_cast<float>(grid_level) * 255.0f / 100.0f; }
+
+// The palette's registers of `registers` boxes cut from the picture's colours in grid units (0 to 100 a
+// channel). A box is split between integer levels (one side <= m, the other >= m + 1) and then shrunk to the
+// colours it holds; a box of one colour is never split. A register is the box's pixel-weighted mean, rounded
+// in grid units: it stays inside its box, the boxes are disjoint, so the registers are distinct.
+SixelPalette makeGridPalette(const Image & image, int x0, int y0, int width, int height, const std::vector<bool> & keep, int registers) {
+  StageTimer timer(Stage::SIXEL_PALETTE);
+  const LevelTables & levels = levelTables();
+  ColourCounts counts(std::min<size_t>(static_cast<size_t>(width) * static_cast<size_t>(height) / 4, 16384));
+  for (int y = 0; y < height; y++) {
+    uint32_t run_colour = 0, run = 0;
+    for (int x = 0; x < width; x++) {
+      uint32_t p = image.pixels[static_cast<size_t>(y0 + y) * static_cast<size_t>(image.width) + static_cast<size_t>(x0 + x)];
+      if (!keep[static_cast<size_t>(y) * static_cast<size_t>(width) + static_cast<size_t>(x)] || Image::alpha(p) < 192) continue;
+      uint32_t colour = (static_cast<uint32_t>(levels.percent[Image::red(p)]) << 16) | (static_cast<uint32_t>(levels.percent[Image::green(p)]) << 8) |
+                        static_cast<uint32_t>(levels.percent[Image::blue(p)]);
+      if (run && colour == run_colour) {
+        run++;
+        continue;
+      }
+      if (run) counts.add(run_colour, run);
+      run_colour = colour;
+      run = 1;
+    }
+    if (run) counts.add(run_colour, run);
+  }
+  std::vector<std::pair<uint32_t, uint32_t>> colours = counts.sorted();
+  registers = std::max(2, registers);
+  struct Box {
+    size_t begin, end;
+    uint64_t pixels = 0;
+    int channel = 1, range = 0;
+  };
+  auto level = [&](size_t i, int channel) { return static_cast<int>((colours[i].first >> (channel == 0 ? 16 : channel == 1 ? 8 : 0)) & 0xff); };
+  auto measure = [&](Box & box) {
+    int lo[3] = {100, 100, 100}, hi[3] = {0, 0, 0};
+    box.pixels = 0;
+    for (size_t i = box.begin; i < box.end; i++) {
+      for (int k = 0; k < 3; k++) {
+        lo[k] = std::min(lo[k], level(i, k));
+        hi[k] = std::max(hi[k], level(i, k));
+      }
+      box.pixels += colours[i].second;
+    }
+    box.channel = 1;  // green counts most, so it wins a tie
+    box.range = hi[1] - lo[1];
+    for (int k : {0, 2}) {
+      if (hi[k] - lo[k] > box.range) {
+        box.range = hi[k] - lo[k];
+        box.channel = k;
+      }
+    }
+  };
+  std::vector<Box> boxes;
+  if (!colours.empty()) {
+    boxes.push_back(Box{0, colours.size()});
+    measure(boxes[0]);
+  }
+  while (boxes.size() < static_cast<size_t>(registers)) {
+    size_t pick = boxes.size();
+    double best = 0;
+    for (size_t i = 0; i < boxes.size(); i++) {
+      if (boxes[i].end - boxes[i].begin < 2) continue;  // one distinct colour: nothing to split
+      double score = static_cast<double>(boxes[i].pixels) * boxes[i].range;
+      if (score > best) {
+        best = score;
+        pick = i;
+      }
+    }
+    if (pick == boxes.size()) break;
+    Box box = boxes[pick];
+    const int channel = box.channel;
+    std::sort(colours.begin() + static_cast<std::ptrdiff_t>(box.begin), colours.begin() + static_cast<std::ptrdiff_t>(box.end),
+              [&](const auto & a, const auto & b) {
+                int shift = channel == 0 ? 16 : channel == 1 ? 8 : 0;
+                return ((a.first >> shift) & 0xff) < ((b.first >> shift) & 0xff);
+              });
+    // The level at which half the box's pixels are reached, kept below the box's top so the upper side is not empty.
+    int lo = level(box.begin, channel), hi = level(box.end - 1, channel);
+    uint64_t half = box.pixels / 2, seen = 0;
+    size_t i = box.begin;
+    while (i + 1 < box.end && seen + colours[i].second <= half) seen += colours[i++].second;
+    int m = std::clamp(level(i, channel), lo, hi - 1);
+    size_t cut = box.begin;
+    while (cut < box.end && level(cut, channel) <= m) cut++;
+    Box low{box.begin, cut}, high{cut, box.end};
+    measure(low);
+    measure(high);
+    boxes[pick] = low;
+    boxes.push_back(high);
+  }
+  SixelPalette palette;
+  palette.grid = true;
+  palette.grid_float = true;
+  for (const Box & box : boxes) {
+    double sum[3] = {0, 0, 0};
+    for (size_t i = box.begin; i < box.end; i++) {
+      for (int k = 0; k < 3; k++) sum[k] += static_cast<double>(colours[i].second) * level(i, k);
+    }
+    double n = static_cast<double>(std::max<uint64_t>(box.pixels, 1));
+    int g[3] = {static_cast<int>(std::lround(sum[0] / n)), static_cast<int>(std::lround(sum[1] / n)), static_cast<int>(std::lround(sum[2] / n))};
+    palette.fred.push_back(gridWorking(g[0]));
+    palette.fgreen.push_back(gridWorking(g[1]));
+    palette.fblue.push_back(gridWorking(g[2]));
+    palette.rgb.push_back((static_cast<uint32_t>(std::lround(palette.fred.back())) << 16) | (static_cast<uint32_t>(std::lround(palette.fgreen.back())) << 8) |
+                          static_cast<uint32_t>(std::lround(palette.fblue.back())));
+  }
+  palette.finish();
+  return palette;
+}
+
+// The register nearest a colour, in the working range (green counts most, blue least).
+int gridNearest(const SixelPalette & palette, float r, float g, float b) {
+  size_t best = 0;
+  float best_d = -1;
+  for (size_t i = 0; i < palette.fred.size(); i++) {
+    float dr = palette.fred[i] - r, dg = palette.fgreen[i] - g, db = palette.fblue[i] - b;
+    float d = 3 * dr * dr + 4 * dg * dg + 2 * db * db;
+    if (best_d < 0 || d < best_d) {
+      best_d = d;
+      best = i;
+    }
+  }
+  return static_cast<int>(best);
+}
+
+// The registers a colour is shown in, one of which the Bayer matrix picks for each pixel: the nearest register
+// to the colour with the error of those before it carried on (against the register's grid colour), sixteen
+// times, sorted by brightness. The colour is the pixel's own; their average over a patch is that colour.
 struct MixPick {
   uint32_t key = 0xffffffffu;
   uint8_t reg[kMixCandidates] = {};
@@ -575,32 +712,44 @@ struct MixPick {
 MixPick mixPick(const SixelPalette & palette, int r, int g, int b, uint32_t key) {
   MixPick pick;
   pick.key = key;
-  float err[3] = {0, 0, 0};
   const float want[3] = {static_cast<float>(r), static_cast<float>(g), static_cast<float>(b)};
+  float err[3] = {0, 0, 0};
   int chosen[kMixCandidates];
   for (int i = 0; i < kMixCandidates; i++) {
-    float t[3];
-    int c[3];
-    for (int k = 0; k < 3; k++) {
-      t[k] = std::clamp(want[k] + err[k], 0.0f, 255.0f);
-      c[k] = static_cast<int>(std::lround(t[k]));
-    }
-    int reg = paletteNearest(palette, c[0], c[1], c[2]);
+    int reg = gridNearest(palette, std::clamp(want[0] + err[0], 0.0f, 255.0f), std::clamp(want[1] + err[1], 0.0f, 255.0f),
+                          std::clamp(want[2] + err[2], 0.0f, 255.0f));
     chosen[i] = reg;
     const size_t u = static_cast<size_t>(reg);
-    err[0] += want[0] - static_cast<float>(palette.red[u]);
-    err[1] += want[1] - static_cast<float>(palette.green[u]);
-    err[2] += want[2] - static_cast<float>(palette.blue[u]);
+    const float have[3] = {palette.fred[u], palette.fgreen[u], palette.fblue[u]};
+    for (int k = 0; k < 3; k++) err[k] = std::clamp(err[k] + want[k] - have[k], -kMixErrorLimit, kMixErrorLimit);
   }
   auto luma = [&](int reg) {
     const size_t u = static_cast<size_t>(reg);
-    return 299 * palette.red[u] + 587 * palette.green[u] + 114 * palette.blue[u];
+    return 0.299f * palette.fred[u] + 0.587f * palette.fgreen[u] + 0.114f * palette.fblue[u];
   };
+  // EXPERIMENT (CELLUI_BLUR_TOP2): only the two registers most often chosen, in their ratio.
+  static const bool top2 = std::getenv("CELLUI_BLUR_TOP2") != nullptr;
+  if (top2) {
+    int first = chosen[0], second = -1, first_n = 0, second_n = 0;
+    int count[256] = {0};
+    for (int i = 0; i < kMixCandidates; i++) count[chosen[i]]++;
+    for (int i = 0; i < kMixCandidates; i++) {
+      if (count[chosen[i]] > first_n || (count[chosen[i]] == first_n && chosen[i] == first)) first = chosen[i], first_n = count[chosen[i]];
+    }
+    for (int i = 0; i < kMixCandidates; i++) {
+      if (chosen[i] != first && count[chosen[i]] > second_n) second = chosen[i], second_n = count[chosen[i]];
+    }
+    if (second >= 0) {
+      int a = static_cast<int>(std::lround(static_cast<double>(kMixCandidates) * first_n / (first_n + second_n)));
+      for (int i = 0; i < kMixCandidates; i++) chosen[i] = i < a ? first : second;
+    } else {
+      for (int i = 0; i < kMixCandidates; i++) chosen[i] = first;
+    }
+  }
   std::stable_sort(chosen, chosen + kMixCandidates, [&](int x, int y) { return luma(x) < luma(y); });
   for (int i = 0; i < kMixCandidates; i++) pick.reg[i] = static_cast<uint8_t>(chosen[i]);
   return pick;
 }
-
 // The pixels as Sixel in the colours of `palette`: covered pixels (`keep` false, one entry per pixel)
 // are left transparent. A palette that holds the picture's colours exactly draws them as they are;
 // otherwise each pixel goes to the nearest register, after the dither's offset or with its error
@@ -641,8 +790,8 @@ std::vector<int> mapToRegisters(const SixelPalette & palette, const Image & imag
   size_t cache_bits = 8;
   while (cache_bits < 14 && (size_t{1} << cache_bits) < static_cast<size_t>(width) * static_cast<size_t>(height) / 2) cache_bits++;
   std::vector<Cached> cache(size_t{1} << cache_bits);
-  const size_t mix_cache_bits = cache_bits;
-  std::vector<MixPick> mix_cache(size_t{1} << mix_cache_bits);
+  const bool mix = dither.mix && palette.grid_float;
+  std::vector<MixPick> mix_cache(mix ? size_t{1} << cache_bits : 0);
   auto nearest = [&](int r, int g, int b) {
     uint32_t key = (static_cast<uint32_t>(r) << 16) | (static_cast<uint32_t>(g) << 8) | static_cast<uint32_t>(b);
     Cached & slot = cache[(key * 2654435761u) >> (32 - cache_bits)];
@@ -663,10 +812,17 @@ std::vector<int> mapToRegisters(const SixelPalette & palette, const Image & imag
         continue;
       }
       int r = Image::red(p), g = Image::green(p), b = Image::blue(p);
+      if (mix) {
+        // The pixel keeps its own colour to here: only the registers are on the grid.
+        uint32_t key = (static_cast<uint32_t>(r) << 16) | (static_cast<uint32_t>(g) << 8) | static_cast<uint32_t>(b);
+        MixPick & pick = mix_cache[(key * 2654435761u) >> (32 - cache_bits)];
+        if (pick.key != key) pick = mixPick(palette, r, g, b, key);
+        regs[i] = pick.reg[std::min(kMixCandidates - 1, static_cast<int>(bayer8(dither.origin_x + x, dither.origin_y + y) * kMixCandidates))];
+        continue;
+      }
+      if (palette.grid_dither) gridColour(p, &dither, x, y, r, g, b);
+      else if (palette.grid) r = onSixelGrid(r), g = onSixelGrid(g), b = onSixelGrid(b);
       if (palette.exact) {
-        // The only place a colour is put on the grid: the palette's registers are those, and are found by them.
-        if (palette.grid_dither) gridColour(p, &dither, x, y, r, g, b);
-        else if (palette.grid) r = onSixelGrid(r), g = onSixelGrid(g), b = onSixelGrid(b);
         regs[i] = palette.index.at(((static_cast<uint32_t>(r)) << 16) | (static_cast<uint32_t>(g) << 8) | static_cast<uint32_t>(b));
         continue;
       }
@@ -686,16 +842,6 @@ std::vector<int> mapToRegisters(const SixelPalette & palette, const Image & imag
           next[e + k] += error * 5.0f / 16.0f;
           next[e + 3 + k] += error * 1.0f / 16.0f;
         }
-        continue;
-      }
-      if (dither.mix) {
-        // Between the nearest entry and the one that, mixed with it, comes nearest the pixel: the Bayer
-        // matrix says which, by how far along the pair the pixel lies.
-        uint32_t key = (static_cast<uint32_t>(r) << 16) | (static_cast<uint32_t>(g) << 8) | static_cast<uint32_t>(b);
-        MixPick & pick = mix_cache[(key * 2654435761u) >> (32 - mix_cache_bits)];
-        if (pick.key != key) pick = mixPick(palette, r, g, b, key);
-        float threshold = bayer8(dither.origin_x + x, dither.origin_y + y);
-        regs[i] = pick.reg[std::min(kMixCandidates - 1, static_cast<int>(threshold * kMixCandidates))];
         continue;
       }
       int reg = nearest(r, g, b);
@@ -786,6 +932,46 @@ std::string encodeSixelWith(const SixelPalette & palette, const Image & image, i
 }
 
 }  // namespace
+
+namespace detail {
+
+GridMixTile gridMixTile(const Image & image, int registers, int origin_x, int origin_y) {
+  GridMixTile tile;
+  std::vector<bool> all(static_cast<size_t>(image.width) * static_cast<size_t>(image.height), true);
+  Dither dither;
+  dither.method = Dither::Method::ORDERED;
+  dither.mix = true;
+  dither.origin_x = origin_x;
+  dither.origin_y = origin_y;
+  SixelPalette palette = makeGridPalette(image, 0, 0, image.width, image.height, all, registers);
+  tile.palette = palette.rgb;
+  tile.working.reserve(palette.fred.size() * 3);
+  for (size_t i = 0; i < palette.fred.size(); i++) {
+    tile.working.push_back(palette.fred[i]);
+    tile.working.push_back(palette.fgreen[i]);
+    tile.working.push_back(palette.fblue[i]);
+  }
+  bool transparent = false;
+  tile.regs = mapToRegisters(palette, image, 0, 0, image.width, image.height, all, dither, transparent);
+  for (uint32_t p : image.pixels) {
+    MixPick pick = mixPick(palette, Image::red(p), Image::green(p), Image::blue(p), 0);
+    for (int i = 0; i < kMixCandidates; i++) tile.candidates.push_back(pick.reg[i]);
+  }
+  return tile;
+}
+
+std::vector<int> fixedTileRegisters(const Image & image, int origin_x, int origin_y) {
+  std::vector<int> regs;
+  for (int y = 0; y < image.height; y++) {
+    for (int x = 0; x < image.width; x++) {
+      uint32_t p = image.pixels[static_cast<size_t>(y) * static_cast<size_t>(image.width) + static_cast<size_t>(x)];
+      regs.push_back(xtermRegister(Image::red(p), Image::green(p), Image::blue(p), bayer8(origin_x + x, origin_y + y)));
+    }
+  }
+  return regs;
+}
+
+}  // namespace detail
 
 std::string encodeSixel(const Image & image, int x0, int y0, int width, int height, const std::vector<bool> & keep, const Dither & dither,
                         int registers) {

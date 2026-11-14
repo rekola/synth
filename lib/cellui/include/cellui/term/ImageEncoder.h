@@ -41,6 +41,19 @@ struct Dither {
   bool mix = false;
 };
 
+namespace detail {
+// What the custom palette of a blurred backdrop makes of a picture (for tests and measurements).
+struct GridMixTile {
+  std::vector<uint32_t> palette;  // the registers as 8-bit grid colours, 0xRRGGBB
+  std::vector<float> working;     // the same as grid * 255 / 100, three floats a register
+  std::vector<int> regs;          // each pixel's register as drawn (-1 where left out)
+  std::vector<int> candidates;    // 16 per pixel: the registers the Bayer matrix picks between, by brightness
+};
+GridMixTile gridMixTile(const Image & image, int registers, int origin_x, int origin_y);
+// Each pixel's register of the terminal's default palette (the fixed palette's mapping).
+std::vector<int> fixedTileRegisters(const Image & image, int origin_x, int origin_y);
+}  // namespace detail
+
 // How many colours a picture keeps, which a slow link turns instead of the screen's colour: FULL sends
 // the pixels as they are (kitty and iTerm2 RGB, deflated; Sixel up to 128 registers), REDUCED and LOW
 // send a palette of at most 64 and 16 colours (a palette PNG for kitty and iTerm2, that many Sixel

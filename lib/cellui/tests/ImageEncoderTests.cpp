@@ -1,6 +1,9 @@
 #include "TestFramework.h"
 #include "Inflate.h"
 
+#include <algorithm>
+#include <cmath>
+#include <functional>
 #include <set>
 
 #include <cellui/BufferPlane.h>
@@ -1080,4 +1083,98 @@ TEST(the_picture_encoder_makes_the_same_bytes_for_every_kind_of_picture) {
 #else
   (void)all;
 #endif
+}
+
+// ---- The custom palette of a blurred backdrop: registers on the 101 levels, pixels never.
+namespace {
+
+float gridWork(int v) { return static_cast<float>(std::lround(v * 100.0 / 255.0)) * 255.0f / 100.0f; }
+
+Image grey(int width, int height, const std::function<int(int, int)> & level) {
+  Image img;
+  img.width = width;
+  img.height = height;
+  for (int y = 0; y < height; y++) {
+    for (int x = 0; x < width; x++) {
+      uint8_t v = static_cast<uint8_t>(level(x, y));
+      img.pixels.push_back(Image::pack(v, v, v));
+    }
+  }
+  return img;
+}
+
+}  // namespace
+
+// a. More colours than registers: exactly N registers, all different, all colours the terminal has.
+TEST(the_custom_palette_keeps_all_its_registers_and_they_are_on_the_grid) {
+  Image tile = ramp(96, 52);
+  for (int n : {16, 32, 64}) {
+    detail::GridMixTile t = detail::gridMixTile(tile, n, 0, 0);
+    CHECK(static_cast<int>(t.palette.size()) == n);
+    CHECK(std::set<uint32_t>(t.palette.begin(), t.palette.end()).size() == t.palette.size());
+    for (uint32_t c : t.palette) {
+      for (int shift : {16, 8, 0}) {
+        int v = static_cast<int>((c >> shift) & 0xff);
+        CHECK(std::lround(std::lround(v * 100.0 / 255.0) * 255.0 / 100.0) == v);
+      }
+    }
+  }
+}
+
+// b. A colour between two grid levels (128 is 50.2 on the grid, between 50 and 51) is shown as a mix of
+// those two registers whose average is the colour, not as the one nearest.
+TEST(a_colour_between_grid_levels_is_a_mix_of_its_two_neighbours) {
+  // 128 itself, with 130 (grid 51) beside it so the palette has both neighbours.
+  Image tile = grey(8, 8, [](int x, int) { return x < 4 ? 128 : 130; });
+  detail::GridMixTile t = detail::gridMixTile(tile, 16, 0, 0);
+  CHECK(t.palette.size() == 2);
+  const float low = gridWork(128), high = gridWork(130), spacing = high - low;
+  double sum = 0;
+  std::set<int> distinct;
+  for (int i = 0; i < 16; i++) {
+    int reg = t.candidates[static_cast<size_t>(i)];  // the first pixel is a 128
+    distinct.insert(reg);
+    sum += static_cast<double>(t.working[static_cast<size_t>(reg) * 3]);
+  }
+  CHECK(distinct.size() == 2);
+  CHECK_NEAR(sum / 16.0, 128.0, static_cast<double>(spacing) / 16.0);
+}
+
+// c. A slow ramp: the 8x8 block averages of what is drawn follow the source, with no steps.
+TEST(a_slow_ramp_is_followed_by_the_averages_of_what_is_drawn) {
+  for (int n : {16, 32, 64}) {
+    Image tile = grey(256, 16, [](int x, int) { return static_cast<int>(30 + x * 0.5); });
+    detail::GridMixTile t = detail::gridMixTile(tile, n, 0, 0);
+    // The widest gap between neighbouring registers on the ramp's grey axis.
+    std::vector<float> levels;
+    for (size_t j = 0; j < t.working.size(); j += 3) levels.push_back(t.working[j]);
+    std::sort(levels.begin(), levels.end());
+    float widest = 0;
+    for (size_t j = 1; j < levels.size(); j++) widest = std::max(widest, levels[j] - levels[j - 1]);
+    // 16 candidates are within half of 1/16 of the gap; a block of columns of different colours adds what the
+    // Bayer matrix's columns (8 of its 64 thresholds each) bias, up to about 2/16 measured.
+    const double tolerance = static_cast<double>(widest) * 3.0 / 16.0;
+    double previous_drawn = -1, previous_source = -1;
+    for (int bx = 0; bx < 256; bx += 8) {
+      double drawn = 0, source = 0;
+      for (int y = 0; y < 8; y++) {
+        for (int x = bx; x < bx + 8; x++) {
+          size_t i = static_cast<size_t>(y) * 256 + static_cast<size_t>(x);
+          drawn += static_cast<double>(t.working[static_cast<size_t>(t.regs[i]) * 3]);
+          source += Image::red(tile.pixels[i]);
+        }
+      }
+      drawn /= 64;
+      source /= 64;
+      // Beyond the outermost registers (box means) nothing can be drawn that dark or that light.
+      if (source < static_cast<double>(levels.front()) || source > static_cast<double>(levels.back())) continue;
+      CHECK_NEAR(drawn, source, tolerance);
+      if (previous_drawn >= 0) {
+        CHECK(drawn >= previous_drawn - tolerance);                                                   // monotonic
+        CHECK(drawn - previous_drawn <= source - previous_source + 2 * tolerance);  // no step
+      }
+      previous_drawn = drawn;
+      previous_source = source;
+    }
+  }
 }
