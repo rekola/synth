@@ -51,20 +51,23 @@ public:
     markers_ = std::move(markers);
   }
 
+  void setLabels(std::vector<Label> labels) override {
+    labels_ = std::move(labels);
+  }
+
   void commit() override {
     if (brightness_.empty()) return;
     auto & background = getPlane().getStyles().window_bg_color;
     auto [rows, cols] = getDim();
-    int usable_rows = footer_label_.empty() ? rows : rows - 1;
-    if (usable_rows <= 0 || cols <= 0) return;
+    if (rows <= 0 || cols <= 0) return;
 
     int sub_rows = use_sextants_ ? 3 : 2;
-    int vcols = cols * 2, vrows = usable_rows * sub_rows; // sextant/quadrant sub-cell resolution
+    int vcols = cols * 2, vrows = rows * sub_rows; // sextant/quadrant sub-cell resolution
     std::vector<float> agg_brightness, agg_saturation;
     resampleGrid(brightness_, saturation_, gridCols(), gridRows(), vcols, vrows, agg_brightness, agg_saturation);
 
     std::vector<term::SubcellRgb> samples(static_cast<size_t>(sub_rows * 2));
-    for (int sy = 0; sy < usable_rows; sy++) {
+    for (int sy = 0; sy < rows; sy++) {
       for (int sx = 0; sx < cols; sx++) {
         // Gather this character cell's sub-samples (row-major - top-left
         // first, matching kQuadrantCodepoints'/sextantCodepoint()'s own bit
@@ -97,21 +100,21 @@ public:
 
     for (auto & marker : markers_) {
       int sx = static_cast<int>(marker.u * static_cast<float>(cols));
-      int sy = usable_rows - 1 - static_cast<int>(marker.v * static_cast<float>(usable_rows));
-      if (sx < 0 || sx >= cols || sy < 0 || sy >= usable_rows) continue;
+      int sy = rows - 1 - static_cast<int>(marker.v * static_cast<float>(rows));
+      if (sx < 0 || sx >= cols || sy < 0 || sy >= rows) continue;
       putstr(sy, sx, '+');
     }
 
-    for (auto & label : axisLabels(usable_rows, cols)) {
-      std::string text = label.text;
-      for (int c = 0; c < static_cast<int>(text.size()); c++) {
-        int sx = label.col + c;
+    for (auto & requested : labels_) {
+      CellLabel label = cellLabel(requested, cols, rows);
+      int sx = label.col - 1;
+      for (const std::string & glyph : utf8::clusters(label.text)) {
+        sx += 1;
         if (sx < 0 || sx >= cols) continue;
 
         // This character's own sub-samples, collapsed to a single mean
         // color - the exception to the normal two-color sextant/quadrant
-        // blend that a label-covered cell gets (see axisLabels()'s own
-        // comment above).
+        // blend that a label-covered cell gets (see labelForegroundColor()).
         term::SubcellRgb sum{0, 0, 0};
         for (int qy = 0; qy < sub_rows; qy++) {
           int vy_from_top = label.row * sub_rows + qy;
@@ -130,12 +133,8 @@ public:
         labelForegroundColor(mean, fr, fg, fb);
         setFgColor(fr, fg, fb);
         setBgColor(static_cast<int>(mean.r), static_cast<int>(mean.g), static_cast<int>(mean.b));
-        putstr(label.row, sx, std::string(1, text[static_cast<size_t>(c)]));
+        putstr(label.row, sx, glyph);
       }
-    }
-
-    if (!footer_label_.empty()) {
-      putstr(rows - 1, 0, footer_label_);
     }
   }
 
@@ -143,6 +142,7 @@ private:
   bool use_sextants_;
   std::vector<float> brightness_, saturation_;
   std::vector<Marker> markers_;
+  std::vector<Label> labels_;
 };
 
 }  // namespace

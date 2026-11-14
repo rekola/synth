@@ -522,10 +522,14 @@ InteractiveUI::initialize(std::shared_ptr<Controller> & controller) {
   volume_meter_ = std::make_shared<ChannelMeter>(getPlane(), *charts_);
   heatmap_ = charts_->heatmap(getPlane(), DiracAnalyzer::kAzimuthBins, DiracAnalyzer::kElevationBins);
 
-  // No footer legend on either scope: the heatmap's axis extremes are
-  // drawn directly in the grid area instead (axisLabels(), above), and the
-  // FFT chart's "Spectrum: 0-{nyquist}Hz" label was removed the same way,
-  // reclaiming the row a legend would have used.
+  // The heatmap's axis extremes, written over the grid: elevation at the top
+  // and bottom edges, azimuth at the left and right edges.
+  heatmap_->setLabels({
+      {0.5f, 1.0f, "+90", 0.5f, 1.0f},
+      {0.5f, 0.0f, "-90", 0.5f, 0.0f},
+      {0.0f, 0.5f, "-180", 0.0f, 0.5f},
+      {1.0f, 0.5f, "+180", 1.0f, 0.5f},
+  });
 
   initializeWidgets();
 
