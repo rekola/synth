@@ -90,6 +90,7 @@ add_library(cellui STATIC
   src/term/FramePacer.cpp
   src/term/Deflate.cpp
   src/term/ImageEncoder.cpp
+  src/ImageScale.cpp
   src/term/KittyImages.cpp
   src/term/InputParser.cpp
   src/term/TermEvent.cpp)
