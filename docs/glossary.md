@@ -4,23 +4,15 @@ Terms with a specific meaning in this project.
 
 **Adaptive just intonation**
 Just intonation that follows the music instead of holding every note at one
-ratio to the key; also called adaptive tuning. It tunes each note against
-what is sounding, or has only just sounded, so a melody over a bass line is
-pure against that bass line, and an arpeggio hangs together although its
-notes never sound at once. It is meant for music where no single pitch per
-note suits every chord: in a major scale the D wants to differ between a G
-major chord and a D minor chord (see just intonation). The application does
-not have it. Its just intonation gives every note one fixed ratio to the
-tonic, and the otonal and utonal scales are built so that this is enough.
-
-The price of adaptive tuning is *drift*. A pure interval is exact only
-against its own reference, and the reference may itself have been tuned
-against an earlier note, so errors accumulate along a progression. Four pure
-fifths stacked from C reach an E about 21.5 cents above the pure major third
-over C, and a song that keeps every chord pure can end up noticeably higher
-or lower than where it began. This is not a defect: pure fifths, pure thirds
-and a closed circle of keys cannot all be had at once. Tuning every note
-against the key, as the application does, never drifts.
+ratio to the key: each note is tuned against what is sounding, so a melody
+over a bass line is pure against that bass line. The application does not do
+this and does not plan to: its just intonation gives every note one fixed
+ratio to the tonic (see just intonation), and the otonal and utonal scales are
+built so that this is enough. Adaptive tuning drifts: a pure interval is exact
+only against its own reference, which may itself have been tuned against an
+earlier note, so errors accumulate along a progression (four pure fifths
+stacked from C reach an E about 21.5 cents above the pure major third over
+C). Tuning every note against the key never drifts.
 
 **Aftersound**
 The slow tail after a piano note's fast first decay, from the strings'
