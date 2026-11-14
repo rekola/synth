@@ -523,7 +523,11 @@ SixelPalette makeSixelPalette(const Image & image, int x0, int y0, int width, in
     Box box = boxes[pick];
     int shift = box.channel == 0 ? 16 : box.channel == 1 ? 8 : 0;
     std::sort(colours.begin() + static_cast<std::ptrdiff_t>(box.begin), colours.begin() + static_cast<std::ptrdiff_t>(box.end),
-              [&](const auto & a, const auto & b) { return ((a.first >> shift) & 0xff) < ((b.first >> shift) & 0xff); });
+              [&](const auto & a, const auto & b) {
+                // The colour breaks a tie, so the order (and the palette) is the same in every standard library.
+                uint32_t ca = (a.first >> shift) & 0xff, cb = (b.first >> shift) & 0xff;
+                return ca != cb ? ca < cb : a.first < b.first;
+              });
     uint64_t half = box.pixels / 2, seen = 0;
     size_t cut = box.begin;
     while (cut + 1 < box.end && seen + colours[cut].second <= half) seen += colours[cut++].second;
