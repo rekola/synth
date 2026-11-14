@@ -499,6 +499,24 @@ TEST(scene_source_keeps_a_playing_tracks_line_in_view) {
   CHECK(!source.keepTrackLinesVisible(top, 8, 2));
 }
 
+TEST(scene_source_playing_tracks_line_moves_down_while_the_view_follows_the_cursor) {
+  Fixture f;
+  auto & song = f.song();
+  auto playing = song.addTrack(make_unique<InstrumentTrack>(0)).getInternalId();
+  ScenePatternSource source(f.controller);
+  source.setCursorTrack(f.track_id);
+  source.setPlayheads({{f.track_id, {0, 3}}, {playing, {1, 1}}});
+  RowAddress top = source.advance(source.cursor(), -5);
+  auto line = source.rowsBetween(top, source.trackCursor(playing));
+
+  // Both play a row and the view scrolls one after the cursor track's playhead.
+  source.setPlayheads({{f.track_id, {0, 4}}, {playing, {1, 2}}});
+  top = source.advance(top, 1);
+  source.holdTrackLines(1);
+  CHECK(source.rowsBetween(top, source.trackCursor(f.track_id)) == 5);
+  CHECK(source.rowsBetween(top, source.trackCursor(playing)) == line + 1);
+}
+
 TEST(scene_source_pages_a_playing_tracks_line_back_in_view_when_asked) {
   Fixture f;
   auto & song = f.song();

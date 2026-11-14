@@ -224,14 +224,6 @@ ScenePatternSource::setCursorTrack(int track_id) {
   moveOtherLines(-shift);
 }
 
-void
-ScenePatternSource::holdStoppedTracks(int rows) {
-  if (rows == 0) return;
-  for (auto track_id : song().getRootTrackIds()) {
-    if (track_id != cursor_track_id_ && !isPlaying(track_id)) offsets()[track_id] = offset(track_id) + rows;
-  }
-}
-
 bool ScenePatternSource::keepTrackLinesVisible(RowAddress top, int rows, int margin, bool by_page) {
   bool moved = false;
   for (auto track_id : song().getRootTrackIds()) {
