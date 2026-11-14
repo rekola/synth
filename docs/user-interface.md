@@ -350,10 +350,11 @@ window in Japanese text input: each move writes the chord it lands on.
 ## Just intonation
 
 `apply-just-intonation-region` (M-x or the Edit menu, no key binding) gives
-every pitched note in the region a tuning correction: the cents that move it
+every pitched note in the region a tuning correction: the cents (to a sixteenth) that move it
 from its equal-tempered pitch to a just ratio (`model/JustIntonation.h`). The
-correction goes in the note's fx as `+hh` or `-hh` (commands.md), and `+00`
-marks a note as tuned that needs none.
+correction goes in the note's fx as the fine `+hh`/`-hh` (sixteenths of a
+cent) where it fits, else the coarse `>hh`/`<hh` (whole cents) (commands.md),
+and `+00` marks a note as tuned that needs none.
 
 The ratios come from the song's scale. Every scale names a gamut (the glossary
 defines the word) and selecting the scale selects the gamut; the song stores
@@ -384,7 +385,7 @@ is a different thing from tuning a chord against its own bass, which is not
 done at all.)
 
 Percussion, offs and aftertouch are skipped; any other fx a note had is
-replaced, and the message says how many. In a song with no scale, or a scale
+replaced, and the message says how many. A correction over 255 cents, which no real gamut needs, is never clamped: the note is left untuned and the message counts those too. In a song with no scale, or a scale
 with no gamut (the maqamat), the command writes nothing and says so. A run
 replaces earlier corrections, so it can be repeated after editing; the mark
 stays.
@@ -392,15 +393,15 @@ stays.
 Select all first (C-x h) to tune every clip (Live View) or the arrangement
 (Arrangement view); a clip's notes are tuned against the key, so one tuning
 fits every place it is put. `clear-tuning-correction-region`
-removes the corrections again, whatever put them there. Transposing the region
+removes the corrections again, fine and coarse, whatever put them there. Transposing the region
 gives each tuned note the correction for its new pitch, and transposing the
 whole song moves the key with the notes when no pitched note is left outside
 the selection, so the corrections stay as they were; otherwise the key stays
 and the notes are retuned against it. Changing the song's scale
 (`set-song-scale`) retunes every tuned note of the song for the new scale, in
 the same undo step, and removes the corrections of tuned notes when the new
-scale has no gamut; untuned notes stay untuned. Corrections already in a song
-are not migrated: it sounds as it did until retuned.
+scale has no gamut; untuned notes stay untuned. A correction in a song file counts in the
+current units (sixteenths of a cent for `+hh`/`-hh`); files are not migrated.
 Changing the tuning (`set-song-tuning`, Song menu) converts the song by
 pitch: the key moves to the new tuning's nearest step, every other pitched
 note to the step nearest its interval to the key (a tuning correction

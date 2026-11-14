@@ -31,12 +31,14 @@ struct ScaleCorrections {
   static constexpr int kMaxSteps = 53;
   int edo = 0; // 0: no gamut
   int key = 0; // the key's pitch class
-  std::array<int16_t, kMaxSteps> cents{};
+  std::array<double, kMaxSteps> cents{};
   std::array<bool, kMaxSteps> present{};
 
   bool empty() const { return edo == 0; }
-  // The correction for an absolute note value, if its key has a gamut note.
-  std::optional<int> forNote(int note_value) const;
+  // The exact correction (cents, not yet rounded to what a note's fx can hold,
+  // see Note::tuningCorrectionFx()) for an absolute note value, if its key has
+  // a gamut note.
+  std::optional<double> forNote(int note_value) const;
   bool operator==(const ScaleCorrections & o) const {
     return edo == o.edo && key == o.key && cents == o.cents && present == o.present;
   }

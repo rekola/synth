@@ -66,7 +66,7 @@ def main():
     mx(scr, "apply-just-intonation-region")
     check("it tuned every note", "Tuned 4 notes" in scr.dump(), scr)
     check("the tonic needs nothing, the others their correction",
-          fx_column(scr) == ["+00", "-04", "-05", "+05"], scr)
+          fx_column(scr) == ["+00", "-42", "-53", "+53"], scr)
 
     mx(scr, "clear-tuning-correction-region")
     check("clearing takes them off", fx_column(scr) == ["···"] * 4, scr)
@@ -77,7 +77,7 @@ def main():
     mx(scr, "transpose-region-up")
     after = notes(scr)
     check("transposing moves every note", after != before and before[0] == "C-4", scr)
-    check("and the corrections stay as they were", fx_column(scr) == ["+00", "-04", "-05", "+05"], scr)
+    check("and the corrections stay as they were", fx_column(scr) == ["+00", "-42", "-53", "+53"], scr)
     key_line_after = [l for l in scr.dump().splitlines() if "31edo" in l]
     check("because the key moved with the notes", key_line and key_line_after and key_line != key_line_after, scr)
 

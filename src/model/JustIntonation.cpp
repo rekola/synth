@@ -7,7 +7,7 @@
 
 namespace just_intonation {
 
-std::optional<int> ScaleCorrections::forNote(int note_value) const {
+std::optional<double> ScaleCorrections::forNote(int note_value) const {
   if (edo <= 0) return std::nullopt;
   auto step = static_cast<size_t>((((note_value - key) % edo) + edo) % edo);
   if (!present[step]) return std::nullopt;
@@ -36,7 +36,7 @@ ScaleCorrections scaleCorrectionsFor(Tuning tuning, Scale scale, int key) {
       bool better = member != in_scale[index] ? member : off < error[index] - 1e-9;
       if (!better) continue;
     }
-    out.cents[index] = static_cast<int16_t>(std::lround(note.ratio.cents() - note.ratio.steps(edo) * step_cents));
+    out.cents[index] = note.ratio.cents() - note.ratio.steps(edo) * step_cents;
     out.present[index] = true;
     in_scale[index] = member;
     error[index] = off;

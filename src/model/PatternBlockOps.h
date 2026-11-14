@@ -66,11 +66,13 @@ void tuneNewNote(const Song & song, int track_id, Note & note);
 // and its clips): the widest row. 0 for a track with no notes.
 int usedNoteColumns(const Song & song, int track_id);
 
-// How many pitched notes an apply touched, and how many of those had another
-// fx that the correction replaced.
+// How many pitched notes an apply touched, how many of those had another fx that
+// the correction replaced, and how many it left untuned because their
+// correction needs more than the coarse command's 255 cents.
 struct TuningSummary {
   int notes = 0;
   int replaced = 0;
+  int untuned = 0;
 };
 
 // Transposes (up if `up`, else down) every note in the same range, except
@@ -124,7 +126,9 @@ void humanizePatternBlockNotes(PatternGrid & grid, int row_lo, int row_hi,
 			       const HumanizeAmount & amount, NoiseGenerator & rng);
 // Sets the just-intonation correction (JustIntonation.h) of every pitched
 // note in the range, replacing whatever fx it held; a note that needs no
-// correction gets +00, which marks it as tuned. Offs, aftertouch and any
+// correction gets +00, which marks it as tuned. The correction is the fine
+// command (sixteenths of a cent) where it fits, else the coarse one (whole
+// cents), never clamped. Offs, aftertouch and any
 // track `is_percussion` reports true for (there is no pitch to correct) are
 // skipped. Nothing is written when the context's scale has no gamut.
 TuningSummary applyJustIntonationBlock(PatternGrid & grid, int row_lo, int row_hi,

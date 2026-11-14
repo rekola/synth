@@ -1,4 +1,5 @@
 #include "TestFramework.h"
+#include "TuningTestSupport.h"
 
 #include "../src/model/Gamut.h"
 #include "../src/model/JustIntonation.h"
@@ -192,7 +193,7 @@ TEST(with_just_intonation_every_gamut_note_sounds_at_its_exact_ratio_on_its_key)
       bool own = note.side == GamutSide::BOTH || (note.side == GamutSide::OTONAL) == (scale == Scale::OTONAL);
       if (shared && !own) continue;
       auto cents = corrections.forNote(keyOf(note.ratio, edo));
-      CHECK(cents && *cents == std::lround(note.ratio.cents() - note.ratio.steps(edo) * 1200.0 / edo));
+      CHECK(cents && std::fabs(*cents - (note.ratio.cents() - note.ratio.steps(edo) * 1200.0 / edo)) < 1e-9);
     }
   }
 }
@@ -201,14 +202,14 @@ TEST(keys_2_5_48_and_51_follow_the_songs_scale) {
   auto cents = [](Ratio r) { return static_cast<int>(std::lround(r.cents() - r.steps(53) * 1200.0 / 53)); };
   auto otonal = scaleCorrectionsFor(Tuning::EDO53, Scale::OTONAL, 0);
   auto utonal = scaleCorrectionsFor(Tuning::EDO53, Scale::UTONAL, 0);
-  CHECK(otonal.forNote(2) == std::optional<int>(cents(49 / 48_r)));
-  CHECK(utonal.forNote(2) == std::optional<int>(cents(50 / 49_r)));
-  CHECK(otonal.forNote(5) == std::optional<int>(cents(15 / 14_r)));
-  CHECK(utonal.forNote(5) == std::optional<int>(cents(16 / 15_r)));
-  CHECK(otonal.forNote(48) == std::optional<int>(cents(15 / 8_r)));
-  CHECK(utonal.forNote(48) == std::optional<int>(cents(28 / 15_r)));
-  CHECK(otonal.forNote(51) == std::optional<int>(cents(49 / 25_r)));
-  CHECK(utonal.forNote(51) == std::optional<int>(cents(96 / 49_r)));
+  CHECK(wholeCents(otonal.forNote(2)) == std::optional<int>(cents(49 / 48_r)));
+  CHECK(wholeCents(utonal.forNote(2)) == std::optional<int>(cents(50 / 49_r)));
+  CHECK(wholeCents(otonal.forNote(5)) == std::optional<int>(cents(15 / 14_r)));
+  CHECK(wholeCents(utonal.forNote(5)) == std::optional<int>(cents(16 / 15_r)));
+  CHECK(wholeCents(otonal.forNote(48)) == std::optional<int>(cents(15 / 8_r)));
+  CHECK(wholeCents(utonal.forNote(48)) == std::optional<int>(cents(28 / 15_r)));
+  CHECK(wholeCents(otonal.forNote(51)) == std::optional<int>(cents(49 / 25_r)));
+  CHECK(wholeCents(utonal.forNote(51)) == std::optional<int>(cents(96 / 49_r)));
   // Exactly these four keys are shared.
   std::map<int, int> count;
   for (auto & note : gamut::kExtendedDiamond) count[keyOf(note.ratio, 53)]++;
@@ -227,8 +228,8 @@ TEST(a_new_song_starts_in_53_edo) {
 TEST(in_31_edo_the_scales_still_choose_the_ratio_of_a_shared_key) {
   auto otonal = scaleCorrectionsFor(Tuning::EDO31, Scale::OTONAL, 0);
   auto utonal = scaleCorrectionsFor(Tuning::EDO31, Scale::UTONAL, 0);
-  CHECK(otonal.forNote(3) == std::optional<int>(3));   // 15/14
-  CHECK(utonal.forNote(3) == std::optional<int>(-4));  // 16/15
-  CHECK(otonal.forNote(28) == std::optional<int>(4));  // 15/8
-  CHECK(utonal.forNote(28) == std::optional<int>(-3)); // 28/15
+  CHECK(wholeCents(otonal.forNote(3)) == std::optional<int>(3));   // 15/14
+  CHECK(wholeCents(utonal.forNote(3)) == std::optional<int>(-4));  // 16/15
+  CHECK(wholeCents(otonal.forNote(28)) == std::optional<int>(4));  // 15/8
+  CHECK(wholeCents(utonal.forNote(28)) == std::optional<int>(-3)); // 28/15
 }

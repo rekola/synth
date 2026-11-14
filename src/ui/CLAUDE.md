@@ -141,8 +141,10 @@ Controller-level and per-widget commands. Not migrated: `StatusLine`,
   clip, or the background), stopping where other content takes over
   (`PatternSource::sourceRows()`). A yank writes into whatever the cursor is
   on and stops where that ends.
-- Tuning corrections: a note's local fx can be `+hh`/`-hh` cents
-  (`Note::setTuningCorrection()`, played as `NoteOverride::detune_cents`); the
+- Tuning corrections: a note's local fx can be `+hh`/`-hh` (sixteenths of
+  a cent) or `>hh`/`<hh` (whole cents, for what the fine one does not reach;
+  `Note::setTuningCorrection(double cents)` picks, never clamps and returns false
+  past 255; played as `NoteOverride::detune_cents`, a float); the
   empty fx character is `.` (shown `·`) since `-` is a sign.
   `apply-just-intonation-region` tunes each pitched note to the gamut note
   of its key (`model/JustIntonation.h`): the scale names its gamut
