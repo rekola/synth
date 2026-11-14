@@ -58,6 +58,39 @@ LinkClass linkClassForFps(double fps, double margin) {
   return LinkClass::HZ_1;
 }
 
+LinkClass linkClassForFrameRate(double fps, double refresh_hz, double margin) {
+  double shown = refresh_hz > 0 ? std::min(refresh_hz, 60.0) : 60.0;
+  double rate = fps * 60.0 / shown;
+  // A window cannot draw faster than its display refreshes, so FULL has no headroom to show: a rate
+  // that is FULL is FULL with any margin.
+  if (linkClassForFps(rate) == LinkClass::FULL) return LinkClass::FULL;
+  return linkClassForFps(rate, margin);
+}
+
+void FrameRateMeter::tick(int64_t time_us, bool drew) {
+  if (last_drew_ && last_us_ > 0) {
+    int64_t length = time_us - last_us_;
+    if (length > 0 && length <= kLongestFrameUs) frames_.push_back({time_us, length});
+  }
+  last_us_ = time_us;
+  last_drew_ = drew;
+  while (!frames_.empty() && frames_.front().end_us < time_us - kSpanUs) frames_.pop_front();
+}
+
+std::optional<double> FrameRateMeter::rate(int64_t now_us) const {
+  // The frames that ended in the last second, or the last two when fewer did (a slow display).
+  size_t count = 0;
+  int64_t total = 0;
+  for (auto it = frames_.rbegin(); it != frames_.rend(); ++it) {
+    if (it->end_us < now_us - kSpanUs) break;
+    if (it->end_us < now_us - kRecentUs && count >= 2) break;
+    count++;
+    total += it->length_us;
+  }
+  if (count < 2 || total <= 0) return std::nullopt;
+  return static_cast<double>(count) * 1e6 / static_cast<double>(total);
+}
+
 LinkClass LinkClassifier::update(TimePoint now, LinkClass indicated, LinkClass indicated_with_margin) {
   if (pin_) return current_ = *pin_;
   // Down: every reading for a while said worse; take the best of what they said.
@@ -113,6 +146,14 @@ void LinkMonitor::setAvailable(bool available) {
   LinkStatus before = status_;
   status_.available = available;
   notifyIfChanged(before);
+}
+
+void updateWindowLink(LinkMonitor & link, LinkMonitor::TimePoint now, std::optional<double> fps, double refresh_hz) {
+  if (!fps) {
+    link.hold();
+    return;
+  }
+  link.update(now, linkClassForFrameRate(*fps, refresh_hz), linkClassForFrameRate(*fps, refresh_hz, link.classifierConfig().up_margin));
 }
 
 void LinkMonitor::set(const LinkStatus & status) {

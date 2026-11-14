@@ -276,7 +276,13 @@ timing (and missed-vsync counts) at exit.
   floor rate whatever the link could take), since otherwise the estimate only
   says what the app sent; with the link not limiting the description is a
   rough `~rate` and the round trip, or just `not limiting` when the estimate is
-  near the floor rate of the last frame (`PacerStats::floor_rate`); a window reports its monitor's vsync rate and achieved fps.
+  near the floor rate of the last frame (`PacerStats::floor_rate`). A window
+  classifies on the frame rate it keeps up with (`FrameRateMeter`: each frame
+  drawn lasts until the frame clock's next tick, drawn or not, so an app capping
+  its own rate is still measured) as a share of its refresh rate capped at 60 Hz
+  (`linkClassForFrameRate()`: a 30 Hz monitor at 30 fps is FULL); FULL needs no
+  up margin, and with too little drawn there is no reading and the class holds
+  (`LinkClassifier::hold()`). Its description is `60 Hz vsync, 58 fps`.
   `InfoLine` shows `Link: ...` (`n/a` until available). `plans/link-degradation.md`
   plans what an app does at each class. `tools/pacing/run_assertions.py`
   (ctest `cellui_pacing_harness`) runs `cellui_pacing_probe` on a shaped pty.

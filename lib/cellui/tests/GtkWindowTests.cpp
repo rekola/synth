@@ -350,6 +350,37 @@ TEST(gtk_window_link_status_has_the_vsync_rate_and_follows_frames_asked_for_in_a
   w->setLinkPin(std::nullopt);
 }
 
+// An application capping its own rate asks for a frame only every so often, and the window's ticks
+// in between draw nothing; the frames it does draw are still measured, so a class it lowered can be
+// raised again.
+TEST(gtk_window_link_reads_the_frame_rate_of_an_application_capping_its_rate) {
+  gtk::Window * w = theWindow();
+  if (!w) return;
+  StyleProvider styles;
+  CellBuffer screen(w->rows(), w->cols());
+  BufferPlane root(screen, styles);
+  int drawn = 0;
+  w->setFrameHandler([&](int64_t) {
+    root.putstr(0, 0, "capped " + std::to_string(drawn++));
+    root.refresh();
+    w->present(screen, {}, root.images());
+  });
+  // A frame asked for every 50 ms: never two ticks in a row.
+  size_t readings = w->stats().link_readings;
+  auto last_ask = std::chrono::steady_clock::now() - std::chrono::seconds(1);
+  bool read = pumpUntil(*w, [&] {
+    if (std::chrono::steady_clock::now() - last_ask >= std::chrono::milliseconds(50)) {
+      last_ask = std::chrono::steady_clock::now();
+      w->requestFrame();
+    }
+    return w->stats().link_readings >= readings + 2;
+  }, 6000);
+  w->setFrameHandler(nullptr);
+  CHECK(read);
+  CHECK(drawn >= 10);
+  CHECK(w->linkStatus().description.find("fps") != std::string::npos);
+}
+
 TEST(gtk_window_draws_a_frame_over_a_backdrop_layer) {
   gtk::Window * w = theWindow();
   if (!w) return;
