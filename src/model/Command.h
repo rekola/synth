@@ -111,7 +111,7 @@ class Command {
     if (digit(values_[2], 16) < 0 || digit(values_[3], 16) < 0) return false;
     if (values_[0] == 'Z') return isPatternBreak() || (isTempoSet() && getTempoBpm() > 0);
     if (values_[0] == 'Y') return std::string_view("MABZLRUD").find(values_[1]) != std::string_view::npos;
-    return values_[0] == '0' && std::string_view("UDGRPWL").find(values_[1]) != std::string_view::npos;
+    return values_[0] == '0' && std::string_view("UDGHRPWL").find(values_[1]) != std::string_view::npos;
   }
 
   // ZBxx ("Z" being the group every native/global command not tied to a
