@@ -19,10 +19,10 @@ canvas::Color toCanvas(const Color & c, float alpha = 1.0f) { return canvas::Col
 
 }  // namespace
 
-PictureData renderPicture(const std::vector<float> & levels, unsigned width, unsigned height, const StyleProvider & styles, float scale,
+Picture renderPicture(const std::vector<float> & levels, unsigned width, unsigned height, const StyleProvider & styles, float scale,
                       bool prefer_float) {
   StageTimer timer(Stage::PICTURE_RENDER);
-  PictureData blank;
+  Picture blank;
   blank.width = static_cast<int>(width);
   blank.height = static_cast<int>(height);
   blank.pixels.assign(static_cast<size_t>(width) * height, 0);
@@ -61,7 +61,7 @@ PictureData renderPicture(const std::vector<float> & levels, unsigned width, uns
   ctx.lineWidth = 1.5f;
   ctx.stroke();
 
-  PictureData out = readPicture(drawn, width, height, scale);
+  Picture out = readPicture(drawn, width, height, scale);
   return out.width ? out : blank;
 }
 

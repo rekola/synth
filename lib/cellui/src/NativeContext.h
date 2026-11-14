@@ -24,9 +24,9 @@ struct LinearContext {
 };
 LinearContext nativeLinearContext(unsigned width, unsigned height, float display_scale, bool prefer_float);
 
-// The top-left width x height pixels of what was drawn, as a PictureData: floats for a float context, else
+// The top-left width x height pixels of what was drawn, as a Picture: floats for a float context, else
 // 8-bit R, G, B, A. Empty (no pixels at all) when the surface is smaller or in a format not expected.
-PictureData readPicture(LinearContext & drawn, unsigned width, unsigned height, float display_scale);
+Picture readPicture(LinearContext & drawn, unsigned width, unsigned height, float display_scale);
 
 }  // namespace cellui
 

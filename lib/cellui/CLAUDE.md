@@ -206,7 +206,7 @@ carries the app's object as an opaque `getAppContext()`.
   `nativeLinearContext()` is what a painter draws on: a context of exact pixels whose colours
   are linear Rec.2020 (`setInputColorSpace`), a float surface when asked for and the backend has
   one (`LinearContext::is_float`), else an 8-bit one where canvas maps each colour to sRGB, so
-  a painter draws the same colours either way and `readPicture()` gives back a `PictureData`
+  a painter draws the same colours either way and `readPicture()` gives back a `Picture`
   (`Picture.h`: 8-bit `pixels` or float `hdr`). A painter that supports it (`line_image::
   renderPicture()` so far) asks `Plane::hdrPictures()` (`DisplayInfo::hdr_pictures`, the root's
   for the tree) and shows the result with `drawPicture()`: `Plane::drawHdrImage()` for floats

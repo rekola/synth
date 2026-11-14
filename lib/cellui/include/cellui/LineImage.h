@@ -20,10 +20,10 @@ namespace line_image {
 std::vector<uint32_t> render(const std::vector<float> & levels, unsigned width, unsigned height, const StyleProvider & styles,
                              float scale = 1.0f);
 
-// The same as a PictureData: drawn on a float canvas when `prefer_float` and the backend has one (the
+// The same as a Picture: drawn on a float canvas when `prefer_float` and the backend has one (the
 // colours kept as given, HDR above 1), else on an 8-bit one that maps each colour to sRGB. A wrong
 // level count gives a blank 8-bit picture.
-PictureData renderPicture(const std::vector<float> & levels, unsigned width, unsigned height, const StyleProvider & styles, float scale,
+Picture renderPicture(const std::vector<float> & levels, unsigned width, unsigned height, const StyleProvider & styles, float scale,
                       bool prefer_float);
 
 }  // namespace line_image

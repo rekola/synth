@@ -11,7 +11,7 @@ namespace cellui {
 // the display asked for them and the canvas backend has float surfaces, floats (R, G, B, A in linear
 // Rec.2020, 1.0 = SDR white, width*height*4 of them). The painters draw the same colours either way;
 // on an 8-bit canvas, canvas itself maps each colour to sRGB.
-struct PictureData {
+struct Picture {
   int width = 0, height = 0;
   std::vector<uint32_t> pixels;
   std::vector<float> hdr;
@@ -19,7 +19,7 @@ struct PictureData {
 };
 
 // Shows the picture over the whole plane (Plane::drawHdrImage() or drawImage()).
-inline void drawPicture(Plane & plane, const PictureData & picture, uint64_t id = 0) {
+inline void drawPicture(Plane & plane, const Picture & picture, uint64_t id = 0) {
   if (picture.isHdr()) plane.drawHdrImage(picture.hdr, picture.width, picture.height, id);
   else plane.drawImage(picture.pixels, picture.width, picture.height, id);
 }

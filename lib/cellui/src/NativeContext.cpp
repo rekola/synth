@@ -63,8 +63,8 @@ LinearContext nativeLinearContext(unsigned width, unsigned height, float display
   return result;
 }
 
-PictureData readPicture(LinearContext & drawn, unsigned width, unsigned height, float display_scale) {
-  PictureData out;
+Picture readPicture(LinearContext & drawn, unsigned width, unsigned height, float display_scale) {
+  Picture out;
   if (!drawn.context || width == 0 || height == 0) return out;
   auto image = drawn.context->getDefaultSurface().createImage(display_scale);
   const canvas::ImageData & data = image->getData();
@@ -73,7 +73,7 @@ PictureData readPicture(LinearContext & drawn, unsigned width, unsigned height, 
   out.width = static_cast<int>(width);
   out.height = static_cast<int>(height);
   if (drawn.is_float) {
-    if (data.getPixelType() != canvas::PixelType::FLOAT32) return PictureData();
+    if (data.getPixelType() != canvas::PixelType::FLOAT32) return Picture();
     out.hdr.resize(static_cast<size_t>(width) * height * 4);
     const float * src = data.getFloatData();
     const size_t stride = static_cast<size_t>(data.getWidth()) * 4;
