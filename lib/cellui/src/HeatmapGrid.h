@@ -1,13 +1,14 @@
 #pragma once
 
-// The heatmap's resampling and axis labels, shared by its cell and pixel
+// The heatmap's resampling and label placement, shared by its cell and pixel
 // versions (Charts.cpp, PixelCharts.cpp).
 
 #include <cellui/HeatmapImage.h>
 #include <cellui/Color.h>
+#include <cellui/Utf8.h>
 
 #include <algorithm>
-#include <array>
+#include <string>
 #include <cmath>
 #include <cstdint>
 #include <vector>
@@ -137,40 +138,30 @@ inline void resampleGrid(const std::vector<float> & brightness, const std::vecto
   }
 }
 
-struct AxisLabel { int row, col; const char * text; };
-
-// The heatmap's own axis extremes, placed directly in the grid area rather
-// than a separate legend row - elevation labels on the top/bottom rows
-// (matching HeatmapChart's row-0-is-bottom-of-data/screen-row-0-is-top
-// convention, so "+90" naturally sits where the top of the grid is),
-// azimuth labels at the left/right edges of a middle row (azimuth bin 0
-// is the left edge, bin kAzimuthBins-1 the right - see DiracAnalyzer.cpp's
-// own az_pos splat math). Labels are always drawn, never hidden by
-// activity underneath them - instead, each character cell a label
-// occupies is an exception to the normal two-color quadrant/pixel
-// blend: it collapses to a single mean color (its underlying sub-samples
-// averaged) used as that character's background, with the glyph itself
-// drawn in white blended with transparency over that background
-// (labelForegroundColor(), below) - so the label always reads clearly
-// while still visibly taking on whatever hue/brightness is really there.
-constexpr float kLabelForegroundAlpha = 0.55f; // how much white shows through the glyph
-
+// A label over the cell version is drawn a character at a time: each cell it
+// covers collapses to a single mean colour (its sub-samples averaged) as the
+// character's background, with the glyph in white blended with transparency
+// over it (labelForegroundColor()), so the label always reads clearly while
+// still taking on whatever hue and brightness is there.
 inline void labelForegroundColor(const FloatRgb & bg, uint8_t & r, uint8_t & g, uint8_t & b) {
-  r = static_cast<uint8_t>(kLabelForegroundAlpha * 255.0f + (1.0f - kLabelForegroundAlpha) * bg.r);
-  g = static_cast<uint8_t>(kLabelForegroundAlpha * 255.0f + (1.0f - kLabelForegroundAlpha) * bg.g);
-  b = static_cast<uint8_t>(kLabelForegroundAlpha * 255.0f + (1.0f - kLabelForegroundAlpha) * bg.b);
+  constexpr float a = heatmap_image::kLabelAlpha;
+  r = static_cast<uint8_t>(a * 255.0f + (1.0f - a) * bg.r);
+  g = static_cast<uint8_t>(a * 255.0f + (1.0f - a) * bg.g);
+  b = static_cast<uint8_t>(a * 255.0f + (1.0f - a) * bg.b);
 }
 
-inline std::array<AxisLabel, 4> axisLabels(int usable_rows, int cols) {
-  int el_col = std::max(0, (cols - 3) / 2); // "+90"/"-90" are both 3 characters wide
-  return {{
-    { 0, el_col, "+90" },
-    { usable_rows - 1, el_col, "-90" },
-    { usable_rows / 2, 0, "-180" },
-    { usable_rows / 2, cols - 4, "+180" },
-  }};
-}
+struct CellLabel { int row, col; std::string text; };
 
+// Where a label goes in a cols x rows grid of character cells (row 0 at the
+// top), clamped to stay inside; empty when it has no room at all.
+inline CellLabel cellLabel(const HeatmapChart::Label & label, int cols, int rows) {
+  int width = utf8::displayWidth(label.text);
+  float left = label.u * static_cast<float>(cols) - label.align_x * static_cast<float>(width);
+  float top = (1.0f - label.v) * static_cast<float>(rows) - (1.0f - label.align_y);
+  int col = std::clamp(static_cast<int>(std::floor(left + 0.5f)), 0, std::max(0, cols - width));
+  int row = std::clamp(static_cast<int>(std::floor(top + 0.5f)), 0, std::max(0, rows - 1));
+  return { row, col, label.text };
+}
 
 }  // namespace heatmap_grid
 

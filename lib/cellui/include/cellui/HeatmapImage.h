@@ -24,13 +24,19 @@ inline void cellColor(const Color & background, float saturation, float value, f
   b = static_cast<float>(bg[2]) * (1.0f - value) + static_cast<float>(lb) * value;
 }
 
+// How much of a label's white shows over the heatmap (0 to 1).
+constexpr float kLabelAlpha = 0.55f;
+
 // The heatmap as pixels: `brightness`/`saturation` are cols*rows entries,
 // row 0 at the bottom (HeatmapChart::setGrid()), smoothly scaled up to
-// width x height, a 3x3 white square on each marker (u, v in 0..1, v up).
+// width x height, a 3x3 white square on each marker (u, v in 0..1, v up),
+// then each label's text drawn with canvas in a font `label_px` tall, in white
+// at kLabelAlpha so the heatmap shows through it.
 // Returns width*height pixels, row 0 at the top, one uint32_t per pixel with
 // bytes R, G, B, A in memory order (all opaque).
 std::vector<uint32_t> render(const std::vector<float> & brightness, const std::vector<float> & saturation, int cols, int rows,
-                             const std::vector<HeatmapChart::Marker> & markers, unsigned width, unsigned height, const StyleProvider & styles);
+                             const std::vector<HeatmapChart::Marker> & markers, const std::vector<HeatmapChart::Label> & labels,
+                             unsigned width, unsigned height, const StyleProvider & styles, float label_px);
 
 }  // namespace heatmap_image
 

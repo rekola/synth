@@ -112,7 +112,7 @@ std::vector<uint8_t> heatmapPicture(unsigned w, unsigned h) {
       saturation[static_cast<size_t>(y * cols + x)] = 0.4f + 0.6f * std::min(1.0f, d / 8.0f);
     }
   }
-  return rgb(heatmap_image::render(brightness, saturation, cols, rows, {}, w, h, styles));
+  return rgb(heatmap_image::render(brightness, saturation, cols, rows, {}, {}, w, h, styles, 0.0f));
 }
 #endif
 
