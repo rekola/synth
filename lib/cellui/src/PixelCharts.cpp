@@ -95,9 +95,8 @@ protected:
       has_pixels_ = true;
     }
     // Opaque, so a pixel never composites against the raw terminal background.
-    auto buffer = line_image::render(samples, static_cast<unsigned>(pxx), static_cast<unsigned>(pxy), getPlane().getStyles(),
-                                         static_cast<float>(getPlane().displayScale()));
-    getPlane().drawImage(buffer, pxx, pxy);
+    drawPicture(getPlane(), line_image::renderPicture(samples, static_cast<unsigned>(pxx), static_cast<unsigned>(pxy), getPlane().getStyles(),
+                                                      static_cast<float>(getPlane().displayScale()), getPlane().hdrPictures()));
   }
 
  private:

@@ -2,6 +2,8 @@
 
 #include <cellui/LineImage.h>
 
+#include <cstdio>
+
 using namespace cellui;
 
 namespace {
@@ -84,4 +86,46 @@ TEST(line_image_fractional_scale_fills_the_exact_size) {
     drawn = drawn || p.r != bg.r || p.g != bg.g || p.b != bg.b;
   }
   CHECK(drawn);
+}
+
+TEST(line_image_float_picture_keeps_the_background_as_given) {
+  StyleProvider styles;
+  std::vector<float> levels(40, 0.5f);
+  auto pic = line_image::renderPicture(levels, 40, 24, styles, 1.0f, true);
+  CHECK(pic.width == 40 && pic.height == 24);
+  if (!pic.isHdr()) {
+    // A canvas backend with no float surfaces gives the 8-bit picture of the same colours.
+    std::printf("note: this canvas backend has no float surfaces; the 8-bit fallback was checked\n");
+    CHECK(pic.pixels.size() == 40u * 24u);
+    return;
+  }
+  CHECK(pic.pixels.empty() && pic.hdr.size() == 40u * 24u * 4u);
+  // The top-left pixel is the window background, in linear Rec.2020 as the style holds it.
+  const Color & bg = styles.window_bg_color;
+  CHECK_NEAR(pic.hdr[0], bg.r(), 1e-4f);
+  CHECK_NEAR(pic.hdr[1], bg.g(), 1e-4f);
+  CHECK_NEAR(pic.hdr[2], bg.b(), 1e-4f);
+  CHECK_NEAR(pic.hdr[3], 1.0f, 1e-6f);
+  // Opaque everywhere.
+  for (size_t i = 3; i < pic.hdr.size(); i += 4) CHECK_NEAR(pic.hdr[i], 1.0f, 1e-5f);
+}
+
+TEST(line_image_float_and_8_bit_pictures_agree_on_the_background) {
+  StyleProvider styles;
+  std::vector<float> levels(40, 0.5f);
+  auto flat = line_image::renderPicture(levels, 40, 24, styles, 1.0f, false);
+  CHECK(!flat.isHdr() && flat.pixels.size() == 40u * 24u);
+  auto pic = line_image::renderPicture(levels, 40, 24, styles, 1.0f, true);
+  if (!pic.isHdr()) return;
+  // What the 8-bit canvas shows of a colour is what toSrgb8() makes of the float one.
+  auto expected = Color::linear(pic.hdr[0], pic.hdr[1], pic.hdr[2]).toSrgb8();
+  Rgb p = at(flat.pixels, 40, 0, 0);
+  CHECK(std::abs(p.r - expected[0]) <= 1 && std::abs(p.g - expected[1]) <= 1 && std::abs(p.b - expected[2]) <= 1);
+}
+
+TEST(line_image_picture_with_a_wrong_level_count_is_blank_8_bit) {
+  StyleProvider styles;
+  auto pic = line_image::renderPicture(std::vector<float>(5, 1.0f), 10, 10, styles, 1.0f, true);
+  CHECK(!pic.isHdr() && pic.pixels.size() == 100u);
+  for (uint32_t p : pic.pixels) CHECK(p == 0u);
 }

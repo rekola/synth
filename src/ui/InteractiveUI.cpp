@@ -494,6 +494,7 @@ InteractiveUI::initialize(std::shared_ptr<Controller> & controller) {
   root_plane_ = root_plane.get();
   if (display.default_fg && display.default_bg) root_plane_->setDefaultColors(*display.default_fg, *display.default_bg);
   root_plane_->setDisplayScale(display.display_scale);
+  root_plane_->setHdrPictures(display.hdr_pictures);
   root_plane_->setSmoothScroll(display.smooth_scroll);
   root_plane_->setCellBorders(display.cell_borders);
   root_plane_->setProportionalText(display.proportional_text);

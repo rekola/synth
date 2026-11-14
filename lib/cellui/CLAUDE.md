@@ -202,7 +202,16 @@ carries the app's object as an opaque `getAppContext()`.
   canvas (`rekola/canvas`: Cairo, Quartz 2D on macOS, GDI+ on Windows) is
   fetched at a pinned commit by `lib/cellui/CMakeLists.txt` with none of our
   warning flags and SYSTEM includes; `cellui::nativeContext()`
-  (`src/NativeContext.h`) is the one place that names a canvas backend. An
+  (`src/NativeContext.h`) is the one place that names a canvas backend.
+  `nativeLinearContext()` is what a painter draws on: a context of exact pixels whose colours
+  are linear Rec.2020 (`setInputColorSpace`), a float surface when asked for and the backend has
+  one (`LinearContext::is_float`), else an 8-bit one where canvas maps each colour to sRGB, so
+  a painter draws the same colours either way and `readPicture()` gives back a `PictureData`
+  (`Picture.h`: 8-bit `pixels` or float `hdr`). A painter that supports it (`line_image::
+  renderPicture()` so far) asks `Plane::hdrPictures()` (`DisplayInfo::hdr_pictures`, the root's
+  for the tree) and shows the result with `drawPicture()`: `Plane::drawHdrImage()` for floats
+  (`Image::hdr`, linear Rec.2020 RGBA, the display maps and blooms it itself) or `drawImage()`.
+  No display sets `hdr_pictures` yet. An
   `ImageData` handed to canvas is RGB straight-alpha unless tagged
   (`setFormat(ChannelOrder::BGR, true)` for premultiplied B,G,R,A as we build
   them); renderers return RGBA.

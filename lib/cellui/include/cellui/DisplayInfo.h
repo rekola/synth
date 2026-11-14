@@ -52,6 +52,10 @@ struct DisplayInfo {
   // the program runs (HDR toggled in the OS, a window moved to another
   // monitor): BackendEvent::Type::DISPLAY says so.
   std::optional<HdrInfo> hdr;
+  // Whether pictures can be given as linear Rec.2020 floats (Plane::drawHdrImage()) and the display
+  // maps and blooms them itself. A display that cannot is given 8-bit pictures, drawn with the same
+  // colours and mapped to sRGB by canvas.
+  bool hdr_pictures = false;
   // Whether a plane's content can be shown shifted by a fraction of a cell
   // (Plane::setScrollOffset()), so a view can scroll smoothly.
   bool smooth_scroll = false;

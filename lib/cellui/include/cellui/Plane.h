@@ -118,6 +118,17 @@ class Plane {
   virtual void drawImage(const std::vector<uint32_t> & pixels, int width, int height, uint64_t id = 0) {
     drawImageAt(0, 0, pixels, width, height, id);
   }
+  // Whether drawHdrImage() shows anything (DisplayInfo::hdr_pictures); a widget asks first and draws
+  // with drawImage() when it is false.
+  virtual bool hdrPictures() const { return false; }
+  // Shows `rgba` (width*height*4 floats, row 0 at the top, linear Rec.2020, 1.0 = SDR white) like
+  // drawImage(). Only where hdrPictures() said yes.
+  virtual void drawHdrImage(const std::vector<float> & rgba, int width, int height, uint64_t id = 0) {
+    (void)rgba;
+    (void)width;
+    (void)height;
+    (void)id;
+  }
   // The same from cell (row, col), covering only the cells the image
   // reaches; the plane's text shows in the others. A plane holds one image
   // per position, each replacing the last drawn there. `id` names the

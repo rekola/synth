@@ -6,6 +6,7 @@
 #include <algorithm>
 #include <array>
 #include <cmath>
+#include <cstring>
 #include <map>
 #include <tuple>
 
@@ -559,6 +560,48 @@ void BufferPlane::drawImage(const std::vector<uint32_t> & pixels, int width, int
   drawImageAt(0, 0, pixels, width, height, id);
 }
 
+void BufferPlane::drawHdrImage(const std::vector<float> & rgba, int width, int height, uint64_t id) {
+  size_t count = static_cast<size_t>(std::max(width, 0)) * static_cast<size_t>(std::max(height, 0)) * 4;
+  if (width <= 0 || height <= 0 || rgba.size() < count) return;
+  // A whole-plane image replaces any others, as drawImage() does.
+  images_.erase(std::remove_if(images_.begin(), images_.end(), [](const PlacedImage & p) { return p.row != 0 || p.col != 0; }), images_.end());
+  bool explicit_id = id != 0;
+  uint64_t identity = id;
+  if (!explicit_id) {
+    identity = 14695981039346656037ull;
+    auto mix = [&](uint64_t v) { identity = (identity ^ v) * 1099511628211ull; };
+    mix(static_cast<uint64_t>(width));
+    mix(static_cast<uint64_t>(height));
+    for (size_t i = 0; i < count; i++) {
+      uint32_t bits;
+      std::memcpy(&bits, &rgba[i], sizeof bits);
+      mix(bits);
+    }
+  }
+  auto equal = [&](const PlacedImage & placed) {
+    return placed.image->width == width && placed.image->height == height && placed.image->isHdr() &&
+           std::memcmp(placed.image->hdr.data(), rgba.data(), count * sizeof(float)) == 0;
+  };
+  auto fresh = [&]() {
+    auto image = std::make_shared<Image>();
+    image->width = width;
+    image->height = height;
+    image->hdr.assign(rgba.begin(), rgba.begin() + static_cast<long>(count));
+    image->version = nextImageVersion();
+    return image;
+  };
+  for (PlacedImage & placed : images_) {
+    if (placed.row != 0 || placed.col != 0) continue;
+    placed.clip_top = INT_MIN;
+    placed.clip_bottom = INT_MAX;
+    placed.identity = identity;
+    placed.explicit_id = explicit_id;
+    if (!equal(placed)) placed.image = fresh();
+    return;
+  }
+  images_.push_back(PlacedImage{0, 0, fresh(), nextKey(), identity, explicit_id, INT_MIN, INT_MAX});
+}
+
 void BufferPlane::drawImageAt(int row, int col, const std::vector<uint32_t> & pixels, int width, int height, uint64_t id, int clip_top,
                               int clip_bottom) {
   if (width <= 0 || height <= 0 || pixels.size() < static_cast<size_t>(width) * static_cast<size_t>(height)) return;
@@ -574,7 +617,7 @@ void BufferPlane::drawImageAt(int row, int col, const std::vector<uint32_t> & pi
     for (size_t i = 0; i < count; i++) mix(pixels[i]);
   }
   auto equal = [&](const PlacedImage & placed) {
-    return placed.image->width == width && placed.image->height == height &&
+    return placed.image->width == width && placed.image->height == height && !placed.image->isHdr() &&
            std::equal(placed.image->pixels.begin(), placed.image->pixels.end(), pixels.begin());
   };
   auto fresh = [&]() {
