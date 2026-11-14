@@ -55,7 +55,7 @@ inline const std::string_view keyToMidiNote(int key, Tuning tuning, Scale scale)
     // an octave up; the spellings are the gamut's own.
     static const std::map<Scale, std::vector<std::string>> table = [] {
       std::map<Scale, std::vector<std::string>> out;
-      for (auto mode : {Scale::NIS_TUHRIM, Scale::ISARTUM, Scale::EMBUBUM, Scale::NID_QABLIM, Scale::QABLITUM, Scale::KITMUM, Scale::PITUM}) {
+      for (auto mode : {Scale::NIS_TUHRIM, Scale::ISARTUM, Scale::EMBUBUM, Scale::NID_QABLIM, Scale::QABLITUM, Scale::KITMUM, Scale::PITUM, Scale::PHRYGIAN_TONOS}) {
         auto & keys = out[mode];
         for (auto name : scaleDegreeNames(mode)) keys.emplace_back(name);
         keys.push_back(keys[0] + "'");

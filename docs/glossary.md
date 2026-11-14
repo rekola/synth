@@ -291,6 +291,14 @@ heptachord table show. Sources: Kilmer, "Mesopotamian Music Theory Since
 1977" (2014), which gives the Greek octave-species names; Gurney, "Babylonian
 Music Again" (1994); Krispijn (1990). The tuning text is UET VII 74.
 
+**Phrygian tonos**
+The Greek Phrygian key as Athenaeus uses it, diatonic and chromatic mixed: ten
+notes of the Pythagorean gamut (53-EDO only), 1/1 256/243 9/8 32/27 4/3 1024/729
+3/2 128/81 27/16 243/128 (C C♯↑ D E♭↓ F F♯↑ G A♭↓ A↑ B↑ on C). Chromatic
+tetrachords are tuned limma, apotome, minor third, so the chromatic third note is
+a 9/8 tone above the tetrachord's base. West's names for each degree are in
+`Scale.h`. Not Archytas' septimal chromatic, which has 28/27 as its lowest step.
+
 **Rhythm**
 A pre-written drum pattern in the Library, such as Waltz, Funk or Bossa
 Nova. It is content (which drum hits fall on which rows), where swing is

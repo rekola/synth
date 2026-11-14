@@ -361,7 +361,7 @@ nothing else:
 | --- | --- |
 | major, minor | duodene (Ellis's 12 notes: 1/1 16/15 9/8 6/5 5/4 4/3 45/32 3/2 8/5 5/3 9/5 15/8) |
 | otonal, utonal | the extended diamond (33 ratios; [extended-diamond.md](extended-diamond.md)) |
-| the seven Babylonian modes (nīš tuḫrim, išartum, embūbum, nīd qablim, qablītum, kitmum, pītum) | Pythagorean (53-EDO only) |
+| the seven Babylonian modes (nīš tuḫrim, išartum, embūbum, nīd qablim, qablītum, kitmum, pītum) and Phrygian tonos | Pythagorean (53-EDO only) |
 | none, the maqamat | no gamut: tempered, no corrections |
 
 Each key, a step above the song's key, gets the gamut note whose nearest step
