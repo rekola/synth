@@ -453,7 +453,7 @@ private:
   };
   Audition audition_;
   static constexpr std::chrono::milliseconds kAuditionTime{600};
-  static constexpr std::chrono::milliseconds kCompletionInterval{80};
+  static constexpr std::chrono::milliseconds kCompletionInterval{40};
   // The notes a completion added, sounding one after another from the lowest:
   // kCompletionInterval apart, or as far apart as a quick tap was long. Only
   // the sound is spread out; the notes are written at once.
