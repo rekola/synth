@@ -81,6 +81,7 @@ struct Environment {
   std::string term_program;   // $TERM_PROGRAM
   bool konsole = false;       // $KONSOLE_VERSION set
   bool ssh = false;           // $SSH_CONNECTION or $SSH_TTY set
+  bool tmux = false;          // $TMUX set (lost over ssh: insideTmux() also reads $TERM)
   bool linux_console = false; // the tty is a Linux virtual console
   bool windows = false;
   // Overrides: "none", "8", "16", "256" or "24bit"; "none", "sixel", "kitty" or
@@ -92,5 +93,15 @@ struct Environment {
   // the overrides).
   static Environment fromProcess();
 };
+
+// Whether the terminal is tmux's: $TMUX, a tmux*/screen* $TERM (which survives ssh from inside tmux), or
+// the terminal identified itself as tmux (`terminal`, the name discovery found; may be empty).
+bool insideTmux(const Environment & env, const std::string & terminal = "");
+
+// The one rule for images under tmux, which does not pass kitty graphics through: kitty becomes Sixel where
+// the terminal reports Sixel (`sixel`) and no images otherwise. Sixel and the rest are left to their own
+// detection (tmux answers the Sixel query itself, so a tmux without Sixel reports none). Outside tmux
+// `protocol` is returned as it is.
+PixelProtocol pixelsForTmux(PixelProtocol protocol, bool sixel, bool in_tmux);
 
 }  // namespace cellui::term

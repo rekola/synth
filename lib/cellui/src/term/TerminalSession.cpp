@@ -31,6 +31,8 @@ struct Global {
   struct termios saved;
   char restore[1024];
   size_t restore_size = 0;
+  // The session's kitty image ids, deleted ahead of the restoration.
+  std::atomic<const KittyImageRegistry *> images{nullptr};
   std::atomic<bool> resized{false};
   std::atomic<bool> continued{false};
 };
@@ -41,8 +43,25 @@ const int kTerminationSignals[] = {SIGINT, SIGTERM, SIGHUP, SIGQUIT};
 struct sigaction g_previous[NSIG];
 
 // Async-signal-safe: writes the precomputed bytes and the saved modes.
+void writeAll(const char * bytes, size_t size) {
+  size_t done = 0;
+  while (done < size) {
+    ssize_t n = ::write(g.fd, bytes + done, size - done);
+    if (n <= 0) break;
+    done += static_cast<size_t>(n);
+  }
+}
+
 void restoreFromSignal() {
   if (!g.active.exchange(false)) return;
+  if (const KittyImageRegistry * images = g.images.exchange(nullptr)) {
+    char buf[2048];
+    size_t from = 0;
+    while (from < KittyImageRegistry::kCapacity) {
+      size_t n = images->formatCleanup(buf, sizeof buf, from);
+      if (n > 0) writeAll(buf, n);
+    }
+  }
   size_t done = 0;
   while (done < g.restore_size) {
     ssize_t n = ::write(g.fd, g.restore + done, g.restore_size - done);
@@ -188,6 +207,7 @@ bool TerminalSession::start(SessionOptions & options, std::string * error) {
   g.wake_write = wake_write_;
   g.resized = g.continued = false;
   g.restore_size = 0;
+  g.images = kitty_ids_.get();
   g.active = true;
   open_ = true;
   handlers_ = options.install_signal_handlers;
@@ -266,7 +286,7 @@ void TerminalSession::negotiate(const Environment & env) {
   parser_.forgetExpectedReports();
   pacer_ = FramePacer(caps_.dec_cursor_report || caps_.cursor_report, pacer_config_);
   encoder_ = FrameEncoder(EncoderProfile::from(caps_));
-  images_ = ImageEncoder(imageProfile());
+  images_ = ImageEncoder(imageProfile(), kitty_ids_);
 }
 
 void TerminalSession::enterModes() {
@@ -285,7 +305,6 @@ void TerminalSession::enterModes() {
   parser_.setPixelMouse(pixel_mouse_on_, caps_.display.cell_px_height, caps_.display.cell_px_width);
   caps_.display.precise_mouse = pixel_mouse_on_;
   if (pixel_mouse_on_) setup_ += "\x1b[?1016h";
-  if (caps_.pixels == PixelProtocol::KITTY) setup_ += "\x1b_Ga=d,q=1\x1b\\";
   writeBlocking(setup_);
   encoder_.invalidate();
 
@@ -295,7 +314,9 @@ void TerminalSession::enterModes() {
   if (mouse_) restore_ += "\x1b[?1016l\x1b[?1003;1002;1006l";
   restore_ += "\x1b>\x1b[?1004l\x1b[?2004l\x1b[?7h\x1b[?12l\x1b[?25h";
   restore_ += caps_.kitty_keyboard ? "\x1b[<u" : "\x1b[<u\x1b[>4m\x1b[>2m";
-  if (caps_.pixels == PixelProtocol::KITTY) restore_ += "\x1b_Ga=d,q=1\x1b\\";
+  // Kitty images are deleted by id ahead of this (close(), restoreFromSignal()); a Sixel or iTerm2
+  // picture is pixels in the alternate screen, which is wiped before the main screen comes back.
+  if (caps_.pixels == PixelProtocol::SIXEL || caps_.pixels == PixelProtocol::ITERM2) restore_ += "\x1b[2J";
   restore_ += "\x1b[?1049l";
   size_t n = std::min(restore_.size(), sizeof g.restore);
   std::memcpy(g.restore, restore_.data(), n);
@@ -315,6 +336,8 @@ void TerminalSession::close() {
   }
   if (g.active.exchange(false)) {
     drainOutput(std::chrono::milliseconds(500));
+    g.images = nullptr;
+    writeBlocking(kitty_ids_->cleanupSequence());
     writeBlocking(restore_);
     tcsetattr(fd_, TCSAFLUSH, &g.saved);
   }
@@ -777,7 +800,7 @@ std::vector<TermEvent> TerminalSession::pollTerm() {
         caps_.display.display_scale = estimateDisplayScale(caps_.display.cell_px_height);
         ImageEncoder::Profile profile = imageProfile();
         write(images_.clear());
-        images_ = ImageEncoder(profile);
+        images_ = ImageEncoder(profile, kitty_ids_);
         updatePixelMouse();
       }
       continue;

@@ -241,3 +241,88 @@ TEST(discovery_finds_16_colours) {
   env.colors_override = "16";
   CHECK(discover("\x1b[?62c", env).colors == ColorDepth::C16);
 }
+
+namespace {
+
+// Replies of a terminal that answers the kitty query and, or not, reports Sixel (xterm's DA1 does).
+std::string withKittyReply(std::string replies) {
+  replies.insert(replies.rfind("\x1b[?"), "\x1b_Gi=31;OK\x1b\\");
+  return replies;
+}
+
+}  // namespace
+
+TEST(tmux_is_found_by_environment_term_or_identity) {
+  Environment env;
+  CHECK(!insideTmux(env));
+  env.term = "xterm-256color";
+  CHECK(!insideTmux(env));
+  Environment by_var = env;
+  by_var.tmux = true;
+  CHECK(insideTmux(by_var));
+  // Over ssh from inside tmux $TMUX is gone, $TERM stays.
+  for (const char * term : {"tmux", "tmux-256color", "screen", "screen-256color"}) {
+    Environment ssh = env;
+    ssh.ssh = true;
+    ssh.term = term;
+    CHECK(insideTmux(ssh));
+  }
+  CHECK(insideTmux(env, "tmux"));
+  CHECK(!insideTmux(env, "kitty"));
+}
+
+TEST(tmux_rule_for_each_combination_of_protocols) {
+  for (bool in_tmux : {false, true}) {
+    for (bool sixel : {false, true}) {
+      for (PixelProtocol p : {PixelProtocol::NONE, PixelProtocol::SIXEL, PixelProtocol::ITERM2, PixelProtocol::KITTY}) {
+        PixelProtocol got = pixelsForTmux(p, sixel, in_tmux);
+        if (in_tmux && p == PixelProtocol::KITTY) CHECK(got == (sixel ? PixelProtocol::SIXEL : PixelProtocol::NONE));
+        else CHECK(got == p);
+      }
+    }
+  }
+}
+
+TEST(tmux_decides_the_pixel_protocol_in_discovery) {
+  std::string xterm = readFixture("xterm");  // Sixel, no kitty graphics
+  std::string both = withKittyReply(xterm);
+  std::string kitty_only = readFixture("kitty");
+  Environment plain = xtermEnv();
+  Environment tmux_var = plain;
+  tmux_var.tmux = true;
+  Environment tmux_term = plain;
+  tmux_term.term = "tmux-256color";
+  Environment ssh_screen = plain;
+  ssh_screen.ssh = true;
+  ssh_screen.term = "screen-256color";
+
+  // Outside tmux nothing changes: kitty wins when both answer.
+  CHECK(discover(xterm, plain).pixels == PixelProtocol::SIXEL);
+  CHECK(discover(both, plain).pixels == PixelProtocol::KITTY);
+  CHECK(discover(kitty_only, plain).pixels == PixelProtocol::KITTY);
+  for (const Environment & env : {tmux_var, tmux_term, ssh_screen}) {
+    // Both available: Sixel. Kitty alone: none. Sixel alone: Sixel (tmux's own answer decides).
+    CHECK(discover(both, env).pixels == PixelProtocol::SIXEL);
+    CHECK(discover(kitty_only, env).pixels == PixelProtocol::NONE);
+    CHECK(!discover(kitty_only, env).display.pictures && !discover(kitty_only, env).display.cell_borders);
+    CHECK(!discover(kitty_only, env).kitty_graphics_animation);
+    CHECK(discover(xterm, env).pixels == PixelProtocol::SIXEL);
+    CHECK(discover(readFixture("minimal"), env).pixels == PixelProtocol::NONE);
+    // An explicit kitty override does not get past tmux either.
+    Environment forced = env;
+    forced.pixels_override = "kitty";
+    CHECK(discover(both, forced).pixels == PixelProtocol::SIXEL);
+    CHECK(discover(kitty_only, forced).pixels == PixelProtocol::NONE);
+  }
+}
+
+TEST(no_kitty_graphics_query_is_sent_inside_tmux) {
+  Environment plain = xtermEnv();
+  CHECK(Discovery(plain).queries().find("\x1b_G") != std::string::npos);
+  Environment tmux_env = plain;
+  tmux_env.tmux = true;
+  CHECK(Discovery(tmux_env).queries().find("\x1b_G") == std::string::npos);
+  Environment ssh_screen = plain;
+  ssh_screen.term = "screen-256color";
+  CHECK(Discovery(ssh_screen).queries().find("\x1b_G") == std::string::npos);
+}
