@@ -189,7 +189,8 @@ carries the app's object as an opaque `getAppContext()`.
   never through canvas, and nothing outside `cellui/term/` knows those
   glyphs. Pixel versions are images drawn with canvas (`LineImage.h`,
   `SparklineImage.h`; `src/PixelCharts.cpp` in the app); the heatmap's grid is enlarged by
-  `scaleImage()` (`ImageScale.h`, bilinear), the one scaler the terminal's stretched pictures use too.
+  `scaleImageNearest()` (`ImageScale.h`: each cell a block of one colour, no canvas; the terminal's stretched
+  pictures use `scaleImage()`, bilinear, from the same header).
   canvas (`rekola/canvas`: Cairo, Quartz 2D on macOS, GDI+ on Windows) is
   fetched at a pinned commit by `lib/cellui/CMakeLists.txt` with none of our
   warning flags and SYSTEM includes; `cellui::nativeContext()`

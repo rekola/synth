@@ -2,6 +2,7 @@
 
 #include <algorithm>
 #include <cmath>
+#include <cstdint>
 #include <vector>
 
 namespace cellui {
@@ -41,6 +42,23 @@ Image scaleImage(const Image & src, int width, int height) {
       };
       row[x] = Image::pack(mix(Image::red), mix(Image::green), mix(Image::blue), mix(Image::alpha));
     }
+  }
+  return out;
+}
+
+Image scaleImageNearest(const Image & src, int width, int height) {
+  Image out;
+  out.width = std::max(1, width);
+  out.height = std::max(1, height);
+  out.version = src.version;
+  out.pixels.resize(static_cast<size_t>(out.width) * static_cast<size_t>(out.height));
+  if (src.width <= 0 || src.height <= 0 || src.pixels.empty()) return out;
+  std::vector<int> column(static_cast<size_t>(out.width));
+  for (int x = 0; x < out.width; x++) column[static_cast<size_t>(x)] = std::min(src.width - 1, static_cast<int>(static_cast<int64_t>(x) * src.width / out.width));
+  for (int y = 0; y < out.height; y++) {
+    const uint32_t * row = &src.pixels[static_cast<size_t>(std::min(src.height - 1, static_cast<int>(static_cast<int64_t>(y) * src.height / out.height))) * static_cast<size_t>(src.width)];
+    uint32_t * dest = &out.pixels[static_cast<size_t>(y) * static_cast<size_t>(out.width)];
+    for (int x = 0; x < out.width; x++) dest[x] = row[column[static_cast<size_t>(x)]];
   }
   return out;
 }
