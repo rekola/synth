@@ -527,6 +527,7 @@ PatternEditor::PatternEditor(Plane & parent)
     // COMMAND/LOCATOR/EVERYTHING: no notes to tune, same as transpose.
     auto text = "Tuned " + std::to_string(summary.notes) + (summary.notes == 1 ? " note" : " notes");
     if (summary.replaced > 0) text += ", replaced the fx of " + std::to_string(summary.replaced);
+    if (summary.untuned > 0) text += ", left " + std::to_string(summary.untuned) + (summary.untuned == 1 ? " note" : " notes") + " untuned (correction over 255 cents)";
     getController().log(text);
   });
 

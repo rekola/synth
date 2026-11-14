@@ -488,7 +488,7 @@ TEST(pitch_glide_g00_carries_a_long_glide_over_rows) {
   CHECK(end > f0 * exp2(2.5 / 31.0) && end < f0 * exp2(3.2 / 31.0));
 }
 
-// The target's tuning correction (+hh/-hh fx, as just intonation writes it) is
+// The target's tuning correction (+hh/-hh fine or >hh/<hh coarse fx) is
 // part of the pitch the glide lands on.
 TEST(pitch_glide_lands_on_the_target_notes_tuning_correction) {
   int row = 0;
@@ -502,6 +502,21 @@ TEST(pitch_glide_lands_on_the_target_notes_tuning_correction) {
   double f0 = frequencyBetween(out, 100, row - 100);
   double held = frequencyBetween(out, 3 * row + 100, 4 * row - 100);
   CHECK_NEAR(static_cast<float>(held / f0), exp2f(4.0f / 31.0f + 80.0f / 1200.0f), 0.01f);
+}
+
+// A fine correction (sixteenths of a cent) counts in the landing pitch too.
+TEST(pitch_glide_lands_on_the_target_notes_fine_tuning_correction) {
+  int row = 0;
+  auto out = renderGlideRows([](auto & arrangement, int id) {
+    Note target(244, 100);
+    CHECK(target.setFx("+A8")); // 10.5 cents
+    arrangement.setNote(1, id, 0, target);
+    arrangement.setCommand(1, id, Command("0G80"));
+  },
+                             row);
+  double f0 = frequencyBetween(out, 100, row - 100);
+  double held = frequencyBetween(out, 3 * row + 100, 4 * row - 100);
+  CHECK_NEAR(static_cast<float>(held / f0), exp2f(4.0f / 31.0f + 10.5f / 1200.0f), 0.0005f);
 }
 
 namespace {

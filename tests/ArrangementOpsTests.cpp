@@ -847,3 +847,22 @@ TEST(a_notes_local_fx_is_validated_and_round_trips_through_the_song_file) {
   CHECK(notes[0].getFx() == "D12");
   std::filesystem::remove(path);
 }
+
+TEST(coarse_tuning_corrections_round_trip_through_the_song_file) {
+  Song song;
+  auto track_id = song.addTrack(std::make_unique<InstrumentTrack>(0)).getInternalId();
+  Note up(60, 100), down(62, 100);
+  up.setFx(">1F");
+  down.setFx("<FF");
+  song.getArrangement()->setNote(0, track_id, 0, up);
+  song.getArrangement()->setNote(1, track_id, 0, down);
+  auto path = std::string(TESTS_SCRATCH_DIR) + "/coarse_correction_round_trip.xml";
+  song.save(path);
+  Song reloaded;
+  InstrumentProvider provider;
+  CHECK(reloaded.open(path, provider));
+  auto id = reloaded.getRootTrackIds()[0];
+  CHECK(reloaded.getArrangement()->getNotes(0, id)[0].getFx() == ">1F");
+  CHECK(reloaded.getArrangement()->getNotes(1, id)[0].getFx() == "<FF");
+  std::filesystem::remove(path);
+}

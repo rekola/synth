@@ -563,3 +563,18 @@ TEST(delete_and_backspace_empty_every_cell_under_the_cursor) {
   for (int r : {6, 7}) CHECK(f.row(r) == (V{-1, -1, -1, 3}));
   CHECK(f.cursorRow() == 4);
 }
+
+TEST(the_fx_column_accepts_the_coarse_correction_symbols_when_typed) {
+  for (auto [text, cents] : {std::pair{std::string(">1F"), 31.0}, std::pair{std::string("<10"), -16.0}}) {
+    HeightFixture f;
+    f.fill(2, 1);
+    for (int i = 0; i < 3; i++) f.press(cellui::Key::Right); // note, velocity, delay, then fx
+    f.type(text);
+    auto target = resolveEditTarget(f.controller->getSong(), f.track_id, 0);
+    auto note = target.pattern->getNotes(target.effective_row)[0];
+    CHECK(std::string(note.getFx()) == text);
+    CHECK(note.hasCoarseTuningCorrection());
+    CHECK(note.getTuningCorrectionCents() == cents);
+    CHECK(f.shows(text.c_str()));
+  }
+}

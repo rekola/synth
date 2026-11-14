@@ -6,7 +6,10 @@
 #include "../util/constants.h"
 
 #include <algorithm>
+#include <array>
+#include <cmath>
 #include <cstdint>
+#include <optional>
 #include <cstdlib>
 #include <limits>
 #include <string>
@@ -107,7 +110,8 @@ class Note {
   // The note's local effect: three characters, a mnemonic and a two-digit hex
   // argument (`Command` without its leading chain digit), "..." when unset.
   // Stored and edited like velocity/delay. A leading '+' or '-' is not a
-  // mnemonic but the sign of a tuning correction in cents (see below).
+  // mnemonic but the sign of a fine tuning correction, and '>' or '<' the sign
+  // of a coarse one (see below).
   std::string_view getFx() const { return std::string_view(fx, 3); }
   bool hasFx() const { return fx[0] != kFxEmpty || fx[1] != kFxEmpty || fx[2] != kFxEmpty; }
   void clearFx() { std::fill(fx, fx + 3, kFxEmpty); }
@@ -120,7 +124,7 @@ class Note {
     if (i < 0 || i >= 3) return 0;
     if (codepoint >= 'a' && codepoint <= 'z') codepoint -= 'a' - 'A';
     if (codepoint == kFxEmpty || (codepoint >= '0' && codepoint <= '9')) return static_cast<char>(codepoint);
-    if (i == 0 && (codepoint == '+' || codepoint == '-')) return static_cast<char>(codepoint);
+    if (i == 0 && (codepoint == '+' || codepoint == '-' || codepoint == '>' || codepoint == '<')) return static_cast<char>(codepoint);
     if (codepoint >= 'A' && codepoint <= (i == 0 ? 'Z' : 'F')) return static_cast<char>(codepoint);
     return 0;
   }
@@ -142,26 +146,65 @@ class Note {
     return true;
   }
 
-  // A tuning correction is the fx `+hh` or `-hh`: a sign and two hex digits,
-  // whole cents added to the note's pitch. Whether a note carries one is the
-  // mark of it being tuned, so a tuned note with nothing to correct holds +00.
-  static constexpr int kMaxTuningCorrectionCents = 255;
+  // A tuning correction is the fx `+hh`/`-hh` (fine) or `>hh`/`<hh` (coarse): a
+  // sign and two hex digits. The fine one counts sixteenths of a cent, so it
+  // reaches 15 15/16 cents either way; the coarse one counts whole cents, up to
+  // 255. A note has one fx, so it carries one kind or the other. Whether a note
+  // carries one is the mark of it being tuned, so a tuned note with nothing to
+  // correct holds +00.
+  static constexpr int kFineUnitsPerCent = 16;
+  static constexpr int kMaxTuningCorrectionUnits = 255;
+  static constexpr double kMaxFineTuningCorrectionCents = static_cast<double>(kMaxTuningCorrectionUnits) / kFineUnitsPerCent;
+  static constexpr double kMaxCoarseTuningCorrectionCents = kMaxTuningCorrectionUnits;
   bool hasTuningCorrection() const {
-    return (fx[0] == '+' || fx[0] == '-') && hexDigit(fx[1]) >= 0 && hexDigit(fx[2]) >= 0;
+    return (isFineSign(fx[0]) || isCoarseSign(fx[0])) && hexDigit(fx[1]) >= 0 && hexDigit(fx[2]) >= 0;
   }
-  // 0 when the note carries none.
-  int getTuningCorrectionCents() const {
-    if (!hasTuningCorrection()) return 0;
+  bool hasCoarseTuningCorrection() const { return hasTuningCorrection() && isCoarseSign(fx[0]); }
+  // The correction in cents, 0 when the note carries none.
+  double getTuningCorrectionCents() const {
+    if (!hasTuningCorrection()) return 0.0;
     int magnitude = hexDigit(fx[1]) * 16 + hexDigit(fx[2]);
-    return fx[0] == '-' ? -magnitude : magnitude;
+    double cents = isCoarseSign(fx[0]) ? magnitude : static_cast<double>(magnitude) / kFineUnitsPerCent;
+    return fx[0] == '-' || fx[0] == '<' ? -cents : cents;
   }
-  // Replaces the whole fx (clamped to +-kMaxTuningCorrectionCents).
-  void setTuningCorrection(int cents) {
-    int magnitude = std::min(std::abs(cents), kMaxTuningCorrectionCents);
+  // The fx that writes `cents`: the fine command rounded to the nearest
+  // sixteenth of a cent where that fits, else the coarse one rounded to the
+  // nearest cent, else nothing (never clamped). Zero is +00.
+  static std::optional<std::array<char, 3> > tuningCorrectionFx(double cents) {
+    if (!std::isfinite(cents)) return std::nullopt;
+    double magnitude = std::fabs(cents);
+    bool negative = cents < 0;
+    double fine = std::round(magnitude * kFineUnitsPerCent);
+    char sign;
+    int units;
+    if (fine <= kMaxTuningCorrectionUnits) {
+      units = static_cast<int>(fine);
+      sign = negative && units > 0 ? '-' : '+';
+    } else {
+      double coarse = std::round(magnitude);
+      if (coarse > kMaxTuningCorrectionUnits) return std::nullopt;
+      units = static_cast<int>(coarse);
+      sign = negative ? '<' : '>';
+    }
     static const char kHex[] = "0123456789ABCDEF";
-    fx[0] = cents < 0 ? '-' : '+';
-    fx[1] = kHex[magnitude >> 4];
-    fx[2] = kHex[magnitude & 15];
+    return std::array<char, 3>{sign, kHex[units >> 4], kHex[units & 15]};
+  }
+  // What `cents` becomes once written: the same rounding as tuningCorrectionFx().
+  static std::optional<double> quantizeTuningCorrection(double cents) {
+    auto fx_text = tuningCorrectionFx(cents);
+    if (!fx_text) return std::nullopt;
+    Note note;
+    note.setFx(std::string_view(fx_text->data(), 3));
+    return note.getTuningCorrectionCents();
+  }
+  // Replaces the whole fx with the correction for `cents` (see
+  // tuningCorrectionFx()). False, with the fx unchanged, when it needs more
+  // than 255 cents.
+  bool setTuningCorrection(double cents) {
+    auto fx_text = tuningCorrectionFx(cents);
+    if (!fx_text) return false;
+    std::copy(fx_text->begin(), fx_text->end(), fx);
+    return true;
   }
   float getDelayAsFloat() const { return delay_ / 255.0f; }
   // A note-on, an OFF or aftertouch (not an empty cell or one with only fx).
@@ -616,6 +659,8 @@ class Note {
 
   uint32_t packed_ = pack(kUndefined, constants::NEUTRAL_VELOCITY);
   uint8_t delay_ = 0;
+  static bool isFineSign(char c) { return c == '+' || c == '-'; }
+  static bool isCoarseSign(char c) { return c == '>' || c == '<'; }
   static int hexDigit(char c) {
     if (c >= '0' && c <= '9') return c - '0';
     if (c >= 'A' && c <= 'F') return c - 'A' + 10;

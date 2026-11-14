@@ -79,7 +79,7 @@ contentDigest(const SongScalars & scalars, const Arrangement & arrangement, cons
   s = combine(s, static_cast<uint64_t>(scalars.scale_corrections.edo * 100 + scalars.scale_corrections.key));
   for (int step = 0; step < scalars.scale_corrections.edo; step++) {
     auto index = static_cast<size_t>(step);
-    if (scalars.scale_corrections.present[index]) s = combine(s, static_cast<uint64_t>(step * 1000 + scalars.scale_corrections.cents[index] + 500));
+    if (scalars.scale_corrections.present[index]) s = combine(s, static_cast<uint64_t>(step * 100000 + std::llround(scalars.scale_corrections.cents[index] * Note::kFineUnitsPerCent) + 50000));
   }
   total += s;
   for (size_t i = 0; i < scenes.size(); i++) {

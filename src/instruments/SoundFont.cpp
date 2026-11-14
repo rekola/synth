@@ -1026,7 +1026,9 @@ class SoundFontVoice : public InstrumentVoice {
 
     bool first_play = apparentPlayingKey_ == 0.0;
 
-    apparentPlayingKey_ = log2(frequency * getDetune() / kNominalStandardPitchHz) * 12 + 69;
+    // In double: the float log2 resolves only 0.0008 cent at A4, a visible share of a
+    // sixteenth-of-a-cent correction.
+    apparentPlayingKey_ = std::log2(static_cast<double>(frequency) * static_cast<double>(getDetune()) / static_cast<double>(kNominalStandardPitchHz)) * 12.0 + 69.0;
 
     if (first_play) {
       // use correctly rounded midiKey for envelopes (should we use detune?)

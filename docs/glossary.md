@@ -133,7 +133,7 @@ pure: for sounds whose partials are whole-number multiples of the fundamental,
 as most pitched instruments' nearly are, the partials two notes share coincide
 and do not beat. Every EDO approximates these ratios (only its octaves are
 exact), so a song's notes stay on its EDO grid and each one carries a
-small tuning correction, in cents, that nudges it toward the pure ratio; see
+small tuning correction, a fraction of a cent to a few tens of cents, that nudges it toward the pure ratio; see
 user-interface.md.
 
 The application gives every key one fixed ratio to the key of the song, taken
@@ -370,7 +370,8 @@ live recording writes them when a launched scene has either. See
 time_signatures.md.
 
 **Tuning correction**
-A note's pitch offset in cents, stored in its fx as `+hh` or `-hh`
+A note's pitch offset, stored in its fx as a fine `+hh`/`-hh` (sixteenths of
+a cent, up to 15 15/16) or a coarse `>hh`/`<hh` (whole cents, up to 255)
 (commands.md). Not the song's tuning, which always means the EDO
 (12/19/24/31/53 steps per octave).
 

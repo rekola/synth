@@ -649,16 +649,16 @@ class SongState : public TrackState {
 		NoteOverride note_override;
 		if (note.hasTuningCorrection()) {
 		  note_override.has_detune = true;
-		  note_override.detune_cents = static_cast<float>(note.getTuningCorrectionCents());
-		} else if (note.hasFx()) {
-		  // An unset character reads as the command's own "-" placeholder.
-		  std::string text = std::string("0") + std::string(note.getFx());
+                  note_override.detune_cents = static_cast<float>(note.getTuningCorrectionCents()); // fine: hh/16, coarse: hh
+                } else if (note.hasFx()) {
+                  // An unset character reads as the command's own "-" placeholder.
+                  std::string text = std::string("0") + std::string(note.getFx());
 		  std::replace(text.begin(), text.end(), Note::kFxEmpty, '-');
 		  if (fx.setData(text)) {
 		    if (fx.isAzimuthSet()) { note_override.has_azimuth = true; note_override.azimuth = fx.getAzimuthSetDegrees(); }
 		    else if (fx.isExtentSet()) { note_override.has_extent = true; note_override.extent = fx.getExtentSetMeters(); }
 		  }
-		}
+                }
                 auto event_override = note_override;
                 // A note column glides by its own fx (G04) or else the row's
                 // 0Gxx; G00 repeats what the column last had.
