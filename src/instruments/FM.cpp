@@ -44,6 +44,8 @@ public:
    }
 
    stepForward(frames);
+   // Two operators give no level per partial, so 0Hxx shapes the output.
+   applyOvertoneComb(comb_, dry_.data(), frames);
 
    return encodePosition(dry_.data(), frames);
  }
@@ -57,6 +59,7 @@ private:
   float level_;
   float ratio_;
   double feedback_;
+  OvertoneComb comb_;
   // The modulator's last two outputs, for feedback.
   double previous_[2] = {0.0, 0.0};
   FMIndexDecay index_;

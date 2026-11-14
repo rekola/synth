@@ -7,6 +7,7 @@
 #include "../model/NoteCoordinate.h"
 #include "../dsp/HashField.h"
 
+#include <array>
 #include <cmath>
 #include <memory>
 #include <vector>
@@ -63,6 +64,25 @@ public:
 
     if (static_cast<int>(dry_.size()) != frames) dry_.resize(static_cast<size_t>(frames));
 
+    // 0Hxx: the table is built ahead of time, so the raised partials come
+    // from tables holding only them, added in by the profile's comb terms
+    // (OvertoneProfile::combTerms()) at the same place in the loop.
+    const OvertoneProfile & profile = getOvertoneProfile();
+    std::array<OvertoneProfile::Term, OvertoneProfile::kMaxTerms> terms;
+    std::array<const std::vector<float> *, OvertoneProfile::kMaxTerms> extra{};
+    int extras = 0;
+    if (profile.raised()) {
+      const int count = profile.combTerms(terms, kMaxOvertoneStep);
+      for (int t = 0; t < count; t++) {
+        const auto & table = table_->getOvertoneTable(region_f0_, terms[static_cast<size_t>(t)].step);
+        if (table.size() != wave.size()) continue; // no such partial in this region
+        terms[static_cast<size_t>(extras)] = terms[static_cast<size_t>(t)];
+        extra[static_cast<size_t>(extras++)] = &table;
+      }
+    }
+    OvertoneProfile::Ramp ramp;
+    ramp.begin(profile, frames);
+
     for (int k = 0; k < frames; k++) {
       double idx = std::fmod(table_pos, table_len);
       if (idx < 0.0) idx += table_len;
@@ -71,6 +91,12 @@ public:
       size_t i1 = (i0 + 1 < wave.size()) ? i0 + 1 : 0;
       float frac = static_cast<float>(idx - static_cast<double>(i0));
       float sample = wave[i0] + (wave[i1] - wave[i0]) * frac; // linear interpolation
+      for (int t = 0; t < extras; t++) {
+        const std::vector<float> & part = *extra[static_cast<size_t>(t)];
+        const double c = ramp.coefficient(terms[static_cast<size_t>(t)].mask);
+        sample += static_cast<float>(c) * (part[i0] + (part[i1] - part[i0]) * frac);
+      }
+      ramp.next();
 
       dry_[static_cast<size_t>(k)] = gain * sample;
 
@@ -89,12 +115,17 @@ private:
   // the same position and click.
   void selectTable() {
     if (wave_) return;
-    wave_ = &table_->getTable(getFrequency());
-    table_base_freq_ = table_->tableBaseFrequency(getFrequency());
+    region_f0_ = getFrequency();
+    wave_ = &table_->getTable(region_f0_);
+    table_base_freq_ = table_->tableBaseFrequency(region_f0_);
   }
+
+  // Partial numbers past this have no table: far beyond any region's last partial.
+  static constexpr long kMaxOvertoneStep = 4096;
 
   std::shared_ptr<PadSynthTable> table_;
   const std::vector<float> * wave_ = nullptr;
+  float region_f0_ = 0.0f; // the frequency the region was chosen by
   float table_base_freq_ = 1.0f;
   float level_;
   float start_fraction_; // where in the table the note starts, as a fraction of its length

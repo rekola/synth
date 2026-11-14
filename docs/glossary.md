@@ -254,6 +254,16 @@ Otonalities and Utonalities are chords, not scales; these scales and
 their chords are the author’s own. Their chords are tabled in
 extended-diamond.md.
 
+**Overtone profile and shared overtones**
+A sounding note's overtone profile is how loud each of its overtones
+is, counted by number (the fundamental is the 1st), independent of its
+pitch: a pitch glide or slide moves every overtone and leaves the
+profile as it is. An overtone of one note is shared with another note
+when it is exactly an overtone of that note too; with the other note at
+p/q times the first in lowest terms, the shared ones are the first
+note's p-th, 2p-th, 3p-th and so on. The overtone glide (`-Hxx`,
+commands.md) raises them.
+
 **Performance effect**
 An effect held on a track from the Launchpad's Custom grid (stutter,
 shuffle, erode, shatter, gate, crush, duck, a send throw, orbit): it

@@ -185,6 +185,14 @@ class Command {
   float getPitchGlideSteps() const { return static_cast<float>(getPitchGlideCode()) / 16.0f; }
   bool isPitchGlideInstant() const { return getPitchGlideCode() == 0xFF; }
 
+  // 0Hxx - glide the overtone profile of a column's sounding note toward the
+  // overtones it shares with the note on this row, which is not retriggered;
+  // its pitch stays. `xx` is the sixteenths of the whole change made per
+  // row; FF is instant. Timed like 0Gxx: it moves only on rows that carry it.
+  bool isOvertoneGlide() const { return values_[0] == '0' && values_[1] == 'H'; }
+  int getOvertoneGlideCode() const { return getPitchGlideCode(); }
+  bool isOvertoneGlideInstant() const { return getOvertoneGlideCode() == 0xFF; }
+
   // 0Rxy - retrigger the track's most recently played note every `y` ticks
   // (constants::TICKS_PER_ROW per row) for the rest of this row, changing
   // its velocity by `x` at each retrigger. `y` = 0 retriggers nothing.
