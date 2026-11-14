@@ -1,6 +1,8 @@
 #pragma once
 
 #include <chrono>
+#include <cstdint>
+#include <deque>
 #include <functional>
 #include <optional>
 #include <string>
@@ -48,6 +50,36 @@ struct LinkThresholds {
 LinkClass linkClassForBandwidth(const LinkThresholds & thresholds, double bytes_per_sec, double margin = 1.0);
 // The class a rate of frames a second is, with the same margin.
 LinkClass linkClassForFps(double fps, double margin = 1.0);
+// The class a window's frame rate is: the share it achieves of what its display can show, the refresh
+// rate up to 60 Hz (FULL is 60 Hz and up), so a 30 Hz monitor at 30 fps and a 144 Hz one at 60 are both
+// FULL. A `refresh_hz` of 0 or less (unknown) is taken as 60. The margin applies below FULL only.
+LinkClass linkClassForFrameRate(double fps, double refresh_hz, double margin = 1.0);
+
+// The frame rate a window keeps up with, from its frame clock's ticks: each frame drawn lasts until the
+// clock's next tick, drawn or not, since a frame still being drawn holds the clock back. So a window
+// that draws only some of its ticks (an application capping its own rate) still measures what it could
+// do, and one that draws nothing measures nothing.
+class FrameRateMeter {
+ public:
+  // A tick at `time_us` (microseconds, the frame clock's own time); `drew` when it drew a frame.
+  void tick(int64_t time_us, bool drew);
+  // Frames a second over the frames that ended in the last kRecentUs, or the last two when fewer did
+  // (none older than kSpanUs); nothing for fewer than two.
+  std::optional<double> rate(int64_t now_us) const;
+  // A frame longer than this is a clock that stopped (the window hidden), not a slow frame.
+  static constexpr int64_t kLongestFrameUs = 2'000'000;
+  static constexpr int64_t kRecentUs = 1'000'000;
+  static constexpr int64_t kSpanUs = 3'000'000;
+
+ private:
+  struct Frame {
+    int64_t end_us;
+    int64_t length_us;
+  };
+  std::deque<Frame> frames_;
+  int64_t last_us_ = 0;
+  bool last_drew_ = false;
+};
 
 struct LinkClassifierConfig {
   // A reading worse than the class for this long moves it down; at once to the best the readings said.
@@ -70,6 +102,12 @@ class LinkClassifier {
   void pin(std::optional<LinkClass> pin) {
     pin_ = pin;
     if (pin) current_ = *pin;
+    below_since_.reset();
+    above_since_.reset();
+  }
+  // Nothing was read for a while (nothing drawn): a trend up or down so far is forgotten, so the
+  // class holds and the next readings start one afresh.
+  void hold() {
     below_since_.reset();
     above_since_.reset();
   }
@@ -97,6 +135,7 @@ class LinkMonitor {
   void setHandler(Handler handler) { handler_ = std::move(handler); }
   void pin(std::optional<LinkClass> pin);
   void update(TimePoint now, LinkClass indicated, LinkClass indicated_with_margin);
+  void hold() { classifier_.hold(); }
   void setDescription(std::string description) { status_.description = std::move(description); }
   // A figure to show without a class to go with it (the link is not what limits the display).
   void setAvailable(bool available);
@@ -110,5 +149,9 @@ class LinkMonitor {
   LinkStatus status_;
   Handler handler_;
 };
+
+// A window's reading, once a second: the frame rate it keeps up with against its refresh rate, or
+// nothing when too little was drawn to tell, in which case the class holds.
+void updateWindowLink(LinkMonitor & link, LinkMonitor::TimePoint now, std::optional<double> fps, double refresh_hz);
 
 }  // namespace cellui

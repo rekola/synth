@@ -18,7 +18,7 @@ class InfoLine : public UIElement {
     setFgColor(getPlane().getStyles().info_line_fg_color);
   }
 
-  // What the link to the display is, when it is not at full speed ("" for nothing to show).
+  // What the link to the display is ("" for nothing to show).
   void setLinkText(std::string text) { link_text_ = std::move(text); }
   // Columns at the right end taken by another widget (the octave selector).
   void setRightReserved(int cols) { right_reserved_ = cols; }
@@ -87,7 +87,7 @@ class InfoLine : public UIElement {
       // setFgColor(styles.window_border_color);
       // setBgColor(styles.window_bg_color);
 
-      // The link, when it is not at full speed: right-aligned beside the octave selector.
+      // The link: right-aligned beside the octave selector.
       if (!link_text_.empty()) {
         auto w = Utf8::displayWidth(link_text_);
         putstr(0, std::max(0, cols - right_reserved_ - w - 1), link_text_);

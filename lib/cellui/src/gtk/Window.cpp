@@ -131,15 +131,17 @@ struct Window::Impl {
   bool presented_in_tick = false;
   guint tick_id = 0;
   static gboolean onTick(GtkWidget *, GdkFrameClock * clock, gpointer data);
-  void noteTick(gint64 frame_time_us, bool continuing);
-  // The link: ticks that follow a tick whose handler asked for another one are the window running
-  // flat out, and the intervals between them are what it can do. Ticks after an idle gap say nothing.
+  void noteTick(GdkFrameClock * clock, bool drew);
+  // The link: the frame rate the window keeps up with, against the rate its display refreshes at.
+  // A window that draws nothing reads nothing, and its class holds.
   LinkMonitor link;
-  bool tick_continuing = false;
+  FrameRateMeter frame_rate;
+  bool last_tick_drew = false;
   gint64 last_tick_us = 0;
-  std::deque<double> tick_intervals;  // seconds
   std::chrono::steady_clock::time_point link_last_update{};
-  std::string vsyncText() const;
+  // The monitor's refresh rate in Hz, 0 when it is not known.
+  double monitorHz() const;
+  static std::string vsyncText(double hz);
   GtkWidget * window = nullptr;
   GtkWidget * view = nullptr;
   std::unique_ptr<CellRasterizer> rasterizer;
@@ -375,41 +377,48 @@ static void cellui_view_init(CelluiView * self) {
 
 namespace cellui::gtk {
 
-std::string Window::Impl::vsyncText() const {
+double Window::Impl::monitorHz() const {
   GdkMonitor * monitor = nullptr;
   if (window) {
     if (GdkSurface * surface = gtk_native_get_surface(GTK_NATIVE(window))) monitor = gdk_display_get_monitor_at_surface(gtk_widget_get_display(window), surface);
   }
   int milli_hz = monitor ? gdk_monitor_get_refresh_rate(monitor) : 0;
-  if (milli_hz <= 0) return "vsync unknown";
-  double hz = milli_hz / 1000.0;
+  return milli_hz > 0 ? milli_hz / 1000.0 : 0.0;
+}
+
+std::string Window::Impl::vsyncText(double hz) {
+  if (hz <= 0) return "vsync unknown";
   char buf[32];
   if (std::fabs(hz - std::round(hz)) < 0.05) std::snprintf(buf, sizeof buf, "%d Hz vsync", static_cast<int>(std::lround(hz)));
   else std::snprintf(buf, sizeof buf, "%.2f Hz vsync", hz);
   return buf;
 }
 
-void Window::Impl::noteTick(gint64 frame_time_us, bool continuing) {
-  double since_last = last_tick_us > 0 ? static_cast<double>(frame_time_us - last_tick_us) / 1e6 : 0.0;
-  // A gap is a restart, not a slow frame.
-  if (tick_continuing && last_tick_us > 0 && since_last < 0.2) {
-    double interval = since_last;
-    if (interval > 0.025) stats.late_ticks++;
-    tick_intervals.push_back(interval);
-    while (tick_intervals.size() > 60) tick_intervals.pop_front();
-  } else {
-    tick_intervals.clear();
-  }
-  tick_continuing = continuing;
-  last_tick_us = frame_time_us;
+void Window::Impl::noteTick(GdkFrameClock * clock, bool drew) {
+  gint64 time = gdk_frame_clock_get_frame_time(clock);
+  gint64 since_last = time - last_tick_us;
+  if (last_tick_drew && last_tick_us > 0 && since_last > 25000 && since_last < 200000) stats.late_ticks++;
+  last_tick_drew = drew;
+  last_tick_us = time;
+  frame_rate.tick(time, drew);
   auto now = std::chrono::steady_clock::now();
-  if (tick_intervals.size() < 8 || now - link_last_update < std::chrono::seconds(1)) return;
+  if (now - link_last_update < std::chrono::seconds(1)) return;
   link_last_update = now;
-  double sum = 0;
-  for (double v : tick_intervals) sum += v;
-  double fps = sum > 0 ? static_cast<double>(tick_intervals.size()) / sum : 0;
-  link.setDescription(vsyncText() + ", " + std::to_string(static_cast<int>(fps + 0.5)) + " fps");
-  link.update(now, linkClassForFps(fps), linkClassForFps(fps, link.classifierConfig().up_margin));
+  auto fps = frame_rate.rate(time);
+  if (!fps) {
+    updateWindowLink(link, now, fps, 0);
+    return;
+  }
+  // The rate the display refreshes at: the monitor's, else the one the frame clock paces to.
+  double hz = monitorHz();
+  if (hz <= 0) {
+    gint64 refresh_us = 0;
+    gdk_frame_clock_get_refresh_info(clock, time, &refresh_us, nullptr);
+    if (refresh_us > 0) hz = 1e6 / static_cast<double>(refresh_us);
+  }
+  stats.link_readings++;
+  link.setDescription(vsyncText(hz) + ", " + std::to_string(static_cast<int>(*fps + 0.5)) + " fps");
+  updateWindowLink(link, now, fps, hz);
 }
 
 gboolean Window::Impl::onTick(GtkWidget *, GdkFrameClock * clock, gpointer data) {
@@ -426,7 +435,7 @@ gboolean Window::Impl::onTick(GtkWidget *, GdkFrameClock * clock, gpointer data)
   self->in_tick = false;
   bool keep = wanted || self->frame_dirty || ++self->idle_ticks <= kLingerTicks;
   if (wanted || self->frame_dirty) self->idle_ticks = 0;
-  self->noteTick(gdk_frame_clock_get_frame_time(clock), wanted);
+  self->noteTick(clock, self->presented_in_tick);
   // Only a frame the handler presented is drawn; a tick that found nothing
   // new draws nothing.
   if (self->presented_in_tick) gtk_widget_queue_draw(self->view);
@@ -1847,7 +1856,7 @@ LinkStatus Window::linkStatus() const {
   LinkStatus status = impl_->link.status();
   if (status.description.empty()) {
     // The monitor's rate is known at once; the frame rate follows when the window has run flat out.
-    status.description = impl_->vsyncText();
+    status.description = Impl::vsyncText(impl_->monitorHz());
     status.available = status.description != "vsync unknown";
   }
   return status;
