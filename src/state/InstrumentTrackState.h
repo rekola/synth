@@ -2,6 +2,7 @@
 #define _INSTRUMENTTRACKSTATE_H_
 
 #include "../model/NoteCoordinate.h"
+#include "../model/SharedOvertones.h"
 #include "../model/Tuning.h"
 #include "../model/InstrumentPool.h" // getInstrumentSource() below indexes into it directly - needs
                     // the complete type, not just TrackState.h's own forward declaration.
@@ -49,6 +50,7 @@
                         if (context.getTransportEpoch() != slide_epoch_) {
                           slide_epoch_ = context.getTransportEpoch();
                           for (auto & [column, rate] : glide_rates_) rate.frames_left = 0; // voices hold the pitch they have
+                          for (auto & [column, rate] : overtone_rates_) rate.frames_left = 0; // and the profile
                           if (!pitch_slides_.empty()) {
                             completed_slide_cents_ = slidePosition(0);
                             pitch_slides_.clear();
@@ -69,6 +71,7 @@
                           auto & pending_azimuth = context.getPendingAzimuthTicks(getTrackId());
                           auto & pending_slides = context.getPendingPitchSlides(getTrackId());
                           auto & pending_glides = context.getPendingPitchGlides(getTrackId());
+                          auto & pending_overtones = context.getPendingOvertoneGlides(getTrackId());
 
                           for (int i = 0; i < frames;) {
                             int render_size = frames - i;
@@ -101,8 +104,12 @@
                                     // live-audition path (Player.cpp) calls the same noteOn().
                                     note_override_ = ev.getNoteOverride();
                                     // A 0Gxx row glides the column's sounding note instead of
-                                    // starting this one; with nothing sounding it plays as usual.
-                                    if (!(note_override_.has_glide && startGlide(ev.getId(), ev.getTuning(), ev.getNoteValue()))) {
+                                    // starting this one, a 0Hxx row its overtone profile; with
+                                    // nothing sounding it plays as usual.
+                                    if (note_override_.has_overtone_glide) {
+                                      if (!startOvertoneGlide(ev.getId(), ev.getTuning(), ev.getNoteValue(), context.getScaleCorrections()))
+                                        noteOn(ev.getId(), *instrument, ev.getTuning(), ev.getVelocity(), ev.getNoteValue(), ev.getNoteCoordinate());
+                                    } else if (!(note_override_.has_glide && startGlide(ev.getId(), ev.getTuning(), ev.getNoteValue()))) {
                                       noteOn(ev.getId(), *instrument, ev.getTuning(), ev.getVelocity(), ev.getNoteValue(), ev.getNoteCoordinate());
                                     }
                                     note_override_ = {};
@@ -152,8 +159,24 @@
                               }
                               if (it != pending_glides.end() && it->first - i < render_size) render_size = it->first - i;
                             }
-                            for (auto & [column, rate] : glide_rates_)
-                              if (rate.frames_left > 0) render_size = std::min(render_size, rate.frames_left);
+                            if (!pending_overtones.empty()) {
+                              auto it = pending_overtones.begin();
+                              assert(i <= it->first);
+                              if (i == it->first) {
+                                for (auto & glide : it->second) {
+                                  if (glide.column >= 0) {
+                                    setOvertoneRate(glide.column, glide);
+                                  } else {
+                                    for (auto & [column, voices] : voices_) setOvertoneRate(column, glide);
+                                  }
+                                }
+                                it = pending_overtones.erase(it);
+                              }
+                              if (it != pending_overtones.end() && it->first - i < render_size) render_size = it->first - i;
+                            }
+                            for (auto * rates : {&glide_rates_, &overtone_rates_})
+                              for (auto & [column, rate] : *rates)
+                                if (rate.frames_left > 0) render_size = std::min(render_size, rate.frames_left);
 
                             // A running slide ends exactly where its row does, so cut the chunk
                             // there: the voices interpolate over a whole chunk.
@@ -162,6 +185,7 @@
 
                             advancePitchSlides(render_size, global_cents_, context.globalPitchCents(i + render_size));
                             advancePitchGlides(render_size);
+                            advanceOvertoneGlides(render_size);
                             chunks.emplace_back(i, renderVoices(render_size));
                             i += render_size;
                           }
@@ -227,6 +251,7 @@
                         addVoice(column, move(voice));
                         // A later glide in this column is measured from this note.
                         glide_anchors_[column] = {static_cast<double>(getFrequencyFor(tuning, note_value)), note_override_.has_detune ? note_override_.detune_cents : 0.0f};
+                        sounding_notes_[column] = note_value;
                       }
 
                       // noteOn() with a per-note override, as a pattern note's fx gives one.
@@ -416,6 +441,7 @@
                         const float fine = note_override_.has_detune ? note_override_.detune_cents : 0.0f;
                         const double cents = 1200.0 * std::log2(static_cast<double>(getFrequencyFor(tuning, note_value)) / anchor->second.hz) + static_cast<double>(fine - anchor->second.fine_cents);
                         target->setPitchGlideTarget(cents);
+                        sounding_notes_[column] = note_value; // the pitch it is going to
                         glide_in_use_ = true;
                         setGlideRate(column, {column, note_override_.glide_cents_per_frame, note_override_.glide_frames, note_override_.glide_instant});
                         return true;
@@ -452,6 +478,60 @@
                         if (!any) glide_in_use_ = false;
                       }
 
+                      // The column's newest sounding voice, or none.
+                      VoiceState * soundingVoice(int column) {
+                        auto voices = voices_.find(column);
+                        if (voices == voices_.end()) return nullptr;
+                        VoiceState * newest = nullptr;
+                        for (auto & voice : voices->second)
+                          if (voice->isActive()) newest = voice.get();
+                        return newest;
+                      }
+
+                      // 0Hxx: aims the column's newest sounding voice at the overtones its
+                      // note shares with this one (SharedOvertones.h). Its pitch stays.
+                      // False when none sounds, or on a track with no pitch.
+                      bool startOvertoneGlide(int column, Tuning tuning, int note_value, const just_intonation::ScaleCorrections & scale) {
+                        if (tuning == Tuning::PERCUSSION) return false;
+                        auto sounding = sounding_notes_.find(column);
+                        VoiceState * target = soundingVoice(column);
+                        if (sounding == sounding_notes_.end() || !target) return false;
+                        target->setOvertoneTarget(shared_overtones::step(scale, edoStepsFor(tuning), sounding->second, note_value));
+                        overtone_in_use_ = true;
+                        setOvertoneRate(column, {column, note_override_.overtone_per_frame, note_override_.overtone_frames, note_override_.overtone_instant});
+                        return true;
+                      }
+
+                      // A column's overtone glide rate from now on; an instant one lands the
+                      // column's voices on their targets at once.
+                      void setOvertoneRate(int column, const RenderContext::PitchGlide & glide) {
+                        overtone_rates_[column] = {glide.cents_per_frame, glide.frames, glide.instant};
+                        if (!glide.instant) return;
+                        auto voices = voices_.find(column);
+                        if (voices == voices_.end()) return;
+                        for (auto & voice : voices->second)
+                          if (voice->isActive()) voice->jumpOvertoneGlide();
+                      }
+
+                      // Moves every voice's profile for the coming chunk (the row's rate while a
+                      // 0Hxx row runs, else holding), as advancePitchGlides() does the pitch.
+                      void advanceOvertoneGlides(int frames) {
+                        if (!overtone_in_use_) return;
+                        bool any = false;
+                        for (auto & [column, voices] : voices_) {
+                          auto found = overtone_rates_.find(column);
+                          const bool running = found != overtone_rates_.end() && found->second.frames_left > 0 && !found->second.instant;
+                          const double rate = running ? static_cast<double>(found->second.cents_per_frame) : 0.0;
+                          for (auto & voice : voices) {
+                            if (!voice->isActive()) continue;
+                            voice->advanceOvertoneGlide(rate, frames);
+                            any = true;
+                          }
+                        }
+                        for (auto & [column, rate] : overtone_rates_) rate.frames_left = std::max(0, rate.frames_left - frames);
+                        if (!any) overtone_in_use_ = false;
+                      }
+
                       struct GlideAnchor {
                         double hz;
                         float fine_cents;
@@ -463,6 +543,11 @@
                         bool instant = false;
                       };
                       std::unordered_map<int, GlideRate> glide_rates_; // per column: how its glide moves, while its row lasts
+                      // 0Hxx's the same way; cents_per_frame holds the share of the whole change.
+                      std::unordered_map<int, GlideRate> overtone_rates_;
+                      bool overtone_in_use_ = false;
+                      // Per column: the note whose pitch its newest voice sounds (or glides to).
+                      std::unordered_map<int, int> sounding_notes_;
                       bool glide_in_use_ = false;
 
                       // The slide position (cents) `extra` frames into the coming chunk: the

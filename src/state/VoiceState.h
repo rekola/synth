@@ -247,6 +247,26 @@ class VoiceState : public TreeNode<VoiceState> {
     }
   }
 
+  // 0Hxx overtone glide, shaped like the pitch glide above: the target is
+  // every `step`-th overtone (under 2: the plain profile); each chunk the
+  // profile moves toward it by `per_frame` of the whole change a frame (0
+  // holds), and a jump lands on it (InstrumentVoice overrides).
+  virtual void setOvertoneTarget(int step) {
+    for (auto & [id, child] : getChildren()) {
+      child->setOvertoneTarget(step);
+    }
+  }
+  virtual void advanceOvertoneGlide(double per_frame, int frames) {
+    for (auto & [id, child] : getChildren()) {
+      child->advanceOvertoneGlide(per_frame, frames);
+    }
+  }
+  virtual void jumpOvertoneGlide() {
+    for (auto & [id, child] : getChildren()) {
+      child->jumpOvertoneGlide();
+    }
+  }
+
   // Send Main/A/B (InstrumentTrackState::setSendMain()/setSendA()/
   // setSendB(), the Launchpad/UI Send knobs) pushed to every already-
   // sounding voice, not just future notes - unlike adjustAzimuth() above,
