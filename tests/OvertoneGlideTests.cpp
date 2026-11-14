@@ -9,6 +9,7 @@
 #include "../src/state/MemoryParameterSource.h"
 #include "../src/instruments/Additive.h"
 #include "../src/instruments/FM.h"
+#include "../src/instruments/InstrumentProvider.h"
 #include "../src/instruments/Noise.h"
 #include "../src/instruments/Oscillator.h"
 #include "../src/instruments/OvertoneComb.h"
@@ -22,6 +23,7 @@
 #include <cmath>
 #include <cstdio>
 #include <filesystem>
+#include <fstream>
 #include <functional>
 #include <memory>
 #include <string>
@@ -187,7 +189,8 @@ double amplitudeAt(const float * signal, int from, int to, double hz) {
 constexpr double kUnmeasured = -1000.0;
 
 // Each overtone's change in dB against `plain`, over [from, to); kUnmeasured
-// for one too quiet in `plain` to measure (60 dB under the loudest).
+// for one too quiet in `plain` to measure (50 dB under the loudest: an
+// oscillator's aliasing sits about 60 dB down, between the overtones).
 vector<double> raiseDb(const float * raised, const float * plain, int from, int to, double f0, int count) {
   vector<double> base(static_cast<size_t>(count) + 1), shaped(static_cast<size_t>(count) + 1);
   double loudest = 0.0;
@@ -198,7 +201,7 @@ vector<double> raiseDb(const float * raised, const float * plain, int from, int 
   }
   vector<double> out(static_cast<size_t>(count) + 1, kUnmeasured);
   for (int n = 1; n <= count; n++) {
-    if (base[static_cast<size_t>(n)] < loudest * 1e-3) continue;
+    if (base[static_cast<size_t>(n)] < loudest * 3e-3) continue;
     out[static_cast<size_t>(n)] = 20.0 * log10(shaped[static_cast<size_t>(n)] / base[static_cast<size_t>(n)]);
   }
   return out;
@@ -242,6 +245,9 @@ Rendered renderRows(const InstrumentFactory & make, Tuning tuning, Scale scale, 
   auto & track = song.addTrack(make_unique<InstrumentTrack>(0));
   const int id = track.getInternalId();
   song.getArrangement().setNote(0, id, 0, Note(first, 100));
+  // An OFF in an unused column past the rendered rows: every song compared is
+  // as long, so none loops back to its first row while measured.
+  song.getArrangement().setNote(rows + 4, id, 3, Note::off());
   if (setup) setup(song, id);
 
   ChannelConfiguration config(kRate, 1);
@@ -552,4 +558,91 @@ TEST(overtone_glide_does_nothing_to_noise) {
   float worst = 0.0f;
   for (int i = 0; i < shaped.out.numberOfFrames(); i++) worst = max(worst, fabsf(shaped.out.getChannelData(0)[i] - plain.out.getChannelData(0)[i]));
   CHECK(worst < 1e-6f);
+}
+
+namespace {
+// Renders a 12-EDO major song from its XML text, as a file opened in the app would be.
+Rendered renderXml(const string & name, const string & xml, int rows = 4) {
+  auto path = (filesystem::path(TESTS_SCRATCH_DIR) / name).string();
+  {
+    ofstream out(path);
+    out << xml;
+  }
+  InstrumentProvider provider;
+  Song song;
+  CHECK(song.open(path, provider));
+  ChannelConfiguration config(kRate, 1);
+  auto mixer = createMixer(config, MixerType::AMBISONIC_STEREO);
+  SongState state(config);
+  state.initialize(song);
+  state.setIsPlaying(true);
+  Rendered r;
+  r.row = config.getSampleInterval(song.getTempo());
+  // In device-sized blocks, as the app renders.
+  const int total = rows * r.row - 1, block = 256;
+  r.out = AudioBuffer(2, total);
+  for (int at = 0; at < total; at += block) {
+    const int n = min(block, total - at);
+    state.renderBlock(n, song, *mixer);
+    auto part = mixer->encode();
+    for (int c = 0; c < 2; c++)
+      for (int i = 0; i < n; i++) r.out.getChannelData(c)[at + i] = part.getChannelData(c)[i];
+  }
+  return r;
+}
+
+string envelopeSong(const string & instrument, const string & rows) {
+  return "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n"
+         "<song temperament=\"12edo\" scale=\"major\" tempo=\"120\" volume=\"1.0\">\n"
+         "  <instruments>\n"
+         "    <envelope id=\"i1\" attack=\"0.005\" hold=\"0\" decay=\"0.1\" sustain=\"1.0\" release=\"0.3\">\n"
+         "      " +
+         instrument +
+         "\n"
+         "    </envelope>\n"
+         "  </instruments>\n"
+         "  <tracks><track id=\"0\" instrument=\"i1\"/></tracks>\n"
+         "  <arrangement><pattern track=\"0\">\n"
+         "    <note row=\"0\" velocity=\"60\" value=\"C-4\" />\n"
+         "    <note row=\"8\" column=\"3\" value=\"OFF\" />\n" +
+         rows +
+         "  </pattern></arrangement>\n"
+         "</song>\n";
+}
+} // namespace
+
+// The instruments as the songs in songs/ define them, opened from a file:
+// inside an envelope (one also inside a resonant filter), detuned unison
+// arrays, a spread array, an octave harmonic and the PadSynth presets.
+TEST(overtone_glide_reaches_instruments_as_songs_define_them) {
+  const string target = "    <note row=\"1\" velocity=\"60\" value=\"C-5\" />\n    <command row=\"1\" data=\"0HFF\" />\n";
+  struct Case {
+    const char * name;
+    const char * xml;
+    int step;      // the raised overtones of C4: what sounds, an octave up for harmonic="2", has every 2nd
+    int overtones; // how many to measure
+  };
+  // A detuned array's members sit up to half the detune off the note's pitch,
+  // so the comb, tuned to the note, leaves their high unshared overtones a
+  // little: a 10-cent array's 13th rises about 1.1 dB. Those are measured up
+  // to the 12th.
+  const Case cases[] = {
+      {"oscillator", "<oscillator type=\"saw\"/>", 2, 16},
+      {"square", "<oscillator type=\"square\" />", 2, 16},
+      {"saw harmonic 2", "<oscillator type=\"saw\" harmonic=\"2\"/>", 4, 16},
+      {"saw array", "<oscillator type=\"saw\" level=\"0.25\" voices=\"16\" detune=\"10\"/>", 2, 12},
+      {"spread saw array", "<oscillator type=\"saw\" level=\"0.25\" voices=\"32\" detune=\"10\" spread=\"180\"/>", 2, 12},
+      {"filtered spread saw", "<resonantFilter cutmin=\"1100\" cutmax=\"17500\" res=\"0.9\" attack=\"3\" decay=\"3\" sustain=\"0.0\"><oscillator type=\"saw\" level=\"0.25\" voices=\"32\" detune=\"10\" spread=\"180\"/></resonantFilter>", 2, 12},
+      {"fm", "<fm ratio=\"1\" index=\"12\"/>", 2, 16},
+      {"additive", "<additive stretch=\"0\" unisonVoices=\"1\"/>", 2, 16},
+      {"padsynth saw-piano", "<padsynth preset=\"saw-piano\"/>", 2, 16},
+      {"padsynth keyboard", "<padsynth preset=\"keyboard\"/>", 2, 16},
+      {"padsynth default", "<padsynth/>", 2, 16},
+  };
+  for (const auto & c : cases) {
+    auto shaped = renderXml("overtone_envelope_shaped.xml", envelopeSong(c.xml, target));
+    auto plain = renderXml("overtone_envelope_plain.xml", envelopeSong(c.xml, ""));
+    auto db = raiseDb(shaped.out.getChannelData(0), plain.out.getChannelData(0), 2 * shaped.row + 400, 3 * shaped.row - 10, getFrequencyFor(Tuning::EDO12, 60), c.overtones);
+    CHECK(raisedAsExpected(db, c.step, 12.0, c.name));
+  }
 }
