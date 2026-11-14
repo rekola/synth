@@ -454,7 +454,7 @@ notes between them on the home row (the tritone on `g`, between F and G), and
 the notes that cluster round the tonic and the tritone on the upper row. The
 `[` and `]` keys are octave down and up, so B♯ is on `p`. A song with any
 other scale (or none) keeps its own layouts, which do not follow the scale;
-the Babylonian modes and the maqām Rāst have theirs. The Launchpad's step view
+the Babylonian modes, Phrygian tonos (ten degrees on `z` to `/`) and the maqām Rāst have theirs. The Launchpad's step view
 steps through all eighteen notes of the scale.
 
 ## Terminal

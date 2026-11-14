@@ -81,3 +81,17 @@ TEST(keyboard_notes_unmapped_key_is_empty) {
   CHECK(keyToMidiNote(key('!'), Tuning::EDO12, Scale::NONE) == "");
   CHECK(keyToMidiNote(key('+'), Tuning::PERCUSSION, Scale::NONE) == "");
 }
+
+// Phrygian tonos has ten degrees, so its row runs to '/', where B↑ is; the
+// seven-degree modes keep the tonic and second an octave up and nothing on '/'.
+TEST(keyboard_phrygian_tonos_has_a_key_for_each_of_its_ten_degrees) {
+  auto names = scaleDegreeNames(Scale::PHRYGIAN_TONOS);
+  CHECK(names.size() == 10);
+  std::string row = "zxcvbnm,./";
+  for (size_t i = 0; i < row.size() && i < names.size(); i++) {
+    CHECK(std::string(keyToMidiNote(key(row[i]), Tuning::EDO53, Scale::PHRYGIAN_TONOS)) == std::string(names[i]));
+  }
+  CHECK(std::string(keyToMidiNote(key('/'), Tuning::EDO53, Scale::PHRYGIAN_TONOS)) == "B↑");
+  CHECK(std::string(keyToMidiNote(key('/'), Tuning::EDO53, Scale::KITMUM)).empty());
+  CHECK(std::string(keyToMidiNote(key('.'), Tuning::EDO53, Scale::KITMUM)) == "D'");
+}
