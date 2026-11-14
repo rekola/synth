@@ -11,7 +11,13 @@
 #include "../src/instruments/Oscillator.h"
 #include "../src/instruments/WaveformType.h"
 
+#ifdef SYNTH_HAVE_LIBMYSOFA
+#include "../src/ambisonic/AmbisonicBinauralMixer.h"
+#include "../src/ambisonic/AmbisonicMagLSDecoder.h"
+#endif
+
 #include <cmath>
+#include <cstdio>
 #include <memory>
 #include <vector>
 
@@ -74,8 +80,10 @@ TEST(peak_limiter_holds_through_a_low_notes_cycle) {
   CHECK(highest - lowest < 0.02f);
 }
 
-// A song loud enough to pass full scale comes out at the ceiling, through
-// every decoder the factory makes, rather than clipped.
+// A song loud enough to pass full scale comes out at the ceiling, rather
+// than clipped, through every decoder: the cardioid one, and with libmysofa
+// and a SOFA file the binaural ones (MagLS and the legacy speaker rig), built
+// directly so a missing file cannot fall back to cardioid unnoticed.
 TEST(a_loud_song_is_limited_not_clipped) {
   Song song(Tuning::EDO12);
   song.addInstrument(make_unique<Oscillator>(WaveformType::SQUARE));
@@ -83,9 +91,21 @@ TEST(a_loud_song_is_limited_not_clipped) {
   auto arrangement = song.getArrangement();
   for (int column = 0; column < 6; column++) arrangement.setNote(0, track.getInternalId(), column, Note(48 + 7 * column, 255));
 
-  for (auto type : {MixerType::AMBISONIC_STEREO, MixerType::AMBISONIC_BINAURAL}) {
-    ChannelConfiguration config(48000, 3);
-    auto mixer = createMixer(config, type);
+  ChannelConfiguration config(48000, 3);
+  vector<pair<const char *, unique_ptr<Mixer>>> mixers;
+  mixers.emplace_back("cardioid", createMixer(config, MixerType::AMBISONIC_STEREO));
+#ifdef SYNTH_HAVE_LIBMYSOFA
+  auto magls = make_unique<AmbisonicMagLSDecoder>(config.numberOfChannels(), config.getAudioOutSampleRate());
+  auto legacy = make_unique<AmbisonicBinauralMixer>(config.numberOfChannels(), config.getAudioOutSampleRate());
+  if (magls->isReady() && legacy->isReady()) {
+    mixers.emplace_back("MagLS", std::move(magls));
+    mixers.emplace_back("legacy binaural", std::move(legacy));
+  } else {
+    fprintf(stderr, "  no SOFA file: the binaural decoders are not checked\n");
+  }
+#endif
+
+  for (auto & [name, mixer] : mixers) {
     SongState state(config);
     state.initialize(song);
     state.setIsPlaying(true);
@@ -101,6 +121,7 @@ TEST(a_loud_song_is_limited_not_clipped) {
           if (v >= 1.0f) at_full_scale++;
         }
     }
+    fprintf(stderr, "  %s: loudest %.4f\n", name, loudest);
     CHECK(loudest > 0.5f);
     CHECK(loudest <= dsp::PeakLimiter::ceiling() + 1e-6f);
     CHECK(at_full_scale == 0);
