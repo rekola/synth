@@ -250,7 +250,7 @@ timing (and missed-vsync counts) at exit.
   bytes in flight when the frame was sent at least 0.75 B*D, using the window's
   median D, and at least `PacerConfig::grade_floor_bytes` (64 kB, capped at 0.75 of 10 ms of data
   at B so a slow link keeps working) so a terminal that answers in 0.2 ms cannot grade small frames) can lower the estimate or back it off; an app-limited one can only raise
-  it. `--pacer-log FILE` writes a line per frame; `tools/pacing/real_terminals.py`
+  it. `--pacer-log FILE` writes a line per frame; `SYNTH_KITTY_LOG=FILE` logs every kitty graphics command sent (payloads cut short) and every reply, for tracing a lost picture; `tools/pacing/real_terminals.py`
   runs the app in VTE, gnome-terminal, kitty and xterm on a virtual display.
 - `Backend::linkStatus()` (`cellui/LinkStatus.h`): a `LinkClass` (`FULL`,
   `HZ_30`, `HZ_15`, `HZ_5`, `HZ_1`) from a `LinkClassifier` (down after 2 s, up
