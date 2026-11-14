@@ -17,9 +17,13 @@ carries the app's object as an opaque `getAppContext()`.
   above 1 is HDR. Built from `#rgb`/`#rrggbb`, `oklch()`,
   `color(srgb|srgb-linear|display-p3|rec2020 ...)`, HSL or linear values; an
   sRGB-only backend takes `toSrgb8()` (gamut-mapped; light past white is scaled to
-  fit and washes toward white the more there is, `ToneMap.h`'s `neutralToneMap()`:
-  Khronos PBR Neutral's compression and desaturation, started at 1 so display
-  white stays white). `mix()`
+  fit and washes toward white the more there is). A colour inside sRGB and at or
+  under white is encoded through the tables here; anything else is canvas'
+  `linearRec2020ToSrgb()` (chroma reduced at constant OKLab lightness and hue, then
+  Khronos PBR Neutral's compression and desaturation started at 1 so display white
+  stays white), the mapping an 8-bit canvas surface applies to a colour given in
+  linear Rec.2020 (`setInputColorSpace`), so cells and pictures agree. `ToneMap.h`'s
+  `neutralToneMap()` is the general form of that tone map. `mix()`
   is in linear light (the compositor, `bg_blend`, backdrops); `blend()` is a
   widget's tween in encoded sRGB, where the theme was tuned.
 - `NumberParse.h`: `parseFloat()` is `std::from_chars` on every platform,
