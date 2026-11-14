@@ -39,6 +39,7 @@ SinusoidBank::SinusoidBank(const vector<PartialSpec> & specs, float sample_rate)
     total += groups_[g].padded;
   }
   for (auto * v : {&coeff_, &y1_, &y2_, &amp_, &decay_mult_, &min_amp_}) v->assign(total, 0.0f);
+  overtone_.assign(total, 0);
 
   for (size_t g = 0; g < groups_.size(); g++) {
     for (size_t i = 0; i < members[g].size(); i++) {
@@ -53,14 +54,29 @@ SinusoidBank::SinusoidBank(const vector<PartialSpec> & specs, float sample_rate)
       amp_[at] = spec.amplitude;
       decay_mult_[at] = expf(-spec.alpha / sample_rate);
       min_amp_[at] = spec.amplitude * cullThresholdRatio();
+      overtone_[at] = spec.overtone;
       active_total_++;
     }
   }
 }
 
-void SinusoidBank::render(float * rows, size_t stride, int frames) {
+void SinusoidBank::render(float * rows, size_t stride, int frames, const OvertoneProfile * profile) {
   using dsp::kLanes;
   using dsp::v8f;
+
+  // The profile's gain per partial, from the chunk's first sample to its
+  // last, a constant factor a sample (linear in dB).
+  const bool shaped = profile && profile->raised() && frames > 0;
+  if (shaped) {
+    gain_.assign(coeff_.size(), 1.0f);
+    gain_step_.assign(coeff_.size(), 1.0f);
+    for (size_t at = 0; at < coeff_.size(); at++) {
+      if (overtone_[at] <= 0) continue;
+      const double from = profile->gain(overtone_[at]), to = profile->gain(overtone_[at], true);
+      gain_[at] = static_cast<float>(from);
+      gain_step_[at] = static_cast<float>(std::pow(to / from, 1.0 / frames));
+    }
+  }
 
   // Partials are processed eight at a time with their state held in
   // registers across a chunk of frames; each chunk's per-frame vector sums
@@ -86,12 +102,26 @@ void SinusoidBank::render(float * rows, size_t stride, int frames) {
         v8f y2 = dsp::loadu(&y2_[at]);
         v8f amp = dsp::loadu(&amp_[at]);
 
-        for (int k = 0; k < n; k++) {
-          sums[k] += y1 * amp;
-          const v8f next = coeff * y1 - y2;
-          y2 = y1;
-          y1 = next;
-          amp *= decay;
+        if (shaped) {
+          const v8f gain_step = dsp::loadu(&gain_step_[at]);
+          v8f gain = dsp::loadu(&gain_[at]);
+          for (int k = 0; k < n; k++) {
+            sums[k] += y1 * amp * gain;
+            const v8f next = coeff * y1 - y2;
+            y2 = y1;
+            y1 = next;
+            amp *= decay;
+            gain *= gain_step;
+          }
+          dsp::storeu(&gain_[at], gain);
+        } else {
+          for (int k = 0; k < n; k++) {
+            sums[k] += y1 * amp;
+            const v8f next = coeff * y1 - y2;
+            y2 = y1;
+            y1 = next;
+            amp *= decay;
+          }
         }
 
         dsp::storeu(&y1_[at], y1);
@@ -120,6 +150,7 @@ SinusoidBank::cullDecayedPartials() {
         amp_[p] = amp_[last];
         decay_mult_[p] = decay_mult_[last];
         min_amp_[p] = min_amp_[last];
+        overtone_[p] = overtone_[last];
         group.active--;
         // The swapped-in partial needs its own check, so p stays.
       } else {
@@ -130,6 +161,7 @@ SinusoidBank::cullDecayedPartials() {
     for (int i = group.active; i < before; i++) {
       const size_t at = group.begin + static_cast<size_t>(i);
       for (auto * v : {&coeff_, &y1_, &y2_, &amp_, &decay_mult_, &min_amp_}) (*v)[at] = 0.0f;
+      overtone_[at] = 0;
     }
     active_total_ -= before - group.active;
   }

@@ -1,6 +1,8 @@
 #ifndef _SINUSOIDBANK_H_
 #define _SINUSOIDBANK_H_
 
+#include "OvertoneProfile.h"
+
 #include <vector>
 #include <cstddef>
 
@@ -12,6 +14,7 @@ struct PartialSpec {
   float alpha; // decay, nepers/second: amplitude(t) = amplitude * exp(-alpha * t)
   float phase; // radians
   int group;
+  int overtone = 0; // its number in the note's overtone series (1: the fundamental), 0 if none (a body mode)
 };
 
 // A bank of independently-decaying sinusoids for one note, the engine
@@ -35,8 +38,10 @@ class SinusoidBank {
   SinusoidBank(const std::vector<PartialSpec> & specs, float sample_rate);
 
   // Adds the output of group g into rows[g * stride + 0 .. frames) (it mixes,
-  // never zeroes). `stride` is at least `frames`.
-  void render(float * rows, size_t stride, int frames);
+  // never zeroes). `stride` is at least `frames`. With `profile` (0Hxx) each
+  // partial with an overtone number is raised by that overtone's gain, moving
+  // linearly in dB across the frames.
+  void render(float * rows, size_t stride, int frames, const OvertoneProfile * profile = nullptr);
 
   int groupCount() const { return static_cast<int>(groups_.size()); }
   bool isActive() const { return active_total_ > 0; }
@@ -62,6 +67,8 @@ class SinusoidBank {
   std::vector<float> amp_;        // current envelope amplitude
   std::vector<float> decay_mult_; // per-sample amplitude multiplier
   std::vector<float> min_amp_;    // -90dB-relative-to-start cull threshold
+  std::vector<int> overtone_;     // PartialSpec::overtone
+  std::vector<float> gain_, gain_step_; // the profile's gain at the next sample, and its per-sample factor
   int active_total_ = 0;
 };
 

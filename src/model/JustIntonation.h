@@ -32,14 +32,24 @@ struct ScaleCorrections {
   int key = 0; // the key's pitch class
   std::array<double, kMaxSteps> cents{};
   std::array<bool, kMaxSteps> present{};
+  // The gamut note's ratio for each step, within the step's own octave above
+  // the key (a ratio whose nearest step is a whole octave counts as below it).
+  std::array<Ratio, kMaxSteps> ratios{};
 
   bool empty() const { return edo == 0; }
   // The exact correction (cents, not yet rounded to what a note's fx can hold,
   // see Note::tuningCorrectionFx()) for an absolute note value, if its key has
   // a gamut note.
   std::optional<double> forNote(int note_value) const;
+  // A note's just ratio to the key in the octave at or below it, `ratio`
+  // times 2^`octaves`, if its key has a gamut note.
+  struct NoteRatio {
+    Ratio ratio;
+    int octaves = 0;
+  };
+  std::optional<NoteRatio> ratioForNote(int note_value) const;
   bool operator==(const ScaleCorrections & o) const {
-    return edo == o.edo && key == o.key && cents == o.cents && present == o.present;
+    return edo == o.edo && key == o.key && cents == o.cents && present == o.present && ratios == o.ratios;
   }
 };
 

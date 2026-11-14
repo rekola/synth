@@ -111,7 +111,7 @@ class Command {
     if (digit(values_[2], 16) < 0 || digit(values_[3], 16) < 0) return false;
     if (values_[0] == 'Z') return isPatternBreak() || (isTempoSet() && getTempoBpm() > 0);
     if (values_[0] == 'Y') return std::string_view("MABZLRUD").find(values_[1]) != std::string_view::npos;
-    return values_[0] == '0' && std::string_view("UDGRPWL").find(values_[1]) != std::string_view::npos;
+    return values_[0] == '0' && std::string_view("UDGHRPWL").find(values_[1]) != std::string_view::npos;
   }
 
   // ZBxx ("Z" being the group every native/global command not tied to a
@@ -196,6 +196,14 @@ class Command {
   }
   float getPitchGlideSteps() const { return static_cast<float>(getPitchGlideCode()) / 16.0f; }
   bool isPitchGlideInstant() const { return getPitchGlideCode() == 0xFF; }
+
+  // 0Hxx - glide the overtone profile of a column's sounding note toward the
+  // overtones it shares with the note on this row, which is not retriggered;
+  // its pitch stays. `xx` is the sixteenths of the whole change made per
+  // row; FF is instant. Timed like 0Gxx: it moves only on rows that carry it.
+  bool isOvertoneGlide() const { return values_[0] == '0' && values_[1] == 'H'; }
+  int getOvertoneGlideCode() const { return getPitchGlideCode(); }
+  bool isOvertoneGlideInstant() const { return getOvertoneGlideCode() == 0xFF; }
 
   // 0Rxy - retrigger the track's most recently played note every `y` ticks
   // (constants::TICKS_PER_ROW per row) for the rest of this row, changing

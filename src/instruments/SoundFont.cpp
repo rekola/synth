@@ -1029,6 +1029,7 @@ class SoundFontVoice : public InstrumentVoice {
     // In double: the float log2 resolves only 0.0008 cent at A4, a visible share of a
     // sixteenth-of-a-cent correction.
     apparentPlayingKey_ = std::log2(static_cast<double>(frequency) * static_cast<double>(getDetune()) / static_cast<double>(kNominalStandardPitchHz)) * 12.0 + 69.0;
+    note_hz_ = static_cast<double>(frequency) * static_cast<double>(getDetune());
 
     if (first_play) {
       // use correctly rounded midiKey for envelopes (should we use detune?)
@@ -1242,6 +1243,8 @@ protected:
   double apparentPlayingKey_ = 0;
   struct tsf_region * voiceRegion_ = nullptr;
   double pitchInputTimecents_ = 0, pitchOutputFactor_ = 0;
+  double note_hz_ = 0.0; // the note's own pitch, detune included (0Hxx's comb follows it)
+  OvertoneComb overtone_comb_;
   unsigned int loopStart_ = 0, loopEnd_ = 0;
 
   bool hasChannelPressureCutoffMod_ = false, hasChannelPressurePitchMod_ = false;
@@ -1532,6 +1535,10 @@ SoundFontVoice::render(int numSamples) {
       break;
     }
   }
+
+  // A sample has no level per partial, so 0Hxx shapes the output, at the
+  // note's pitch with its slide and glide.
+  applyOvertoneComb(overtone_comb_, dry_.data(), totalSamples, note_hz_ * getSlideRatioStart(), note_hz_ * getSlideRatioEnd());
 
   return encodeWithChorus(totalSamples);
 }

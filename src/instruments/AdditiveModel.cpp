@@ -147,7 +147,7 @@ buildPartialSpecs(const AdditiveModelParams & params, const NoteContext & note) 
       float alpha = (params.decay_a + params.decay_b * powf(freq, params.decay_p)) * rate;
       // Distinct for every (string, partial) pair.
       float phase = phase_field.range(note.coord.withInstance(s * 4096 + n).toHashCoord(), paramId("additive_phase"), 0.0f, 2.0f * kPi);
-      specs.push_back({freq, amplitude, alpha, phase, s});
+      specs.push_back({freq, amplitude, alpha, phase, s, n});
     }
   }
 
@@ -157,7 +157,7 @@ buildPartialSpecs(const AdditiveModelParams & params, const NoteContext & note) 
       const BodyMode & mode = params.body[j];
       if (mode.frequency_hz >= nyquist) continue;
       float phase = phase_field.range(note.coord.withInstance(static_cast<int>(65536 + j)).toHashCoord(), paramId("additive_body_phase"), 0.0f, 2.0f * kPi);
-      specs.push_back({mode.frequency_hz, body_level * mode.amplitude, mode.alpha, phase, strings + static_cast<int>(j)});
+      specs.push_back({mode.frequency_hz, body_level * mode.amplitude, mode.alpha, phase, strings + static_cast<int>(j), 0});
     }
   }
   return specs;

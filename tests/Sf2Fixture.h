@@ -101,14 +101,18 @@ struct PresetSpec {
 // gap shifts its position in the file's own sorted-by-(bank,program)
 // preset array (see SoundFont::createInstrumentByProgram()'s own doc
 // comment for why that distinction matters).
-inline void writeMinimalSf2(const std::string & path, const std::vector<PresetSpec> & presets) {
+// `samples`, when given, replaces the sine (at least 9000 of them, the loop's end).
+inline void writeMinimalSf2(const std::string & path, const std::vector<PresetSpec> & presets, const std::vector<int16_t> & samples = {}) {
   // Shared sample: long enough that no test render runs off the end
   // even with a slightly modulated pitch ratio.
-  const uint32_t kSampleCount = 200000;
-  std::vector<int16_t> pcm(kSampleCount);
-  for (uint32_t i = 0; i < kSampleCount; i++) {
-    pcm[i] = static_cast<int16_t>(16000.0 * std::sin(2.0 * M_PI * static_cast<double>(i) / 97.0));
+  std::vector<int16_t> pcm = samples;
+  if (pcm.empty()) {
+    pcm.resize(200000);
+    for (uint32_t i = 0; i < pcm.size(); i++) {
+      pcm[i] = static_cast<int16_t>(16000.0 * std::sin(2.0 * M_PI * static_cast<double>(i) / 97.0));
+    }
   }
+  const auto kSampleCount = static_cast<uint32_t>(pcm.size());
   Bytes smpl_bytes;
   for (auto s : pcm) appendI16(smpl_bytes, s);
 
