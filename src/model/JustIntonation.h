@@ -20,8 +20,7 @@
 // in cents; where none does, the key stays tempered. There is no search for
 // simple ratios and no chord context, so some triads are a comma off: in C
 // major the D-A fifth is 40/27. A fixed note set cannot have every fifth and
-// third pure; adaptive tuning, which shifts the whole scale by a comma on a
-// switch, is a different thing and is not done here.
+// third pure.
 namespace just_intonation {
 
 // The correction of every gamut note, by its nearest step above the key: the
