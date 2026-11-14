@@ -702,8 +702,27 @@ deflate ratio on real charts is known.
      holds 3.2 to 3.9 different registers, not two. (Two earlier sets of figures here were wrong and are gone: one
      was made with a dither that was applied twice, the other with a mapping that did no dither at all and so
      showed contour lines; neither could be compared with the default palette's.)
-     Not yet tried: one palette for the whole backdrop (so tiles do not differ at their seams), the look in a light
-     theme and on other songs and terminals, and the error against a reference blur.
+     **Making it smaller** (xterm, the same frame; `CELLUI_BLUR_MIX=1` now turns all of this on, each part has an
+     opt-out). (1) *Overpaint* (`Dither::overpaint`, `CELLUI_BLUR_NOOVERPAINT`): a Sixel band is drawn a register at a
+     time, and a pixel a later register paints over need not be left empty by an earlier one, so the passes go from
+     the register with most pixels to least, the first is one run across the band, and each later one sets the
+     bits of the pixels still to be painted over wherever that makes a run longer. The same pixels (a test decodes
+     both and compares; xterm's screen is identical to the pixel), 20 % fewer bytes on the custom palette and 32 %
+     fewer on the terminal's default palette (118 kB to 75 kB a frame, `CELLUI_BLUR_OVERPAINT=1`, which is not on
+     by default for it). (2) *Two registers a pixel* (`CELLUI_BLUR_NOTOP2`): a pixel's 16 candidates are cut to
+     the two most frequent, in their ratio: 25 to 30 % fewer bytes on top of (1). (3) *One palette for the whole
+     backdrop* (`CELLUI_BLUR_NOSHARED`, `CELLUI_BLUR_REGISTERS`, default 16): made from all the tiles, kept while the
+     set of tiles holds and a changed tile's colours stay near a register, every tile sent again when it is made
+     again. No seams, and no palette to make for each tile. Blur frame with all three: 72 kB at 8 registers,
+     96 kB at 12, 106 kB at 16, 129 kB at 24 (default palette 118 kB; per-tile palette with (1) and (2) 103 kB at
+     8, 122 kB at 12, 135 kB at 16). At 16 the look is the right tone with a fine Bayer texture and no seams, with a
+     few bright blue dots where the glow's accent colour has a register of its own; at 8 a plateau where one
+     register covers a whole patch. So: the default palette with overpaint is the smallest (75 kB) and a custom
+     palette of 8 to 12 registers matches it only by giving up on the look; whether to switch the default palette
+     to overpaint is a decision for the maintainer (it changes the bytes of every stretched picture and relies on
+     later passes replacing earlier ones, which xterm does; other terminals are untried).
+     Not yet tried: the look in a light theme and on other songs and terminals, and the error against a reference
+     blur.
    Done when one algorithm is chosen on the figures, its colours are not visibly worse than the cells under it, the
    blur appears in one frame at full speed without a slide, and the per-stage figures are recorded here.
 

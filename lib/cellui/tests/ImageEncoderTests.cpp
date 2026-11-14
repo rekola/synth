@@ -2,6 +2,7 @@
 #include "Inflate.h"
 
 #include <algorithm>
+#include <cctype>
 #include <cmath>
 #include <functional>
 #include <set>
@@ -1258,5 +1259,69 @@ TEST(a_slow_ramp_is_followed_by_the_averages_of_what_is_drawn) {
       previous_drawn = drawn;
       previous_source = source;
     }
+  }
+}
+
+// A Sixel's pixels as a terminal draws them: each pass paints its bits in its register over what is there.
+namespace {
+
+std::vector<int> sixelPixels(const std::string & sixel, int width, int height) {
+  std::vector<int> px(static_cast<size_t>(width) * static_cast<size_t>(height), -1);
+  size_t i = sixel.find('q');
+  int reg = 0, x = 0, band = 0;
+  for (++i; i < sixel.size(); i++) {
+    char c = sixel[i];
+    if (c == '\x1b') break;
+    if (c == '"' || c == '#') {
+      size_t j = i + 1;
+      std::vector<int> nums;
+      while (j < sixel.size() && (std::isdigit(static_cast<unsigned char>(sixel[j])) || sixel[j] == ';')) {
+        size_t e = sixel.find_first_not_of("0123456789", j);
+        if (e > j) nums.push_back(std::atoi(sixel.substr(j, e - j).c_str()));
+        j = (e == std::string::npos ? sixel.size() : e);
+        if (j < sixel.size() && sixel[j] == ';') j++;
+        else break;
+      }
+      if (c == '#' && !nums.empty()) reg = nums[0];
+      i = j - 1;
+      continue;
+    }
+    if (c == '$') { x = 0; continue; }
+    if (c == '-') { x = 0; band++; continue; }
+    int repeat = 1;
+    if (c == '!') {
+      size_t e = sixel.find_first_not_of("0123456789", i + 1);
+      repeat = std::atoi(sixel.substr(i + 1, e - i - 1).c_str());
+      i = e;
+      c = sixel[i];
+    }
+    int bits = c - 0x3f;
+    for (int k = 0; k < repeat; k++, x++) {
+      for (int row = 0; row < 6; row++) {
+        int y = band * 6 + row;
+        if ((bits >> row & 1) && x < width && y < height) px[static_cast<size_t>(y) * static_cast<size_t>(width) + static_cast<size_t>(x)] = reg;
+      }
+    }
+  }
+  return px;
+}
+
+}  // namespace
+
+// Passes that overpaint each other draw the same picture in fewer bytes.
+TEST(overpainted_sixel_passes_draw_the_same_pixels_in_fewer_bytes) {
+  for (int n : {16, 64}) {
+    Image tile = ramp(96, 52);
+    std::vector<bool> keep(static_cast<size_t>(96 * 52), true);
+    for (int y = 10; y < 30; y++) keep[static_cast<size_t>(y * 96 + 40)] = false;  // some left out
+    Dither plain;
+    plain.mix = true;
+    plain.origin_x = 3;
+    Dither over = plain;
+    over.overpaint = true;
+    std::string a = encodeSixel(tile, 0, 0, 96, 52, keep, plain, n), b = encodeSixel(tile, 0, 0, 96, 52, keep, over, n);
+    CHECK(b.size() < a.size());
+    std::vector<int> pa = sixelPixels(a, 96, 52), pb = sixelPixels(b, 96, 52);
+    CHECK(pa == pb);
   }
 }

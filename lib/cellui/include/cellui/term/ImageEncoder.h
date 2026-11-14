@@ -43,6 +43,8 @@ struct Dither {
   // EXPERIMENT: the palette is made from the picture's colours put once on the terminal's levels (not dithered
   // first), and each pixel is dithered once between the two palette entries it lies between.
   bool mix = false;
+  // EXPERIMENT: the Sixel passes of a band overpaint each other (see encodeSixelWith()): same picture, fewer bytes.
+  bool overpaint = false;
 };
 
 namespace detail {
@@ -55,6 +57,8 @@ struct GridMixTile {
 };
 GridMixTile gridMixTile(const Image & image, int registers, int origin_x, int origin_y);
 // Each pixel's register of the terminal's default palette (the fixed palette's mapping).
+// The tile as Sixel in the terminal's default palette (what the blur ships with).
+std::string fixedTileSixel(const Image & image, int origin_x, int origin_y);
 std::vector<int> fixedTileRegisters(const Image & image, int origin_x, int origin_y);
 }  // namespace detail
 
@@ -180,6 +184,10 @@ class ImageEncoder {
   void evictSharedUploads(const std::set<uint32_t> & in_use, std::string & out);
   std::string kitty(const CellBuffer & frame, const ImagePlacement & p, Shown & shown, bool fresh, bool cleared);
   std::string sixel(const CellBuffer & frame, const ImagePlacement & p, Shown & shown, bool fresh, bool cleared);
+  // (Sixel, experiment) One palette for every blurred tile of a frame.
+  void updateSharedBlurPalette(const std::vector<ImagePlacement> & images);
+  std::shared_ptr<const void> shared_blur_palette_;
+  std::vector<uint64_t> shared_blur_keys_;
   std::string iterm2(const CellBuffer & frame, const ImagePlacement & p, Shown & shown, bool fresh, bool cleared);
   std::vector<Rect> visibleRects(const CellBuffer & frame, const ImagePlacement & p, bool avoid_last_row) const;
 

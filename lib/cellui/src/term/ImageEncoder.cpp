@@ -5,6 +5,7 @@
 #include <cellui/term/FrameEncoder.h>
 
 #include <algorithm>
+#include <bit>
 #include <cmath>
 #include <cstdio>
 #include <cstdlib>
@@ -574,6 +575,8 @@ SixelPalette xtermPalette() {
 // ---- The custom palette of a blurred backdrop (CELLUI_BLUR_MIX): registers on the 101 levels, pixels never.
 // A register's working value is its grid level * 255 / 100, as a float; the dither measures against those.
 constexpr int kMixCandidates = 16;
+// The registers of the blur's custom palette unless CELLUI_BLUR_REGISTERS says otherwise.
+constexpr int kBlurRegisters = 16;
 // The most the carried error may reach in a channel, in 8-bit levels: a colour the palette cannot get near
 // must not make it grow without bound.
 constexpr float kMixErrorLimit = 64.0f;
@@ -731,8 +734,8 @@ MixPick mixPick(const SixelPalette & palette, int r, int g, int b, uint32_t key)
     const size_t u = static_cast<size_t>(reg);
     return 0.299f * palette.fred[u] + 0.587f * palette.fgreen[u] + 0.114f * palette.fblue[u];
   };
-  // EXPERIMENT (CELLUI_BLUR_TOP2): only the two registers most often chosen, in their ratio.
-  static const bool top2 = std::getenv("CELLUI_BLUR_TOP2") != nullptr;
+  // EXPERIMENT (off with CELLUI_BLUR_NOTOP2): only the two registers most often chosen, in their ratio.
+  static const bool top2 = std::getenv("CELLUI_BLUR_NOTOP2") == nullptr;
   if (top2) {
     int first = chosen[0], second = -1, first_n = 0, second_n = 0;
     int count[256] = {0};
@@ -908,6 +911,62 @@ std::string encodeSixelWith(const SixelPalette & palette, const Image & image, i
         planes[static_cast<size_t>(s) * columns + x] = static_cast<uint8_t>(planes[static_cast<size_t>(s) * columns + x] | (1 << (y - band)));
       }
     }
+    if (dither.overpaint) {
+      // A pixel of a later pass is painted over, so an earlier pass need not leave it empty: the passes go
+      // from the register with the most pixels to the fewest, and each sets whichever bits of the pixels still
+      // to be painted over make its runs longest (the first becomes one run across the band).
+      std::vector<int> order = in_band;
+      std::vector<int> pixels_of(palette_size, 0);
+      for (size_t i = 0; i < in_band.size(); i++) {
+        for (size_t x = 0; x < columns; x++) pixels_of[static_cast<size_t>(in_band[i])] += std::popcount(static_cast<unsigned>(planes[i * columns + x]));
+      }
+      std::sort(order.begin(), order.end(), [&](int a, int b) { return pixels_of[static_cast<size_t>(a)] != pixels_of[static_cast<size_t>(b)] ? pixels_of[static_cast<size_t>(a)] > pixels_of[static_cast<size_t>(b)] : a < b; });
+      std::vector<int> rank_of(palette_size, -1);
+      for (size_t k = 0; k < order.size(); k++) rank_of[static_cast<size_t>(order[k])] = static_cast<int>(k);
+      std::vector<int8_t> rank(columns * 6, -1);  // the pass that paints each pixel; -1 for none (left out, or below the picture)
+      for (int y = band; y < std::min(band + 6, height); y++) {
+        for (size_t x = 0; x < columns; x++) {
+          int reg = regs[static_cast<size_t>(y) * columns + x];
+          if (reg >= 0) rank[x * 6 + static_cast<size_t>(y - band)] = static_cast<int8_t>(rank_of[static_cast<size_t>(reg)]);
+        }
+      }
+      std::vector<unsigned> must(columns), forbidden(columns);
+      for (size_t k = 0; k < order.size(); k++) {
+        int last = -1;
+        for (size_t x = 0; x < columns; x++) {
+          unsigned m = 0, f = 0;
+          for (unsigned row = 0; row < 6; row++) {
+            int r = rank[x * 6 + row];
+            if (r == static_cast<int>(k)) m |= 1u << row;
+            else if (r < static_cast<int>(k)) f |= 1u << row;
+          }
+          must[x] = m;
+          forbidden[x] = f;
+          if (m) last = static_cast<int>(x);
+        }
+        if (k) out += '$';
+        out += "#" + std::to_string(order[k]);
+        for (int x = 0; x <= last;) {
+          unsigned m = must[static_cast<size_t>(x)], f = forbidden[static_cast<size_t>(x)];
+          int end = x;
+          while (end + 1 <= last) {
+            unsigned m2 = m | must[static_cast<size_t>(end + 1)], f2 = f | forbidden[static_cast<size_t>(end + 1)];
+            if (m2 & f2) break;
+            m = m2;
+            f = f2;
+            end++;
+          }
+          int run = end - x + 1;
+          char c = static_cast<char>(0x3f + m);
+          if (run > 2) out += "!" + std::to_string(run) + c;
+          else out.append(static_cast<size_t>(run), c);
+          x = end + 1;
+        }
+      }
+      for (int reg : in_band) slot[static_cast<size_t>(reg)] = -1;
+      out += '-';
+      continue;
+    }
     std::vector<int> order = in_band;
     std::sort(order.begin(), order.end());
     bool first = true;
@@ -962,6 +1021,16 @@ GridMixTile gridMixTile(const Image & image, int registers, int origin_x, int or
     for (int i = 0; i < kMixCandidates; i++) tile.candidates.push_back(pick.reg[i]);
   }
   return tile;
+}
+
+std::string fixedTileSixel(const Image & image, int origin_x, int origin_y) {
+  std::vector<bool> all(static_cast<size_t>(image.width) * static_cast<size_t>(image.height), true);
+  Dither dither;
+  dither.method = Dither::Method::ORDERED;
+  dither.origin_x = origin_x;
+  dither.origin_y = origin_y;
+  dither.overpaint = std::getenv("OVER") != nullptr;
+  return encodeSixelWith(xtermPalette(), image, 0, 0, image.width, image.height, all, dither);
 }
 
 std::vector<int> fixedTileRegisters(const Image & image, int origin_x, int origin_y) {
@@ -1398,6 +1467,7 @@ std::string ImageEncoder::sixel(const CellBuffer & frame, const ImagePlacement &
     dither.origin_x = p.col * cw + x;
     dither.origin_y = p.row * ch + y;
     dither.mix = palette_mix;
+    dither.overpaint = (palette_mix && std::getenv("CELLUI_BLUR_NOOVERPAINT") == nullptr) || (p.image->stretched() && std::getenv("CELLUI_BLUR_OVERPAINT") != nullptr);
     std::string data = encodeSixelWith(palette, img, x, y, w, h, keep, dither);
     into.picture += data.size();
     into.bytes += data;
@@ -1452,10 +1522,14 @@ std::string ImageEncoder::sixel(const CellBuffer & frame, const ImagePlacement &
       palette_dither.mix = true;
       palette_dither.gradient = false;
       fixed = false;
-      if (!std::getenv("CELLUI_BLUR_REGISTERS")) registers = 48;
+      if (!std::getenv("CELLUI_BLUR_REGISTERS")) registers = kBlurRegisters;
     }
     bool on_grid = !(std::getenv("CELLUI_BLUR_GRID") && std::atoi(std::getenv("CELLUI_BLUR_GRID")) == 0 && p.image->stretched());
-    SixelPalette palette = fixed ? xtermPalette() : makeSixelPalette(img, x, y, w, h, all, registers, on_grid, &palette_dither);
+    // EXPERIMENT (CELLUI_BLUR_SHARED): the blur's tiles all share one palette, made from the whole backdrop.
+    const SixelPalette * shared_palette = p.image->stretched() && shared_blur_palette_ ? static_cast<const SixelPalette *>(shared_blur_palette_.get()) : nullptr;
+    SixelPalette own_palette;
+    if (!shared_palette) own_palette = fixed ? xtermPalette() : makeSixelPalette(img, x, y, w, h, all, registers, on_grid, &palette_dither);
+    const SixelPalette & palette = shared_palette ? *shared_palette : own_palette;
     // The cells to send are a row of them at a time, from the first that changed to the last: each Sixel
     // carries the definitions of its registers, which cost more than the cells between two changes.
     std::vector<std::pair<int, int>> spans(static_cast<size_t>(r.rows), {r.cols, -1});
@@ -1527,6 +1601,62 @@ std::string ImageEncoder::iterm2(const CellBuffer & frame, const ImagePlacement 
   return out;
 }
 
+// EXPERIMENT (CELLUI_BLUR_MIX, off with CELLUI_BLUR_NOSHARED): one palette for every blurred tile of the frame, so
+// neighbouring tiles are never in different colours. Made again when the set of tiles changes or a changed tile's
+// colours are no longer near a register; every tile is then sent again.
+constexpr float kSharedPaletteDrift = 6.0f;  // the mean distance (8-bit levels, worst channel) from a changed tile's pixels to a register
+
+void ImageEncoder::updateSharedBlurPalette(const std::vector<ImagePlacement> & images) {
+  static const bool wanted = std::getenv("CELLUI_BLUR_MIX") && !std::getenv("CELLUI_BLUR_NOSHARED");
+  if (!wanted) return;
+  std::vector<const ImagePlacement *> tiles;
+  for (const ImagePlacement & p : images) {
+    if (p.image && p.image->width > 0 && p.image->height > 0 && p.image->stretched()) tiles.push_back(&p);
+  }
+  std::vector<uint64_t> keys;
+  for (const ImagePlacement * p : tiles) keys.push_back(p->key);
+  std::sort(keys.begin(), keys.end());
+  bool rebuild = keys != shared_blur_keys_ || (!shared_blur_palette_ && !tiles.empty());
+  if (!rebuild && shared_blur_palette_) {
+    const SixelPalette & palette = *static_cast<const SixelPalette *>(shared_blur_palette_.get());
+    double sum = 0, n = 0;
+    for (const ImagePlacement * p : tiles) {
+      auto it = shown_.find(p->key);
+      if (it != shown_.end() && it->second.version == p->image->version) continue;  // not changed
+      for (size_t i = 0; i < p->image->pixels.size(); i += 5) {
+        uint32_t px = p->image->pixels[i];
+        int reg = gridNearest(palette, static_cast<float>(Image::red(px)), static_cast<float>(Image::green(px)), static_cast<float>(Image::blue(px)));
+        const size_t u = static_cast<size_t>(reg);
+        sum += std::max({std::fabs(palette.fred[u] - static_cast<float>(Image::red(px))), std::fabs(palette.fgreen[u] - static_cast<float>(Image::green(px))),
+                         std::fabs(palette.fblue[u] - static_cast<float>(Image::blue(px)))});
+        n++;
+      }
+    }
+    rebuild = n > 0 && sum / n > static_cast<double>(kSharedPaletteDrift);
+  }
+  if (!rebuild) return;
+  shared_blur_keys_ = keys;
+  if (tiles.empty()) {
+    shared_blur_palette_.reset();
+    return;
+  }
+  Image all;
+  for (const ImagePlacement * p : tiles) {
+    Image pixels = withoutPad(*p->image);
+    all.pixels.insert(all.pixels.end(), pixels.pixels.begin(), pixels.pixels.end());
+  }
+  all.width = static_cast<int>(all.pixels.size());
+  all.height = 1;
+  const char * count = std::getenv("CELLUI_BLUR_REGISTERS");
+  std::vector<bool> keep(all.pixels.size(), true);
+  shared_blur_palette_ = std::make_shared<const SixelPalette>(makeGridPalette(all, 0, 0, all.width, 1, keep, count ? std::max(2, std::atoi(count)) : kBlurRegisters));
+  // Tiles already on the screen are in the old colours: send them all again.
+  for (const ImagePlacement * p : tiles) {
+    auto it = shown_.find(p->key);
+    if (it != shown_.end()) it->second.rects.clear();
+  }
+}
+
 std::string ImageEncoder::encode(const CellBuffer & frame, const std::vector<ImagePlacement> & images, bool cleared,
                                  const std::vector<CellBorder> & borders) {
   StageTimer timer(Stage::IMAGE_ENCODE);
@@ -1537,6 +1667,7 @@ std::string ImageEncoder::encode(const CellBuffer & frame, const std::vector<Ima
     for (auto & [key, shown] : shown_) shown.rects.clear();
   }
   std::set<uint64_t> seen;
+  if (profile_.protocol == PixelProtocol::SIXEL) updateSharedBlurPalette(images);
   for (const ImagePlacement & p : images) {
     if (!p.image || p.image->width <= 0 || p.image->height <= 0) continue;
     seen.insert(p.key);
