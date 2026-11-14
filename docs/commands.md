@@ -13,7 +13,7 @@ device command, an argument with a `-` left in it, and `ZTxx` below `20`.
 The effect column follows the tracker tradition described in the README. The
 mnemonic's first character is either `Z` (a global command, not
 scoped to any one track - `ZBxx`/`ZTxx` below), `Y` (this engine's own
-reserved namespace - see below), or a device index: how far up *this*
+reserved namespace - see below), or a device index (a digit `0`-`9`, then a letter `A`-`X` once the digits run out): how far up *this*
 track's own ancestor chain the command actually targets (Group/Effect
 tracks, not a flat per-track device list - the equivalent traversal this
 engine's own track hierarchy actually offers). `-` (stored internally as

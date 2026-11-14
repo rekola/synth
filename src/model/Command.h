@@ -60,9 +60,9 @@ class Command {
   // narrower [A-Fa-f0-9-]. Column 0 is 'Z' (a global command, not scoped
   // to any one track/device - ZBxx pattern break, ZTxx tempo), 'Y' (this
   // engine's own reserved namespace - see isVolumeGlide()'s own comment),
-  // or a leaf-track chain-position digit, always '0' today (no
-  // addressable per-track device chain exists yet for a nonzero digit to
-  // target) - see updateData()'s own '-'-as-'0' handling below. Letters
+  // or a leaf-track chain-position digit or letter (0-9, then A-X), always
+  // '0' today (no addressable per-track device chain exists yet for any
+  // other to target) - see updateData()'s own '-'-as-'0' handling below. Letters
   // normalize to uppercase ASCII on storage, same as a typed command
   // always has (a codepoint outside ASCII, e.g. a fullwidth Latin letter,
   // is simply invalid here - unlike digit()'s own fullwidth handling,
@@ -77,16 +77,13 @@ class Command {
     if (codepoint >= 'a' && codepoint <= 'z') codepoint -= 'a' - 'A'; // normalize once, up front, rather than testing lowercase separately below
     bool valid;
     if (i == 0) {
-      // Column 0 is the device index (docs/commands.md) - 'Z' (a global
-      // command), 'Y' (this engine's own reserved namespace - see
-      // isVolumeGlide()'s own comment), or a digit (how far up this
-      // track's own ancestor chain the command targets, '-' included as a
-      // typed synonym for '0' - see below). No other letter means
-      // anything here, unlike column 1's own full mnemonic alphabet just
-      // below - accepting one would silently store a command whose device
-      // index isn't actually any of the values this class (or
-      // docs/commands.md) ever gives a meaning to.
-      valid = codepoint == '-' || codepoint == 'Z' || codepoint == 'Y' || (codepoint >= '0' && codepoint <= '9');
+      // Column 0 is the device index (docs/commands.md): a digit or a letter
+      // says how far up this track's own ancestor chain the command targets
+      // ('-' a typed synonym for '0', see below), except 'Z' (a global
+      // command) and 'Y' (this engine's own reserved namespace - see
+      // isVolumeGlide()'s own comment). Letters extend the digits so the
+      // index doesn't run out.
+      valid = codepoint == '-' || (codepoint >= '0' && codepoint <= '9') || (codepoint >= 'A' && codepoint <= 'Z');
     } else {
       char hi = i < 2 ? 'Z' : 'F'; // column 1 (the action letter) allows the full alphabet; the hex argument columns (2/3) don't
       valid = codepoint == '-' || (codepoint >= '0' && codepoint <= '9') || (codepoint >= 'A' && codepoint <= hi);
