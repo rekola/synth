@@ -191,6 +191,7 @@ bool TerminalSession::start(SessionOptions & options, std::string * error) {
     if (link_log_) StageStats::enable();
   }
   if (const char * path = std::getenv("SYNTH_PACER_LOG")) pacer_log_ = std::fopen(path, "a");
+  if (const char * path = std::getenv("SYNTH_KITTY_LOG")) kitty_log_ = std::fopen(path, "a");
 
   // cbreak, plus what an Emacs-style key map needs: Ctrl-S/Q (flow
   // control), Ctrl-V/O (the line discipline's own) and, unless kept,
@@ -347,6 +348,8 @@ void TerminalSession::close() {
   link_log_ = nullptr;
   if (pacer_log_) std::fclose(pacer_log_);
   pacer_log_ = nullptr;
+  if (kitty_log_) std::fclose(kitty_log_);
+  kitty_log_ = nullptr;
   ::close(wake_read_);
   ::close(wake_write_);
   wake_read_ = wake_write_ = -1;
@@ -646,6 +649,23 @@ void TerminalSession::present(const CellBuffer & frame, const CursorRequest & cu
   pacer_.requestFrame();
 }
 
+// One line per graphics command: the keys, and the first bytes of any payload.
+void TerminalSession::logKitty(const char * what, const std::string & bytes) {
+  if (!kitty_log_) return;
+  double now = std::chrono::duration<double>(std::chrono::steady_clock::now().time_since_epoch()).count();
+  size_t at = 0;
+  while ((at = bytes.find("\x1b_G", at)) != std::string::npos) {
+    size_t end = bytes.find("\x1b\\", at);
+    if (end == std::string::npos) end = bytes.size();
+    std::string cmd = bytes.substr(at + 3, end - at - 3);
+    size_t payload = cmd.find(';');
+    if (payload != std::string::npos && cmd.size() > payload + 9) cmd = cmd.substr(0, payload + 9) + "...";
+    std::fprintf(kitty_log_, "%.3f %s %s\n", now, what, cmd.c_str());
+    at = end;
+  }
+  std::fflush(kitty_log_);
+}
+
 void TerminalSession::sendFrame(const CellBuffer & frame, const CursorRequest & cursor, const std::vector<ImagePlacement> & images,
                                 const std::vector<BackdropLayer> & layers, const std::vector<CellBorder> & borders) {
   frame_presented_ = true;
@@ -660,9 +680,11 @@ void TerminalSession::sendFrame(const CellBuffer & frame, const CursorRequest & 
     backdrops_.setMode(backdropModeFor(link_.status().cls, caps_.display.pictures && caps_.display.cell_px_height > 0));
     backdrops_.apply(shown, placements, layers, caps_.display);
     std::string pixels = images_.encode(shown, placements, encoder_.willClear(shown), borders);
+    logKitty("send", pixels);
     body = encoder_.encode(shown, cursor, pixels);
   } else {
     std::string pixels = images_.encode(frame, images, encoder_.willClear(frame), borders);
+    logKitty("send", pixels);
     body = encoder_.encode(frame, cursor, pixels);
   }
   if (body.empty()) return;  // nothing changed: no bytes, no frame
@@ -787,6 +809,7 @@ std::vector<TermEvent> TerminalSession::pollTerm() {
         continue;
       }
       if (e.reply == ReplyKind::KITTY_GRAPHICS) {
+        logKitty("reply", "\x1b_G" + e.text + "\x1b\\");
         std::string error = images_.handleKittyReply(e.text);
         if (!error.empty()) {
           kitty_errors_++;

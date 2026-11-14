@@ -213,6 +213,9 @@ class TerminalSession : public Backend {
   std::optional<Held> held_;
   // SYNTH_LINK_STATS=<file>: a line a second of what the link carried (see logLinkStats()).
   FILE * link_log_ = nullptr;
+  // SYNTH_KITTY_LOG=<file>: every kitty graphics command sent (payloads cut short) and every error reply.
+  FILE * kitty_log_ = nullptr;
+  void logKitty(const char * what, const std::string & bytes);
   std::chrono::steady_clock::time_point link_log_last_{};
   FrameBytes link_log_mark_;
   size_t link_log_frames_ = 0;
