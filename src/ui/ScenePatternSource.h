@@ -94,9 +94,10 @@ class ScenePatternSource : public PatternSource {
   // (-1 otherwise): its line keeps moving forward through a loop.
   struct Playhead { int scene; int row; int elapsed = -1; bool looping = false; };
   void setPlayheads(std::unordered_map<int, Playhead> playheads);
-  // Keeps every stopped track but the cursor's where it is on screen as
-  // the view scrolls `rows` down.
-  void holdStoppedTracks(int rows);
+  // The view scrolls `rows` down after the cursor track's playhead: a stopped
+  // track's line stays where it is on screen, and a playing one's goes on
+  // down with its playhead instead of being held at the cursor row's distance.
+  void holdTrackLines(int rows) { moveOtherLines(rows); }
   // Brings every track's line (other than the cursor track's) back within
   // `margin` rows of the edges of the `rows` rows starting at `top`, when
   // it has left them. True if any moved.

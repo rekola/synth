@@ -1373,8 +1373,8 @@ PatternEditor::render(const StyleProvider & styles, bool refresh, bool focused) 
     }
     if (!isLiveMode() && top.row < 0) top = { 0, 0 };
     if (isLiveMode()) {
-      // The view following a playhead doesn't carry the stopped tracks along.
-      if (scene_source_->cursorLocked()) scene_source_->holdStoppedTracks(source_->rowsBetween({ view_block_, current_scroll_.row }, top));
+      // The view following a playhead doesn't carry the other tracks' lines along.
+      if (scene_source_->cursorLocked()) scene_source_->holdTrackLines(source_->rowsBetween({view_block_, current_scroll_.row}, top));
       // Only the cursor's own row is exempt from the margin when pointed at: a
       // playhead's line keeps it, or a click would park every one at the edge.
       auto line_margin = std::min(kScrollMargin, (visible - 1) / 2);
