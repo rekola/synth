@@ -618,6 +618,8 @@ private:
 
   // Shared by the locator and track-name editors; only one is ever open.
   InlineEditor inline_editor_{getPlane()};
+  // The track whose name the editor is open on (its heading shows the number alone).
+  std::optional<int> renaming_track_id_;
 
   // Where each column of a drawn row starts on screen (renderRow()), by
   // row below the heading - what a mouse click is resolved against.

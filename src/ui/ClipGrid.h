@@ -344,7 +344,7 @@ class ClipGrid : public UIElement {
   void startTrackDrag(const DragCandidate & candidate, const cellui::MouseMove & e);
   bool trackDragOver(const cellui::DragOver & e);
   bool trackDrop(const cellui::Drop & e);
-  std::string trackLabel(int track_id) const;
+  std::string trackLabel(int track_id, bool editing = false) const;
   std::optional<int> track_drag_source_, track_drop_target_;
   static void putClipSlot(cellui::Plane & plane, int y, int x, const std::string & text, const std::string & label, int label_cols,
                           bool looping, bool edited, Color fg, Color bg);
