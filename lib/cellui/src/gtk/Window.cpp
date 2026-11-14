@@ -1808,18 +1808,27 @@ std::vector<BackendEvent> Window::poll() {
 }
 
 void Window::present(const CellBuffer & frame, const CursorRequest & cursor, const std::vector<ImagePlacement> & images, const FrameInfo * info) {
+  if (info) {
+    presentTaking(frame, cursor, images, FrameInfo(*info));
+    return;
+  }
+  // A frame without its info keeps the pointer shapes it had.
+  FrameInfo none;
+  none.mouse_cursors = std::move(impl_->mouse_cursors);
+  presentTaking(frame, cursor, images, std::move(none));
+}
+
+void Window::presentTaking(const CellBuffer & frame, const CursorRequest & cursor, const std::vector<ImagePlacement> & images, FrameInfo && info) {
   impl_->frame = frame;
   impl_->cursor = cursor;
   impl_->images = images;
-  impl_->layers = info ? info->backdrops : std::vector<BackdropLayer>();
-  impl_->elevations = info ? info->elevations : std::vector<ElevatedArea>();
-  impl_->text_runs = info ? info->text_runs : std::vector<TextRun>();
+  impl_->layers = std::move(info.backdrops);
+  impl_->elevations = std::move(info.elevations);
+  impl_->text_runs = std::move(info.text_runs);
   std::stable_sort(impl_->elevations.begin(), impl_->elevations.end(),
                    [](const ElevatedArea & a, const ElevatedArea & b) { return a.elevation < b.elevation; });
-  if (info) {
-    impl_->mouse_cursors = info->mouse_cursors;
-    impl_->updateMouseCursor();
-  }
+  impl_->mouse_cursors = std::move(info.mouse_cursors);
+  impl_->updateMouseCursor();
   // Inside a tick the tick draws; anywhere else the draw is asked for here
   // (GTK folds the requests of one frame into one).
   if (impl_->in_tick) impl_->presented_in_tick = true;

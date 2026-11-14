@@ -271,6 +271,15 @@ void BufferPlane::collect(std::vector<Paint> & paints, int row, int col, int cli
   }
 }
 
+// What is composed so far, taken out of `out` as a layer of its own, leaving
+// `out` blank: moved, not copied, since a screen of scrolled planes sets aside
+// one layer for each.
+static CellBuffer setAside(CellBuffer & out) {
+  CellBuffer below(out.rows(), out.cols());
+  std::swap(below, out);
+  return below;
+}
+
 void BufferPlane::compose(CellBuffer & out, int row, int col, int clip_row, int clip_col, int clip_rows, int clip_cols, float height) const {
   if (!visible_) return;
   const BufferPlane & top = root();
@@ -350,8 +359,7 @@ void BufferPlane::compose(CellBuffer & out, int row, int col, int clip_row, int 
     content.blend = blend_;
     content.blend_alpha = blend_alpha_;
     top.collectLifts(out, top.layers_.size());
-    top.layers_.push_back(BackdropLayer{ out, Backdrop{}, row, col, plane_rows, plane_cols, std::move(content) });
-    out.clear(0, 0, out.rows(), out.cols());
+    top.layers_.push_back(BackdropLayer{ setAside(out), Backdrop{}, row, col, plane_rows, plane_cols, std::move(content) });
     return;
   }
   // A backdrop is the display's to apply: what is composed below it is set
@@ -371,8 +379,7 @@ void BufferPlane::compose(CellBuffer & out, int row, int col, int clip_row, int 
     }
     if (found) {
       top.collectLifts(out, top.layers_.size());
-      top.layers_.push_back(BackdropLayer{ out, *found, r_min, c_min, r_max - r_min, c_max - c_min, std::nullopt });
-      out.clear(0, 0, out.rows(), out.cols());
+      top.layers_.push_back(BackdropLayer{ setAside(out), *found, r_min, c_min, r_max - r_min, c_max - c_min, std::nullopt });
     }
   }
   std::vector<int> run_map;

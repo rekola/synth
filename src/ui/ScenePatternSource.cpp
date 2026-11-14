@@ -58,21 +58,37 @@ ScenePatternSource::sceneCount(const Song & song) {
   return std::max(8, song.getUsedSceneCount() + 1);
 }
 
+ScenePatternSource::SceneCache &
+ScenePatternSource::sceneCache() const {
+  const Song & s = song();
+  if (scene_cache_.song != &s || scene_cache_.version != s.getVersion()) {
+    scene_cache_.song = &s;
+    scene_cache_.version = s.getVersion();
+    scene_cache_.count = sceneCount(s);
+    scene_cache_.lengths.assign(static_cast<size_t>(scene_cache_.count), -1);
+  }
+  return scene_cache_;
+}
+
 int
 ScenePatternSource::blockCount() const {
-  return sceneCount(song());
+  return sceneCache().count;
 }
 
 int
 ScenePatternSource::blockLength(int block) const {
+  auto & cache = sceneCache();
+  bool cached = block >= 0 && block < cache.count;
+  if (cached && cache.lengths[static_cast<size_t>(block)] >= 0) return cache.lengths[static_cast<size_t>(block)];
   const Song & s = song();
   SceneGrid grid(s, block, 0);
   int length = 0;
   for (auto track_id : s.getRootTrackIds()) {
     if (auto clip = grid.clipFor(track_id)) length = std::max(length, clip->getLength());
   }
-  if (length > 0) return length;
-  return s.getSceneBarRows(block);
+  if (length <= 0) length = s.getSceneBarRows(block);
+  if (cached) cache.lengths[static_cast<size_t>(block)] = length;
+  return length;
 }
 
 bool ScenePatternSource::startsBar(int block, int row) const {
