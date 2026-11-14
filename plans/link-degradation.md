@@ -687,17 +687,23 @@ deflate ratio on real charts is known.
      the whole tile on the terminal's 101 levels with a Bayer offset first (and counts those noisy colours to make the
      palette), which dithers red, green and blue independently, so a small patch uses up to eight neighbouring
      registers and every run of equal pixels is short: 290 kB for the 80 tiles, against 161 kB with plain ordered
-     dither and 130 kB with none. (An earlier note here said the colours were dithered twice; that is so only for the
-     palettes smaller than the colours, and was not the cause of the size.) Taking the dither off instead, to a
-     palette of 16 to 32 registers, left no dither at all, which is why those blurs showed contour lines and cannot be
-     compared with the default palette's. What works: the palette made from the tile's colours put once on the
-     terminal's levels (not dithered), and each pixel dithered once, between the nearest register and the one that
-     mixes with it to come nearest the pixel (`Dither::mix`, `CELLUI_BLUR_MIX=1`, `CELLUI_BLUR_REGISTERS=N`, default
-     48): two registers a patch, so the runs stay. 80 tiles: 126 kB at 48 registers, 121 kB at 32, 117 kB at 24, 111 kB
-     at 16. In xterm the blur frame is 109 kB at 48 registers (28 ms), 102 kB at 32 and 95 kB at 24 (23 ms), against the
-     default palette's 118 kB, with the right tone and a smooth gradient; 24 shows faint rings round a glow, so 32 to
-     48 is the range. Not yet tried: one palette for the whole backdrop (so tiles do not differ at their seams), the
-     look in a light theme and on other songs and terminals, and the error against a reference blur.
+     dither and 130 kB with none. Those were taken before the palette was made right; this is what a correct custom
+     path is. **The palette** is made from the tile's colours put once on the terminal's 101 levels (for choosing
+     only), cut by a median cut in grid units into boxes of distinct colours, a register being the box's mean
+     rounded in grid units, so every register is on the grid and all N are distinct. **The dither** (`mixPick()`,
+     `CELLUI_BLUR_MIX=1`, `CELLUI_BLUR_REGISTERS=N`) works on the pixel's own colour, never a snapped one: its 16
+     candidates are the registers that, one after another, come nearest it with the error of the ones before
+     carried on (against the registers' grid colours), sorted by brightness, and the Bayer matrix picks one. Tests
+     pin that the palette keeps its N distinct registers, that a colour between two grid levels is a mix of its two
+     neighbours, and that a slow ramp's 8x8 block averages follow the source. The look is a fine Bayer texture in
+     the right tone with no rings at 16, 32 or 64 registers. The size is not good: 229, 264 and 275 kB a blur frame
+     at 16, 32 and 64 registers against the default palette's 118 kB, because a band of six rows uses 9.9, 17.3 and
+     21.1 registers where the default palette's uses 3.8, and each register is a pass over the band. A pixel's list
+     holds 3.2 to 3.9 different registers, not two. (Two earlier sets of figures here were wrong and are gone: one
+     was made with a dither that was applied twice, the other with a mapping that did no dither at all and so
+     showed contour lines; neither could be compared with the default palette's.)
+     Not yet tried: one palette for the whole backdrop (so tiles do not differ at their seams), the look in a light
+     theme and on other songs and terminals, and the error against a reference blur.
    Done when one algorithm is chosen on the figures, its colours are not visibly worse than the cells under it, the
    blur appears in one frame at full speed without a slide, and the per-stage figures are recorded here.
 
