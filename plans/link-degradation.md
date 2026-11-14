@@ -567,8 +567,8 @@ deflate ratio on real charts is known.
    the bytes of the start-up 22.8 kB to 8.8 kB. The 16-position table is done (`SendFader.h`: the Launchpad rows,
    the `YMxy`/`YAxy`/`YBxy` nibble and the dial's `step` share it). The four looks are done too (normal, pressed,
    hover, selected; the selection no longer eases through colours, so a position has four pictures at
-   most, and the letter is already in the picture, so a set per letter). Still to do: a gallery grid of
-   all of them.
+   most, and the letter is already in the picture, so a set per letter). A gallery grid of all of them was
+   dropped.
 5. **App profile** (3.6, 3.7): scope/meter rates and off, animations, page scrolling, hover, mouse
    reporting. UI tests per class with `TestBackend`; a harness run at 50 kB/s asserts the editor
    stays usable (key latency, fps). Done (`src/ui/PerformanceProfile.h`, applied by
@@ -658,7 +658,7 @@ deflate ratio on real charts is known.
    - **Done when** the UI under the slowest class and the busiest scenario costs the audio thread no
      missed blocks on the slowest machine, with the per-stage figures recorded here.
 
-9. **The Sixel blur** (3.7, the backdrop). The blurred backdrop of a dialog is the biggest single cost on a Sixel
+9. **The terminal blur** (3.7, the backdrop; the palette parts are Sixel's, the drawing is kitty's too). The blurred backdrop of a dialog is the biggest single cost on a Sixel
    terminal (phase 8: 10 to 23 points of a core of drawing and blurring tiles at full speed, and a Sixel picture of
    about 250 kB when it appears, which shows as a slide of about 50 ms on xterm) and the one with a visible
    quality problem. The algorithm is chosen first, by measurement, before any of it is made faster. What is
@@ -679,6 +679,25 @@ deflate ratio on real charts is known.
      by repeating pixels where it cannot), a box-filter approximation of the blur in place of canvas, a tile redone
      only when the cells under it changed (already so), and a static backdrop that is not redrawn at all.
    - **Where the time goes** first, with the stage timers (`backdrop`, `deflate`, `sixel_*`) on the blur alone.
+   - **Measured so far** (xterm, the About dialog over demo3 playing; the blur frame as bytes and the time xterm took
+     to take it in): the terminal's default palette 118 kB, 36 ms (greys, with a loud checkerboard of grey, blue and
+     teal dots when looked at closely); a palette of 128 registers made from each tile 252 kB, 48 ms (the right tone).
+     Taking 80 real tiles apart (96x52 px each) showed where the bytes go: a tile uses about 27 registers, so the
+     colour definitions are only 7 to 18 % of them; the pixel data is the rest. The dither of the "gradient" path puts
+     the whole tile on the terminal's 101 levels with a Bayer offset first (and counts those noisy colours to make the
+     palette), which dithers red, green and blue independently, so a small patch uses up to eight neighbouring
+     registers and every run of equal pixels is short: 290 kB for the 80 tiles, against 161 kB with plain ordered
+     dither and 130 kB with none. (An earlier note here said the colours were dithered twice; that is so only for the
+     palettes smaller than the colours, and was not the cause of the size.) Taking the dither off instead, to a
+     palette of 16 to 32 registers, left no dither at all, which is why those blurs showed contour lines and cannot be
+     compared with the default palette's. What works: the palette made from the tile's colours put once on the
+     terminal's levels (not dithered), and each pixel dithered once, between the nearest register and the one that
+     mixes with it to come nearest the pixel (`Dither::mix`, `CELLUI_BLUR_MIX=1`, `CELLUI_BLUR_REGISTERS=N`, default
+     48): two registers a patch, so the runs stay. 80 tiles: 126 kB at 48 registers, 121 kB at 32, 117 kB at 24, 111 kB
+     at 16. In xterm the blur frame is 109 kB at 48 registers (28 ms), 102 kB at 32 and 95 kB at 24 (23 ms), against the
+     default palette's 118 kB, with the right tone and a smooth gradient; 24 shows faint rings round a glow, so 32 to
+     48 is the range. Not yet tried: one palette for the whole backdrop (so tiles do not differ at their seams), the
+     look in a light theme and on other songs and terminals, and the error against a reference blur.
    Done when one algorithm is chosen on the figures, its colours are not visibly worse than the cells under it, the
    blur appears in one frame at full speed without a slide, and the per-stage figures are recorded here.
 
