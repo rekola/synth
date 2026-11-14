@@ -457,11 +457,11 @@ notes between them on the number row (the tritone on `5`, between F and G), and
 the notes that cluster round the tonic and the tritone on `1` and the home row
 below (`s`, `f`, `g`; not `a`, the note-off key), with B and B♯ on `k` and `l`.
 The `[` and `]` keys are octave down and up. In a song in one of the Pythagorean
-scales (the seven Babylonian modes, Phrygian tonos) the scale's degrees are on
+scales (the seven Babylonian modes, Phrygian tonos) or in Rāst the scale's degrees are on
 `q w e r t y u i o p` in ascending order, followed by the tonic and second an
 octave up where keys remain; Phrygian tonos has ten degrees and fills the row.
-A song with any other scale (or none) keeps its own layouts, which do not follow
-the scale; the maqām Rāst has its own. The Launchpad's step view steps through
+A song with any other scale (or none) keeps the layout that does not follow
+the scale. The Launchpad's step view steps through
 all eighteen notes of the scale.
 
 ## Terminal
