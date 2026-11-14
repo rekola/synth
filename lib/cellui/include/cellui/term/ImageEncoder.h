@@ -5,10 +5,12 @@
 #include <cellui/Image.h>
 #include <cellui/LinkStatus.h>
 #include <cellui/term/Capabilities.h>
+#include <cellui/term/KittyImages.h>
 
 #include <array>
 #include <cstdint>
 #include <map>
+#include <memory>
 #include <set>
 #include <string>
 #include <utility>
@@ -78,8 +80,12 @@ class ImageEncoder {
     static Profile from(const Capabilities & caps);
   };
 
-  ImageEncoder() = default;
-  explicit ImageEncoder(Profile profile) : profile_(std::move(profile)) { }
+  ImageEncoder() : registry_(std::make_shared<KittyImageRegistry>()) { }
+  // `registry` tracks the kitty ids this encoder transmits (the session's, so exit can delete them);
+  // an encoder without one keeps its own.
+  explicit ImageEncoder(Profile profile, std::shared_ptr<KittyImageRegistry> registry = nullptr)
+      : profile_(std::move(profile)), registry_(registry ? std::move(registry) : std::make_shared<KittyImageRegistry>()) { }
+  const std::shared_ptr<KittyImageRegistry> & registry() const { return registry_; }
 
   // `frame` is the composed frame, its image cells marked; `cleared` says
   // the screen is cleared before these bytes, taking every image with it.
@@ -150,6 +156,8 @@ class ImageEncoder {
     uint64_t last_used = 0;
   };
 
+  // The deletion of an image's placements and data; the id is no longer tracked.
+  std::string freeImage(uint32_t id);
   void uploadKitty(const Image & img, uint32_t id, std::string & out);
   std::string kittyBorders(const std::vector<CellBorder> & borders, bool cleared);
   std::string kittySharedPlacement(const CellBuffer & frame, const ImagePlacement & p, Shown & shown, bool fresh, bool cleared);
@@ -165,7 +173,7 @@ class ImageEncoder {
   uint64_t tick_ = 0;
   size_t shared_budget_ = kSharedBudget;
   uint32_t next_place_ = 0;
-  uint32_t next_id_ = 0;
+  std::shared_ptr<KittyImageRegistry> registry_;
   bool sixel_ready_ = false;
   bool compress_ = true;
   PictureQuality quality_ = PictureQuality::FULL;

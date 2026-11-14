@@ -164,6 +164,8 @@ class TerminalSession : public Backend {
   Capabilities caps_;
   InputParser parser_;
   FrameEncoder encoder_;
+  // Every kitty id the session transmits, from every image feature; deleted when the terminal is restored.
+  std::shared_ptr<KittyImageRegistry> kitty_ids_ = std::make_shared<KittyImageRegistry>();
   ImageEncoder images_;
   // What a terminal makes of a backdrop (it cannot blur one).
   BackdropEmulation backdrops_;

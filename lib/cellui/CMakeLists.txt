@@ -90,6 +90,7 @@ add_library(cellui STATIC
   src/term/FramePacer.cpp
   src/term/Deflate.cpp
   src/term/ImageEncoder.cpp
+  src/term/KittyImages.cpp
   src/term/InputParser.cpp
   src/term/TermEvent.cpp)
 if(NOT WIN32)
@@ -236,6 +237,7 @@ add_executable(cellui_tests
   tests/CommandPaletteTests.cpp
   tests/ColorTests.cpp
   tests/DiscoveryTests.cpp
+  tests/KittyImagesTests.cpp
   tests/EventTests.cpp
   tests/InputTests.cpp
   tests/SignalTests.cpp

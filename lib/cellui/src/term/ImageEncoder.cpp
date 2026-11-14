@@ -946,8 +946,7 @@ std::string ImageEncoder::kittySharedPlacement(const CellBuffer & frame, const I
   SharedUpload & upload = shared_uploads_[img.version];
   size_t upload_before = sizes_.upload;
   if (upload.id == 0) {
-    if (++next_id_ == 0) next_id_ = 1;
-    upload.id = next_id_;
+    upload.id = registry_->allocate();
     upload.bytes = static_cast<size_t>(img.width) * static_cast<size_t>(img.height) * 4;
     uploadKitty(img, upload.id, out);
     picture_stats_[statLabel(p)].uploads++;
@@ -958,7 +957,7 @@ std::string ImageEncoder::kittySharedPlacement(const CellBuffer & frame, const I
     // This place showed a picture of its own and shows a shared one now: free the old.
     deflated_ids_.erase(shown.id);
     png_ids_.erase(shown.id);
-    std::string del = "\x1b_Ga=d,d=I,i=" + std::to_string(shown.id) + ",q=1\x1b\\";
+    std::string del = freeImage(shown.id);
     sizes_.placement += del.size();
     out += del;
     shown = Shown{};
@@ -1022,7 +1021,7 @@ void ImageEncoder::evictSharedUploads(const std::set<uint32_t> & in_use, std::st
       if (oldest == shared_uploads_.end() || it->second.last_used < oldest->second.last_used) oldest = it;
     }
     if (oldest == shared_uploads_.end()) return;
-    std::string del = "\x1b_Ga=d,d=I,i=" + std::to_string(oldest->second.id) + ",q=1\x1b\\";
+    std::string del = freeImage(oldest->second.id);
     sizes_.placement += del.size();
     out += del;
     deflated_ids_.erase(oldest->second.id);
@@ -1052,8 +1051,7 @@ std::string ImageEncoder::kitty(const CellBuffer & frame, const ImagePlacement &
   if (changed) {
     // A new picture goes up under a new id; the old one stays on screen
     // until the new one is placed.
-    if (++next_id_ == 0) next_id_ = 1;
-    shown.id = next_id_;
+    shown.id = registry_->allocate();
     shown.version = img.version;
     uploadKitty(img, shown.id, out);
     picture_stats_[statLabel(p)].uploads++;
@@ -1092,7 +1090,7 @@ std::string ImageEncoder::kitty(const CellBuffer & frame, const ImagePlacement &
   if (changed && old_id) {
     deflated_ids_.erase(old_id);
     png_ids_.erase(old_id);
-    std::string del = "\x1b_Ga=d,d=I,i=" + std::to_string(old_id) + ",q=1\x1b\\";
+    std::string del = freeImage(old_id);
     sizes_.placement += del.size();
     out += del;
   }
@@ -1304,7 +1302,7 @@ std::string ImageEncoder::encode(const CellBuffer & frame, const std::vector<Ima
           out += del;
         }
       } else {
-        std::string del = "\x1b_Ga=d,d=I,i=" + std::to_string(it->second.id) + ",q=1\x1b\\";
+        std::string del = freeImage(it->second.id);
         sizes_.placement += del.size();
         out += del;
       }
@@ -1370,8 +1368,7 @@ std::string ImageEncoder::kittyBorders(const std::vector<CellBorder> & borders, 
         img.width = e < 2 ? cw : 1;
         img.height = e < 2 ? 1 : ch;
         img.pixels.assign(static_cast<size_t>(img.width) * static_cast<size_t>(img.height), pixel);
-        if (++next_id_ == 0) next_id_ = 1;
-        ids[e] = next_id_;
+        ids[e] = registry_->allocate();
         size_t before = sizes_.upload;
         uploadKitty(img, ids[e], out);
         picture_stats_["border"].uploads++;
@@ -1444,21 +1441,26 @@ std::string ImageEncoder::handleKittyReply(const std::string & body) {
   return who + " (id " + std::to_string(id) + "): " + (message.empty() ? keys : message);
 }
 
+std::string ImageEncoder::freeImage(uint32_t id) {
+  registry_->forget(id);
+  return KittyImageRegistry::deleteSequence(id);
+}
+
 std::string ImageEncoder::clear() {
   std::string out;
   if (profile_.protocol == PixelProtocol::KITTY) {
     for (auto & [key, shown] : shown_) {
-      if (shown.id) out += "\x1b_Ga=d,d=I,i=" + std::to_string(shown.id) + ",q=1\x1b\\";
+      if (shown.id) out += freeImage(shown.id);
     }
   }
   for (const auto & [version, upload] : shared_uploads_) {
-    if (profile_.protocol == PixelProtocol::KITTY) out += "\x1b_Ga=d,d=I,i=" + std::to_string(upload.id) + ",q=1\x1b\\";
+    if (profile_.protocol == PixelProtocol::KITTY) out += freeImage(upload.id);
   }
   shared_uploads_.clear();
   shown_.clear();
   for (const auto & [colour, ids] : border_images_) {
     if (profile_.protocol != PixelProtocol::KITTY) break;
-    for (uint32_t id : ids) out += "\x1b_Ga=d,d=I,i=" + std::to_string(id) + ",q=1\x1b\\";
+    for (uint32_t id : ids) out += freeImage(id);
   }
   border_images_.clear();
   border_placed_.clear();

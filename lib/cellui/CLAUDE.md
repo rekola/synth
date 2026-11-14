@@ -237,6 +237,14 @@ timing (and missed-vsync counts) at exit.
   refuses), `TerminalSession` (tty, modes, signals, restoration). `TermEvent`s
   stay inside `term/`; `Capabilities` (image protocol, kitty keyboard, query
   replies, dither) are terminal-only.
+- Images under tmux and at exit: `Discovery::result()` is the one place that decides the protocol, and under
+  tmux (`insideTmux()`: `$TMUX`, a `tmux*`/`screen*` `$TERM` that survives ssh, or tmux's own XTVERSION) kitty
+  graphics are out (`pixelsForTmux()`: Sixel where reported, else none; no kitty query is even sent), whatever
+  the query or `CELLUI_PIXELS` says. Every kitty id comes from `KittyImageRegistry` (`term/KittyImages.h`,
+  shared by all image features through `ImageEncoder`), which forgets it when the encoder deletes it; whenever
+  the terminal is restored (`close()`, the signal handlers, `atexit`) `TerminalSession` first deletes each
+  tracked id (`a=d,d=I`, placements and data), never a delete-all, then wipes the alternate screen where
+  Sixel/iTerm2 pictures were drawn. Nothing is freed during the run beyond what the encoder already does.
 - Frames are paced to the link (`FramePacer`; `plans/frame-pacing-terminal.md`
   has the design): the app calls `Backend::requestFrame()` and renders in the
   handler it gave `setFrameHandler()`, called when the pacer lets a frame
