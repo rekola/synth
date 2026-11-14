@@ -39,6 +39,7 @@ add_executable(synth_tests
 	TempoCommandTests.cpp
 	CommandTests.cpp
 	AzimuthSlideTests.cpp
+	PeakLimiterTests.cpp
 	PitchSlideTests.cpp
 	TuningCorrectionPitchTests.cpp
 	GlobalPitchTests.cpp

@@ -2,10 +2,13 @@
 #define _MIXER_H_
 
 #include "../audio/AudioBuffer.h"
+#include "../dsp/PeakLimiter.h"
+
+#include <algorithm>
 
 class Mixer {
  public:
-  Mixer(short out_channels, int outSampleRate) : out_channels_(out_channels), outSampleRate_(outSampleRate) { }
+  Mixer(short out_channels, int outSampleRate) : out_channels_(out_channels), outSampleRate_(outSampleRate), limiter_(outSampleRate) {}
   virtual ~Mixer() { }
 
   // Clears the accumulator for the next block. A mixer that accumulated
@@ -37,6 +40,22 @@ class Mixer {
   int getOutSampleRate() const { return outSampleRate_; }
 
  protected:
+  // The last stage of every decoder's output: the limiter keeps it at or
+  // under its ceiling (dsp::PeakLimiter), and a clamp at full scale stands
+  // behind it. `silent` says the block is known to be all zeros (nothing
+  // accumulated and no decoder tail): the limiter only lets its gain recover.
+  void finishStereoOutput(float * left, float * right, int frames, bool silent) {
+    if (silent) {
+      limiter_.skip(frames);
+      return;
+    }
+    for (int i = 0; i < frames; i++) {
+      limiter_.process(left[i], right[i]);
+      left[i] = std::clamp(left[i], -1.0f, 1.0f);
+      right[i] = std::clamp(right[i], -1.0f, 1.0f);
+    }
+  }
+
   // True once a block's accumulate() calls have added at least one regular
   // channel, until the next reset(). While false the accumulator is all
   // zeros by construction, so reset() and the decode have nothing to do.
@@ -70,6 +89,7 @@ private:
  AudioBuffer empty_bus_;
  short out_channels_;
  int outSampleRate_;
+ dsp::PeakLimiter limiter_;
 };
 
 #endif

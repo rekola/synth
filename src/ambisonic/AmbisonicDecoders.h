@@ -39,17 +39,11 @@ class AmbisonicStereoMixer : public Mixer {
     AudioBuffer out(static_cast<short>(getOutChannels()), buffer_.numberOfFrames());
     if (!accumulated()) {
       out.zero();
+      finishStereoOutput(out.getChannelData(0), out.getChannelData(1), out.numberOfFrames(), true);
       return out;
     }
     decodeToStereo(buffer_, out);
-
-    for (int c = 0; c < out.numberOfChannels(); c++) {
-      auto data = out.getChannelData(c);
-      for (int i = 0; i < out.numberOfFrames(); i++) {
-	if (data[i] > 1.0f) data[i] = 1.0f;
-	else if (data[i] < -1.0f) data[i] = -1.0f;
-      }
-    }
+    finishStereoOutput(out.getChannelData(0), out.getChannelData(1), out.numberOfFrames(), false);
     return out;
   }
 
