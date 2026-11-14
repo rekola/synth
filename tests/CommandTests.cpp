@@ -288,3 +288,13 @@ TEST(every_send_position_round_trips_through_a_glide_command) {
   CHECK(sendDbToPosition(-43.6f) == 0);
   CHECK(sendDbToPosition(12.0f) == kSendTopPosition);
 }
+
+TEST(a_command_is_valid_only_when_playback_understands_it) {
+  CHECK(Command().isValid());
+  for (const char * ok : {"ZB00", "ZT78", "0U10", "0D10", "0G04", "0R24", "0P80", "0W80", "0L80", "YM8F", "YA00", "YB00", "YZ80", "YL10", "YR10", "YU10", "YD10"}) {
+    CHECK(Command(ok).isValid());
+  }
+  for (const char * bad : {"ZT10", "ZX00", "0K05", "1V40", "1U10", "YX00", "0U1-", "0U--", "0A12", "0V12"}) {
+    CHECK(!Command(bad).isValid());
+  }
+}

@@ -4097,8 +4097,8 @@ PatternEditor::renderRow(const StyleProvider & styles, int heading_height, const
 	  // against the normal dark row background, not the bright
 	  // effective-region highlight. Either way, tintForPlayhead() layers
 	  // the playhead row's own translucent tint on top when not selected.
-	  cell_fg = command.isDefined() && !column_selected ? tintForPlayhead(dim_fixed_color(styles.command_column_color)) : (cell_is_selected ? cur_fg : tintForPlayhead(fg));
-	  cell_bg = cell_is_selected ? cur_bg : tintForPlayhead(bg);
+          cell_fg = command.isDefined() && !column_selected ? tintForPlayhead(dim_fixed_color(command.isValid() ? styles.command_column_color : styles.invalid_command_color)) : (cell_is_selected ? cur_fg : tintForPlayhead(fg));
+          cell_bg = cell_is_selected ? cur_bg : tintForPlayhead(bg);
           // A command lights with a note or aftertouch on its row, at that one's velocity; a free one doesn't.
           float flash = 0.0f;
           if (command.isDefined() && !cell_is_selected && track_dim <= 0.0f) {
