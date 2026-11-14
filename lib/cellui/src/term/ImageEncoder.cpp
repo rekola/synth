@@ -1,3 +1,4 @@
+#include <cellui/ImageScale.h>
 #include <cellui/StageStats.h>
 #include <cellui/term/ImageEncoder.h>
 
@@ -56,39 +57,6 @@ Image withoutPad(const Image & src) {
       int sx = std::min(x + src.pad, src.width - 1), sy = std::min(y + src.pad, src.height - 1);
       out.pixels[static_cast<size_t>(y) * static_cast<size_t>(out.width) + static_cast<size_t>(x)] =
         src.pixels[static_cast<size_t>(sy) * static_cast<size_t>(src.width) + static_cast<size_t>(sx)];
-    }
-  }
-  return out;
-}
-
-// The picture resampled to width x height (bilinear).
-Image stretch(const Image & src, int width, int height) {
-  Image out;
-  out.width = std::max(1, width);
-  out.height = std::max(1, height);
-  out.version = src.version;
-  out.pixels.resize(static_cast<size_t>(out.width) * static_cast<size_t>(out.height));
-  auto at = [&](int x, int y) {
-    x = std::clamp(x, 0, src.width - 1);
-    y = std::clamp(y, 0, src.height - 1);
-    return src.pixels[static_cast<size_t>(y) * static_cast<size_t>(src.width) + static_cast<size_t>(x)];
-  };
-  for (int y = 0; y < out.height; y++) {
-    float fy = (static_cast<float>(y) + 0.5f) * static_cast<float>(src.height) / static_cast<float>(out.height) - 0.5f;
-    int y0 = static_cast<int>(std::floor(fy));
-    float ty = fy - static_cast<float>(y0);
-    for (int x = 0; x < out.width; x++) {
-      float fx = (static_cast<float>(x) + 0.5f) * static_cast<float>(src.width) / static_cast<float>(out.width) - 0.5f;
-      int x0 = static_cast<int>(std::floor(fx));
-      float tx = fx - static_cast<float>(x0);
-      uint32_t a = at(x0, y0), b = at(x0 + 1, y0), c = at(x0, y0 + 1), d = at(x0 + 1, y0 + 1);
-      auto mix = [&](uint8_t (*channel)(uint32_t)) {
-        float top = static_cast<float>(channel(a)) * (1 - tx) + static_cast<float>(channel(b)) * tx;
-        float bottom = static_cast<float>(channel(c)) * (1 - tx) + static_cast<float>(channel(d)) * tx;
-        return static_cast<uint8_t>(top * (1 - ty) + bottom * ty + 0.5f);
-      };
-      out.pixels[static_cast<size_t>(y) * static_cast<size_t>(out.width) + static_cast<size_t>(x)] =
-        Image::pack(mix(Image::red), mix(Image::green), mix(Image::blue), mix(Image::alpha));
     }
   }
   return out;
@@ -1130,7 +1098,7 @@ std::string ImageEncoder::sixel(const CellBuffer & frame, const ImagePlacement &
   int ch = profile_.cell_px_height, cw = profile_.cell_px_width;
   // Sixel draws a pixel to a pixel, so a stretched picture is scaled here.
   Image natural;
-  if (p.image->stretched()) natural = stretch(withoutPad(*p.image), p.image->cols * cw, p.image->rows * ch);
+  if (p.image->stretched()) natural = scaleImage(withoutPad(*p.image), p.image->cols * cw, p.image->rows * ch);
   const Image & img = p.image->stretched() ? natural : *p.image;
   size_t upload_before = sizes_.upload;
   bool diff = same_place && shown.sent.width == img.width && shown.sent.height == img.height && shown.sent.pixels.size() == img.pixels.size();

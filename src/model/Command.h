@@ -102,6 +102,18 @@ class Command {
 
   bool isDefined() const { return values_[0] != '-' || values_[1] != '-' || values_[2] != '-' || values_[3] != '-'; }
 
+  // Whether playback understands this command: an unset one is valid (nothing
+  // to do); a set one needs a mnemonic from docs/commands.md with its device
+  // digit and two hex argument characters filled in (ZTxx below the minimum
+  // tempo is not valid either). Invalid commands are shown in red and skipped.
+  bool isValid() const {
+    if (!isDefined()) return true;
+    if (digit(values_[2], 16) < 0 || digit(values_[3], 16) < 0) return false;
+    if (values_[0] == 'Z') return isPatternBreak() || (isTempoSet() && getTempoBpm() > 0);
+    if (values_[0] == 'Y') return std::string_view("MABZLRUD").find(values_[1]) != std::string_view::npos;
+    return values_[0] == '0' && std::string_view("UDGRPWL").find(values_[1]) != std::string_view::npos;
+  }
+
   // ZBxx ("Z" being the group every native/global command not tied to a
   // specific per-note effect lives under) - pattern break: once this row
   // ends, jump to row `xx` (getBreakRow() below) of the next bar instead of

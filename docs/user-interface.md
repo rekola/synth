@@ -379,10 +379,7 @@ The price is that some triads are a comma off. The duodene has one note for
 each of its twelve keys, so in C major the D is 9/8, the pure fifth G-D and
 fourth, but D-A is 40/27, 81/80 flat of 3/2, and F-B♭ in minor is 27/20. Any
 fixed twelve-note just scale leaves a comma somewhere; B♭ is 9/5 rather than
-16/9 so that in minor the v and ♭III triads come out pure. (Adaptive just
-intonation, planned, would move the whole scale by a comma at a switch; that
-is a different thing from tuning a chord against its own bass, which is not
-done at all.)
+16/9 so that in minor the v and ♭III triads come out pure. (Tuning notes against each other, adaptively, is not done.)
 
 Percussion, offs and aftertouch are skipped; any other fx a note had is
 replaced, and the message says how many. A correction over 255 cents, which no real gamut needs, is never clamped: the note is left untuned and the message counts those too. In a song with no scale, or a scale
@@ -457,11 +454,11 @@ notes between them on the number row (the tritone on `5`, between F and G), and
 the notes that cluster round the tonic and the tritone on `1` and the home row
 below (`s`, `f`, `g`; not `a`, the note-off key), with B and B♯ on `k` and `l`.
 The `[` and `]` keys are octave down and up. In a song in one of the Pythagorean
-scales (the seven Babylonian modes, Phrygian tonos) the scale's degrees are on
+scales (the seven Babylonian modes, Phrygian tonos) or in Rāst the scale's degrees are on
 `q w e r t y u i o p` in ascending order, followed by the tonic and second an
 octave up where keys remain; Phrygian tonos has ten degrees and fills the row.
-A song with any other scale (or none) keeps its own layouts, which do not follow
-the scale; the maqām Rāst has its own. The Launchpad's step view steps through
+A song with any other scale (or none) keeps the layout that does not follow
+the scale. The Launchpad's step view steps through
 all eighteen notes of the scale.
 
 ## Terminal

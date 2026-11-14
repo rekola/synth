@@ -57,7 +57,7 @@ int main(int argc, char ** argv) {
       return std::chrono::duration<double, std::micro>(std::chrono::steady_clock::now() - t0).count() / rounds;
     };
     std::printf("draw: spectrum 328x80 %.0f us, heatmap 232x80 %.0f us\n", time_us([&] { line_image::render(levels, 328, 80, styles); }),
-                time_us([&] { heatmap_image::render(bright, sat, cols, rows, {}, 232, 80, styles); }));
+                time_us([&] { heatmap_image::render(bright, sat, cols, rows, {}, {}, 232, 80, styles, 0.0f); }));
   }
   std::vector<Picture> pictures;
   {
@@ -72,7 +72,7 @@ int main(int argc, char ** argv) {
       bright[i] = 0.5f + 0.5f * std::sin(static_cast<float>(i) * 0.37f);
       sat[i] = 0.3f + 0.7f * std::fabs(std::sin(static_cast<float>(i) * 0.11f));
     }
-    pictures.push_back({"heatmap 232x80", fromPixels(heatmap_image::render(bright, sat, cols, rows, {}, 232, 80, styles), 232, 80)});
+    pictures.push_back({"heatmap 232x80", fromPixels(heatmap_image::render(bright, sat, cols, rows, {}, {}, 232, 80, styles, 0.0f), 232, 80)});
   }
   {
     // A blurred backdrop: smooth, dark, bluish, stretched over its cells.

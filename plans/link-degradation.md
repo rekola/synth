@@ -60,7 +60,8 @@ are not guessed: they are the measured demands of the profiles (phase 0 below).
   sustain for the content that is left.
 - A window's class comes from its frame clock: the achieved frame interval against the
   refresh interval (`gdk_frame_clock_get_refresh_info()`, frame timings), so a slow remote
-  display (X forwarding, VNC, Broadway) lands in a low class with no bandwidth figure.
+  display (X forwarding, VNC, Broadway) lands in a low class with no bandwidth figure. As built
+  (phase 7): the share of the refresh rate, capped at 60 Hz, that the window keeps up with.
 - An RTT over 250 ms also selects page scrolling (3.7), whatever the class.
 
 ### The description
@@ -592,7 +593,31 @@ deflate ratio on real charts is known.
    A test checks the pairs that must differ, by index, for both depths on dark, light and unknown
    terminals. Not done: bold for the second six track colours on 8 colours (they repeat the six hues), and
    grey on request, which nothing needs yet.
-7. **Window class** from the frame clock and vsync (section 1).
+7. **Window class** from the frame clock and vsync (section 1). **Done**, with these differences from section 1:
+   - **What is measured.** Not the frames achieved but the rate the window keeps up with: each frame it draws lasts
+     until the frame clock's next tick, drawn or not (`FrameRateMeter`), since a frame still being drawn, by the
+     application or the GPU, holds the clock back. Measuring frames drawn back to back, as before, read nothing once
+     the application capped its own rate below the refresh rate (it then draws only some ticks), so a class that
+     had fallen could never rise again. The rate is over the frames that ended in the last second, or the last two
+     when fewer did (a slow display), none older than 3 s; a frame over 2 s is a clock that stopped (a hidden
+     window), not a slow frame. The `fps` of the description is this rate.
+   - **The class is the share of the refresh rate achieved** (`linkClassForFrameRate()`): the rate times 60 over the
+     refresh rate capped at 60 Hz, then the fps thresholds (50, 25, 12, 4). So a 30 Hz monitor at 30 fps and a 144 Hz
+     one at 60 are FULL, and a 60 Hz one at 10 fps is `HZ_5`. The refresh rate is the monitor's
+     (`gdk_monitor_get_refresh_rate()`, exact, so `59.94 Hz` shows as such), else the frame clock's
+     (`gdk_frame_clock_get_refresh_info()`), else 60. This is a choice; the terminal's classifier is unchanged.
+   - **Going up to FULL needs no margin.** A frame rate cannot pass the refresh rate, so 1.5 times FULL's demand is
+     never read and a window could not return to FULL; a reading that is FULL counts as FULL with the margin too.
+     Below FULL the 1.5 margin and the 15 s hold apply as written (one class at a time).
+   - **Down is not one class at a time:** two seconds of readings below the class go to the best of what they said,
+     as the terminal's classifier has done since phase 1, so a window at 13 fps reaches `HZ_15` in one step.
+   - **A static UI holds:** with too little drawn there is no reading, and a trend up or down so far is forgotten
+     (`LinkClassifier::hold()`), so readings before and after a pause are not joined into one.
+   - **The status bar shows the link always** (`Link: n/a` until there is a reading), not only below FULL or when
+     pinned; so the one-line option to show the vsync rate is not needed.
+   - **RTT and page scrolling** (3.7) do not apply to a window: it has no round trip of its own to measure (a remote
+     display's latency shows as a low frame rate instead).
+   - The Win32 window reports no link status yet.
 8. **CPU for the audio.** Everything this plan adds runs on the UI thread, which shares the machine with
    the audio thread, so the aim is not a faster encoder for its own sake but less CPU spent on pictures: a
    slow ARM board or a loaded laptop should lose no audio blocks to the UI. Measure first, then cut only
@@ -652,7 +677,11 @@ deflate ratio on real charts is known.
      Looked at and left: deflate runs at 300 to 460 MB/s on x86 and the NEON and AVX2 paths cannot be tried here; a
      picture's render is 0.2 ms for a spectrum and 0.8 ms for the heatmap, all of it cairo's highest-quality filter
      scaling the 26x14 grid up (a bilinear scaler of our own takes 0.1 ms but differs from it by 19 levels on average,
-     100 at worst, on a contrasty grid: a change of look, so a decision, not a cut). Still open: a palette kept from
+     100 at worst, on a contrasty grid: a change of look, so a decision, not a cut; made since: the heatmap is enlarged by nearest
+     neighbour (`scaleImageNearest()`), each cell a block of one colour, and cairo no longer scales anything; the
+     terminal's stretched pictures keep the bilinear `scaleImage()`. The picture has 19 colours and deflates to 675 bytes at
+     zlib 6 on a 16x8 grid, where cairo's smooth one had 369 colours and 3.4 kB and an exact bilinear one 1029 colours and
+     15 kB; the look is hard-edged cells, to be softened by the highlight bloom). Still open: a palette kept from
      one frame to the next while a picture's colours hold (it changes the bytes and so needs the error measured) and
      the encode off the UI thread.
    - **Done when** the UI under the slowest class and the busiest scenario costs the audio thread no

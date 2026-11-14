@@ -116,6 +116,8 @@ struct SynthPalette {
   bool track_chips = false;
 
   Color command_column;
+  // An effect command the engine doesn't accept (Command::isValid()).
+  Color invalid_command;
   Color text_on_track;
   // Track flags, the mark on a track Live View has taken over, locators and
   // the master track's bar.
@@ -146,6 +148,7 @@ struct SynthPalette {
     p.grid_bar_fg = Color("#ffffff");
     p.grid_bar_bg = Color("#323232");
     p.command_column = Color("#c67610");
+    p.invalid_command = Color("#ff3c3c");
     p.text_on_track = Color("#ffffff");
     p.mute = Color("#ff5a5a");
     p.solo = Color("#ffdc5a");
@@ -180,6 +183,7 @@ struct SynthPalette {
     p.grid_bar_fg = t.text_primary;
     p.grid_bar_bg = t.surface_raised;
     p.command_column = Color("#d4963c");
+    p.invalid_command = Color("#e23532");
     p.mute = Color("#e8746a");
     p.solo = Color("#e6ad00");
     p.monitor = t.accent;
@@ -200,6 +204,7 @@ struct SynthPalette {
     SynthPalette p = dark(t);
     p.grid_bar_bg = Color("#dde0e7");
     p.command_column = Color("#c76a00");
+    p.invalid_command = Color("#d01f1f");
     p.mute = Color("#ff3b30");
     p.solo = Color("#ff9500");
     p.clip_override = Color("#d97706");
@@ -263,6 +268,7 @@ struct SynthPalette {
       p.comma_up = c(3);
       p.comma_down = c(4);
     }
+    p.invalid_command = p.mute; // red in both branches
     return p;
   }
 };

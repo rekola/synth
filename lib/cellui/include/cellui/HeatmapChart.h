@@ -22,6 +22,18 @@ class HeatmapChart : public Widget {
   // matching setGrid()'s own row-0-is-bottom convention below.
   struct Marker { float u, v; };
 
+  // A text label the owner wants over the grid. (u, v) is a point in the same
+  // normalized coordinates as Marker; (align_x, align_y) says which point of
+  // the text sits on it - 0 is the left / bottom edge, 0.5 the middle, 1 the
+  // right / top edge. So {0.5, 1, "+90", 0.5, 1} hangs "+90" centred from the
+  // top edge, and {1, 0.5, "+180", 1, 0.5} ends it on the right edge, centred
+  // vertically. A label that would leave the grid is moved back inside it.
+  struct Label {
+    float u, v;
+    std::string text;
+    float align_x = 0.5f, align_y = 0.5f;
+  };
+
   explicit HeatmapChart(Plane & plane, int grid_cols, int grid_rows)
     : Widget(plane), grid_cols_(grid_cols), grid_rows_(grid_rows) { }
 
@@ -32,17 +44,13 @@ class HeatmapChart : public Widget {
   // - hue is fixed, owned by the renderer, not passed in.
   virtual void setGrid(const std::vector<float> & brightness, const std::vector<float> & saturation) = 0;
   virtual void setMarkers(std::vector<Marker> markers) = 0;
+  // What is written over the grid, if anything: the owner decides, the
+  // renderer only draws it (kept until set again).
+  virtual void setLabels(std::vector<Label> labels) = 0;
   virtual void commit() { }
-
-  // Same contract as Chart::setFooterLabel() - a single string on this
-  // widget's own bottom row.
-  void setFooterLabel(std::string label) { footer_label_ = std::move(label); }
 
   int gridCols() const { return grid_cols_; }
   int gridRows() const { return grid_rows_; }
-
- protected:
-  std::string footer_label_;
 
  private:
   int grid_cols_, grid_rows_;

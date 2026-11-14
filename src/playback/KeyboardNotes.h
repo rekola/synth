@@ -50,13 +50,14 @@ inline const std::string_view keyToMidiNote(int key, Tuning tuning, Scale scale)
       case '5':
         return "RD"; // 51 Ride Cymbal 1
     }
-  } else if (isBabylonianMode(scale)) {
+  } else if (isBabylonianMode(scale) || scale == Scale::RAST) {
     // The scale's degrees on q w e r t y u i o p in ascending order, then the
     // tonic and second an octave up on the keys left over (Phrygian tonos has
-    // ten degrees and none left); the spellings are the gamut's own.
+    // ten degrees and none left); the spellings are the gamut's own (Rāst: its
+    // quarter-tone ones).
     static const std::map<Scale, std::vector<std::string>> table = [] {
       std::map<Scale, std::vector<std::string>> out;
-      for (auto mode : {Scale::NIS_TUHRIM, Scale::ISARTUM, Scale::EMBUBUM, Scale::NID_QABLIM, Scale::QABLITUM, Scale::KITMUM, Scale::PITUM, Scale::PHRYGIAN_TONOS}) {
+      for (auto mode : {Scale::NIS_TUHRIM, Scale::ISARTUM, Scale::EMBUBUM, Scale::NID_QABLIM, Scale::QABLITUM, Scale::KITMUM, Scale::PITUM, Scale::PHRYGIAN_TONOS, Scale::RAST}) {
         auto & keys = out[mode];
         for (auto name : scaleDegreeNames(mode)) keys.emplace_back(name);
         if (keys.size() < 10) {
@@ -69,27 +70,6 @@ inline const std::string_view keyToMidiNote(int key, Tuning tuning, Scale scale)
     static constexpr std::string_view kKeys = "qwertyuiop";
     auto at = key >= 0 && key < 128 ? kKeys.find(static_cast<char>(key)) : std::string_view::npos;
     if (at != std::string_view::npos && at < table.at(scale).size()) return table.at(scale)[at];
-  } else if (scale == Scale::RAST) {
-    switch (key) {
-      case 'z':
-        return "C";
-      case 'x':
-        return "D";
-      case 'c':
-        return "E𝄳";
-      case 'v':
-        return "F";
-      case 'b':
-        return "G";
-      case 'n':
-        return "A";
-      case 'm':
-        return "B𝄳";
-      case ',':
-        return "C'";
-      case '.':
-        return "D'";
-    }
   } else if (scale == Scale::OTONAL || scale == Scale::UTONAL) {
     // The scale's eighteen notes. The row q w e r t y u has the seven of the
     // core, then the tonic and two more notes an octave up on i o p. The number

@@ -22,7 +22,7 @@ bool isBackground(Px p, const StyleProvider & s) {
 TEST(heatmap_image_empty_grid_is_all_background_and_opaque) {
   StyleProvider styles;
   std::vector<float> zeros(8 * 4, 0.0f);
-  auto img = heatmap_image::render(zeros, zeros, 8, 4, {}, 64, 32, styles);
+  auto img = heatmap_image::render(zeros, zeros, 8, 4, {}, {}, 64, 32, styles, 0.0f);
   CHECK(img.size() == 64u * 32u);
   for (size_t i = 0; i < img.size(); i++) {
     CHECK((img[i] >> 24) == 0xff);
@@ -34,7 +34,7 @@ TEST(heatmap_image_row_zero_of_the_grid_is_the_bottom_of_the_image) {
   StyleProvider styles;
   std::vector<float> b(8 * 4, 0.0f), s(8 * 4, 1.0f);
   for (size_t x = 0; x < 8; x++) b[x] = 1.0f; // grid row 0 fully lit
-  auto img = heatmap_image::render(b, s, 8, 4, {}, 80, 40, styles);
+  auto img = heatmap_image::render(b, s, 8, 4, {}, {}, 80, 40, styles, 0.0f);
   CHECK(!isBackground(at(img, 80, 40, 39), styles));
   CHECK(isBackground(at(img, 80, 40, 0), styles));
 }
@@ -43,7 +43,7 @@ TEST(heatmap_image_lit_cell_is_lit_at_its_centre_and_not_far_away) {
   StyleProvider styles;
   std::vector<float> b(16 * 8, 0.0f), s(16 * 8, 1.0f);
   b[3u * 16u + 4u] = 1.0f; // column 4, row 3 (from the bottom)
-  auto img = heatmap_image::render(b, s, 16, 8, {}, 160, 80, styles);
+  auto img = heatmap_image::render(b, s, 16, 8, {}, {}, 160, 80, styles, 0.0f);
   // Column 4 spans x 40..50; row 3 from the bottom spans y 40..50 from the top.
   CHECK(!isBackground(at(img, 160, 45, 45), styles));
   CHECK(isBackground(at(img, 160, 120, 10), styles));
@@ -52,7 +52,7 @@ TEST(heatmap_image_lit_cell_is_lit_at_its_centre_and_not_far_away) {
 TEST(heatmap_image_edge_cells_keep_their_strength) {
   StyleProvider styles;
   std::vector<float> b(8 * 4, 1.0f), s(8 * 4, 1.0f);
-  auto img = heatmap_image::render(b, s, 8, 4, {}, 80, 40, styles);
+  auto img = heatmap_image::render(b, s, 8, 4, {}, {}, 80, 40, styles, 0.0f);
   Px corner = at(img, 80, 0, 0), middle = at(img, 80, 40, 20);
   CHECK(std::abs(corner.r - middle.r) <= 2 && std::abs(corner.g - middle.g) <= 2 && std::abs(corner.b - middle.b) <= 2);
 }
@@ -60,7 +60,7 @@ TEST(heatmap_image_edge_cells_keep_their_strength) {
 TEST(heatmap_image_marker_is_a_text_coloured_square_and_v_points_up) {
   StyleProvider styles;
   std::vector<float> z(8 * 4, 0.0f);
-  auto img = heatmap_image::render(z, z, 8, 4, { { 0.5f, 0.75f } }, 80, 40, styles);
+  auto img = heatmap_image::render(z, z, 8, 4, { { 0.5f, 0.75f } }, {}, 80, 40, styles, 0.0f);
   // u = 0.5 -> x 40; v = 0.75 -> 30 px up -> y = 40 - 1 - 30 = 9.
   Px p = at(img, 80, 40, 9);
   auto ink = styles.window_fg_color.toSrgb8();
@@ -70,7 +70,7 @@ TEST(heatmap_image_marker_is_a_text_coloured_square_and_v_points_up) {
 
 TEST(heatmap_image_mismatched_sizes_give_a_blank_image) {
   StyleProvider styles;
-  auto img = heatmap_image::render(std::vector<float>(3, 1.0f), std::vector<float>(3, 1.0f), 8, 4, {}, 10, 10, styles);
+  auto img = heatmap_image::render(std::vector<float>(3, 1.0f), std::vector<float>(3, 1.0f), 8, 4, {}, {}, 10, 10, styles, 0.0f);
   CHECK(img.size() == 100u);
   for (uint32_t p : img) CHECK(p == 0u);
 }
@@ -78,10 +78,35 @@ TEST(heatmap_image_mismatched_sizes_give_a_blank_image) {
 TEST(heatmap_image_a_fully_lit_cell_has_the_heatmap_hue_in_the_right_channels) {
   StyleProvider styles;
   std::vector<float> b(4 * 4, 1.0f), s(4 * 4, 1.0f);
-  auto img = heatmap_image::render(b, s, 4, 4, {}, 40, 40, styles);
+  auto img = heatmap_image::render(b, s, 4, 4, {}, {}, 40, 40, styles, 0.0f);
   uint8_t r, g, bl;
   heatmapHsvToRgb(kHeatmapHue, 1.0f, 1.0f, r, g, bl);
   Px p = at(img, 40, 20, 20);
   CHECK(std::abs(p.r - r) <= 1 && std::abs(p.g - g) <= 1 && std::abs(p.b - bl) <= 1);
   CHECK(p.r > p.b); // orange, not blue
+}
+
+TEST(heatmap_image_label_is_drawn_over_the_picture_where_it_is_put) {
+  StyleProvider styles;
+  std::vector<float> z(8 * 4, 0.0f);
+  auto none = heatmap_image::render(z, z, 8, 4, {}, {}, 160, 80, styles, 12.0f);
+  // Hung from the top edge, centred, and the bottom corner left alone.
+  auto img = heatmap_image::render(z, z, 8, 4, {}, { { 0.5f, 1.0f, "+90", 0.5f, 1.0f } }, 160, 80, styles, 12.0f);
+  int changed_top = 0, changed_bottom = 0;
+  for (unsigned y = 0; y < 80; y++) {
+    for (unsigned x = 0; x < 160; x++) {
+      if (img[y * 160 + x] == none[y * 160 + x]) continue;
+      CHECK(x >= 60 && x < 100);
+      (y < 16 ? changed_top : changed_bottom)++;
+    }
+  }
+  CHECK(changed_top > 0);
+  CHECK(changed_bottom == 0);
+}
+
+TEST(heatmap_image_no_labels_or_no_label_height_leaves_the_picture_alone) {
+  StyleProvider styles;
+  std::vector<float> z(8 * 4, 0.0f);
+  auto none = heatmap_image::render(z, z, 8, 4, {}, {}, 80, 40, styles, 12.0f);
+  CHECK(heatmap_image::render(z, z, 8, 4, {}, { { 0.0f, 0.5f, "-180" } }, 80, 40, styles, 0.0f) == none);
 }
