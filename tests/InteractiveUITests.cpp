@@ -213,6 +213,21 @@ TEST(terminal_ui_modal_backdrop_is_pictures_where_the_terminal_shows_them) {
   for (auto & p : f.terminal.images()) CHECK(!p.image->stretched());
 }
 
+// The note cursor is a border where the display draws one (a kitty terminal), a tint where not.
+TEST(terminal_ui_note_cursor_is_a_cell_border_where_the_display_draws_borders) {
+  for (bool borders : {false, true}) {
+    cellui::DisplayInfo display;
+    display.pictures = true;
+    display.cell_px_height = 20;
+    display.cell_px_width = 10;
+    display.cell_borders = borders;
+    UIFixture f(fixture("center_note.xml"), UI::View::ARRANGEMENT, display);
+    f.otherWindow(); // the pattern editor
+    f.ui->step();
+    CHECK(f.terminal.info().borders.empty() != borders);
+  }
+}
+
 // A backend that reports releases (a window, a kitty-protocol terminal) sends
 // the release of the Enter that ran the command after the dialog is open; it
 // must not close it.
@@ -475,9 +490,15 @@ TEST(info_line_shows_the_tempo_and_signature_after_the_position_and_follows_the_
 TEST(terminal_ui_clip_grid_track_rename_shows_the_typed_name) {
   UIFixture f(fixture("terminal_ui_live.xml"), UI::View::LIVE);
   f.execute("rename-track");
+  f.type("abc");
+  f.press(cellui::Key::Enter);
+  // Editing a name leaves no copy of the old one under the field.
+  f.execute("rename-track");
   f.type("Qz");
   std::string row;
   for (int c = 30; c < 70; c++) row += f.terminal.frame().at(1, c).text;
-  CHECK(row.find("Qz") != std::string::npos);
+  CHECK(row.find("abcQz") != std::string::npos);
+  CHECK(row.find("abc") == row.rfind("abc"));
+  CHECK(row.find("...") == std::string::npos && row.find("\xE2\x80\xA6") == std::string::npos); // the number is not ellipsized
   f.press(cellui::Key::Escape);
 }

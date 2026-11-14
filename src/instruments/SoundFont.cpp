@@ -1088,9 +1088,9 @@ class SoundFontVoice : public InstrumentVoice {
     killChildren();
   }
 
-  void setReleaseVelocity(int lift7) override {
-    lift7_ = lift7;
-    VoiceState::setReleaseVelocity(lift7);
+  void setReleaseVelocity(int lift) override {
+    lift_ = lift;
+    VoiceState::setReleaseVelocity(lift);
   }
 
   void stopNote() override {
@@ -1110,8 +1110,8 @@ class SoundFontVoice : public InstrumentVoice {
     // prevents the revival.
     // The lift lengthens or shortens both releases (SF2 timecents, held to the
     // spec's range); 64 leaves them as authored.
-    if (!ampenv_.isDone()) ampenv_.beginRelease(velocity::sf2ReleaseSeconds(ampenv_.parameters.release_, lift7_));
-    if (!modenv_.isDone()) modenv_.beginRelease(velocity::sf2ReleaseSeconds(modenv_.parameters.release_, lift7_));
+    if (!ampenv_.isDone()) ampenv_.beginRelease(velocity::sf2ReleaseSeconds(ampenv_.parameters.release_, lift_));
+    if (!modenv_.isDone()) modenv_.beginRelease(velocity::sf2ReleaseSeconds(modenv_.parameters.release_, lift_));
 
     if (voiceRegion_->loop_mode == TSF_LOOPMODE_SUSTAIN) {
       // Continue playing, but stop looping.
@@ -1251,7 +1251,7 @@ private:
   shared_ptr<SoundFontFile> sf_;
   std::unordered_map<SF2Generator, float> generator_overrides_;
   EnvelopeState ampenv_, modenv_;
-  int lift7_ = constants::NEUTRAL_VELOCITY; // the OFF's release velocity, see setReleaseVelocity()
+  int lift_ = constants::NEUTRAL_VELOCITY; // the OFF's release velocity, see setReleaseVelocity()
   vector<float> dry_;
 
   // Per-voice chorus realization of this region's chorusEffectsSend

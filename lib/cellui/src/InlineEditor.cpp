@@ -15,6 +15,7 @@ InlineEditor::open(const Field & field, std::function<void(std::string)> commit)
   open_ = true;
   replaceable_ = field_.replace_on_type && !field_.initial_text.empty();
   plane_.showReader("", field_.row, field_.col, 1, field_.width, field_.initial_text, field_.text_color);
+  plane_.setReaderBackdrop(field_.backdrop);
   paintBackdrop();
   // Opening erases from the field to the plane's right edge, which may
   // cover other content on the same row.

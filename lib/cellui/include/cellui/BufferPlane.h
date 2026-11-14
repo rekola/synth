@@ -90,6 +90,8 @@ class BufferPlane : public Plane {
   // are shown unshifted otherwise (root only).
   void setSmoothScroll(bool smooth) { smooth_scroll_ = smooth; }
   bool smoothScroll() const override { return root().smooth_scroll_; }
+  void setCellBorders(bool on) { cell_borders_ = on; }
+  bool cellBorders() const override { return root().cell_borders_ || root().smooth_scroll_; }
   void erase() override {
     local_.clear(0, 0, local_.rows(), local_.cols());
     // Kept, so the same picture drawn again after erase() is not sent again.
@@ -112,6 +114,7 @@ class BufferPlane : public Plane {
 
   void showReader(const std::string & prompt, int y, int x, int rows, int cols, const std::string & initial_text,
                   std::optional<Color> text_color) override;
+  void setReaderBackdrop(const Color & c) override;
   std::string closeReader() override;
   bool readerActive() const override { return editor_ != nullptr; }
   std::string getReaderContents() const override { return editor_ ? editor_->text() : ""; }
@@ -168,6 +171,9 @@ class BufferPlane : public Plane {
   // The areas planes asked a pointer shape for in the last refresh(), lowest
   // first (root only).
   std::vector<CursorArea> takeMouseCursors() { return std::move(mouse_cursors_); }
+  // The cell borders of the bands the last refresh() laid over whole cells (the display cannot draw a
+  // band by parts of a cell), minus the cells a plane above wrote to (root only).
+  std::vector<CellBorder> takeBorders() { return std::move(borders_); }
   // The areas of the planes that have an owner (Plane::owner()) in the last
   // refresh(), lowest first: the last one over a cell is the topmost (root
   // only).
@@ -245,6 +251,7 @@ class BufferPlane : public Plane {
   std::unique_ptr<LineEditor> editor_;
   std::unique_ptr<BufferPlane> reader_plane_;
   Color reader_color_;
+  std::optional<Color> reader_backdrop_;
   int reader_x_ = 0;
   int reader_cursor_ = 0;
   std::unique_ptr<BufferPlane> indicator_;
@@ -255,6 +262,7 @@ class BufferPlane : public Plane {
   double display_scale_ = 1.0;
   KeymapProfile keymap_profile_ = KeymapProfile::TERMINAL;
   bool smooth_scroll_ = false;
+  bool cell_borders_ = false;
   bool proportional_text_ = false;
   // The runs this plane's cells are marked with, by local index; the frame's,
   // in the order composed (root only).
@@ -265,6 +273,10 @@ class BufferPlane : public Plane {
   mutable std::vector<BackdropLayer> layers_;
   mutable std::vector<ElevatedArea> elevations_;
   std::vector<CursorArea> mouse_cursors_;
+  mutable std::vector<CellBorder> borders_;
+  // Forgets the borders on a cell something was drawn over.
+  void coverBorders(int row, int col) const;
+  void addBandBorders(const Band & band, int row, int col, int row_lo, int row_hi, int col_lo, int col_hi) const;
   std::vector<HitArea> hit_areas_;
   bool flat_ = false;
   bool themed_bases_ = false;

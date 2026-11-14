@@ -1,12 +1,16 @@
 #pragma once
 
+#include <cellui/CellBorder.h>
 #include <cellui/CellBuffer.h>
 #include <cellui/Image.h>
 #include <cellui/LinkStatus.h>
 #include <cellui/term/Capabilities.h>
+#include <cellui/term/KittyImages.h>
 
+#include <array>
 #include <cstdint>
 #include <map>
+#include <memory>
 #include <set>
 #include <string>
 #include <utility>
@@ -92,12 +96,20 @@ class ImageEncoder {
     static Profile from(const Capabilities & caps);
   };
 
-  ImageEncoder() = default;
-  explicit ImageEncoder(Profile profile) : profile_(std::move(profile)) { }
+  ImageEncoder() : registry_(std::make_shared<KittyImageRegistry>()) { }
+  // `registry` tracks the kitty ids this encoder transmits (the session's, so exit can delete them);
+  // an encoder without one keeps its own.
+  explicit ImageEncoder(Profile profile, std::shared_ptr<KittyImageRegistry> registry = nullptr)
+      : profile_(std::move(profile)), registry_(registry ? std::move(registry) : std::make_shared<KittyImageRegistry>()) { }
+  const std::shared_ptr<KittyImageRegistry> & registry() const { return registry_; }
 
   // `frame` is the composed frame, its image cells marked; `cleared` says
   // the screen is cleared before these bytes, taking every image with it.
-  std::string encode(const CellBuffer & frame, const std::vector<ImagePlacement> & images, bool cleared);
+  // `borders` are the cell borders to show (kitty only; see CellBorder): each edge is a placement of a
+  // picture made once per colour and edge and kept for good, so a frame sends only the placements
+  // that came and went.
+  std::string encode(const CellBuffer & frame, const std::vector<ImagePlacement> & images, bool cleared,
+                     const std::vector<CellBorder> & borders = {});
   // The bytes the last encode() made: picture data (kitty uploads, Sixel and
   // iTerm2 images) and placement (positioning, placements and deletions).
   struct Sizes {
@@ -160,7 +172,10 @@ class ImageEncoder {
     uint64_t last_used = 0;
   };
 
+  // The deletion of an image's placements and data; the id is no longer tracked.
+  std::string freeImage(uint32_t id);
   void uploadKitty(const Image & img, uint32_t id, std::string & out);
+  std::string kittyBorders(const std::vector<CellBorder> & borders, bool cleared);
   std::string kittySharedPlacement(const CellBuffer & frame, const ImagePlacement & p, Shown & shown, bool fresh, bool cleared);
   void evictSharedUploads(const std::set<uint32_t> & in_use, std::string & out);
   std::string kitty(const CellBuffer & frame, const ImagePlacement & p, Shown & shown, bool fresh, bool cleared);
@@ -174,7 +189,7 @@ class ImageEncoder {
   uint64_t tick_ = 0;
   size_t shared_budget_ = kSharedBudget;
   uint32_t next_place_ = 0;
-  uint32_t next_id_ = 0;
+  std::shared_ptr<KittyImageRegistry> registry_;
   bool sixel_ready_ = false;
   bool compress_ = true;
   PictureQuality quality_ = PictureQuality::FULL;
@@ -183,6 +198,16 @@ class ImageEncoder {
   std::set<uint32_t> deflated_ids_;  // kitty ids uploaded compressed and not yet confirmed
   Sizes sizes_;
   std::map<std::string, PictureStat> picture_stats_;
+
+  // (kitty) The border pictures, one for each edge (CellEdge order) of a colour (0xRRGGBB), uploaded on
+  // first use and never freed or evicted while the application runs (clear() frees them).
+  std::map<uint32_t, std::array<uint32_t, 4>> border_images_;
+  // What is placed: (row, col, edge index, colour) and its placement id.
+  using BorderKey = std::array<uint32_t, 4>;
+  std::map<BorderKey, uint32_t> border_placed_;
+  uint32_t next_border_place_ = 0;
+  // Deletions queued by an error on a border picture, sent with the next frame's borders.
+  std::string border_pending_;
 };
 
 // The pixels encoded as Sixel: covered pixels (where `keep` says false, one

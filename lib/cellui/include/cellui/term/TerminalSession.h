@@ -164,6 +164,8 @@ class TerminalSession : public Backend {
   Capabilities caps_;
   InputParser parser_;
   FrameEncoder encoder_;
+  // Every kitty id the session transmits, from every image feature; deleted when the terminal is restored.
+  std::shared_ptr<KittyImageRegistry> kitty_ids_ = std::make_shared<KittyImageRegistry>();
   ImageEncoder images_;
   // What a terminal makes of a backdrop (it cannot blur one).
   BackdropEmulation backdrops_;
@@ -206,6 +208,7 @@ class TerminalSession : public Backend {
     CursorRequest cursor;
     std::vector<ImagePlacement> images;
     std::vector<BackdropLayer> layers;
+    std::vector<CellBorder> borders;
   };
   std::optional<Held> held_;
   // SYNTH_LINK_STATS=<file>: a line a second of what the link carried (see logLinkStats()).
@@ -234,7 +237,7 @@ class TerminalSession : public Backend {
   void drainOutput(std::chrono::milliseconds limit);
   void pumpFrame();
   void sendFrame(const CellBuffer & frame, const CursorRequest & cursor, const std::vector<ImagePlacement> & images,
-                 const std::vector<BackdropLayer> & layers);
+                 const std::vector<BackdropLayer> & layers, const std::vector<CellBorder> & borders);
   std::string fenceBytes();
 };
 

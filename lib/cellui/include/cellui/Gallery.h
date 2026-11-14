@@ -17,7 +17,7 @@ namespace cellui {
 // The gallery page, drawn onto `plane` when constructed: every text style,
 // the theme's colour tokens, the level meter ramp, proportional text,
 // a Markdown document, wide and combining characters, a choice list, an info
-// dialog, a choice dialog, and the meters, spin box and dial widgets, as
+// dialog, a choice dialog, the meters, spin box and dial widgets, and cell borders, as
 // the terminal shows them. The page keeps the widgets and their planes, so it
 // must outlive the refresh() that shows them. It draws through Plane
 // only, so any backend can show it.
@@ -39,6 +39,7 @@ class Gallery {
   std::shared_ptr<LineChart> spectrum_;
   std::unique_ptr<SpinBox> spin_;
   std::vector<std::unique_ptr<Dial>> dials_;
+  std::vector<std::unique_ptr<Plane>> border_planes_;
   int rows_ = 0;
 };
 

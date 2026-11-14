@@ -6,8 +6,8 @@
   </tracks>
   <arrangement>
     <pattern track="0">
-      <note row="0" velocity="100" value="BD"/>
-      <note row="6" velocity="100" value="SD"/>
+      <note row="0" velocity="201" value="BD"/>
+      <note row="6" velocity="201" value="SD"/>
     </pattern>
   </arrangement>
 </song>

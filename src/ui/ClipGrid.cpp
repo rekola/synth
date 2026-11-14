@@ -359,6 +359,7 @@ ClipGrid::startClipRename(const Song & song, const std::vector<int> & track_ids)
   field.initial_text = clip.getName();
   field.text_color = synthStyles().clip_text_color;
   field.backdrop = structure.getBaselineInfo(track_id).getColor(synthStyles().tracks).blend(0.05f, Color(0, 0, 0));
+  renaming_track_id_.reset();
   inline_editor_.open(field, [this, track_id, clip_row](std::string text) {
     auto & target_song = getController().getSong();
     auto target_clips = target_song.getClips(track_id);
@@ -389,6 +390,7 @@ void ClipGrid::startSceneRename() {
   field.col = clamp(column_x + 3, 0, max(0, cols - width));
   field.width = width;
   field.initial_text = getController().getSong().getSceneName(scene);
+  renaming_track_id_.reset();
   inline_editor_.open(field, [this, scene](std::string text) {
     auto & target_song = getController().getSong();
     Song::Edit edit(target_song, "edit scene");
@@ -426,6 +428,8 @@ ClipGrid::startTrackRename(const Song & song, const std::vector<int> & track_ids
   field.col = edit_col;
   field.width = edit_width;
   field.initial_text = track->getName();
+  field.backdrop = synthStyles().heading_bg_color; // opaque over the header's own name
+  renaming_track_id_ = track_id;
   inline_editor_.open(field, [this, track_id](std::string text) {
     auto & target_song = getController().getSong();
     if (target_song.getMasterTrack().getChildByInternalId(track_id)) {
@@ -1240,7 +1244,10 @@ ClipGrid::render(const StyleProvider & styles, bool refresh, bool focused) {
     if (drop_here) header_plane.setBgColor(styles.heading_bg_color.blend(0.5f, styles.cursor_tint_color));
     if (drop_here) header_plane.putstr(0, x, string(static_cast<size_t>(kColWidth), ' '));
     if (lifted) header_plane.setFgColor(styles.window_border_color);
-    header_plane.putText(0, x + chip_width, name_width, trackLabel(track_id), cellui::TextStyle{cellui::TextFont::PROPORTIONAL, cellui::TextOverflow::ELLIPSIS});
+    bool renaming = renaming_track_id_ == track_id && inline_editor_.isOpen();
+    auto label = trackLabel(track_id);
+    if (renaming) label.resize(label.find(' ') == std::string::npos ? label.size() : label.find(' '));
+    header_plane.putText(0, x + chip_width, name_width, label, cellui::TextStyle{cellui::TextFont::PROPORTIONAL, cellui::TextOverflow::ELLIPSIS});
     if (drop_here) {
       header_plane.setFgColor(styles.window_fg_color);
       bool before = track_drag_source_ && track_index < *track_drag_source_;

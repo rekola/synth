@@ -67,6 +67,7 @@ Environment Environment::fromProcess() {
   env.colorterm = get("COLORTERM");
   env.term_program = get("TERM_PROGRAM");
   env.konsole = !get("KONSOLE_VERSION").empty();
+  env.tmux = !get("TMUX").empty();
   env.ssh = !get("SSH_CONNECTION").empty() || !get("SSH_TTY").empty();
   env.colors_override = get("CELLUI_COLORS");
   env.pixels_override = get("CELLUI_PIXELS");
@@ -74,6 +75,15 @@ Environment Environment::fromProcess() {
   env.windows = true;
 #endif
   return env;
+}
+
+bool insideTmux(const Environment & env, const std::string & terminal) {
+  return env.tmux || startsWith(env.term, "tmux") || startsWith(env.term, "screen") || terminal == "tmux";
+}
+
+PixelProtocol pixelsForTmux(PixelProtocol protocol, bool sixel, bool in_tmux) {
+  if (!in_tmux || protocol != PixelProtocol::KITTY) return protocol;
+  return sixel ? PixelProtocol::SIXEL : PixelProtocol::NONE;
 }
 
 double estimateDisplayScale(int cell_px_height) {
@@ -129,7 +139,7 @@ std::string Discovery::queries() const {
   q += "\x1b[?u";                 // kitty keyboard flags (answered only where supported)
   q += "\x1b[?2026$p";            // synchronized output
   q += "\x1b[?1;3;1024S";         // ask for 1024 Sixel colour registers
-  if (!env_.windows) q += "\x1b_Gi=31,s=1,v=1,a=q,t=d,f=24;AAAA\x1b\\";  // kitty graphics
+  if (!env_.windows && !insideTmux(env_)) q += "\x1b_Gi=31,s=1,v=1,a=q,t=d,f=24;AAAA\x1b\\";  // kitty graphics
   q += "\x1b[?2;1;0S\x1b[?1;1;0S";  // Sixel geometry and registers
   q += "\x1b[14t\x1b[16t\x1b[18t";  // text area in pixels, cell in pixels, size in cells
   q += "\x1b[c";                  // DA1, the sentinel
@@ -379,13 +389,16 @@ Capabilities Discovery::result() const {
   if (kitty_graphics_) caps.pixels = PixelProtocol::KITTY;
   else if (name == "iterm2") caps.pixels = PixelProtocol::ITERM2;
   else if (sixel) caps.pixels = PixelProtocol::SIXEL;
-  caps.kitty_graphics_animation = kitty_graphics_ && name == "kitty" && atLeast(version, "0.20");
   if (env_.pixels_override == "none") caps.pixels = PixelProtocol::NONE;
   else if (env_.pixels_override == "sixel") caps.pixels = PixelProtocol::SIXEL;
   else if (env_.pixels_override == "kitty") caps.pixels = PixelProtocol::KITTY;
   else if (env_.pixels_override == "iterm2") caps.pixels = PixelProtocol::ITERM2;
+  // Under tmux, whatever the query (or an override) said, kitty graphics are out.
+  caps.pixels = pixelsForTmux(caps.pixels, sixel, insideTmux(env_, name));
   if (caps.display.cell_px_height <= 0 || caps.display.cell_px_width <= 0) caps.pixels = PixelProtocol::NONE;
+  caps.kitty_graphics_animation = caps.pixels == PixelProtocol::KITTY && kitty_graphics_ && name == "kitty" && atLeast(version, "0.20");
   caps.display.pictures = caps.pixels != PixelProtocol::NONE;
+  caps.display.cell_borders = caps.pixels == PixelProtocol::KITTY;
   return caps;
 }
 

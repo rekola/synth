@@ -652,8 +652,11 @@ PatternEditor::PatternEditor(Plane & parent)
     getController().removeNoteColumn(track_id);
   });
 
-  commands_.define("widen-cursor", [this]() { changeCursorWidth(1); });
-  commands_.define("narrow-cursor", [this]() { changeCursorWidth(-1); });
+  // With the chord palette open they change the size of its chords instead.
+  commands_.define("widen-cursor", [this]() { chord_palette_.open ? resizeChordPalette(1) : changeCursorWidth(1); });
+  commands_.define("narrow-cursor", [this]() { chord_palette_.open ? resizeChordPalette(-1) : changeCursorWidth(-1); });
+  // Opens the palette; again, accepts what it shows.
+  commands_.define("chord-palette", [this]() { chord_palette_.open ? closeChordPalette(true) : stepChordPalette(0); });
 
   // "send-a-mode"/"send-b-mode" are NOT defined here (or anywhere in
   // commands_) - they mutate nothing outside a single Launchpad device's
@@ -689,6 +692,11 @@ PatternEditor::PatternEditor(Plane & parent)
   keymap_.bind(KeymapProfile::DESKTOP, KeyStroke::pack('r', true, false, false, false), "rename");
   keymap_.bind(KeyStroke::pack(Key::Up, false, false, false, false), "move-row-up");        // plain Up (was inline handling)
   keymap_.bind(KeyStroke::pack(Key::Down, false, false, false, false), "move-row-down");    // plain Down
+  keymap_.bind(KeyStroke::pack(Key::Right, true, false, true, false), "widen-cursor");      // Ctrl+Shift+Right
+  keymap_.bind(KeyStroke::pack(Key::Left, true, false, true, false), "narrow-cursor");      // Ctrl+Shift+Left
+  // Where each keymap asks for completions: Emacs's dabbrev-expand key, and the desktop's.
+  keymap_.bind(KeymapProfile::TERMINAL, KeyStroke::pack('/', false, true, false, false), "chord-palette"); // M-/
+  keymap_.bind(KeymapProfile::DESKTOP, KeyStroke::pack(' ', true, false, false, false), "chord-palette");  // Ctrl+Space
 
   assertCommandBindingsValid();
 }
@@ -1291,7 +1299,7 @@ PatternEditor::render(const StyleProvider & styles, bool refresh, bool focused) 
   tickChordEntry();
   syncNoteColumns(song);
   syncCursorTrack(song);
-  getController().setNoteHeld(!active_keyboard_notes_.empty() || chord_entry_.open); // heals a hold whose release never arrived
+  getController().setNoteHeld(!active_keyboard_notes_.empty() || chord_entry_.open || chord_palette_.open); // heals a hold whose release never arrived
   auto point = source_->cursor();
   fitEditStep();
   {
@@ -1365,8 +1373,8 @@ PatternEditor::render(const StyleProvider & styles, bool refresh, bool focused) 
     }
     if (!isLiveMode() && top.row < 0) top = { 0, 0 };
     if (isLiveMode()) {
-      // The view following a playhead doesn't carry the stopped tracks along.
-      if (scene_source_->cursorLocked()) scene_source_->holdStoppedTracks(source_->rowsBetween({ view_block_, current_scroll_.row }, top));
+      // The view following a playhead doesn't carry the other tracks' lines along.
+      if (scene_source_->cursorLocked()) scene_source_->holdTrackLines(source_->rowsBetween({view_block_, current_scroll_.row}, top));
       // Only the cursor's own row is exempt from the margin when pointed at: a
       // playhead's line keeps it, or a click would park every one at the edge.
       auto line_margin = std::min(kScrollMargin, (visible - 1) / 2);
@@ -1594,8 +1602,6 @@ PatternEditor::render(const StyleProvider & styles, bool refresh, bool focused) 
       focused != current_focused_ ||
       editor_redraw ||
       force_full_redraw_ ||
-      // A cursor of several rows is drawn in more rows than the single-row repaints cover.
-      (edit_step_size > 1 && (cursor_changed || score_playing_row != current_score_playing_row)) ||
       // The single-row repaints below assume the view starts in the
       // cursor's own block, which Live View's - or one scrolled back
       // into the block before - doesn't.
@@ -1704,6 +1710,11 @@ PatternEditor::render(const StyleProvider & styles, bool refresh, bool focused) 
 
   // Row/heading repaints above may have drawn over the open editor's field.
   inline_editor_.paintBackdrop();
+
+  if (chord_palette_.open || palette_drawn_) {
+    renderChordPalette();
+    need_redraw = true;
+  }
 
   return need_redraw;
 }
@@ -1835,6 +1846,11 @@ void
 PatternEditor::handleBufferChanged() {
   // Track ids and an open entry belong to the song that was left.
   columns_track_id_ = -1;
+  last_entry_ = LastEntry();
+  if (chord_palette_.open) {
+    chord_palette_ = ChordPalette();
+    getController().setNoteHeld(false);
+  }
   audition_ = Audition();
   arpeggio_ = Arpeggio();
   if (chord_entry_.open) {
@@ -2032,6 +2048,7 @@ bool PatternEditor::mouseDown(const cellui::MouseDown & e) {
   if (e.button != 1) return false;
   getController().getSong().breakTypingRun();
   if (inline_editor_.isOpen()) return true;
+  closeChordPalette(true);
   return handleMouse(e.row, e.col, false, false);
 }
 
@@ -2114,7 +2131,10 @@ bool PatternEditor::keyUp(const cellui::KeyUp & e) {
   if (auto_started_playback_ && active_keyboard_notes_.empty()) {
     getController().stopAutoRecordSession(auto_started_playback_, auto_record_cleared_rows_, info, auto_record_clip_ids_);
   }
-  if (active_keyboard_notes_.empty()) getController().setNoteHeld(false);
+  if (active_keyboard_notes_.empty()) {
+    getController().setNoteHeld(false);
+    settleLastEntry();
+  }
   return true;
 }
 
@@ -2140,6 +2160,11 @@ void PatternEditor::stepInstrument(int delta) {
 }
 
 bool PatternEditor::keyDown(const cellui::KeyDown & e) {
+  // The open chord palette has its keys; any other key accepts the chord and acts as usual.
+  if (chord_palette_.open) {
+    if (chordPaletteKey(e)) return true;
+    closeChordPalette(true);
+  }
   // Only consecutive hex digits extend a pending value; any other key
   // (a move, a click, undo, ...) commits it first.
   if (pending_.valid && e.key == Key::Enter) {
@@ -2575,9 +2600,11 @@ bool PatternEditor::keyDown(const cellui::KeyDown & e) {
 	// chord's row, in the next note column, and leaves the cursor where the
 	// chord's first key put it.
         bool chord_follower = false;
+        RowAddress entry_row = point;
         bool legacy_note_key = midi_note >= 0 && !is_off && !is_delete && !e.release_reported && !e.mods.shift;
         if (legacy_note_key) {
           if (auto slot = chord_.join(e.timestamp, track_id, midi_note)) {
+            entry_row = slot->row;
             edit_target = source_->edit(track_id, slot->row);
             note_column = slot->column;
             chord_follower = true;
@@ -2665,6 +2692,7 @@ bool PatternEditor::keyDown(const cellui::KeyDown & e) {
 	      event_queue.push(make_unique<PlaybackControlEvent>(PlaybackControlEvent::PLAY_NOTE, getController().getActiveBufferName(), track_id, note_column, note.getValue(), note.getVelocity()));
 	    }
             if (has_hold_info) active_keyboard_notes_[e.key] = {note_column, info.getAbsolutePosition(), track_id};
+            recordEntryNote(track_id, entry_row, note_column, midi_note);
             hold_tracked_note = has_hold_info;
           }
 
@@ -2689,6 +2717,7 @@ bool PatternEditor::keyDown(const cellui::KeyDown & e) {
               source_->moveCursor(limitToSelectionPattern(n * edit_step_size));
             }
 	  }
+          if (!hold_tracked_note) settleLastEntry();
 
           return true;
         }
@@ -2704,14 +2733,16 @@ void PatternEditor::updateCursorBands(const StyleProvider & styles, const std::v
   // still while the rows scroll under them.
   int visible = rows - heading_height;
   std::vector<double> shown;
-  auto strip = [&](Plane & plane, double line, double col, double cols, const Color & color, float alpha, cellui::BlendMode blend = cellui::BlendMode::NORMAL, double border_px = 0.0, double skip_col = 0.0, double skip_cols = 0.0) {
+  auto strip = [&](Plane & plane, double line, double col, double cols, const Color & color, float alpha, cellui::BlendMode blend = cellui::BlendMode::NORMAL, double border_px = 0.0, double skip_col = 0.0, double skip_cols = 0.0, double lines = 1.0) {
     double first = heading_height + line;
-    double height = std::min(1.0, static_cast<double>(rows) - first);
+    double height = std::min(lines, static_cast<double>(rows) - first);
     if (height <= 0.0 || cols <= 0.0) {
       plane.clearBand();
       return;
     }
-    plane.setBand(cellui::Band{first, height, col, cols, color, alpha, blend, styles.theme.elevation.card, color, 1.0f, border_px, skip_col, skip_cols});
+    cellui::Band band{first, height, col, cols, color, alpha, blend, styles.theme.elevation.card, color, 1.0f, border_px, skip_col, skip_cols};
+    band.border_skip_rows = lines > 1.0 ? 1.0 : 0.0; // the skipped field is in the first row
+    plane.setBand(band);
     for (double v : {first, height, col, cols, static_cast<double>(alpha), static_cast<double>(blend), border_px, skip_col, skip_cols}) shown.push_back(v);
   };
   auto cursor_track = current_cursor.track >= 0 && current_cursor.track < static_cast<int>(track_ids.size()) ? track_ids[static_cast<size_t>(current_cursor.track)] : -1;
@@ -2779,10 +2810,15 @@ void PatternEditor::updateCursorBands(const StyleProvider & styles, const std::v
       // brightness, then the highlight's own hue is put back over it (inverting
       // colours alone turns the hue round).
       // The border leaves out the field, which stands alone as the inverted block.
-      if (smooth_cursor_)
-        strip(*cursor_border_plane_, at, cursor_x0_, cursor_x1_ - cursor_x0_, styles.highlight_bg_color, 0.0f, cellui::BlendMode::NORMAL, 1.0, sub ? cursor_sub_x0_ : 0.0, sub ? sub_cols : 0.0);
+      // It is as many rows high as the edit step, where the pattern has them; a
+      // playhead is one row.
+      auto & play = getController().getPlaybackInfo();
+      bool playhead = source_->cursorLocked() || (play.isPlaying() && source_->cursorFollowsTransport());
+      double lines = playhead ? 1.0 : cursorRows(source_->cursor());
+      if (getPlane().cellBorders())
+        strip(*cursor_border_plane_, at, cursor_x0_, cursor_x1_ - cursor_x0_, styles.highlight_bg_color, 0.0f, cellui::BlendMode::NORMAL, 1.0, sub ? cursor_sub_x0_ : 0.0, sub ? sub_cols : 0.0, lines);
       else
-        strip(*cursor_border_plane_, at, cursor_x0_, cursor_x1_ - cursor_x0_, styles.highlight_bg_color, 0.25f);
+        strip(*cursor_border_plane_, at, cursor_x0_, cursor_x1_ - cursor_x0_, styles.highlight_bg_color, 0.25f, cellui::BlendMode::NORMAL, 0.0, 0.0, 0.0, lines);
       if (sub && focus_ > 0.01f) {
         // The inversion fades in with the focus.
         strip(*cursor_plane_, at, cursor_sub_x0_, sub_cols, Color(255, 255, 255), focus_, cellui::BlendMode::DIFFERENCE);
@@ -3463,7 +3499,6 @@ PatternEditor::renderRow(const StyleProvider & styles, int heading_height, const
   // selection is drawn in them: it scrolls with the content.
   const bool cursor_only = !whole_song_ && !(selection_active_ && selection_start_pattern_ == point.block);
   const bool playing_now = getController().getPlaybackInfo().isPlaying();
-  const bool cursor_is_playhead = source_->cursorLocked() || (playing_now && source_->cursorFollowsTransport());
   const int unshifted_row = display_row;
   bool row_shifted = false;
 
@@ -3799,13 +3834,6 @@ PatternEditor::renderRow(const StyleProvider & styles, int heading_height, const
       // own column 0.
       auto first_col = i == current_scroll_.track ? current_scroll_.col : 0;
       auto track_start_x = current_pos;
-      // The cursor is as many rows high as the edit step. The rows below its
-      // first are tinted across its width, in the rows that exist; a playhead
-      // has no height.
-      bool cursor_body_row = show_cursor && !cursor_is_playhead && i == current_cursor.track && !current_cursor.isOnLocator() &&
-                             current_cursor.col < track_info.getColumnCount() && pattern_idx == point.block && pattern_row > point.row &&
-                             pattern_row < point.row + edit_step_size && track_dim <= 0.0f && !is_repeat_row && !track_info.collapsed_;
-      const Color track_bg = bg;
       if (first_col == 0 && !track_info.collapsed_ && track_info.row_number_width_ > 0) {
         // The track's own row number, blank where it has no row (before
         // its first clip).
@@ -3826,14 +3854,6 @@ PatternEditor::renderRow(const StyleProvider & styles, int heading_height, const
 	// identifier cell and divider after it fall to it as well).
 	spans.columns.push_back({ k == first_col ? track_start_x : current_pos, current_pos, i, k });
         const int cell_x0 = current_pos;
-        bg = track_bg;
-        if (cursor_body_row && !in_selection) {
-          bool cursor_fx = track_info.isTrackFxColumn(current_cursor.col);
-          int cursor_note = track_info.getNoteNumber(current_cursor.col);
-          int note_number = track_info.getNoteNumber(k);
-          bool under_cursor = cursor_fx || (note_number >= cursor_note && note_number < cursor_note + cursor_width_);
-          if (track_info.isTrackFxColumn(k) == cursor_fx && under_cursor) bg = styles.cursorBodyTint(track_bg);
-        }
         // Only drives the active-character underline for numeric columns
 	// further down now (which numbers columns are highlighted right at
 	// the cursor's own row, unlike column_selected below) - a single-row,
@@ -4220,8 +4240,6 @@ PatternEditor::renderRow(const StyleProvider & styles, int heading_height, const
           }
         }
       }
-
-      bg = track_bg;
 
       // The track's own trailing identifier cell (VisibleTrackInfo::
       // getColumnWidth()'s own +1 budgets exactly this, for a color-
@@ -4683,6 +4701,8 @@ void PatternEditor::playArpeggio(std::chrono::steady_clock::time_point now) {
                                                                               arpeggio_.values.front(), constants::DEFAULT_NOTE_ON_VELOCITY));
     (arpeggio_.audition ? audition_.columns : chord_entry_.added_voices).push_back(column);
     arpeggio_.values.erase(arpeggio_.values.begin());
+    // Each gap is half the one before.
+    arpeggio_.interval /= 2;
     arpeggio_.next += arpeggio_.interval;
   }
 }
@@ -4696,6 +4716,8 @@ void PatternEditor::finishChordEntry() {
   }
   // Notes still to sound with the held keys have nothing to join.
   if (!arpeggio_.audition) arpeggio_ = Arpeggio();
+  last_entry_ = LastEntry();
+  for (auto value : s.given) recordEntryNote(s.track_id, s.row, s.column, value);
   s = ChordEntry();
   controller.setNoteHeld(false);
   controller.getSong().breakTypingRun();
@@ -4721,8 +4743,314 @@ void PatternEditor::tickChordEntry() {
       finishChordEntry();
       if (pending_step_ != 0) source_->moveCursor(limitToSelectionPattern(pending_step_));
       pending_step_ = 0;
+      settleLastEntry();
     }
   }
   playArpeggio(now);
   if (audition_.active && now >= audition_.until) endAudition();
+}
+
+void PatternEditor::recordEntryNote(int track_id, RowAddress row, int column, int value) {
+  auto & last = last_entry_;
+  if (!(last.valid && last.fresh && last.track_id == track_id && last.row == row)) {
+    last = LastEntry();
+    last.valid = last.fresh = true;
+    last.track_id = track_id;
+    last.row = row;
+    last.column = column;
+  }
+  last.column = std::min(last.column, column);
+  if (std::find(last.given.begin(), last.given.end(), value) == last.given.end()) last.given.push_back(value);
+}
+
+void PatternEditor::settleLastEntry() {
+  auto & last = last_entry_;
+  if (!last.valid || !last.fresh) return;
+  last.fresh = false;
+  last.version = getController().getSong().getVersion();
+  last.cursor = source_->cursor();
+  last.cursor_track = new_cursor.track;
+  last.cursor_col = new_cursor.col;
+}
+
+std::vector<int> PatternEditor::chordAt(int track_id, RowAddress row, int column) {
+  std::vector<int> values;
+  auto target = source_->edit(track_id, row);
+  for (int i = 0; i < kPaletteColumns; i++) {
+    auto note = target.pattern->getNote(target.effective_row, column + i);
+    if (!note.isNoteOn()) break;
+    values.push_back(note.getValue());
+  }
+  return values;
+}
+
+void PatternEditor::stepChordPalette(int direction) {
+  auto & controller = getController();
+  auto & song = controller.getSong();
+  auto & palette = chord_palette_;
+  if (palette.open) {
+    int count = static_cast<int>(palette.lines.size());
+    if (count == 0) return;
+    palette.selected = ((palette.selected + direction) % count + count) % count;
+    writePaletteChord();
+    return;
+  }
+  if (!chords::hasChords(song.getScale())) {
+    controller.log("The song's scale has no chords");
+    return;
+  }
+  auto track_ids = trackIds(song);
+  if (track_ids.empty() || current_cursor.track < 0 || current_cursor.track >= static_cast<int>(track_ids.size())) return;
+  if (chord_entry_.open) finishChordEntry();
+  settleLastEntry();
+
+  // The entry just made, if nothing was edited or moved since; else the note in the cursor's first column.
+  ChordPalette opened;
+  auto & last = last_entry_;
+  bool on_entry = last.valid && last.version == song.getVersion() && last.cursor == source_->cursor() && last.cursor_track == new_cursor.track &&
+                  last.cursor_col == new_cursor.col;
+  if (on_entry) {
+    opened.track_id = last.track_id;
+    opened.row = last.row;
+    opened.column = last.column;
+    opened.given = last.given;
+  } else {
+    opened.track_id = track_ids[static_cast<size_t>(current_cursor.track)];
+    auto track = song.getMasterTrack().getChildByInternalId(opened.track_id);
+    auto info = getTrackInfoFor(song, opened.track_id);
+    bool on_notes = track && dynamic_cast<const LeafTrack *>(track) && track->getType() != TrackType::SAMPLE && info.has_note_column_ && !info.collapsed_ &&
+                    !current_cursor.isOnLocator() && !info.isTrackFxColumn(current_cursor.col) && song.getTuningForTrack(*track) != Tuning::PERCUSSION;
+    if (!on_notes) {
+      controller.log("No note under the cursor to build a chord on");
+      return;
+    }
+    if (isLiveMode()) scene_source_->selectClip(opened.track_id);
+    opened.row = source_->cursor();
+    opened.column = info.getNoteNumber(current_cursor.col);
+    auto there = chordAt(opened.track_id, opened.row, opened.column);
+    if (there.empty()) {
+      controller.log("No note under the cursor to build a chord on");
+      return;
+    }
+    opened.given = {there[0]};
+  }
+  auto track = song.getMasterTrack().getChildByInternalId(opened.track_id);
+  if (!track) return;
+  auto tuning = song.getTuningForTrack(*track);
+  chords::ScaleChords scale(song.getScale(), tuning, song.getKey());
+  int lowest = *std::min_element(opened.given.begin(), opened.given.end());
+  if (!scale.degreeOf(lowest)) {
+    controller.log(Note::keyToString(tuning, lowest % std::max(scale.edo(), 1)) + " is not a note of the song's scale");
+    return;
+  }
+  opened.size = cursor_width_ > 1 ? cursor_width_ : palette_size_;
+  // Fewer notes than were played is no completion: the size starts above them.
+  opened.size = std::clamp(std::max(opened.size, static_cast<int>(opened.given.size()) + 1), 2, kMaxCursorWidth);
+  if (chords::complete(scale, opened.given, opened.size).status != chords::Status::OK) {
+    controller.log("No chord of the scale contains these notes");
+    return;
+  }
+
+  auto current = chordAt(opened.track_id, opened.row, opened.column);
+  {
+    auto target = source_->edit(opened.track_id, opened.row);
+    for (int i = 0; i < kPaletteColumns; i++) opened.original.push_back(target.pattern->getNote(target.effective_row, opened.column + i));
+  }
+  opened.span = static_cast<int>(current.size());
+  opened.open = true;
+  palette = std::move(opened);
+
+  // The whole session is one undo step.
+  song.breakTypingRun();
+  controller.setNoteHeld(true);
+  fillChordPalette();
+  // The chord in the pattern is where the selection starts; one that is no line of the list gives way to the first.
+  int count = static_cast<int>(palette.lines.size());
+  int found = -1;
+  for (int i = 0; i < count; i++) {
+    if (palette.lines[static_cast<size_t>(i)].notes == current) found = i;
+  }
+  palette.selected = found >= 0 ? ((found + direction) % count + count) % count : 0;
+  writePaletteChord();
+}
+
+void PatternEditor::fillChordPalette() {
+  auto & song = getController().getSong();
+  auto & palette = chord_palette_;
+  palette.lines.clear();
+  palette.spelled.clear();
+  palette.selected = 0;
+  auto track = song.getMasterTrack().getChildByInternalId(palette.track_id);
+  if (!track) return;
+  chords::ScaleChords scale(song.getScale(), song.getTuningForTrack(*track), song.getKey());
+  palette.lines = chords::complete(scale, palette.given, palette.size).chords;
+  for (auto & line : palette.lines) {
+    std::string names;
+    for (auto value : line.notes) {
+      if (!names.empty()) names += ' ';
+      if (auto degree = scale.degreeOf(value)) names += scale.noteName(*degree);
+    }
+    palette.spelled.push_back(names);
+  }
+}
+
+void PatternEditor::writePaletteChord() {
+  auto & controller = getController();
+  auto & song = controller.getSong();
+  auto & palette = chord_palette_;
+  force_full_redraw_ = true;
+  if (palette.lines.empty()) return;
+  auto & chord = palette.lines[static_cast<size_t>(palette.selected)];
+  int count = static_cast<int>(chord.notes.size());
+  palette.span = std::max({palette.span, palette.size, count});
+  // The notes take the velocity and delay of the one the chord stands on.
+  Note proto = palette.original.empty() ? Note() : palette.original[0];
+  bool has_proto = proto.isNoteOn();
+  {
+    Song::Edit edit(song, "choose chord", Song::Edit::Kind::CONTENT);
+    auto target = source_->edit(palette.track_id, palette.row);
+    for (int i = 0; i < palette.span; i++) {
+      Note note;
+      if (i < count) {
+        note = Note(chord.notes[static_cast<size_t>(i)], has_proto ? proto.getVelocity() : constants::DEFAULT_NOTE_ON_VELOCITY, has_proto ? proto.getDelay() : 0);
+        tuneNewNote(song, palette.track_id, note);
+      }
+      target.pattern->setNote(target.effective_row, palette.column + i, note);
+    }
+  }
+  controller.ensureNoteColumns(palette.track_id, palette.column + count);
+  row_edited = true;
+  controller.log(chord.name);
+
+  // Heard as it is shown: the whole chord, until the selection moves or a moment has passed.
+  endAudition();
+  audition_.active = true;
+  audition_.track_id = palette.track_id;
+  for (auto value : chord.notes) {
+    int column = freeVoiceColumn(palette.track_id, palette.column);
+    controller.getPlaybackEventQueue().push(make_unique<PlaybackControlEvent>(PlaybackControlEvent::PLAY_NOTE, controller.getActiveBufferName(), palette.track_id, column, value,
+                                                                              constants::DEFAULT_NOTE_ON_VELOCITY));
+    audition_.columns.push_back(column);
+  }
+  audition_.until = std::chrono::steady_clock::now() + kAuditionTime;
+}
+
+void PatternEditor::resizeChordPalette(int delta) {
+  auto & palette = chord_palette_;
+  int size = palette.size + delta;
+  if (size < 2 || size > kMaxCursorWidth) {
+    getController().log(fmt::format("A chord of the palette has 2 to {} notes", kMaxCursorWidth));
+    return;
+  }
+  palette.size = size;
+  fillChordPalette();
+  if (palette.lines.empty()) getController().log(fmt::format("No chord of {} notes contains these notes", size));
+  writePaletteChord();
+}
+
+void PatternEditor::closeChordPalette(bool accept) {
+  auto & palette = chord_palette_;
+  if (!palette.open) return;
+  auto & controller = getController();
+  auto & song = controller.getSong();
+  if (!accept) {
+    Song::Edit edit(song, "cancel chord", Song::Edit::Kind::CONTENT);
+    auto target = source_->edit(palette.track_id, palette.row);
+    for (int i = 0; i < static_cast<int>(palette.original.size()); i++) {
+      target.pattern->setNote(target.effective_row, palette.column + i, palette.original[static_cast<size_t>(i)]);
+    }
+    row_edited = true;
+  }
+  endAudition();
+  if (cursor_width_ == 1) palette_size_ = palette.size;
+  // Opened again with nothing else done, the palette is on the same notes.
+  last_entry_ = LastEntry();
+  for (auto value : palette.given) recordEntryNote(palette.track_id, palette.row, palette.column, value);
+  palette = ChordPalette();
+  controller.setNoteHeld(false);
+  song.breakTypingRun();
+  settleLastEntry();
+  force_full_redraw_ = true;
+}
+
+bool PatternEditor::chordPaletteKey(const cellui::KeyDown & e) {
+  // One key each: Up and Down choose, the cursor's width keys size the chords,
+  // Enter or the palette's own key accepts, keyboard-quit cancels.
+  if (auto name = keymap_.lookup(KeyStroke::pack(e.key, e.mods.ctrl, e.mods.alt, e.mods.shift, e.mods.meta), keymapProfile())) {
+    if (*name == "chord-palette" || *name == "widen-cursor" || *name == "narrow-cursor") return commands_.execute(*name);
+    if (*name == "keyboard-quit") {
+      closeChordPalette(false);
+      return true;
+    }
+  }
+  if (e.mods.ctrl || e.mods.alt || e.mods.meta || e.mods.shift) return false;
+  if (e.key == Key::Down) {
+    stepChordPalette(1);
+  } else if (e.key == Key::Up) {
+    stepChordPalette(-1);
+  } else if (e.key == Key::Enter) {
+    if (!e.repeat) closeChordPalette(true);
+  } else {
+    return false;
+  }
+  return true;
+}
+
+void PatternEditor::renderChordPalette() {
+  auto & palette = chord_palette_;
+  if (!palette.open) {
+    palette_plane_.reset();
+    palette_drawn_ = false;
+    return;
+  }
+  palette_drawn_ = true;
+  auto [pos_y, pos_x] = getPosition();
+  auto [rows, cols] = getDim();
+  int count = static_cast<int>(palette.lines.size());
+  int list_rows = std::max(1, std::min(count, rows - 2));
+  int panel_rows = list_rows + 1;
+  if (!palette_plane_) {
+    palette_plane_ = getPlane().createChild();
+    palette_plane_->setElevation(palette_plane_->getStyles().theme.elevation.overlay);
+  }
+  auto & plane = *palette_plane_;
+  plane.resize(panel_rows, cols);
+  plane.move(pos_y + rows - panel_rows, pos_x);
+  plane.moveToTop();
+  auto & styles = plane.getStyles();
+  auto set = [&](const Color & fg, const Color & bg) {
+    plane.setFgColor(fg);
+    plane.setBgColor(bg);
+  };
+  auto quiet = styles.theme.text_secondary;
+  std::string blank(static_cast<size_t>(std::max(cols, 0)), ' ');
+  int name_width = 0;
+  for (auto & line : palette.lines) name_width = std::max(name_width, Utf8::displayWidth(line.name));
+  // The selection stays in view when the list is longer than the panel.
+  int first = std::clamp(palette.selected - list_rows + 1, 0, std::max(count - list_rows, 0));
+  for (int i = 0; i < list_rows; i++) {
+    int index = first + i;
+    bool selected = index == palette.selected && count > 0;
+    set(selected ? styles.highlight_fg_color : styles.window_fg_color, selected ? styles.highlight_bg_color : styles.picker_bg_color);
+    plane.putstr(i, 0, blank);
+    if (count == 0) {
+      set(quiet, styles.picker_bg_color);
+      plane.putstr(i, 1, Utf8::truncateToWidth(fmt::format("No chord of {} notes contains these notes", palette.size), cols - 2));
+      continue;
+    }
+    auto & line = palette.lines[static_cast<size_t>(index)];
+    plane.putstr(i, 1, Utf8::truncateToWidth(line.name, cols - 2));
+    if (name_width + 4 < cols) plane.putstr(i, name_width + 3, Utf8::truncateToWidth(palette.spelled[static_cast<size_t>(index)], cols - name_width - 4));
+  }
+  // The size and the keys, on the surface the list is raised from.
+  set(styles.window_accent_fg_color, styles.picker_bg_color);
+  plane.putstr(list_rows, 0, blank);
+  auto title = fmt::format("Chord: {} notes", palette.size);
+  plane.putstr(list_rows, 1, Utf8::truncateToWidth(title, cols - 2), cellui::kBoldFace);
+  const std::string hint = "Up/Down choose  Enter accept  " + bindingFor("keyboard-quit") + " cancel";
+  int hint_width = Utf8::displayWidth(hint);
+  if (Utf8::displayWidth(title) + hint_width + 4 <= cols) {
+    set(quiet, styles.picker_bg_color);
+    plane.putstr(list_rows, cols - 1 - hint_width, hint);
+  }
 }

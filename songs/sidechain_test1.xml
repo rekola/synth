@@ -124,13 +124,13 @@
       <note row="192">OFF</note>
     </pattern>
     <pattern track="riser">
-      <note row="0" velocity="50">OFF</note>
-      <note row="48" velocity="50">A-1</note>
-      <note row="64" velocity="50">OFF</note>
-      <note row="112" velocity="50">A-1</note>
-      <note row="128" velocity="50">OFF</note>
-      <note row="176" velocity="50">A-1</note>
-      <note row="192" velocity="50">OFF</note>
+      <note row="0" velocity="100">OFF</note>
+      <note row="48" velocity="100">A-1</note>
+      <note row="64" velocity="100">OFF</note>
+      <note row="112" velocity="100">A-1</note>
+      <note row="128" velocity="100">OFF</note>
+      <note row="176" velocity="100">A-1</note>
+      <note row="192" velocity="100">OFF</note>
     </pattern>
     <pattern track="perc3">
       <note row="2">CH</note>

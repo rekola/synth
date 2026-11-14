@@ -639,6 +639,19 @@ TEST(band_border_leaves_out_a_skipped_span) {
   band.border_skip_col = 5;
   auto middle = bandBorderRects(band, 20, 0, 50, 10, 20);
   CHECK(middle.size() == 6);
+  // A span one row tall in a band of four: the bottom is whole, and the side it
+  // reaches starts below the span.
+  band.rows = 4.0;
+  band.border_skip_col = 2;
+  band.border_skip_rows = 1.0;
+  auto tall = bandBorderRects(band, 20, 0, 20, 10, 20);
+  CHECK(tall.size() == 4);
+  bool bottom = false, side = false;
+  for (const auto & r : tall) {
+    if (r.x == 20 && r.w == 100 && r.y == 80 - 1) bottom = true;
+    if (r.x == 20 && r.w == 1 && r.y == 20) side = true;
+  }
+  CHECK(bottom && side);
 }
 
 static double coveredArea(const BandBorderShape & shape) {
@@ -1228,3 +1241,72 @@ TEST(bufferplane_text_written_in_one_call_is_one_zoom_piece_and_a_call_can_join_
   CHECK(!b.at(1, 4).zoom_joined && b.at(1, 5).zoom_joined);
 }
 
+
+// On a display that draws bands by whole cells, a band's border comes out as the edges of the cells at the
+// rectangle's rim, the same pieces a window draws.
+static uint8_t edgesAt(const std::vector<CellBorder> & borders, int row, int col) {
+  uint8_t edges = 0;
+  for (const CellBorder & b : borders) {
+    if (b.row == row && b.col == col) edges |= b.edges;
+  }
+  return edges;
+}
+
+TEST(bufferplane_a_band_border_gives_the_edges_of_the_cells_at_its_rim) {
+  StyleProvider styles;
+  CellBuffer b(6, 10);
+  BufferPlane root(b, styles);
+  auto list = root.createChild();
+  list->resize(4, 6);
+  list->move(1, 2);
+  list->putstr(0, 0, "abcdef");
+  Band band{ 0.0, 3.0, 1, 3, Color(255, 0, 0), 0.0f, BlendMode::NORMAL, 0.0f, Color(0, 255, 0), 1.0f, 1.0 };
+  list->setBand(band);
+  root.refresh();
+  auto borders = root.takeBorders();
+  // Rows 1-3, columns 3-5 on the screen.
+  CHECK(edgesAt(borders, 1, 3) == (EDGE_TOP | EDGE_LEFT));
+  CHECK(edgesAt(borders, 1, 4) == EDGE_TOP);
+  CHECK(edgesAt(borders, 1, 5) == (EDGE_TOP | EDGE_RIGHT));
+  CHECK(edgesAt(borders, 2, 3) == EDGE_LEFT);
+  CHECK(edgesAt(borders, 2, 4) == 0);
+  CHECK(edgesAt(borders, 3, 5) == (EDGE_BOTTOM | EDGE_RIGHT));
+  CHECK(borders.size() == 8);
+  CHECK(borders[0].color.getGreen() == 255);
+  // A single cell has all four.
+  list->setBand(Band{ 1.0, 1.0, 2, 1, Color(255, 0, 0), 0.0f, BlendMode::NORMAL, 0.0f, Color(0, 255, 0), 1.0f, 1.0 });
+  root.refresh();
+  borders = root.takeBorders();
+  CHECK(borders.size() == 1 && borders[0].row == 2 && borders[0].col == 4 && borders[0].edges == 15);
+  // No band, no border; and a window that draws by parts of a cell takes the band itself.
+  list->clearBand();
+  root.refresh();
+  CHECK(root.takeBorders().empty());
+  list->setBand(band);
+  root.setSmoothScroll(true);
+  root.refresh();
+  CHECK(root.takeBorders().empty());
+}
+
+TEST(bufferplane_a_band_border_leaves_out_a_skipped_span_and_what_is_drawn_over_it) {
+  StyleProvider styles;
+  CellBuffer b(6, 12);
+  BufferPlane root(b, styles);
+  auto list = root.createChild();
+  list->resize(3, 8);
+  // Along the top and bottom the span is left out; the sides stay.
+  list->setBand(Band{ 0.0, 3.0, 0, 8, Color(255, 0, 0), 0.0f, BlendMode::NORMAL, 0.0f, Color(0, 255, 0), 1.0f, 1.0, 3, 2 });
+  root.refresh();
+  auto borders = root.takeBorders();
+  CHECK(edgesAt(borders, 0, 2) == EDGE_TOP && edgesAt(borders, 0, 3) == 0 && edgesAt(borders, 0, 4) == 0 && edgesAt(borders, 0, 5) == EDGE_TOP);
+  CHECK(edgesAt(borders, 1, 0) == EDGE_LEFT && edgesAt(borders, 1, 7) == EDGE_RIGHT);
+  // A plane above that writes to a bordered cell takes the border off it.
+  auto popup = root.createChild();
+  popup->resize(1, 2);
+  popup->move(2, 0);
+  popup->setElevation(1.0f);
+  popup->putstr(0, 0, "xy");
+  root.refresh();
+  borders = root.takeBorders();
+  CHECK(edgesAt(borders, 2, 0) == 0 && edgesAt(borders, 2, 1) == 0 && edgesAt(borders, 2, 2) == EDGE_BOTTOM);
+}

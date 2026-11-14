@@ -90,7 +90,7 @@
                                   } else if (ev.isAftertouch()) {
                                     notePressure(ev.getId(), ev.getVelocity());
                                   } else if (ev.isOff()) {
-                                    noteOff(ev.getId(), velocity::floatTo7(ev.getVelocity()));
+                                    noteOff(ev.getId(), velocity::fromFloat(ev.getVelocity()));
                                   } else {
                                     // ev.getNoteCoordinate(): the note's own stable coordinate,
                                     // built once at SongState.h's scheduling loop from its
@@ -291,8 +291,8 @@
                       // after it releases and a new, softer note starts. SampleTrackState has
                       // no equivalent need (no column_pressure_ concept at all), so this stays
                       // here rather than on the shared base.
-                      void stopVoices(int column, int lift7 = constants::NEUTRAL_VELOCITY) {
-                        LeafTrackState::stopVoices(column, lift7);
+                      void stopVoices(int column, int lift = constants::NEUTRAL_VELOCITY) {
+                        LeafTrackState::stopVoices(column, lift);
                         column_pressure_.erase(column);
                         broadcastChannelPressure();
                       }
@@ -300,7 +300,7 @@
                       // Ends live-audition note `column` (Player::handlePlaybackControlEvent()'s
                       // STOP_NOTE case, shared by Kitty-keyboard note entry and Launchpad
                       // NOTES/step-grid presses).
-                      void noteOff(int column, int lift7 = constants::NEUTRAL_VELOCITY) { stopVoices(column, lift7); }
+                      void noteOff(int column, int lift = constants::NEUTRAL_VELOCITY) { stopVoices(column, lift); }
 
                       // LeafTrackState::stopAllVoices()'s own whole-track release, plus this
                       // class's own pressure bookkeeping on top (see stopVoices() above for why

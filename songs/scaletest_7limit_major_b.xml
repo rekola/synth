@@ -19,43 +19,43 @@
     <locator row="76">B</locator>
     <locator row="80">C</locator>
     <pattern track="0">
-      <note row="0" velocity="40" value="C-4" />
-      <note row="2" velocity="40" value="Db4" />
-      <note row="4" velocity="40" value="E𝄫4" />
-      <note row="6" velocity="40" value="Eb4" />
-      <note row="8" velocity="40" value="F-4" />
-      <note row="10" velocity="40" value="G-4" />
-      <note row="12" velocity="40" value="Ab4" />
-      <note row="14" velocity="40" value="B𝄫4" />
-      <note row="16" velocity="40" value="Bb4" />
-      <note row="18" velocity="40" value="C-5" />
-      <note row="48" column="0" velocity="40" value="C-4" />
-      <note row="48" column="1" velocity="40" value="E-4" />
-      <note row="48" column="2" velocity="40" value="G-4" />
-      <note row="52" column="0" velocity="40" value="Db4" />
-      <note row="52" column="1" velocity="40" value="E-4" />
-      <note row="52" column="2" velocity="40" value="A-4" />
-      <note row="56" column="0" velocity="40" value="D-4" />
-      <note row="56" column="1" velocity="40" value="F-4" />
-      <note row="56" column="2" velocity="40" value="A-4" />
-      <note row="60" column="0" velocity="40" value="E-4" />
-      <note row="60" column="1" velocity="40" value="G-4" />
-      <note row="60" column="2" velocity="40" value="B-4" />
-      <note row="64" column="0" velocity="40" value="F-4" />
-      <note row="64" column="1" velocity="40" value="A-4" />
-      <note row="64" column="2" velocity="40" value="C-5" />
-      <note row="68" column="0" velocity="40" value="G-4" />
-      <note row="68" column="1" velocity="40" value="B-4" />
-      <note row="68" column="2" velocity="40" value="D-5" />
-      <note row="72" column="0" velocity="40" value="A-4" />
-      <note row="72" column="1" velocity="40" value="C-5" />
-      <note row="72" column="2" velocity="40" value="F-5" />
-      <note row="76" column="0" velocity="40" value="B-4" />
-      <note row="76" column="1" velocity="40" value="Db5" />
-      <note row="76" column="2" velocity="40" value="E-5" />
-      <note row="80" column="0" velocity="40" value="C-5" />
-      <note row="80" column="1" velocity="40" value="D#5" />
-      <note row="80" column="2" velocity="40" value="F-5" />
+      <note row="0" velocity="80" value="C-4" />
+      <note row="2" velocity="80" value="Db4" />
+      <note row="4" velocity="80" value="E𝄫4" />
+      <note row="6" velocity="80" value="Eb4" />
+      <note row="8" velocity="80" value="F-4" />
+      <note row="10" velocity="80" value="G-4" />
+      <note row="12" velocity="80" value="Ab4" />
+      <note row="14" velocity="80" value="B𝄫4" />
+      <note row="16" velocity="80" value="Bb4" />
+      <note row="18" velocity="80" value="C-5" />
+      <note row="48" column="0" velocity="80" value="C-4" />
+      <note row="48" column="1" velocity="80" value="E-4" />
+      <note row="48" column="2" velocity="80" value="G-4" />
+      <note row="52" column="0" velocity="80" value="Db4" />
+      <note row="52" column="1" velocity="80" value="E-4" />
+      <note row="52" column="2" velocity="80" value="A-4" />
+      <note row="56" column="0" velocity="80" value="D-4" />
+      <note row="56" column="1" velocity="80" value="F-4" />
+      <note row="56" column="2" velocity="80" value="A-4" />
+      <note row="60" column="0" velocity="80" value="E-4" />
+      <note row="60" column="1" velocity="80" value="G-4" />
+      <note row="60" column="2" velocity="80" value="B-4" />
+      <note row="64" column="0" velocity="80" value="F-4" />
+      <note row="64" column="1" velocity="80" value="A-4" />
+      <note row="64" column="2" velocity="80" value="C-5" />
+      <note row="68" column="0" velocity="80" value="G-4" />
+      <note row="68" column="1" velocity="80" value="B-4" />
+      <note row="68" column="2" velocity="80" value="D-5" />
+      <note row="72" column="0" velocity="80" value="A-4" />
+      <note row="72" column="1" velocity="80" value="C-5" />
+      <note row="72" column="2" velocity="80" value="F-5" />
+      <note row="76" column="0" velocity="80" value="B-4" />
+      <note row="76" column="1" velocity="80" value="Db5" />
+      <note row="76" column="2" velocity="80" value="E-5" />
+      <note row="80" column="0" velocity="80" value="C-5" />
+      <note row="80" column="1" velocity="80" value="D#5" />
+      <note row="80" column="2" velocity="80" value="F-5" />
     </pattern>
   </arrangement>
 </song>

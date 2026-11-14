@@ -123,7 +123,13 @@ carries the app's object as an opaque `getAppContext()`.
   encoded sRGB). The window draws it as a GSK blend node cross-faded by alpha;
   a display that cannot scroll by parts of a cell gets the band laid over the
   whole cells it reaches, blending their colours — one primitive, the same
-  look everywhere. `Plane::setBlend(mode, alpha)` blends a whole plane the
+  look everywhere. On such a display the band's border (any fill alpha) is composed into
+  `CellBorder`s (`FrameInfo::borders`, screen cells, `CellEdge` bits: the edges `bandBorder()` gives, by
+  whole cells; width, radius and alpha are not used; a cell a later plane writes to loses its border). The
+  kitty encoder draws each as a placement of a 1-pixel picture over the cell
+  (`ImageEncoder::encode(..., borders)`: four pictures per colour, one for each edge, uploaded once and kept
+  for good, freed only by `clear()`; placed with `C=1`, diffed frame to frame, a removal keeps the
+  picture). Other displays ignore them. `Plane::setBlend(mode, alpha)` blends a whole plane the
   same way. `Band::lift` raises a band above shadows so a lower area's shadow
   never falls on a cursor or playhead.
 - `Plane::drawSharedImageAt(row, col, ImageKey{kind, id}, w, h, render)`: a picture
@@ -231,6 +237,14 @@ timing (and missed-vsync counts) at exit.
   refuses), `TerminalSession` (tty, modes, signals, restoration). `TermEvent`s
   stay inside `term/`; `Capabilities` (image protocol, kitty keyboard, query
   replies, dither) are terminal-only.
+- Images under tmux and at exit: `Discovery::result()` is the one place that decides the protocol, and under
+  tmux (`insideTmux()`: `$TMUX`, a `tmux*`/`screen*` `$TERM` that survives ssh, or tmux's own XTVERSION) kitty
+  graphics are out (`pixelsForTmux()`: Sixel where reported, else none; no kitty query is even sent), whatever
+  the query or `CELLUI_PIXELS` says. Every kitty id comes from `KittyImageRegistry` (`term/KittyImages.h`,
+  shared by all image features through `ImageEncoder`), which forgets it when the encoder deletes it; whenever
+  the terminal is restored (`close()`, the signal handlers, `atexit`) `TerminalSession` first deletes each
+  tracked id (`a=d,d=I`, placements and data), never a delete-all, then wipes the alternate screen where
+  Sixel/iTerm2 pictures were drawn. Nothing is freed during the run beyond what the encoder already does.
 - Frames are paced to the link (`FramePacer`; `plans/frame-pacing-terminal.md`
   has the design): the app calls `Backend::requestFrame()` and renders in the
   handler it gave `setFrameHandler()`, called when the pacer lets a frame

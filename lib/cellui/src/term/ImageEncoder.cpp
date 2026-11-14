@@ -531,7 +531,11 @@ SixelPalette makeSixelPalette(const Image & image, int x0, int y0, int width, in
     Box box = boxes[pick];
     int shift = box.channel == 0 ? 16 : box.channel == 1 ? 8 : 0;
     std::sort(colours.begin() + static_cast<std::ptrdiff_t>(box.begin), colours.begin() + static_cast<std::ptrdiff_t>(box.end),
-              [&](const auto & a, const auto & b) { return ((a.first >> shift) & 0xff) < ((b.first >> shift) & 0xff); });
+              [&](const auto & a, const auto & b) {
+                // The colour breaks a tie, so the order (and the palette) is the same in every standard library.
+                uint32_t ca = (a.first >> shift) & 0xff, cb = (b.first >> shift) & 0xff;
+                return ca != cb ? ca < cb : a.first < b.first;
+              });
     uint64_t half = box.pixels / 2, seen = 0;
     size_t cut = box.begin;
     while (cut + 1 < box.end && seen + colours[cut].second <= half) seen += colours[cut++].second;
@@ -1187,8 +1191,7 @@ std::string ImageEncoder::kittySharedPlacement(const CellBuffer & frame, const I
   SharedUpload & upload = shared_uploads_[img.version];
   size_t upload_before = sizes_.upload;
   if (upload.id == 0) {
-    if (++next_id_ == 0) next_id_ = 1;
-    upload.id = next_id_;
+    upload.id = registry_->allocate();
     upload.bytes = static_cast<size_t>(img.width) * static_cast<size_t>(img.height) * 4;
     uploadKitty(img, upload.id, out);
     picture_stats_[statLabel(p)].uploads++;
@@ -1199,7 +1202,7 @@ std::string ImageEncoder::kittySharedPlacement(const CellBuffer & frame, const I
     // This place showed a picture of its own and shows a shared one now: free the old.
     deflated_ids_.erase(shown.id);
     png_ids_.erase(shown.id);
-    std::string del = "\x1b_Ga=d,d=I,i=" + std::to_string(shown.id) + ",q=1\x1b\\";
+    std::string del = freeImage(shown.id);
     sizes_.placement += del.size();
     out += del;
     shown = Shown{};
@@ -1263,7 +1266,7 @@ void ImageEncoder::evictSharedUploads(const std::set<uint32_t> & in_use, std::st
       if (oldest == shared_uploads_.end() || it->second.last_used < oldest->second.last_used) oldest = it;
     }
     if (oldest == shared_uploads_.end()) return;
-    std::string del = "\x1b_Ga=d,d=I,i=" + std::to_string(oldest->second.id) + ",q=1\x1b\\";
+    std::string del = freeImage(oldest->second.id);
     sizes_.placement += del.size();
     out += del;
     deflated_ids_.erase(oldest->second.id);
@@ -1293,8 +1296,7 @@ std::string ImageEncoder::kitty(const CellBuffer & frame, const ImagePlacement &
   if (changed) {
     // A new picture goes up under a new id; the old one stays on screen
     // until the new one is placed.
-    if (++next_id_ == 0) next_id_ = 1;
-    shown.id = next_id_;
+    shown.id = registry_->allocate();
     shown.version = img.version;
     uploadKitty(img, shown.id, out);
     picture_stats_[statLabel(p)].uploads++;
@@ -1333,7 +1335,7 @@ std::string ImageEncoder::kitty(const CellBuffer & frame, const ImagePlacement &
   if (changed && old_id) {
     deflated_ids_.erase(old_id);
     png_ids_.erase(old_id);
-    std::string del = "\x1b_Ga=d,d=I,i=" + std::to_string(old_id) + ",q=1\x1b\\";
+    std::string del = freeImage(old_id);
     sizes_.placement += del.size();
     out += del;
   }
@@ -1525,7 +1527,8 @@ std::string ImageEncoder::iterm2(const CellBuffer & frame, const ImagePlacement 
   return out;
 }
 
-std::string ImageEncoder::encode(const CellBuffer & frame, const std::vector<ImagePlacement> & images, bool cleared) {
+std::string ImageEncoder::encode(const CellBuffer & frame, const std::vector<ImagePlacement> & images, bool cleared,
+                                 const std::vector<CellBorder> & borders) {
   StageTimer timer(Stage::IMAGE_ENCODE);
   std::string out;
   sizes_ = {};
@@ -1560,7 +1563,7 @@ std::string ImageEncoder::encode(const CellBuffer & frame, const std::vector<Ima
           out += del;
         }
       } else {
-        std::string del = "\x1b_Ga=d,d=I,i=" + std::to_string(it->second.id) + ",q=1\x1b\\";
+        std::string del = freeImage(it->second.id);
         sizes_.placement += del.size();
         out += del;
       }
@@ -1574,6 +1577,76 @@ std::string ImageEncoder::encode(const CellBuffer & frame, const std::vector<Ima
     }
     evictSharedUploads(in_use, out);
   }
+  out += kittyBorders(borders, cleared);
+  return out;
+}
+
+// The borders as placements of 1-pixel pictures: top and bottom are cell-wide and one pixel tall, left
+// and right one pixel wide and cell-tall, each put at its edge by a pixel offset inside the cell. The
+// placements are diffed against the last frame's; a removed one keeps its picture (`d=i`, lower case).
+std::string ImageEncoder::kittyBorders(const std::vector<CellBorder> & borders, bool cleared) {
+  std::string out;
+  int ch = profile_.cell_px_height, cw = profile_.cell_px_width;
+  if (profile_.protocol != PixelProtocol::KITTY || ch <= 0 || cw <= 0) return out;
+  out = std::move(border_pending_);
+  border_pending_.clear();
+  sizes_.placement += out.size();
+  // A clear took the placements off the screen.
+  if (cleared) border_placed_.clear();
+  std::set<BorderKey> wanted;
+  for (const CellBorder & b : borders) {
+    auto rgb = b.color.toSrgb8();
+    uint32_t colour = (uint32_t{ rgb[0] } << 16) | (uint32_t{ rgb[1] } << 8) | rgb[2];
+    for (uint32_t edge = 0; edge < 4; edge++) {
+      if (b.edges & (1u << edge)) wanted.insert({ static_cast<uint32_t>(b.row), static_cast<uint32_t>(b.col), edge, colour });
+    }
+  }
+  auto id_of = [&](uint32_t colour, uint32_t edge) { return border_images_.at(colour)[edge]; };
+  for (auto it = border_placed_.begin(); it != border_placed_.end();) {
+    if (wanted.count(it->first)) {
+      ++it;
+      continue;
+    }
+    std::string del = "\x1b_Ga=d,d=i,i=" + std::to_string(id_of(it->first[3], it->first[2])) + ",p=" + std::to_string(it->second) + ",q=1\x1b\\";
+    sizes_.placement += del.size();
+    out += del;
+    it = border_placed_.erase(it);
+  }
+  for (const BorderKey & key : wanted) {
+    if (border_placed_.count(key)) continue;
+    uint32_t colour = key[3], edge = key[2];
+    if (!border_images_.count(colour)) {
+      // Raw pixels, whatever the link: they are a few bytes, and kept for good.
+      // (never deflated or a PNG, so the terminal's answer to a refusal of those is not taken for theirs)
+      PictureQuality quality = quality_;
+      bool compress = compress_;
+      quality_ = PictureQuality::FULL;
+      compress_ = false;
+      std::array<uint32_t, 4> ids{};
+      uint32_t pixel = Image::pack(static_cast<uint8_t>(colour >> 16), static_cast<uint8_t>(colour >> 8), static_cast<uint8_t>(colour));
+      for (uint32_t e = 0; e < 4; e++) {
+        Image img;
+        img.width = e < 2 ? cw : 1;
+        img.height = e < 2 ? 1 : ch;
+        img.pixels.assign(static_cast<size_t>(img.width) * static_cast<size_t>(img.height), pixel);
+        ids[e] = registry_->allocate();
+        size_t before = sizes_.upload;
+        uploadKitty(img, ids[e], out);
+        picture_stats_["border"].uploads++;
+        picture_stats_["border"].bytes += sizes_.upload - before;
+      }
+      quality_ = quality;
+      compress_ = compress;
+      border_images_[colour] = ids;
+    }
+    if (++next_border_place_ == 0) next_border_place_ = 1;
+    int x = edge == 3 ? cw - 1 : 0, y = edge == 1 ? ch - 1 : 0;
+    std::string place = cup(static_cast<int>(key[0]), static_cast<int>(key[1])) + "\x1b_Ga=p,i=" + std::to_string(id_of(colour, edge)) +
+                        ",p=" + std::to_string(next_border_place_) + ",X=" + std::to_string(x) + ",Y=" + std::to_string(y) + ",C=1,z=1,q=1\x1b\\";
+    sizes_.placement += place.size();
+    out += place;
+    border_placed_[key] = next_border_place_;
+  }
   return out;
 }
 
@@ -1586,6 +1659,20 @@ std::string ImageEncoder::handleKittyReply(const std::string & body) {
   uint32_t id = 0;
   size_t at = keys.find("i=");
   if (at != std::string::npos) id = static_cast<uint32_t>(std::strtoul(keys.c_str() + at + 2, nullptr, 10));
+  // An error on a border picture: the terminal and this encoder may no longer agree on what is placed, so
+  // every placement of that colour's pictures and the pictures themselves are freed (by id alone, whatever
+  // placement ids the terminal holds), and the next frame that shows the colour sends them and places them anew.
+  for (auto it = border_images_.begin(); it != border_images_.end(); ++it) {
+    const auto & ids = it->second;
+    if (!id || std::find(ids.begin(), ids.end(), id) == ids.end()) continue;
+    for (uint32_t freed : ids) border_pending_ += "\x1b_Ga=d,d=I,i=" + std::to_string(freed) + ",q=1\x1b\\";
+    for (auto placed = border_placed_.begin(); placed != border_placed_.end();) {
+      if (placed->first[3] == it->first) placed = border_placed_.erase(placed);
+      else ++placed;
+    }
+    border_images_.erase(it);
+    return "kitty graphics (id " + std::to_string(id) + "): " + (message.empty() ? keys : message);
+  }
   // A refused shared upload is made again by the next placement that shows it.
   auto forgetShared = [&]() {
     for (auto it = shared_uploads_.begin(); it != shared_uploads_.end();) {
@@ -1615,18 +1702,30 @@ std::string ImageEncoder::handleKittyReply(const std::string & body) {
   return who + " (id " + std::to_string(id) + "): " + (message.empty() ? keys : message);
 }
 
+std::string ImageEncoder::freeImage(uint32_t id) {
+  registry_->forget(id);
+  return KittyImageRegistry::deleteSequence(id);
+}
+
 std::string ImageEncoder::clear() {
   std::string out;
   if (profile_.protocol == PixelProtocol::KITTY) {
     for (auto & [key, shown] : shown_) {
-      if (shown.id) out += "\x1b_Ga=d,d=I,i=" + std::to_string(shown.id) + ",q=1\x1b\\";
+      if (shown.id) out += freeImage(shown.id);
     }
   }
   for (const auto & [version, upload] : shared_uploads_) {
-    if (profile_.protocol == PixelProtocol::KITTY) out += "\x1b_Ga=d,d=I,i=" + std::to_string(upload.id) + ",q=1\x1b\\";
+    if (profile_.protocol == PixelProtocol::KITTY) out += freeImage(upload.id);
   }
   shared_uploads_.clear();
   shown_.clear();
+  for (const auto & [colour, ids] : border_images_) {
+    if (profile_.protocol != PixelProtocol::KITTY) break;
+    for (uint32_t id : ids) out += freeImage(id);
+  }
+  border_images_.clear();
+  border_placed_.clear();
+  border_pending_.clear();
   return out;
 }
 

@@ -15,6 +15,7 @@ commandDescription(std::string_view name) {
       {"apply-just-intonation-region", "Tune the region's notes toward just ratios with per-note cent corrections"},
       {"arrangement-view", "Show the arrangement: the song laid out along its timeline"},
       {"back-to-arrangement", "Hand every launched track back to the arrangement"},
+      {"chord-palette", "Choose among the chords of the notes just entered, or of the note under the cursor"},
       {"clear-tuning-correction-region", "Remove the cent corrections from the region's notes"},
       {"copy-to-clip", "Make a new clip from the selection"},
       {"cycle-monitor", "Cycle the track's input monitoring: Auto, In, Off"},

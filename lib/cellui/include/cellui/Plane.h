@@ -96,6 +96,8 @@ class Plane {
   virtual KeymapProfile keymapProfile() const { return KeymapProfile::TERMINAL; }
   // Whether setScrollOffset() shifts a plane here.
   virtual bool smoothScroll() const { return false; }
+  // Whether the display draws a band's border (DisplayInfo::cell_borders): the application tints where not.
+  virtual bool cellBorders() const { return false; }
   // The plane's size in pixels, when the display can show pixels here;
   // false when it cannot (no image protocol, or the cell size unknown), and
   // a chart then draws in cells.
@@ -243,6 +245,9 @@ class Plane {
 			   const std::string & initial_text = "",
 			   std::optional<Color> text_color = std::nullopt) = 0;
   // Closes the field and returns what was typed.
+  // Makes the open field opaque in this colour, hiding what is under it (a
+  // header's own name); without one it is transparent. Default: no-op.
+  virtual void setReaderBackdrop(const Color &) { }
   virtual std::string closeReader() = 0;
   virtual bool readerActive() const = 0;
   // What has been typed so far, without ending the session - a prompt with

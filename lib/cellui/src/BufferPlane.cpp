@@ -184,6 +184,7 @@ void BufferPlane::refresh() {
   top.elevations_.clear();
   top.text_runs_.clear();
   top.mouse_cursors_.clear();
+  top.borders_.clear();
   top.hit_areas_.clear();
   // Lower planes first, whatever their place in the tree; planes of one
   // height in tree order (a parent before its children).
@@ -394,6 +395,7 @@ void BufferPlane::compose(CellBuffer & out, int row, int col, int clip_row, int 
           below.bg = base_bg_;
           below.lift = 0.0f;
           out.put(r, c, below);
+          top.coverBorders(r, c);
         }
         continue;
       }
@@ -424,15 +426,16 @@ void BufferPlane::compose(CellBuffer & out, int row, int col, int clip_row, int 
       put.lift = cell.lift > 0.0f ? height + cell.lift : 0.0f;
       if (cell.text_run > 0) put.text_run = frameRun(run_map, cell.text_run);
       out.put(r, c, put);
+      top.coverBorders(r, c);
     }
   }
   // A band the display cannot draw by parts of a cell is laid over the whole
   // cells it reaches: their colours blended, text included.
-  if (band_ && band_->alpha > 0.0f && !top.smooth_scroll_) {
+  if (band_ && !top.smooth_scroll_) {
     const Band & band = *band_;
     int band_r0 = row + static_cast<int>(std::lround(band.row)), band_r1 = row + static_cast<int>(std::lround(band.row + band.rows));
     int band_c0 = col + static_cast<int>(std::lround(band.col)), band_c1 = col + static_cast<int>(std::lround(band.col + band.cols));
-    for (int r = std::max(row_lo, band_r0); r < std::min(row_hi, band_r1); r++) {
+    for (int r = std::max(row_lo, band_r0); r < std::min(row_hi, band_r1) && band.alpha > 0.0f; r++) {
       for (int c = std::max(col_lo, band_c0); c < std::min(col_hi, band_c1); c++) {
         CellBuffer::Cell cell = out.at(r, c);
         if (cell.image > 0 || cell.continuation) continue;
@@ -447,6 +450,7 @@ void BufferPlane::compose(CellBuffer & out, int row, int col, int clip_row, int 
         out.put(r, c, cell);
       }
     }
+    addBandBorders(band, row, col, row_lo, row_hi, col_lo, col_hi);
   }
   // An image shows its pixels in place of the cells it covers: they are
   // marked for the backend, which draws the image wherever they stay marked.
@@ -477,9 +481,53 @@ void BufferPlane::compose(CellBuffer & out, int row, int col, int clip_row, int 
         marked.lift_joined = out.at(r, c).lift_joined;
         marked.lift_shadow = out.at(r, c).lift_shadow;
         out.put(r, c, marked);
+        top.coverBorders(r, c);
       }
     }
   }
+}
+
+void BufferPlane::coverBorders(int row, int col) const {
+  if (borders_.empty()) return;
+  for (size_t i = borders_.size(); i-- > 0;) {
+    if (borders_[i].row == row && borders_[i].col == col) borders_.erase(borders_.begin() + static_cast<std::ptrdiff_t>(i));
+  }
+}
+
+// The edges GTK draws for the band's border, by whole cells: the pieces bandBorder() makes in units of
+// a cell, so the skipped span and the sides come out the same. Width and radius are not used.
+void BufferPlane::addBandBorders(const Band & band, int row, int col, int row_lo, int row_hi, int col_lo, int col_hi) const {
+  if (band.border_px <= 0 || band.border_alpha <= 0.0f) return;
+  Band whole = band;
+  whole.row = std::lround(band.row);
+  whole.col = std::lround(band.col);
+  whole.rows = std::lround(band.row + band.rows) - whole.row;
+  whole.cols = std::lround(band.col + band.cols) - whole.col;
+  whole.border_skip_col = std::lround(band.border_skip_col);
+  whole.border_skip_cols = std::lround(band.border_skip_col + band.border_skip_cols) - whole.border_skip_col;
+  whole.border_px = 0.001;
+  whole.border_radius = 0;
+  if (whole.rows <= 0 || whole.cols <= 0) return;
+  double x0 = col + whole.col, y0 = row + whole.row;
+  BandBorderShape shape = bandBorder(whole, x0, y0, col + whole.border_skip_col, 1.0, 1.0);
+  std::map<std::pair<int, int>, uint8_t> edges;
+  auto add = [&](int r, int c, uint8_t edge) {
+    if (r >= row_lo && r < row_hi && c >= col_lo && c < col_hi) edges[{ r, c }] |= edge;
+  };
+  for (const BandBorderRect & rect : shape.rects) {
+    int first_col = static_cast<int>(std::lround(rect.x)), end_col = static_cast<int>(std::lround(rect.x + rect.w));
+    int first_row = static_cast<int>(std::lround(rect.y)), end_row = static_cast<int>(std::lround(rect.y + rect.h));
+    if (rect.h == shape.thickness) {
+      uint8_t edge = rect.y < y0 + 0.5 ? EDGE_TOP : EDGE_BOTTOM;
+      int r = edge == EDGE_TOP ? static_cast<int>(y0) : static_cast<int>(y0) + static_cast<int>(whole.rows) - 1;
+      for (int c = first_col; c < end_col; c++) add(r, c, edge);
+    } else {
+      uint8_t edge = rect.x < x0 + 0.5 ? EDGE_LEFT : EDGE_RIGHT;
+      int c = edge == EDGE_LEFT ? static_cast<int>(x0) : static_cast<int>(x0) + static_cast<int>(whole.cols) - 1;
+      for (int r = first_row; r < end_row; r++) add(r, c, edge);
+    }
+  }
+  for (const auto & [at, mask] : edges) root().borders_.push_back(CellBorder{ at.first, at.second, mask, band.border_color });
 }
 
 bool BufferPlane::pixelSize(int & height, int & width) const {
@@ -691,15 +739,25 @@ void BufferPlane::drawReader() {
   p.erase();
   p.style_ = CellBuffer::Style{};
   p.style_.fg = reader_color_;
+  if (reader_backdrop_) {
+    p.style_.bg = *reader_backdrop_;
+    p.putstr(0, 0, std::string(static_cast<size_t>(p.getDim().second), ' '));
+  }
   LineEditor::View v = editor_->view(p.getDim().second);
   p.putstr(0, 0, v.text);
   reader_cursor_ = v.cursor_column;
+}
+
+void BufferPlane::setReaderBackdrop(const Color & c) {
+  reader_backdrop_ = c;
+  drawReader();
 }
 
 std::string BufferPlane::closeReader() {
   std::string text = editor_ ? editor_->text() : "";
   if (root().active_reader_ == this) root().active_reader_ = nullptr;
   editor_.reset();
+  reader_backdrop_.reset();
   reader_plane_.reset();
   indicator_.reset();
   return text;

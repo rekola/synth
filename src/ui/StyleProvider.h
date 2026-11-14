@@ -76,8 +76,8 @@ class StyleProvider : public cellui::StyleProvider {
     float left = 1.0f - static_cast<float>(age_seconds / kNoteFlashSeconds);
     return reduced_motion ? (left > 0.5f ? 1.0f : 0.0f) : left;
   }
-  // How much of a full flash a note of this velocity (0 to 127) gets: half, up to all.
-  static float velocityFlash(int velocity) { return 0.5f + 0.5f * static_cast<float>(std::clamp(velocity, 0, 127)) / 127.0f; }
+  // How much of a full flash a note of this velocity (0 to 255) gets: half, up to all.
+  static float velocityFlash(int velocity) { return 0.5f + 0.5f * static_cast<float>(std::clamp(velocity, 0, 255)) / 255.0f; }
   // `c` lit by `flash` (0 to 1): its brightest channel taken from where it is toward
   // the larger of kNoteFlashGain times that and kNoteFlashPeak.
   static Color lit(const Color & c, float flash) {

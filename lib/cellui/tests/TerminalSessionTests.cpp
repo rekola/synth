@@ -1,5 +1,6 @@
 #include "TestFramework.h"
 
+#include <cellui/BufferPlane.h>
 #include <cellui/term/TerminalSession.h>
 
 #include <atomic>
@@ -216,4 +217,82 @@ TEST(session_restores_the_terminal_when_killed) {
   struct termios t;
   tcgetattr(term.slave(), &t);
   CHECK((t.c_lflag & ICANON) && (t.c_lflag & ECHO));
+}
+
+namespace {
+
+// Shows one picture through `session` and returns the ids the terminal was sent.
+void showPicture(TerminalSession & session) {
+  StyleProvider styles;
+  CellBuffer frame(30, 100);
+  BufferPlane root(frame, styles);
+  const auto & d = session.capabilities().display;
+  root.setCellPixelSize(d.cell_px_height, d.cell_px_width);
+  auto chart = root.createChild();
+  chart->resize(2, 3);
+  chart->drawImage(std::vector<uint32_t>(6 * 12, Image::pack(10, 20, 30)), 6, 12);
+  root.refresh();
+  session.present(frame, {}, root.images());
+}
+
+size_t countOf(const std::string & s, const std::string & part) {
+  size_t n = 0;
+  for (size_t at = s.find(part); at != std::string::npos; at = s.find(part, at + 1)) n++;
+  return n;
+}
+
+}  // namespace
+
+TEST(session_deletes_the_images_it_sent_by_id_when_it_closes_and_never_all) {
+  FakeTerminal term(readFixture("kitty"));
+  auto session = TerminalSession::open(testOptions(term.slave()));
+  CHECK(session != nullptr);
+  if (!session) return;
+  CHECK(session->capabilities().pixels == PixelProtocol::KITTY);
+  showPicture(*session);
+  CHECK(term.waitFor("a=t,"));
+  session->close();
+  CHECK(term.waitFor("\x1b[?1049l"));
+  std::string out = term.output();
+  // The picture's data and placements are deleted, ahead of leaving the screen, and no delete-all is sent.
+  size_t del = out.find("a=d,d=I,i=1,q=1");
+  CHECK(del != std::string::npos && del < out.rfind("\x1b[?1049l"));
+  CHECK(out.find("a=d,q=1") == std::string::npos && out.find("d=A") == std::string::npos && out.find("d=a") == std::string::npos);
+  CHECK(countOf(out, "a=d,d=I,i=1,") == 1);
+}
+
+TEST(session_in_tmux_sends_no_kitty_graphics_and_clears_its_pictures_on_close) {
+  // A terminal that answers the kitty query (it would not under tmux) and Sixel; tmux still gets Sixel.
+  std::string replies = readFixture("xterm");
+  replies.insert(replies.rfind("\x1b[?"), "\x1b_Gi=31;OK\x1b\\");
+  FakeTerminal term(replies);
+  SessionOptions o = testOptions(term.slave());
+  o.env.tmux = true;
+  auto session = TerminalSession::open(o);
+  CHECK(session != nullptr);
+  if (!session) return;
+  CHECK(session->capabilities().pixels == PixelProtocol::SIXEL);
+  showPicture(*session);
+  CHECK(term.waitFor("\x1bP0;"));
+  session->close();
+  CHECK(term.waitFor("\x1b[?1049l"));
+  std::string out = term.output();
+  CHECK(out.find("\x1b_G") == std::string::npos);
+  // The Sixel picture is wiped with the alternate screen.
+  CHECK(out.rfind("\x1b[2J") != std::string::npos && out.rfind("\x1b[2J") < out.rfind("\x1b[?1049l"));
+}
+
+TEST(session_in_tmux_without_sixel_has_no_pictures_and_writes_none) {
+  FakeTerminal term(readFixture("kitty"));
+  SessionOptions o = testOptions(term.slave());
+  o.env.term = "screen-256color";
+  auto session = TerminalSession::open(o);
+  CHECK(session != nullptr);
+  if (!session) return;
+  CHECK(session->capabilities().pixels == PixelProtocol::NONE && !session->capabilities().display.pictures);
+  showPicture(*session);
+  session->close();
+  CHECK(term.waitFor("\x1b[?1049l"));
+  std::string out = term.output();
+  CHECK(out.find("\x1b_G") == std::string::npos && out.find("\x1bP0;") == std::string::npos);
 }

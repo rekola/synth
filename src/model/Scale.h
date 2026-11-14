@@ -35,6 +35,10 @@ enum class Scale {
   KITMUM,     // Mixolydian C D E F G A B♭
   PITUM,      // Aeolian    C D E♭ F G A♭ B♭
 
+  // Ten notes of the Pythagorean gamut: the Greek Phrygian key as Athenaeus
+  // uses it (docs/glossary.md).
+  PHRYGIAN_TONOS,
+
   // Arabic
   RAST,
   BAYATI,
@@ -68,6 +72,8 @@ static inline std::string to_string(Scale scale) {
     return "kitmum";
   case Scale::PITUM:
     return "pitum";
+  case Scale::PHRYGIAN_TONOS:
+    return "phrygian-tonos";
   case Scale::RAST:
     return "rast";
   case Scale::BAYATI:
@@ -115,6 +121,8 @@ static inline std::string scaleLabel(Scale scale) {
       return "Kitmum";
     case Scale::PITUM:
       return "Pītum";
+    case Scale::PHRYGIAN_TONOS:
+      return "Phrygian tonos";
     case Scale::RAST:
       return "Rāst";
     case Scale::BAYATI:
@@ -147,6 +155,7 @@ static inline Scale scaleFromString(const std::string & text) {
   if (text == "qablitum") return Scale::QABLITUM;
   if (text == "kitmum") return Scale::KITMUM;
   if (text == "pitum") return Scale::PITUM;
+  if (text == "phrygian-tonos") return Scale::PHRYGIAN_TONOS;
   if (text == "rast") return Scale::RAST;
   if (text == "bayati") return Scale::BAYATI;
   if (text == "hijaz") return Scale::HIJAZ;
@@ -189,6 +198,23 @@ inline constexpr std::array<Ratio, 7> kQablitumRatios = {Ratio{1, 1}, Ratio{9, 8
 inline constexpr std::array<Ratio, 7> kKitmumRatios = {Ratio{1, 1}, Ratio{9, 8}, Ratio{81, 64}, Ratio{4, 3}, Ratio{3, 2}, Ratio{27, 16}, Ratio{16, 9}};
 // C D E♭ F G A♭ B♭
 inline constexpr std::array<Ratio, 7> kPitumRatios = {Ratio{1, 1}, Ratio{9, 8}, Ratio{32, 27}, Ratio{4, 3}, Ratio{3, 2}, Ratio{128, 81}, Ratio{16, 9}};
+// The Greek Phrygian key as Athenaeus uses it, diatonic and chromatic mixed: ten
+// degrees of one chain of fifths, with West's names (Ancient Greek Music, 1992,
+// no. 12 and Fig. 10.1; his root is a, here C) and the Greek degrees:
+//  1/1       C   a       mese
+//  256/243   C♯↑ b-flat  trite synemmenon
+//  9/8       D   b       paramese; chromatic paranete synemmenon
+//  32/27     E♭↓ c, c'   parhypate hypaton; trite diezeugmenon
+//  4/3       F   d'      nete synemmenon; paranete diezeugmenon
+//  1024/729  F♯↑ e-flat' not in Fig. 10.1; a limma above d'
+//  3/2       G   e, e'   hypate meson; nete diezeugmenon
+//  128/81    A♭↓ f, f'   parhypate meson; trite hyperbolaion
+//  27/16     A↑  g-flat' chromatic paranete hyperbolaion
+//  243/128   B↑  g-sharp outside the tetrachords; a limma below mese
+// Chromatic tetrachords are tuned limma, apotome, minor third (256/243, 2187/2048,
+// 32/27), so the chromatic third note is a 9/8 tone above the tetrachord's base
+// and coincides with the paramese. Archytas' septimal chromatic (28/27) is not this.
+inline constexpr std::array<Ratio, 10> kPhrygianTonosRatios = {Ratio{1, 1}, Ratio{256, 243}, Ratio{9, 8}, Ratio{32, 27}, Ratio{4, 3}, Ratio{1024, 729}, Ratio{3, 2}, Ratio{128, 81}, Ratio{27, 16}, Ratio{243, 128}};
 // C D E F G A B
 inline constexpr std::array<Ratio, 7> kMajorRatios = {Ratio{1, 1}, Ratio{9, 8}, Ratio{5, 4}, Ratio{4, 3}, Ratio{3, 2}, Ratio{5, 3}, Ratio{15, 8}};
 // C D E♭ F G A♭ B♭
@@ -211,6 +237,7 @@ static_assert(allInGamut(kNidQablimRatios, gamut::kPythagorean));
 static_assert(allInGamut(kQablitumRatios, gamut::kPythagorean));
 static_assert(allInGamut(kKitmumRatios, gamut::kPythagorean));
 static_assert(allInGamut(kPitumRatios, gamut::kPythagorean));
+static_assert(allInGamut(kPhrygianTonosRatios, gamut::kPythagorean));
 static_assert(allInGamut(kMajorRatios, gamut::kDuodene));
 static_assert(allInGamut(kMinorRatios, gamut::kDuodene));
 
@@ -236,6 +263,7 @@ static inline bool isBabylonianMode(Scale scale) {
     case Scale::QABLITUM:
     case Scale::KITMUM:
     case Scale::PITUM:
+    case Scale::PHRYGIAN_TONOS:
       return true;
     default:
       return false;
@@ -273,6 +301,8 @@ static inline std::optional<JustScale> justScale(Scale scale) {
       return JustScale{gamut::kPythagorean, std::nullopt, kKitmumRatios};
     case Scale::PITUM:
       return JustScale{gamut::kPythagorean, std::nullopt, kPitumRatios};
+    case Scale::PHRYGIAN_TONOS:
+      return JustScale{gamut::kPythagorean, std::nullopt, kPhrygianTonosRatios};
     default:
       break;
   }
@@ -325,7 +355,8 @@ static inline std::vector<std::string_view> scaleDegreeNames(Scale scale) {
   case Scale::NID_QABLIM:
   case Scale::QABLITUM:
   case Scale::KITMUM:
-  case Scale::PITUM: {
+  case Scale::PITUM:
+  case Scale::PHRYGIAN_TONOS: {
     std::vector<std::string_view> names;
     auto just = justScale(scale);
     if (!just) return names;

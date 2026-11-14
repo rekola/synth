@@ -1008,11 +1008,8 @@ TEST(sixel_gradient_with_few_colours_is_dithered_when_it_is_stretched) {
 
 // The bytes the picture encoder makes for pictures of every kind it meets, as a hash, so a change that is
 // only meant to make it faster is shown to leave them alone. The pictures are made by arithmetic here
-// (not drawn), so they are the same on every platform. The bytes are not: the median cut sorts colours
-// by one channel with std::sort, and which of two colours with the same level comes first is the
-// library's own, so a palette, and its bytes, differ between libstdc++ and libc++. The hash is held
-// where it was made (libstdc++); elsewhere the encoder is only run. A change that is meant to change
-// the bytes (a better palette) updates the hash and says why.
+// (not drawn), so they are the same on every platform. A change that is meant to change the bytes (a
+// better palette) updates the hashes and says why.
 namespace {
 
 uint64_t fnv1a(const std::string & s) {
@@ -1078,11 +1075,96 @@ TEST(the_picture_encoder_makes_the_same_bytes_for_every_kind_of_picture) {
       }
     }
   }
-#if defined(__GLIBCXX__)
-  CHECK(all == 0x061fff1a2051dd63ull);
-#else
-  (void)all;
-#endif
+  CHECK(all == 0xdf7c302d45378536ull);
+}
+
+// Cell borders: each edge of a colour is a picture sent once and kept; a bordered cell is one placement per
+// edge, put without moving the cursor, and a frame sends only the placements that came and went.
+namespace {
+
+CellBorder border(int row, int col, uint8_t edges, Color color = Color(255, 0, 0)) { return CellBorder{ row, col, edges, color }; }
+
+size_t uploads(const std::string & s) { return count(s, "a=t,"); }
+size_t placements(const std::string & s) { return count(s, "a=p,"); }
+size_t removals(const std::string & s) { return count(s, "a=d,d=i,"); }
+
+}  // namespace
+
+TEST(kitty_borders_upload_four_pictures_once_and_place_each_edge) {
+  CellBuffer b(4, 8);
+  ImageEncoder enc(profile(PixelProtocol::KITTY));
+  std::string first = enc.encode(b, {}, false, { border(1, 2, EDGE_TOP | EDGE_BOTTOM | EDGE_LEFT | EDGE_RIGHT) });
+  CHECK(uploads(first) == 4);
+  CHECK(placements(first) == 4);
+  CHECK(removals(first) == 0);
+  // One placement per edge, the cell's own corner and the edge's pixel offset (cells are 2x6 pixels).
+  CHECK(count(first, "\x1b[2;3H") == 4);
+  CHECK(count(first, "X=0,Y=0,C=1,z=1") == 2);  // top and left; the right and bottom edges follow
+  CHECK(count(first, "X=1,Y=0,C=1") == 1);
+  CHECK(count(first, "X=0,Y=5,C=1") == 1);
+  // The same frame again sends nothing at all.
+  CHECK(enc.encode(b, {}, false, { border(1, 2, 15) }).empty());
+}
+
+TEST(kitty_borders_follow_a_moved_cell_and_keep_the_pictures) {
+  CellBuffer b(4, 8);
+  ImageEncoder enc(profile(PixelProtocol::KITTY));
+  enc.encode(b, {}, false, { border(1, 2, 15) });
+  // Moved: the four old placements go (the pictures stay), four new ones come, nothing is uploaded.
+  std::string moved = enc.encode(b, {}, false, { border(1, 3, 15) });
+  CHECK(removals(moved) == 4);
+  CHECK(count(moved, "a=d,d=I") == 0);
+  CHECK(placements(moved) == 4);
+  CHECK(uploads(moved) == 0);
+  CHECK(count(moved, "\x1b[2;4H") == 4);
+  // Only the edges that differ change.
+  std::string fewer = enc.encode(b, {}, false, { border(1, 3, EDGE_TOP | EDGE_LEFT) });
+  CHECK(removals(fewer) == 2 && placements(fewer) == 0);
+  // Gone altogether, then back: no upload for the colour it has.
+  std::string gone = enc.encode(b, {}, false, {});
+  CHECK(removals(gone) == 2 && placements(gone) == 0);
+  std::string back = enc.encode(b, {}, false, { border(0, 0, EDGE_RIGHT) });
+  CHECK(uploads(back) == 0 && placements(back) == 1);
+}
+
+TEST(kitty_borders_make_pictures_for_a_new_colour_and_a_clear_places_them_again) {
+  CellBuffer b(4, 8);
+  ImageEncoder enc(profile(PixelProtocol::KITTY));
+  enc.encode(b, {}, false, { border(0, 0, EDGE_TOP) });
+  std::string other = enc.encode(b, {}, false, { border(0, 0, EDGE_TOP, Color(0, 255, 0)) });
+  CHECK(uploads(other) == 4 && placements(other) == 1 && removals(other) == 1);
+  // The screen was cleared: what was placed is gone and goes up again, from the pictures kept.
+  std::string cleared = enc.encode(b, {}, true, { border(0, 0, EDGE_TOP, Color(0, 255, 0)) });
+  CHECK(uploads(cleared) == 0 && placements(cleared) == 1 && removals(cleared) == 0);
+  // clear() frees the pictures of both colours, and the next frame sends them anew.
+  std::string freed = enc.clear();
+  CHECK(count(freed, "a=d,d=I") == 8);
+  CHECK(uploads(enc.encode(b, {}, false, { border(0, 0, EDGE_TOP) })) == 4);
+}
+
+TEST(kitty_borders_are_for_kitty_with_a_known_cell_size_only) {
+  CellBuffer b(4, 8);
+  for (PixelProtocol protocol : { PixelProtocol::NONE, PixelProtocol::SIXEL, PixelProtocol::ITERM2 }) {
+    ImageEncoder enc(profile(protocol));
+    CHECK(enc.encode(b, {}, false, { border(1, 1, 15) }).empty());
+  }
+  ImageEncoder::Profile unknown = profile(PixelProtocol::KITTY);
+  unknown.cell_px_height = 0;
+  CHECK(ImageEncoder(unknown).encode(b, {}, false, { border(1, 1, 15) }).empty());
+}
+
+TEST(kitty_an_error_on_a_border_picture_frees_its_placements_and_sends_them_again) {
+  CellBuffer b(4, 8);
+  ImageEncoder enc(profile(PixelProtocol::KITTY));
+  enc.encode(b, {}, false, { border(1, 1, EDGE_TOP | EDGE_LEFT) });
+  // Whatever the error, the terminal's placements of that colour may be out of step with ours: every
+  // picture is freed by id alone (which takes all its placements with it) and the colour starts again.
+  CHECK(!enc.handleKittyReply("i=1;ENOENT:no such image").empty());
+  std::string again = enc.encode(b, {}, false, { border(1, 1, EDGE_TOP | EDGE_LEFT) });
+  CHECK(count(again, "a=d,d=I") == 4 && count(again, "a=d,d=i,") == 0);
+  CHECK(uploads(again) == 4 && placements(again) == 2);
+  // The pictures are never deflated or PNGs, so an error is never taken for a refused compression.
+  CHECK(enc.compressing());
 }
 
 // ---- The custom palette of a blurred backdrop: registers on the 101 levels, pixels never.

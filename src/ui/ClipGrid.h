@@ -294,6 +294,9 @@ class ClipGrid : public UIElement {
 
   // Clip and track rename share one editor; only one can be open at a time.
   InlineEditor inline_editor_{getPlane()};
+  // The track whose name the editor is open on: its header shows the number alone, so the
+  // proportional label is not squeezed (and ellipsized) into what the field leaves.
+  std::optional<int> renaming_track_id_;
 
   void ensureCursorVisible(int visible_rows, int visible_cols, int view_cols, int num_tracks);
   // Where a column starts on screen, in cells (negative: cut off at the left).

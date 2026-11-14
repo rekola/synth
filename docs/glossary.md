@@ -43,9 +43,16 @@ What the pattern editor adds to the notes played when its cursor is wider
 than one note column: the other notes of a chord of the song's scale that
 contains them (user-interface.md, Chord entry). Otonal and utonal songs only.
 
+<<<<<<< HEAD
+**Chord palette**
+The list of a degree's chords the pattern editor offers for the notes of an
+entry or the note under the cursor; moving through it writes and plays each
+(user-interface.md, Chord palette).
+=======
 **Cursor height**
 How many rows the pattern editor's cursor covers, from 1 to one bar: the same
 value as the edit step. Its first row is the cursor's position.
+>>>>>>> origin/main
 
 **Cursor width**
 How many note columns of its row the pattern editor's cursor covers, 1 to 4;
@@ -284,6 +291,14 @@ heptachord table show. Sources: Kilmer, "Mesopotamian Music Theory Since
 1977" (2014), which gives the Greek octave-species names; Gurney, "Babylonian
 Music Again" (1994); Krispijn (1990). The tuning text is UET VII 74.
 
+**Phrygian tonos**
+The Greek Phrygian key as Athenaeus uses it, diatonic and chromatic mixed: ten
+notes of the Pythagorean gamut (53-EDO only), 1/1 256/243 9/8 32/27 4/3 1024/729
+3/2 128/81 27/16 243/128 (C C♯↑ D E♭↓ F F♯↑ G A♭↓ A↑ B↑ on C). Chromatic
+tetrachords are tuned limma, apotome, minor third, so the chromatic third note is
+a 9/8 tone above the tetrachord's base. West's names for each degree are in
+`Scale.h`. Not Archytas' septimal chromatic, which has 28/27 as its lowest step.
+
 **Rhythm**
 A pre-written drum pattern in the Library, such as Waltz, Funk or Bossa
 Nova. It is content (which drum hits fall on which rows), where swing is
@@ -376,10 +391,10 @@ timing and decay. Here it appears as:
   additive.md.
 
 **Velocity**
-How hard a note is struck, 0 to 127 (two hex digits, `00` to `7f`). One field per
+How hard a note is struck, 0 to 255 (two hex digits, `00` to `ff`; one bit more than a MIDI 1.0 velocity, which is widened on input). One field per
 note: on a note-on the strike velocity, on an OFF the *lift*, on aftertouch the
 pressure. Velocity 0 is a real note-on that starts from silence; an OFF is its own
-kind of cell and is never told by its velocity. 64 is *neutral velocity*, what code
+kind of cell and is never told by its velocity. 128 is *neutral velocity*, what code
 gives a note made without one and what a song file leaves out; the editor and the
-pad controllers give a new note-on 100 (the *default note-on velocity*) and a new
+pad controllers give a new note-on 200 (the *default note-on velocity*) and a new
 OFF the neutral one.

@@ -10,20 +10,20 @@
   
   <arrangement>
     <pattern track="0">
-      <note row="0" velocity="40" value="C-4" />
-      <note row="2" velocity="40" value="D#4" />
-      <note row="4" velocity="40" value="F-4" />
-      <note row="6" velocity="40" value="G-4" />
-      <note row="8" velocity="40" value="A#4" />
-      <note row="10" velocity="40" value="B-4" />
-      <note row="12" velocity="40" value="C-5" />
-      <note row="16" velocity="40" value="C-4" />
-      <note row="18" velocity="40" value="E𝄫4" />
-      <note row="20" velocity="40" value="F-4" />
-      <note row="22" velocity="40" value="G-4" />
-      <note row="24" velocity="40" value="A-4" />
-      <note row="26" velocity="40" value="Bb4" />
-      <note row="28" velocity="40" value="C-5" />
+      <note row="0" velocity="80" value="C-4" />
+      <note row="2" velocity="80" value="D#4" />
+      <note row="4" velocity="80" value="F-4" />
+      <note row="6" velocity="80" value="G-4" />
+      <note row="8" velocity="80" value="A#4" />
+      <note row="10" velocity="80" value="B-4" />
+      <note row="12" velocity="80" value="C-5" />
+      <note row="16" velocity="80" value="C-4" />
+      <note row="18" velocity="80" value="E𝄫4" />
+      <note row="20" velocity="80" value="F-4" />
+      <note row="22" velocity="80" value="G-4" />
+      <note row="24" velocity="80" value="A-4" />
+      <note row="26" velocity="80" value="Bb4" />
+      <note row="28" velocity="80" value="C-5" />
     </pattern>
   </arrangement>
 </song>

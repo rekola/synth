@@ -51,21 +51,24 @@ inline const std::string_view keyToMidiNote(int key, Tuning tuning, Scale scale)
         return "RD"; // 51 Ride Cymbal 1
     }
   } else if (isBabylonianMode(scale)) {
-    // The scale's seven degrees on z x c v b n m, then the tonic and second
-    // an octave up; the spellings are the gamut's own.
+    // The scale's degrees on z x c v b n m, then the tonic and second
+    // an octave up (Phrygian tonos: its ten degrees fill the row, with
+    // none left over); the spellings are the gamut's own.
     static const std::map<Scale, std::vector<std::string>> table = [] {
       std::map<Scale, std::vector<std::string>> out;
-      for (auto mode : {Scale::NIS_TUHRIM, Scale::ISARTUM, Scale::EMBUBUM, Scale::NID_QABLIM, Scale::QABLITUM, Scale::KITMUM, Scale::PITUM}) {
+      for (auto mode : {Scale::NIS_TUHRIM, Scale::ISARTUM, Scale::EMBUBUM, Scale::NID_QABLIM, Scale::QABLITUM, Scale::KITMUM, Scale::PITUM, Scale::PHRYGIAN_TONOS}) {
         auto & keys = out[mode];
         for (auto name : scaleDegreeNames(mode)) keys.emplace_back(name);
-        keys.push_back(keys[0] + "'");
-        keys.push_back(keys[1] + "'");
+        if (keys.size() < 10) {
+          keys.push_back(keys[0] + "'");
+          keys.push_back(keys[1] + "'");
+        }
       }
       return out;
     }();
-    static constexpr std::string_view kKeys = "zxcvbnm,.";
+    static constexpr std::string_view kKeys = "zxcvbnm,./";
     auto at = key >= 0 && key < 128 ? kKeys.find(static_cast<char>(key)) : std::string_view::npos;
-    if (at != std::string_view::npos) return table.at(scale)[at];
+    if (at != std::string_view::npos && at < table.at(scale).size()) return table.at(scale)[at];
   } else if (scale == Scale::RAST) {
     switch (key) {
       case 'z':

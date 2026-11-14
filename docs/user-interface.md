@@ -33,6 +33,8 @@ works in both. The commands that have one so far:
 | `set-mark` (start a selection; on the desktop Shift+arrows set it and extend it) | Shift+Up/Down/Left/Right | C-SPC |
 | `keyboard-quit` (cancel the selection) | Escape | C-g |
 | `mark-whole-buffer` (select all) | Ctrl+A | C-x h |
+| `widen-cursor`, `narrow-cursor` (the pattern editor's cursor, in note columns; the size of the chords in the open chord palette) | Ctrl+Shift+Right, Ctrl+Shift+Left | C-S-Right, C-S-Left |
+| `chord-palette` (open the chord palette; Up and Down choose in it) | Ctrl+Space | M-/ |
 | `toggle-stop-button` (clip grid) | Ctrl+E | |
 | `stop-track-clips` (the cursor track's clips, not the others) | Ctrl+Enter | |
 | `back-to-arrangement` | F10 | F10 |
@@ -193,7 +195,7 @@ pressed; Enter commits it and moves to the next column. A delay needs a note (or
 aftertouch) to belong to, so typing one on an empty column is refused; a velocity
 there makes an aftertouch. An OFF row shows its release velocity (its *lift*) in the velocity
 column and edits it the same way; velocity 00 on a note-on is a real note that starts from silence, never an OFF. `?` in the note column enters a lost note, `???`: a note whose pitch is unknown; it makes no sound but ends the previous note in its column. A lost note and a lacuna show `--` in the velocity and delay columns, which refuse a typed value. `~` enters a lacuna, `~~~`: a span of missing notes, which makes no sound and ends the previous note in the same way.
-A newly entered note-on gets velocity 100 (shown `64`), a newly entered OFF the neutral 64 (shown `40`),
+A newly entered note-on gets velocity 200 (shown `c8`), a newly entered OFF the neutral 128 (shown `80`),
 Launchpads included. A command is text and is written as it is typed. Typed digits are amalgamated as Emacs does with typed characters: the hex
 digits of a velocity or delay, the characters of a command, and typed notes
 (a chord counts as one, an off or a delete as one), run on from one cell to the
@@ -225,10 +227,11 @@ so changing the edit step changes the height at once.
 Each of them shows the new edit step on the status line.
 
 - The cursor's position is its first row. Notes, chords and every command
-  that acts at the cursor act there. The first row is drawn as a cursor one row
-  high is; the rows below it are tinted faintly across the cursor's width.
-  Nothing is entered or played in those rows: they show where the next entry
-  will go, which is the row just below the last of them.
+  that acts at the cursor act there. The cursor's own mark, the lighter
+  colour over its columns on a terminal and the border round them in a
+  window, reaches down over all its rows; the cell being edited is marked in
+  the first row only. Nothing is entered or played in the rows below the
+  first: the next entry goes in the row just below the last of them.
 - The height is at least 1 and at most one bar at the cursor (16 rows in 4/4).
   There is no edit step of 0 any more: `set-edit-step-0` and Ctrl-0 are gone, and
   the cursor always moves on after an entry. Where the bar is shorter than the
@@ -285,16 +288,18 @@ other chords written short say how many notes they have. One entry is one
 undo step.
 
 A played note is written and sounds as its key goes down. The completion
-comes when no further key has been pressed for about 0.08 s, or when the keys
+comes when no further key has been pressed for about 0.04 s, or when the keys
 are all released, whichever is first. The added notes are written together
-and sound one after another from the lowest, the same 0.08 s apart: with C
-held, E follows 0.08 s after the key press and G 0.08 s after E. After a
-quick tap, released before the 0.08 s have passed, the time the key was down
-is the time between the notes, and the chord rings on for a moment. Keys
+and sound one after another from the lowest, each gap half the one before:
+with C held, E follows 0.04 s after the key press, G 0.02 s after E and the
+fourth note 0.01 s after G. After a quick tap, released before the 0.04 s
+have passed, the time the key was down takes the place of the 0.04 s, and
+the chord rings on for a moment. The gaps are kept only as finely as the
+display draws frames, so the shortest ones can run together. Keys
 released while notes are still to come end the chord there. Another key
 pressed while keys are held works the chord out again from the held notes.
 The cursor steps on when the keys are released. On a terminal that reports
-no key releases the completion comes when the 0.08 s have passed, and the
+no key releases the completion comes when the 0.04 s have passed, and the
 cursor steps on then.
 
 Nothing is added when the cursor is one column wide, when you play as many
@@ -303,6 +308,44 @@ columns if it needs them), when the lowest note is not a note of the scale,
 and when no chord of the degree contains all the notes, which the status line
 says. Other scales have no chords: the cursor widens all the same, and notes
 played together are written side by side as they are played.
+
+## Chord palette
+
+`chord-palette` (M-/, or Ctrl+Space on the desktop keymap) opens the chord
+palette, a list of a degree's chords to choose from, across the bottom rows
+of the pattern editor like the command palette. It works like a candidate
+window in Japanese text input: each move writes the chord it lands on.
+
+- **What it acts on.** If the last thing you did was enter notes, and nothing
+  has been edited or moved since, it acts on that entry, although the cursor
+  has stepped on: the given notes are the notes you played, not the ones a
+  completion added. Otherwise it acts at the cursor, and the note in the
+  cursor's first column is the one given note. To change a chord entered
+  earlier, put the cursor on its lowest note and open the palette. With no
+  note there, a note that is not a note of the scale, or a song whose scale
+  is not otonal or utonal, the palette does not open and the status line says
+  why.
+- **Size.** The chords of the palette have 2 to 4 notes. The size starts at
+  the cursor's width; with a cursor of one column, at the size last used
+  there, 4 the first time. So with a narrow cursor you can play one or more
+  notes and open the palette to complete them. While it is open,
+  `widen-cursor` and `narrow-cursor` change the size and leave the cursor's
+  width alone.
+- **Lines.** One line per completion of the given notes at that size, found
+  as for [chord entry](#chord-entry) and in the same order, no chord twice:
+  its name, then its notes.
+- **Opening** selects the chord now in the pattern, if it is in the list, and
+  plays it. If it is not (two notes played with a narrow cursor, say), the
+  first chord is selected and written.
+- **Up and Down** move the selection, round the list. Each move writes the
+  selected chord in place of the last and plays it on the track's instrument,
+  tuned as it sounds in the song, for a moment or until the selection moves.
+  A chord of fewer notes empties the columns it leaves.
+- **Enter** accepts; so do the palette's own key, any other key (which then
+  does what it always does) and a click. `keyboard-quit` (C-g, or Escape on
+  the desktop keymap) cancels and puts back the notes that were there when
+  the palette opened.
+- One session is one undo step, however many chords were tried.
 
 ## Just intonation
 
@@ -320,7 +363,7 @@ nothing else:
 | --- | --- |
 | major, minor | duodene (Ellis's 12 notes: 1/1 16/15 9/8 6/5 5/4 4/3 45/32 3/2 8/5 5/3 9/5 15/8) |
 | otonal, utonal | the extended diamond (33 ratios; [extended-diamond.md](extended-diamond.md)) |
-| the seven Babylonian modes (nīš tuḫrim, išartum, embūbum, nīd qablim, qablītum, kitmum, pītum) | Pythagorean (53-EDO only) |
+| the seven Babylonian modes (nīš tuḫrim, išartum, embūbum, nīd qablim, qablītum, kitmum, pītum) and Phrygian tonos | Pythagorean (53-EDO only) |
 | none, the maqamat | no gamut: tempered, no corrections |
 
 Each key, a step above the song's key, gets the gamut note whose nearest step
@@ -413,7 +456,7 @@ notes between them on the home row (the tritone on `g`, between F and G), and
 the notes that cluster round the tonic and the tritone on the upper row. The
 `[` and `]` keys are octave down and up, so B♯ is on `p`. A song with any
 other scale (or none) keeps its own layouts, which do not follow the scale;
-the Babylonian modes and the maqām Rāst have theirs. The Launchpad's step view
+the Babylonian modes, Phrygian tonos (ten degrees on `z` to `/`) and the maqām Rāst have theirs. The Launchpad's step view
 steps through all eighteen notes of the scale.
 
 ## Terminal

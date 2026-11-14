@@ -176,8 +176,9 @@ Controller-level and per-widget commands. Not migrated: `StatusLine`,
   value: `edit-step-increase`/`-decrease`, `set-edit-step-1`..`9`), from 1 to
   the bar at the cursor (`PatternSource::barRows()`; `fitEditStep()` reduces
   it in `render()` and `keyDown()` when the bar is shorter). Entry and every
-  command act on the first row; the rows below are only drawn
-  (`StyleProvider::cursorBodyTint()`, in `renderRow()`, not while the cursor
+  command act on the first row; the rows below are only drawn (the cursor's
+  band in `updateCursorBands()` is that tall, `Band::border_skip_rows` keeping
+  the field's gap in the border to the first row; one row while the cursor
   is a playhead) - except Delete and Backspace, which empty the whole
   rectangle (`cursorRows()` cuts it off at the pattern's end).
 - With a wide cursor a note key goes to `enterChordKey()`, not the single-note
@@ -189,10 +190,24 @@ Controller-level and per-widget commands. Not migrated: `StatusLine`,
   (`tickChordEntry()`, from `render()`) or the last key is released. A held
   key's voice stays on the column it started on, whatever column its note is
   written in; added notes sound on free columns (`freeVoiceColumn()`),
-  one after another (`Arpeggio`, an interval apart; a tap's length after a
-  quick tap), though they are written at once. The
+  one after another (`Arpeggio`: the first with the completion, each gap
+  after it half the one before, starting from half the interval or half a
+  quick tap's length; played from `render()`, so no finer than a frame), though they are written at once. The
   entry holds the note-held undo group open, so it is one step, and breaks
   the typing run on both sides.
+
+- The chord palette (`chord-palette`, `ChordPalette`) is the
+  editor's own panel on a child plane over its bottom rows, not a modal
+  dialog: `keyDown()` gives it its keys first (`chordPaletteKey()`: Up and Down
+  choose, the keys of `widen-cursor`/`narrow-cursor` size the chords, Enter
+  or its own key accepts, `keyboard-quit`'s cancels; any other key accepts
+  and is then handled as usual), and `isReaderActive()` keeps global
+  shortcuts off them. It acts on `last_entry_` (the notes played, recorded by
+  both entry paths) while the song's version and the cursor are as
+  `settleLastEntry()` left them, else on the note in the cursor's first
+  column. Its lines are `chords::complete()` at the palette's size;
+  `writePaletteChord()` rewrites the columns and auditions the chord. The
+  session holds the note-held undo group open; cancel writes `original` back.
 
 ## Cursor, focus and colours
 
