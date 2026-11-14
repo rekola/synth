@@ -195,11 +195,12 @@ Controller-level and per-widget commands. Not migrated: `StatusLine`,
   entry holds the note-held undo group open, so it is one step, and breaks
   the typing run on both sides.
 
-- The chord palette (`next-chord`/`previous-chord`, `ChordPalette`) is the
+- The chord palette (`chord-palette`, `ChordPalette`) is the
   editor's own panel on a child plane over its bottom rows, not a modal
-  dialog: `keyDown()` gives it its keys first (`chordPaletteKey()`: the keys
-  bound to its four commands, the arrows, Enter, Escape; any other key
-  accepts and is then handled as usual), and `isReaderActive()` keeps global
+  dialog: `keyDown()` gives it its keys first (`chordPaletteKey()`: Up and Down
+  choose, the keys of `widen-cursor`/`narrow-cursor` size the chords, Enter
+  or its own key accepts, `keyboard-quit`'s cancels; any other key accepts
+  and is then handled as usual), and `isReaderActive()` keeps global
   shortcuts off them. It acts on `last_entry_` (the notes played, recorded by
   both entry paths) while the song's version and the cursor are as
   `settleLastEntry()` left them, else on the note in the cursor's first

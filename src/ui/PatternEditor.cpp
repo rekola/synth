@@ -655,8 +655,8 @@ PatternEditor::PatternEditor(Plane & parent)
   // With the chord palette open they change the size of its chords instead.
   commands_.define("widen-cursor", [this]() { chord_palette_.open ? resizeChordPalette(1) : changeCursorWidth(1); });
   commands_.define("narrow-cursor", [this]() { chord_palette_.open ? resizeChordPalette(-1) : changeCursorWidth(-1); });
-  commands_.define("next-chord", [this]() { stepChordPalette(1); });
-  commands_.define("previous-chord", [this]() { stepChordPalette(-1); });
+  // Opens the palette; again, accepts what it shows.
+  commands_.define("chord-palette", [this]() { chord_palette_.open ? closeChordPalette(true) : stepChordPalette(0); });
 
   // "send-a-mode"/"send-b-mode" are NOT defined here (or anywhere in
   // commands_) - they mutate nothing outside a single Launchpad device's
@@ -692,6 +692,11 @@ PatternEditor::PatternEditor(Plane & parent)
   keymap_.bind(KeymapProfile::DESKTOP, KeyStroke::pack('r', true, false, false, false), "rename");
   keymap_.bind(KeyStroke::pack(Key::Up, false, false, false, false), "move-row-up");        // plain Up (was inline handling)
   keymap_.bind(KeyStroke::pack(Key::Down, false, false, false, false), "move-row-down");    // plain Down
+  keymap_.bind(KeyStroke::pack(Key::Right, true, false, true, false), "widen-cursor");      // Ctrl+Shift+Right
+  keymap_.bind(KeyStroke::pack(Key::Left, true, false, true, false), "narrow-cursor");      // Ctrl+Shift+Left
+  // Where each keymap asks for completions: Emacs's dabbrev-expand key, and the desktop's.
+  keymap_.bind(KeymapProfile::TERMINAL, KeyStroke::pack('/', false, true, false, false), "chord-palette"); // M-/
+  keymap_.bind(KeymapProfile::DESKTOP, KeyStroke::pack(' ', true, false, false, false), "chord-palette");  // Ctrl+Space
 
   assertCommandBindingsValid();
 }
@@ -4857,16 +4862,13 @@ void PatternEditor::stepChordPalette(int direction) {
   song.breakTypingRun();
   controller.setNoteHeld(true);
   fillChordPalette();
-  // The chord in the pattern is where the selection starts, and opening steps on from it.
+  // The chord in the pattern is where the selection starts; one that is no line of the list gives way to the first.
   int count = static_cast<int>(palette.lines.size());
   int found = -1;
   for (int i = 0; i < count; i++) {
     if (palette.lines[static_cast<size_t>(i)].notes == current) found = i;
   }
-  if (found >= 0)
-    palette.selected = ((found + direction) % count + count) % count;
-  else
-    palette.selected = direction > 0 ? 0 : count - 1;
+  palette.selected = found >= 0 ? ((found + direction) % count + count) % count : 0;
   writePaletteChord();
 }
 
@@ -4970,22 +4972,22 @@ void PatternEditor::closeChordPalette(bool accept) {
 }
 
 bool PatternEditor::chordPaletteKey(const cellui::KeyDown & e) {
-  // The commands that act on the open palette, by whatever keys they are bound to.
+  // One key each: Up and Down choose, the cursor's width keys size the chords,
+  // Enter or the palette's own key accepts, keyboard-quit cancels.
   if (auto name = keymap_.lookup(KeyStroke::pack(e.key, e.mods.ctrl, e.mods.alt, e.mods.shift, e.mods.meta), keymapProfile())) {
-    if (*name == "next-chord" || *name == "previous-chord" || *name == "widen-cursor" || *name == "narrow-cursor") return commands_.execute(*name);
+    if (*name == "chord-palette" || *name == "widen-cursor" || *name == "narrow-cursor") return commands_.execute(*name);
+    if (*name == "keyboard-quit") {
+      closeChordPalette(false);
+      return true;
+    }
   }
-  bool plain = !e.mods.ctrl && !e.mods.alt && !e.mods.meta && !e.mods.shift;
-  bool terminal = keymapProfile() == KeymapProfile::TERMINAL;
-  bool ctrl_only = e.mods.ctrl && !e.mods.alt && !e.mods.meta && !e.mods.shift;
-  int letter = e.key >= 'A' && e.key <= 'Z' ? e.key - 'A' + 'a' : e.key;
-  if ((plain && e.key == Key::Down) || (terminal && ctrl_only && letter == 'n')) {
+  if (e.mods.ctrl || e.mods.alt || e.mods.meta || e.mods.shift) return false;
+  if (e.key == Key::Down) {
     stepChordPalette(1);
-  } else if ((plain && e.key == Key::Up) || (terminal && ctrl_only && letter == 'p')) {
+  } else if (e.key == Key::Up) {
     stepChordPalette(-1);
-  } else if (plain && e.key == Key::Enter) {
+  } else if (e.key == Key::Enter) {
     if (!e.repeat) closeChordPalette(true);
-  } else if ((plain && e.key == Key::Escape) || (terminal && ctrl_only && letter == 'g')) {
-    closeChordPalette(false);
   } else {
     return false;
   }
@@ -5043,7 +5045,7 @@ void PatternEditor::renderChordPalette() {
   plane.putstr(list_rows, 0, blank);
   auto title = fmt::format("Chord: {} notes", palette.size);
   plane.putstr(list_rows, 1, Utf8::truncateToWidth(title, cols - 2), cellui::kBoldFace);
-  const std::string hint = "Up/Down choose  Enter accept  Esc cancel";
+  const std::string hint = "Up/Down choose  Enter accept  " + bindingFor("keyboard-quit") + " cancel";
   int hint_width = Utf8::displayWidth(hint);
   if (Utf8::displayWidth(title) + hint_width + 4 <= cols) {
     set(quiet, styles.picker_bg_color);

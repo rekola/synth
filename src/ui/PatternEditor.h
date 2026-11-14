@@ -58,7 +58,8 @@ class PatternEditor : public UIElement {
   // is open, UI::keyDown() must not let a global keybinding (Space/
   // toggle-playing, C-x C-c/quit, ...) steal a keystroke meant for it.
   bool isReaderActive() const { return inline_editor_.isOpen() || chord_palette_.open; }
-  bool wantsBareEscape() const override { return chord_palette_.open; }
+  // The chord palette is cancelled by keyboard-quit's key, which is Escape on the desktop keymap only.
+  bool wantsBareEscape() const override { return chord_palette_.open && keymapProfile() == cellui::KeymapProfile::DESKTOP; }
   // The focus level is still easing: the loop keeps drawing frames.
   bool isAnimating() const {
     return fades_.active() || focus_fade_drawn_ || rowsShifted() || flash_decaying_ || chord_entry_.pending || palette_drawn_ != chord_palette_.open || audition_.active || !arpeggio_.values.empty();
@@ -452,7 +453,7 @@ private:
   };
   Audition audition_;
   static constexpr std::chrono::milliseconds kAuditionTime{600};
-  static constexpr std::chrono::milliseconds kCompletionInterval{80};
+  static constexpr std::chrono::milliseconds kCompletionInterval{40};
   // The notes a completion added, sounding one after another from the lowest:
   // kCompletionInterval apart, or as far apart as a quick tap was long. Only
   // the sound is spread out; the notes are written at once.
@@ -516,7 +517,7 @@ private:
   int palette_size_ = 4; // the size last used with a cursor of one column
   bool palette_drawn_ = false;
   std::unique_ptr<Plane> palette_plane_;
-  // Opens the palette on the next (1) or previous (-1) chord, or moves an open one.
+  // Moves the open palette's selection on (1) or back (-1); opens a closed one, `direction` lines from the chord in the pattern.
   void stepChordPalette(int direction);
   void fillChordPalette();
   void writePaletteChord();

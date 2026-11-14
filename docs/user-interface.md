@@ -33,6 +33,8 @@ works in both. The commands that have one so far:
 | `set-mark` (start a selection; on the desktop Shift+arrows set it and extend it) | Shift+Up/Down/Left/Right | C-SPC |
 | `keyboard-quit` (cancel the selection) | Escape | C-g |
 | `mark-whole-buffer` (select all) | Ctrl+A | C-x h |
+| `widen-cursor`, `narrow-cursor` (the pattern editor's cursor, in note columns; the size of the chords in the open chord palette) | Ctrl+Shift+Right, Ctrl+Shift+Left | C-S-Right, C-S-Left |
+| `chord-palette` (open the chord palette; Up and Down choose in it) | Ctrl+Space | M-/ |
 | `toggle-stop-button` (clip grid) | Ctrl+E | |
 | `stop-track-clips` (the cursor track's clips, not the others) | Ctrl+Enter | |
 | `back-to-arrangement` | F10 | F10 |
@@ -286,16 +288,16 @@ other chords written short say how many notes they have. One entry is one
 undo step.
 
 A played note is written and sounds as its key goes down. The completion
-comes when no further key has been pressed for about 0.08 s, or when the keys
+comes when no further key has been pressed for about 0.04 s, or when the keys
 are all released, whichever is first. The added notes are written together
-and sound one after another from the lowest, the same 0.08 s apart: with C
-held, E follows 0.08 s after the key press and G 0.08 s after E. After a
-quick tap, released before the 0.08 s have passed, the time the key was down
+and sound one after another from the lowest, the same 0.04 s apart: with C
+held, E follows 0.04 s after the key press and G 0.04 s after E. After a
+quick tap, released before the 0.04 s have passed, the time the key was down
 is the time between the notes, and the chord rings on for a moment. Keys
 released while notes are still to come end the chord there. Another key
 pressed while keys are held works the chord out again from the held notes.
 The cursor steps on when the keys are released. On a terminal that reports
-no key releases the completion comes when the 0.08 s have passed, and the
+no key releases the completion comes when the 0.04 s have passed, and the
 cursor steps on then.
 
 Nothing is added when the cursor is one column wide, when you play as many
@@ -307,11 +309,10 @@ played together are written side by side as they are played.
 
 ## Chord palette
 
-`next-chord` and `previous-chord` open the chord palette, a list of a
-degree's chords to choose from, across the bottom rows of the pattern editor
-like the command palette. It works like a candidate window in Japanese text
-input: the chord is already written when the palette opens, and each move
-writes another.
+`chord-palette` (M-/, or Ctrl+Space on the desktop keymap) opens the chord
+palette, a list of a degree's chords to choose from, across the bottom rows
+of the pattern editor like the command palette. It works like a candidate
+window in Japanese text input: each move writes the chord it lands on.
 
 - **What it acts on.** If the last thing you did was enter notes, and nothing
   has been edited or moved since, it acts on that entry, although the cursor
@@ -331,17 +332,17 @@ writes another.
 - **Lines.** One line per completion of the given notes at that size, found
   as for [chord entry](#chord-entry) and in the same order, no chord twice:
   its name, then its notes.
-- **Opening steps on.** If the chord now in the pattern is in the list,
-  `next-chord` opens on the one after it and `previous-chord` on the one
-  before; otherwise on the first, or the last. Pressing again moves on, round
-  the list, so one key steps through the choices.
-- **Moving** (Up and Down; C-n and C-p as well on the terminal keymap) writes
-  the selected chord in place of the last and plays it on the track's
-  instrument, tuned as it sounds in the song, for a moment or until the
-  selection moves. A chord of fewer notes empties the columns it leaves.
-- **Enter** accepts; so does any other key, which then does what it always
-  does, and a click. **Escape** (C-g on the terminal keymap) cancels and puts
-  back the notes that were there when the palette opened.
+- **Opening** selects the chord now in the pattern, if it is in the list, and
+  plays it. If it is not (two notes played with a narrow cursor, say), the
+  first chord is selected and written.
+- **Up and Down** move the selection, round the list. Each move writes the
+  selected chord in place of the last and plays it on the track's instrument,
+  tuned as it sounds in the song, for a moment or until the selection moves.
+  A chord of fewer notes empties the columns it leaves.
+- **Enter** accepts; so do the palette's own key, any other key (which then
+  does what it always does) and a click. `keyboard-quit` (C-g, or Escape on
+  the desktop keymap) cancels and puts back the notes that were there when
+  the palette opened.
 - One session is one undo step, however many chords were tried.
 
 ## Just intonation
