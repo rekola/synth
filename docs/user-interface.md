@@ -290,10 +290,12 @@ undo step.
 A played note is written and sounds as its key goes down. The completion
 comes when no further key has been pressed for about 0.04 s, or when the keys
 are all released, whichever is first. The added notes are written together
-and sound one after another from the lowest, the same 0.04 s apart: with C
-held, E follows 0.04 s after the key press and G 0.04 s after E. After a
-quick tap, released before the 0.04 s have passed, the time the key was down
-is the time between the notes, and the chord rings on for a moment. Keys
+and sound one after another from the lowest, each gap half the one before:
+with C held, E follows 0.04 s after the key press, G 0.02 s after E and the
+fourth note 0.01 s after G. After a quick tap, released before the 0.04 s
+have passed, the time the key was down takes the place of the 0.04 s, and
+the chord rings on for a moment. The gaps are kept only as finely as the
+display draws frames, so the shortest ones can run together. Keys
 released while notes are still to come end the chord there. Another key
 pressed while keys are held works the chord out again from the held notes.
 The cursor steps on when the keys are released. On a terminal that reports

@@ -4701,6 +4701,8 @@ void PatternEditor::playArpeggio(std::chrono::steady_clock::time_point now) {
                                                                               arpeggio_.values.front(), constants::DEFAULT_NOTE_ON_VELOCITY));
     (arpeggio_.audition ? audition_.columns : chord_entry_.added_voices).push_back(column);
     arpeggio_.values.erase(arpeggio_.values.begin());
+    // Each gap is half the one before.
+    arpeggio_.interval /= 2;
     arpeggio_.next += arpeggio_.interval;
   }
 }

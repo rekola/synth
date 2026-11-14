@@ -454,16 +454,18 @@ private:
   Audition audition_;
   static constexpr std::chrono::milliseconds kAuditionTime{600};
   static constexpr std::chrono::milliseconds kCompletionInterval{40};
-  // The notes a completion added, sounding one after another from the lowest:
-  // kCompletionInterval apart, or as far apart as a quick tap was long. Only
-  // the sound is spread out; the notes are written at once.
+  // The notes a completion added, sounding one after another from the lowest.
+  // The first comes with the completion, kCompletionInterval after the key
+  // (or as long after it as a quick tap lasted), and each gap after that is
+  // half the one before. Only the sound is spread out; the notes are written
+  // at once. A gap shorter than a frame of the display is not kept apart.
   struct Arpeggio {
     int track_id = -1;
     int from_column = 0;
     bool audition = false;   // after the keys were released: the audition ends the notes
     std::vector<int> values; // still to sound, rising
     std::chrono::steady_clock::time_point next;
-    std::chrono::steady_clock::duration interval{};
+    std::chrono::steady_clock::duration interval{}; // the gap before the note last played
   };
   Arpeggio arpeggio_;
   void playArpeggio(std::chrono::steady_clock::time_point now);
