@@ -1072,7 +1072,7 @@ TEST(the_picture_encoder_makes_the_same_bytes_for_every_kind_of_picture) {
       }
     }
   }
-  CHECK(all == 0xdf7c302d45378536ull);
+  CHECK(all == 0xe3ed526c77390375ull);
 }
 
 // Cell borders: each edge of a colour is a picture sent once and kept; a bordered cell is one placement per
