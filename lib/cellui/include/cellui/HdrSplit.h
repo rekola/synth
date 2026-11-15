@@ -12,8 +12,10 @@ struct HdrLayers {
   // R, G, B, A bytes, width*height of them: the picture as Color::toSrgb8() maps each colour (the gamut
   // mapped in, light past white scaled to fit and washed toward white).
   std::vector<uint32_t> base;
-  // R, G, B, A bytes, opaque, the light past white in linear sRGB, a channel's excess over 1 as a share
-  // of kHdrGlowRange, sRGB encoded. Empty when nothing in the picture is past white.
+  // R, G, B, A bytes (straight alpha), the light past white in linear sRGB: the colour is each channel's
+  // excess over 1 scaled so the strongest is full (the light's hue, sRGB encoded), the alpha how much of
+  // it there is, the strongest excess as a share of kHdrGlowRange, sRGB encoded. A pixel with none is
+  // transparent. Empty when nothing in the picture is past white.
   std::vector<uint32_t> glow;
 };
 
