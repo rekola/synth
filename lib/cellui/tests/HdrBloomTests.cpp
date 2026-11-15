@@ -9,9 +9,10 @@ Image lamp(int w, int h, float level) {
   Image img;
   img.width = w;
   img.height = h;
-  img.hdr.assign(static_cast<size_t>(w) * h * 4, 0.0f);
-  for (size_t i = 0; i < static_cast<size_t>(w) * h; i++) img.hdr[i * 4 + 3] = 1.0f;
-  size_t mid = static_cast<size_t>(h / 2) * w + w / 2;
+  const size_t pixels = static_cast<size_t>(w) * static_cast<size_t>(h);
+  img.hdr.assign(pixels * 4, 0.0f);
+  for (size_t i = 0; i < pixels; i++) img.hdr[i * 4 + 3] = 1.0f;
+  size_t mid = static_cast<size_t>(h / 2) * static_cast<size_t>(w) + static_cast<size_t>(w / 2);
   img.hdr[mid * 4] = img.hdr[mid * 4 + 1] = img.hdr[mid * 4 + 2] = level;
   return img;
 }
@@ -41,7 +42,7 @@ TEST(flatten_hdr_more_light_reaches_further) {
   auto reach = [](float level) {
     Image out = flattenHdr(lamp(81, 81, level), 20);
     int n = 0;
-    for (int x = 40; x < 81; x++) n += Image::red(out.pixels[40 * 81 + x]) > 8;
+    for (size_t x = 40; x < 81; x++) n += Image::red(out.pixels[40u * 81u + x]) > 8;
     return n;
   };
   CHECK(reach(30.0f) > reach(3.0f));
