@@ -53,12 +53,45 @@ std::size_t gamutNote(Scale scale, const char * spelling) {
   return 0;
 }
 
-std::vector<std::string> namesOf(Scale scale, const char * degree) {
+std::vector<std::string> namesOf(Scale scale, const char * degree, int size = 4) {
   ScaleChords chords(scale, Tuning::EDO53, 0);
   std::vector<std::string> out;
-  for (auto entry : chords.chordsOf(gamutNote(scale, degree))) out.push_back(chords.chordName(*entry));
+  for (auto entry : chords.chordsOf(gamutNote(scale, degree), size)) out.push_back(chords.chordName(*entry));
   return out;
 }
+
+using NinthNames = std::vector<std::pair<const char *, std::vector<std::string>>>;
+const NinthNames kOtonalNinthNames = {
+    {"C", {"F harmonic ninth / C", "F major ninth / C", "C 7♯9 with fifth", "C harmonic ninth", "C mirror harmonic ninth", "C major ninth", "A mirror major ninth / C", "C mirror 7♯9 with fifth"}},
+    {"D♭↓", {"A mirror harmonic ninth / D♭↓"}},
+    {"D", {"C harmonic ninth / D", "C mirror harmonic ninth / D", "C major ninth / D"}},
+    {"D♯", {"F harmonic ninth / D♯", "C 7♯9 with fifth / D♯", "C mirror 7♯9 with fifth / D♯"}},
+    {"E", {"F major ninth / E", "C 7♯9 with fifth / E", "C harmonic ninth / E", "A mirror harmonic ninth / E", "C major ninth / E", "A mirror major ninth / E"}},
+    {"F♭", {"C mirror harmonic ninth / F♭"}},
+    {"F", {"F harmonic ninth", "F major ninth"}},
+    {"F♯↑", {"C mirror 7♯9 with fifth / F♯↑"}},
+    {"G", {"F harmonic ninth / G", "F major ninth / G", "C 7♯9 with fifth / G", "C harmonic ninth / G", "A mirror harmonic ninth / G", "C mirror harmonic ninth / G", "C major ninth / G", "A mirror major ninth / G", "C mirror 7♯9 with fifth / G"}},
+    {"A", {"F harmonic ninth / A", "F major ninth / A", "A mirror harmonic ninth", "A mirror major ninth"}},
+    {"A♯↑", {"C 7♯9 with fifth / A♯↑", "C harmonic ninth / A♯↑", "C mirror 7♯9 with fifth / A♯↑"}},
+    {"B♭", {"C mirror harmonic ninth / B♭"}},
+    {"B", {"A mirror harmonic ninth / B", "C major ninth / B", "A mirror major ninth / B"}},
+};
+
+const NinthNames kUtonalNinthNames = {
+    {"C", {"F mirror harmonic ninth / C", "F mirror major ninth / C", "E𝄫 mirror 7♯9 with fifth / C", "B♭↓ harmonic ninth / C", "B♭↓ mirror harmonic ninth / C", "D♭↓ major ninth / C", "B♭↓ mirror major ninth / C", "E𝄫 7♯9 with fifth / C"}},
+    {"D♭↓", {"D♭↓ harmonic ninth", "D♭↓ major ninth", "B♭↓ mirror major ninth / D♭↓"}},
+    {"D↓", {"B♭↓ harmonic ninth / D↓"}},
+    {"E𝄫", {"E𝄫 mirror 7♯9 with fifth", "B♭↓ mirror harmonic ninth / E𝄫", "E𝄫 7♯9 with fifth"}},
+    {"E♭", {"F mirror harmonic ninth / E♭", "F mirror major ninth / E♭", "D♭↓ harmonic ninth / E♭", "D♭↓ major ninth / E♭"}},
+    {"F", {"F mirror harmonic ninth", "F mirror major ninth", "E𝄫 mirror 7♯9 with fifth / F", "D♭↓ harmonic ninth / F", "B♭↓ harmonic ninth / F", "B♭↓ mirror harmonic ninth / F", "D♭↓ major ninth / F", "B♭↓ mirror major ninth / F", "E𝄫 7♯9 with fifth / F"}},
+    {"G♭↓", {"E𝄫 7♯9 with fifth / G♭↓"}},
+    {"G", {"F mirror harmonic ninth / G", "F mirror major ninth / G"}},
+    {"G♯", {"B♭↓ harmonic ninth / G♯"}},
+    {"A♭", {"F mirror major ninth / A♭", "E𝄫 mirror 7♯9 with fifth / A♭", "D♭↓ harmonic ninth / A♭", "B♭↓ mirror harmonic ninth / A♭", "D♭↓ major ninth / A♭", "B♭↓ mirror major ninth / A♭"}},
+    {"B𝄫", {"F mirror harmonic ninth / B𝄫", "E𝄫 mirror 7♯9 with fifth / B𝄫", "E𝄫 7♯9 with fifth / B𝄫"}},
+    {"B♭↓", {"B♭↓ harmonic ninth", "B♭↓ mirror harmonic ninth", "B♭↓ mirror major ninth"}},
+    {"B", {"D♭↓ harmonic ninth / B"}},
+};
 
 } // namespace
 
@@ -220,4 +253,78 @@ TEST(chords_triads_are_named_by_their_ratios) {
   CHECK(triadName(Ratio{6, 5}, Ratio{7, 5}) == "septimal diminished");
   CHECK(triadName(Ratio{7, 6}, Ratio{7, 5}) == "mirror diminished");
   CHECK(!triadName(Ratio{5, 4}, Ratio{4, 3}));
+}
+
+TEST(chords_every_degree_has_its_five_note_chords_in_order) {
+  for (auto scale : {Scale::OTONAL, Scale::UTONAL}) {
+    std::size_t total = 0;
+    for (auto & [degree, expected] : scale == Scale::OTONAL ? kOtonalNinthNames : kUtonalNinthNames) {
+      CHECK(namesOf(scale, degree, 5) == expected);
+      total += expected.size();
+      for (auto & entry : degreeChords(scale, gamutNote(scale, degree), 5)) {
+        CHECK(entry.notes.size() == 5);
+        CHECK(entry.notes[0] == gamutNote(scale, degree));
+      }
+    }
+    CHECK(total == 45u);
+  }
+  CHECK(degreeChords(Scale::MAJOR, 0, 5).empty());
+}
+
+TEST(chords_five_notes_are_completed_first_at_a_width_of_five) {
+  auto f = completeIn(Scale::OTONAL, {F}, 5);
+  CHECK(f.chords[0].notes == notes({F, G, A, 53 + C, 53 + Ds}));
+  CHECK(f.chords[0].name == "F harmonic ninth");
+  CHECK(f.chords[1].notes == notes({F, G, A, 53 + C, 53 + E}));
+  CHECK(f.chords[1].name == "F major ninth");
+  // The four-note chords follow, as they are found at four.
+  auto four = completeIn(Scale::OTONAL, {F}, 4);
+  CHECK(f.chords.size() == 2 + four.chords.size());
+  for (std::size_t i = 0; i < four.chords.size(); i++) {
+    CHECK(f.chords[2 + i].notes == four.chords[i].notes);
+    CHECK(f.chords[2 + i].name == four.chords[i].name);
+  }
+
+  auto c = completeIn(Scale::OTONAL, {C}, 5);
+  CHECK(c.chords[0].notes == notes({C, Ds, F, G, A}));
+  CHECK(c.chords[0].name == "F harmonic ninth / C");
+
+  auto fsu = completeIn(Scale::OTONAL, {Fsu}, 5);
+  CHECK(fsu.chords[0].notes == notes({Fsu, G, Asu, 53 + C, 53 + Ds}));
+  CHECK(fsu.chords[0].name == "C mirror 7♯9 with fifth / F♯↑");
+
+  CHECK(completeIn(Scale::OTONAL, {C, B}, 5).chords[0].notes == notes({C, 9, E, G, B}));
+  CHECK(completeIn(Scale::OTONAL, {C, B}, 5).chords[0].name == "C major ninth");
+}
+
+TEST(chords_a_degree_without_five_note_chords_falls_back_to_four) {
+  // D𝄫 (step 2 in 53-EDO) has none.
+  auto dbb = completeIn(Scale::OTONAL, {Dbb}, 5);
+  CHECK(dbb.status == Status::OK);
+  auto four = completeIn(Scale::OTONAL, {Dbb}, 4);
+  CHECK(dbb.chords.size() == four.chords.size());
+  for (auto & chord : dbb.chords) CHECK(chord.notes.size() == 4);
+  CHECK(dbb.chords[0].notes == four.chords[0].notes);
+}
+
+TEST(chords_five_note_chords_are_not_offered_at_narrower_widths) {
+  for (int size : {2, 3, 4}) {
+    for (auto & chord : completeIn(Scale::OTONAL, {C}, size).chords) CHECK(static_cast<int>(chord.notes.size()) <= size);
+    for (auto & chord : completeIn(Scale::OTONAL, {F}, size).chords) CHECK(chord.name.find("ninth") == std::string::npos);
+  }
+  // A width beyond the largest chord is the largest.
+  CHECK(completeIn(Scale::OTONAL, {F}, 7).chords[0].name == "F harmonic ninth");
+  // As many given notes as the width: nothing to add.
+  CHECK(completeIn(Scale::OTONAL, {C, Ds, F, G, A}, 5).status == Status::NOTHING_TO_ADD);
+  // Four given notes of a five-note chord are completed by it.
+  auto four = completeIn(Scale::OTONAL, {C, Ds, F, G}, 5);
+  CHECK(four.status == Status::OK);
+  CHECK(four.chords[0].notes == notes({C, Ds, F, G, A}));
+}
+
+TEST(chords_utonal_five_note_chords_complete_from_a_degree) {
+  auto c = completeIn(Scale::UTONAL, {C}, 5);
+  CHECK(c.chords[0].notes == notes({C, Eb, F, G, Bbb}));
+  CHECK(c.chords[0].name == "F mirror harmonic ninth / C");
+  CHECK(c.chords[1].name == "F mirror major ninth / C");
 }

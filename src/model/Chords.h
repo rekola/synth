@@ -21,7 +21,16 @@ enum class Kind { HARMONIC_SEVENTH,
                   MAJOR_SEVENTH,
                   SEVEN_SHARP_NINE,
                   MAJOR,
-                  MINOR };
+                  MINOR,
+                  HARMONIC_NINTH,
+                  MIRROR_HARMONIC_NINTH,
+                  MAJOR_NINTH,
+                  MIRROR_MAJOR_NINTH,
+                  SEVEN_SHARP_NINE_FIFTH,
+                  MIRROR_SEVEN_SHARP_NINE_FIFTH };
+
+// The most notes a chord has.
+constexpr int kMaxSize = 5;
 
 struct Entry {
   std::vector<std::size_t> notes; // gamut indices, upward from the degree (notes[0])
@@ -32,7 +41,9 @@ struct Entry {
 inline bool hasChords(Scale scale) { return scale == Scale::OTONAL || scale == Scale::UTONAL; }
 
 // A degree's chords, in order; empty for a note that is no degree of the scale.
-const std::vector<Entry> & degreeChords(Scale scale, std::size_t gamut_index);
+// `size` 4 (or less) is the list of chords of two to four notes, 5 the
+// five-note chords.
+const std::vector<Entry> & degreeChords(Scale scale, std::size_t gamut_index, int size = 4);
 
 // The name of a triad whose other two notes are these ratios above its lowest
 // (both within the octave, ascending), if it has one.
@@ -53,11 +64,11 @@ class ScaleChords {
   // Steps above the tonic, 0 to edo - 1.
   int stepOf(std::size_t gamut_index) const;
   // The degree's chords whose notes the tuning all holds.
-  std::vector<const Entry *> chordsOf(std::size_t gamut_index) const;
+  std::vector<const Entry *> chordsOf(std::size_t gamut_index, int size = 4) const;
   // A scale note's name, without an octave: the gamut's spelling on C, the
   // tuning's name for its key elsewhere.
   std::string noteName(std::size_t gamut_index) const;
-  // "C harmonic seventh", "F harmonic seventh / D♯".
+  // "C harmonic seventh", "F harmonic seventh / D♯", "F harmonic ninth / C".
   std::string chordName(const Entry & entry) const;
 
  private:
@@ -92,7 +103,8 @@ struct Result {
 // contains the others, octaves ignored, gives one result: the given notes at
 // their own octaves, and the chord's other notes, from its lowest upward,
 // within the octave above the lowest given note, until there are `size`
-// notes. A chord with fewer notes is not padded.
+// notes. A chord with fewer notes is not padded. Chords of `size` notes come
+// first (five at most), then each smaller list down to the four-note one.
 Result complete(const ScaleChords & scale, std::vector<int> given, int size);
 
 } // namespace chords

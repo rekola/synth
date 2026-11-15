@@ -47,7 +47,7 @@ value as the edit step. Its first row is the cursor's position.
 >>>>>>> origin/main
 
 **Cursor width**
-How many note columns of its row the pattern editor's cursor covers, 1 to 4;
+How many note columns of its row the pattern editor's cursor covers, 1 to 5;
 the size of the chord an entry is completed to. Not the region, which the
 mark makes.
 

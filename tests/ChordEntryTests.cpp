@@ -73,7 +73,7 @@ using V = std::vector<int>;
 
 } // namespace
 
-TEST(chord_cursor_widens_to_four_columns_and_the_track_follows) {
+TEST(chord_cursor_widens_to_five_columns_and_the_track_follows) {
   ChordFixture f;
   CHECK(f.columns() == 1);
   f.widen(2);
@@ -81,13 +81,16 @@ TEST(chord_cursor_widens_to_four_columns_and_the_track_follows) {
   CHECK(f.columns() == 3);
   f.widen(1);
   CHECK(f.columns() == 4);
-  f.widen(1); // no wider than four
+  f.widen(1);
+  CHECK(f.shows("Cursor width: 5"));
+  CHECK(f.columns() == 5);
+  f.widen(1); // no wider than five
   CHECK(f.shows("at its widest"));
-  CHECK(f.columns() == 4);
+  CHECK(f.columns() == 5);
   // Narrowing removes no column.
-  for (int i = 0; i < 3; i++) f.execute("narrow-cursor");
+  for (int i = 0; i < 4; i++) f.execute("narrow-cursor");
   CHECK(f.shows("Cursor width: 1"));
-  CHECK(f.columns() == 4);
+  CHECK(f.columns() == 5);
   f.execute("narrow-cursor");
   CHECK(f.shows("one column wide"));
   // The empty columns go when the cursor leaves the track.
@@ -576,5 +579,119 @@ TEST(the_fx_column_accepts_the_coarse_correction_symbols_when_typed) {
     CHECK(note.hasCoarseTuningCorrection());
     CHECK(note.getTuningCorrectionCents() == cents);
     CHECK(f.shows(text.c_str()));
+  }
+}
+
+TEST(chord_entry_at_five_columns_writes_five_note_chords) {
+  {
+    ChordFixture f;
+    f.widen(4);
+    f.down('r');
+    f.wait();
+    f.up('r');
+    CHECK(f.row(0) == (V{F, G, A, 53 + C, 53 + Ds}));
+    CHECK(f.shows("F harmonic ninth"));
+    // The palette then offers the F major ninth.
+    f.meta('/');
+    CHECK(f.shows("Chord: 5 notes"));
+    f.press(cellui::Key::Down);
+    CHECK(f.row(0) == (V{F, G, A, 53 + C, 53 + E}));
+    CHECK(f.shows("F major ninth"));
+  }
+  {
+    ChordFixture f;
+    f.widen(4);
+    f.down('q');
+    f.wait();
+    f.up('q');
+    CHECK(f.row(0) == (V{C, Ds, F, G, A}));
+    CHECK(f.shows("F harmonic ninth / C"));
+  }
+  {
+    // Read from F♯↑: its only five-note chord.
+    ChordFixture f;
+    f.widen(4);
+    f.down('5');
+    f.wait();
+    f.up('5');
+    CHECK(f.row(0) == (V{Fsu, G, Asu, 53 + C, 53 + Ds}));
+  }
+  {
+    // D𝄫 has no five-note chord: four notes, and the fifth column is emptied.
+    ChordFixture f;
+    f.widen(4);
+    f.down('1');
+    f.wait();
+    f.up('1');
+    auto row = f.row(0);
+    CHECK(row.size() >= 4);
+    CHECK(row[0] == 2);
+    for (std::size_t i = 1; i < 4; i++) CHECK(row[i] > 2);
+    CHECK(row.size() == 4 || row[4] == -1);
+  }
+  {
+    // C and B together.
+    ChordFixture f;
+    f.widen(4);
+    f.down('q');
+    f.down('k');
+    f.wait();
+    f.up('q');
+    f.up('k');
+    auto row = f.row(0);
+    CHECK(row.size() == 5);
+    CHECK(row[0] == C);
+    CHECK(f.shows("C major ninth"));
+  }
+  {
+    // At four columns no five-note chord is offered.
+    ChordFixture f;
+    f.widen(3);
+    f.down('r');
+    f.wait();
+    f.up('r');
+    CHECK(f.row(0) == (V{F, A, 53 + C, 53 + Ds}));
+    CHECK(!f.shows("ninth"));
+  }
+}
+
+TEST(chord_palette_is_five_notes_at_most) {
+  ChordFixture f;
+  f.down('r');
+  f.up('r');
+  f.meta('/');
+  CHECK(f.shows("Chord: 4 notes"));
+  f.execute("widen-cursor");
+  CHECK(f.shows("Chord: 5 notes"));
+  CHECK(f.row(0) == (V{F, G, A, 53 + C, 53 + Ds}));
+  f.execute("widen-cursor"); // no larger than five
+  CHECK(f.shows("2 to 5 notes"));
+  CHECK(f.shows("Chord: 5 notes"));
+}
+
+TEST(off_key_releases_every_column_under_the_cursor) {
+  for (auto scale : {Scale::OTONAL, Scale::MAJOR}) {
+    ChordFixture f(scale);
+    // Notes in the first two rows, then OFF over three columns of the first.
+    for (int r = 0; r < 2; r++) {
+      f.down('z');
+      f.up('z');
+    }
+    f.press(cellui::Key::Up);
+    f.press(cellui::Key::Up);
+    f.widen(2);
+    f.controller->getSong().breakTypingRun();
+    f.down('a');
+    f.up('a');
+    auto offs = [&](int r) {
+      auto target = resolveEditTarget(f.controller->getSong(), f.track_id, r);
+      int n = 0;
+      for (auto & note : target.pattern->getNotes(target.effective_row)) n += note.isOff() ? 1 : 0;
+      return n;
+    };
+    CHECK(offs(0) == 3);
+    CHECK(offs(1) == 0);
+    f.execute("undo");
+    CHECK(offs(0) == 0);
   }
 }

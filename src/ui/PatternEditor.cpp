@@ -2628,8 +2628,11 @@ bool PatternEditor::keyDown(const cellui::KeyDown & e) {
           } else if (is_lost) {
             edit_target.pattern->setNote(edit_target.effective_row, note_column, Note::lost());
           } else if (is_off) {
-            edit_target.pattern->setNote(edit_target.effective_row, note_column, Note::off(constants::NEUTRAL_VELOCITY, current_delay));
-            event_queue.push(make_unique<PlaybackControlEvent>(PlaybackControlEvent::STOP_NOTE, getController().getActiveBufferName(), track_id, note_column));
+            // Every column under the cursor, in its first row only.
+            for (int c = note_column; c < note_column + cursor_width_; c++) {
+              edit_target.pattern->setNote(edit_target.effective_row, c, Note::off(constants::NEUTRAL_VELOCITY, current_delay));
+              event_queue.push(make_unique<PlaybackControlEvent>(PlaybackControlEvent::STOP_NOTE, getController().getActiveBufferName(), track_id, c));
+            }
           } else {
             Note note(midi_note, constants::DEFAULT_NOTE_ON_VELOCITY, current_delay);
             tuneNewNote(song, track_id, note);

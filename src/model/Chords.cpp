@@ -116,6 +116,105 @@ constexpr array kUtonalChords = {
     "B♯ E𝄫 F𝄫 B𝄫",
 };
 
+// Five-note chords, offered at a width of five. Same order rule per degree: chords
+// from a lower step first, harmonic ninths and their mirrors, major ninths and
+// theirs, 7♯9 chords and theirs, then the chord named after the degree itself.
+constexpr array kOtonalNinths = {
+    "C D♯ F G A",
+    "C E F G A",
+    "C D♯ E G A♯↑",
+    "C D E G A♯↑",
+    "C D F♭ G B♭",
+    "C D E G B",
+    "C E G A B",
+    "C D♯ F♯↑ G A♯↑",
+    "D♭↓ E G A B",
+    "D E G A♯↑ C",
+    "D F♭ G B♭ C",
+    "D E G B C",
+    "D♯ F G A C",
+    "D♯ E G A♯↑ C",
+    "D♯ F♯↑ G A♯↑ C",
+    "E F G A C",
+    "E G A♯↑ C D♯",
+    "E G A♯↑ C D",
+    "E G A B D♭↓",
+    "E G B C D",
+    "E G A B C",
+    "F♭ G B♭ C D",
+    "F G A C D♯",
+    "F G A C E",
+    "F♯↑ G A♯↑ C D♯",
+    "G A C D♯ F",
+    "G A C E F",
+    "G A♯↑ C D♯ E",
+    "G A♯↑ C D E",
+    "G A B D♭↓ E",
+    "G B♭ C D F♭",
+    "G B C D E",
+    "G A B C E",
+    "G A♯↑ C D♯ F♯↑",
+    "A C D♯ F G",
+    "A C E F G",
+    "A B D♭↓ E G",
+    "A B C E G",
+    "A♯↑ C D♯ E G",
+    "A♯↑ C D E G",
+    "A♯↑ C D♯ F♯↑ G",
+    "B♭ C D F♭ G",
+    "B D♭↓ E G A",
+    "B C D E G",
+    "B C E G A",
+};
+
+constexpr array kUtonalNinths = {
+    "C E♭ F G B𝄫",
+    "C E♭ F G A♭",
+    "C E𝄫 F A♭ B𝄫",
+    "C D↓ F G♯ B♭↓",
+    "C E𝄫 F A♭ B♭↓",
+    "C D♭↓ E♭ F A♭",
+    "C D♭↓ F A♭ B♭↓",
+    "C E𝄫 F G♭↓ B𝄫",
+    "D♭↓ E♭ F A♭ B",
+    "D♭↓ E♭ F A♭ C",
+    "D♭↓ F A♭ B♭↓ C",
+    "D↓ F G♯ B♭↓ C",
+    "E𝄫 F A♭ B𝄫 C",
+    "E𝄫 F A♭ B♭↓ C",
+    "E𝄫 F G♭↓ B𝄫 C",
+    "E♭ F G B𝄫 C",
+    "E♭ F G A♭ C",
+    "E♭ F A♭ B D♭↓",
+    "E♭ F A♭ C D♭↓",
+    "F G B𝄫 C E♭",
+    "F G A♭ C E♭",
+    "F A♭ B𝄫 C E𝄫",
+    "F A♭ B D♭↓ E♭",
+    "F G♯ B♭↓ C D↓",
+    "F A♭ B♭↓ C E𝄫",
+    "F A♭ C D♭↓ E♭",
+    "F A♭ B♭↓ C D♭↓",
+    "F G♭↓ B𝄫 C E𝄫",
+    "G♭↓ B𝄫 C E𝄫 F",
+    "G B𝄫 C E♭ F",
+    "G A♭ C E♭ F",
+    "G♯ B♭↓ C D↓ F",
+    "A♭ C E♭ F G",
+    "A♭ B𝄫 C E𝄫 F",
+    "A♭ B D♭↓ E♭ F",
+    "A♭ B♭↓ C E𝄫 F",
+    "A♭ C D♭↓ E♭ F",
+    "A♭ B♭↓ C D♭↓ F",
+    "B𝄫 C E♭ F G",
+    "B𝄫 C E𝄫 F A♭",
+    "B𝄫 C E𝄫 F G♭↓",
+    "B♭↓ C D↓ F G♯",
+    "B♭↓ C E𝄫 F A♭",
+    "B♭↓ C D♭↓ F A♭",
+    "B D♭↓ E♭ F A♭",
+};
+
 // A chord's form: its notes above the one it is named after.
 struct Form {
   Kind kind;
@@ -130,6 +229,13 @@ const vector<Form> & forms() {
       {Kind::SEVEN_SHARP_NINE, {Ratio{7, 6}, Ratio{5, 4}, Ratio{7, 4}}}, // 12:14:15:21
       {Kind::MAJOR, {Ratio{5, 4}, Ratio{3, 2}}},
       {Kind::MINOR, {Ratio{6, 5}, Ratio{3, 2}}},
+      // The ninth reduced into the octave, so 9/4 is 9/8 and sorts first.
+      {Kind::HARMONIC_NINTH, {Ratio{9, 8}, Ratio{5, 4}, Ratio{3, 2}, Ratio{7, 4}}},                // 4:5:6:7:9
+      {Kind::MIRROR_HARMONIC_NINTH, {Ratio{9, 8}, Ratio{9, 7}, Ratio{3, 2}, Ratio{9, 5}}},         // 1/9:1/7:1/6:1/5:1/4
+      {Kind::MAJOR_NINTH, {Ratio{9, 8}, Ratio{5, 4}, Ratio{3, 2}, Ratio{15, 8}}},                  // 8:10:12:15:18
+      {Kind::MIRROR_MAJOR_NINTH, {Ratio{9, 8}, Ratio{6, 5}, Ratio{3, 2}, Ratio{9, 5}}},            // 1/18:1/15:1/12:1/10:1/8
+      {Kind::SEVEN_SHARP_NINE_FIFTH, {Ratio{7, 6}, Ratio{5, 4}, Ratio{3, 2}, Ratio{7, 4}}},        // 12:14:15:18:21
+      {Kind::MIRROR_SEVEN_SHARP_NINE_FIFTH, {Ratio{7, 6}, Ratio{7, 5}, Ratio{3, 2}, Ratio{7, 4}}}, // 1/21:1/18:1/15:1/14:1/12
   };
   return table;
 }
@@ -148,6 +254,18 @@ const char * kindName(Kind kind) {
       return "major";
     case Kind::MINOR:
       return "minor";
+    case Kind::HARMONIC_NINTH:
+      return "harmonic ninth";
+    case Kind::MIRROR_HARMONIC_NINTH:
+      return "mirror harmonic ninth";
+    case Kind::MAJOR_NINTH:
+      return "major ninth";
+    case Kind::MIRROR_MAJOR_NINTH:
+      return "mirror major ninth";
+    case Kind::SEVEN_SHARP_NINE_FIFTH:
+      return "7♯9 with fifth";
+    case Kind::MIRROR_SEVEN_SHARP_NINE_FIFTH:
+      return "mirror 7♯9 with fifth";
   }
   return "";
 }
@@ -202,19 +320,23 @@ ChordTable buildTable(const array<const char *, N> & chords, GamutSide side) {
   return table;
 }
 
-const ChordTable & tableFor(Scale scale) {
+// The chords of notes up to four (size 4), or of exactly five.
+const ChordTable & tableFor(Scale scale, int size) {
   static const ChordTable otonal = buildTable(kOtonalChords, GamutSide::OTONAL);
   static const ChordTable utonal = buildTable(kUtonalChords, GamutSide::UTONAL);
+  static const ChordTable otonal5 = buildTable(kOtonalNinths, GamutSide::OTONAL);
+  static const ChordTable utonal5 = buildTable(kUtonalNinths, GamutSide::UTONAL);
   static const ChordTable none;
-  return scale == Scale::OTONAL ? otonal : scale == Scale::UTONAL ? utonal
-                                                                  : none;
+  bool five = size >= 5;
+  return scale == Scale::OTONAL ? (five ? otonal5 : otonal) : scale == Scale::UTONAL ? (five ? utonal5 : utonal)
+                                                                                     : none;
 }
 
 } // namespace
 
-const vector<Entry> & degreeChords(Scale scale, size_t gamut_index) {
+const vector<Entry> & degreeChords(Scale scale, size_t gamut_index, int size) {
   static const vector<Entry> none;
-  auto & table = tableFor(scale);
+  auto & table = tableFor(scale, size);
   auto it = table.find(gamut_index);
   return it == table.end() ? none : it->second;
 }
@@ -270,10 +392,10 @@ int ScaleChords::stepOf(size_t gamut_index) const {
   return ((ratioOf(gamut_index).steps(edo_) % edo_) + edo_) % edo_;
 }
 
-vector<const Entry *> ScaleChords::chordsOf(size_t gamut_index) const {
+vector<const Entry *> ScaleChords::chordsOf(size_t gamut_index, int size) const {
   vector<const Entry *> out;
   if (edo_ <= 0) return out;
-  for (auto & entry : degreeChords(scale_, gamut_index)) {
+  for (auto & entry : degreeChords(scale_, gamut_index, size)) {
     bool held = true;
     for (auto note : entry.notes) held = held && held_[static_cast<size_t>(stepOf(note))] == static_cast<int>(note);
     if (held) out.push_back(&entry);
@@ -312,9 +434,9 @@ Result complete(const ScaleChords & scale, vector<int> given, int size) {
     if (find(given_notes.begin(), given_notes.end(), *note) == given_notes.end()) given_notes.push_back(*note);
   }
 
-  for (auto entry : scale.chordsOf(*degree)) {
+  auto add = [&](const Entry * entry) {
     auto in_entry = [&](size_t note) { return find(entry->notes.begin(), entry->notes.end(), note) != entry->notes.end(); };
-    if (!all_of(given_notes.begin(), given_notes.end(), in_entry)) continue;
+    if (!all_of(given_notes.begin(), given_notes.end(), in_entry)) return;
 
     Completion chord;
     chord.notes = given;
@@ -328,7 +450,7 @@ Result complete(const ScaleChords & scale, vector<int> given, int size) {
     }
     sort(chord.notes.begin(), chord.notes.end());
     bool repeat = any_of(result.chords.begin(), result.chords.end(), [&](const Completion & c) { return c.notes == chord.notes; });
-    if (repeat) continue;
+    if (repeat) return;
 
     chord.name = scale.chordName(*entry);
     if (written.size() < entry->notes.size()) {
@@ -343,7 +465,12 @@ Result complete(const ScaleChords & scale, vector<int> given, int size) {
         chord.name += " (" + to_string(chord.notes.size()) + " notes)";
     }
     result.chords.push_back(std::move(chord));
+  };
+  // The widest chords first, then each smaller list down to the four-note one.
+  for (int list = min(size, kMaxSize); list >= 5; list--) {
+    for (auto entry : scale.chordsOf(*degree, list)) add(entry);
   }
+  for (auto entry : scale.chordsOf(*degree)) add(entry);
   if (!result.chords.empty()) result.status = Status::OK;
   return result;
 }
