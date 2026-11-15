@@ -30,7 +30,7 @@ if(NOT TARGET canvas)
   include(FetchContent)
   FetchContent_Declare(canvas
     GIT_REPOSITORY https://github.com/rekola/canvas
-    GIT_TAG 8038b5f644d7e82030a4206941a360748d3583ff
+    GIT_TAG bd7a85dbee1f9a314a8fdad0e964f837f8d0ba47
     # No CMakeLists there: MakeAvailable only downloads, and the
     # add_subdirectory below applies our flags.
     SOURCE_SUBDIR cellui_no_add_subdirectory)
