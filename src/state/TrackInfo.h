@@ -13,6 +13,13 @@ public:
   bool isActive() const { return is_active_; }
   bool isRecording() const { return is_recording_; }
   bool isClipping() const { return is_clipping_; }
+  // The same with its clipping said by `clipping` (a snapshot reports a clip since the last one, not the last
+  // block's - see TrackState::snapshotTrackInfo()).
+  TrackInfo withClipping(bool clipping) const {
+    TrackInfo t = *this;
+    t.is_clipping_ = clipping;
+    return t;
+  }
   float getMeterValue() const { return meter_value_; }
 
   // The engine's own actual, currently-live Send Main/A/B linear gain for

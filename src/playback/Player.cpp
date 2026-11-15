@@ -1075,7 +1075,7 @@ Player::createPlaybackEvent(const string & buffer_name, const Song & song, const
 
   std::unordered_map<int, TrackInfo> effect_info;
   state.getAllTrackInfo(effect_info);
-  effect_info[song.readContent()->tracks->master->getInternalId()] = TrackInfo(state.getMasterMeterValue() > 0.0f, state.isMasterClipping(), state.getMasterMeterValue());
+  effect_info[song.readContent()->tracks->master->getInternalId()] = TrackInfo(state.getMasterMeterValue() > 0.0f, state.takeMasterClipping(), state.getMasterMeterValue());
   info.setTrackInfo(move(effect_info));
 
   std::unordered_map<int, std::vector<ActiveVoiceInfo> > active_voices;

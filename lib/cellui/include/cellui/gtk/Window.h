@@ -27,7 +27,6 @@ struct FrameStats {
   size_t glyphs_shaped = 0;  // glyphs laid out by Pango so far; a glyph in another colour is not
   size_t zoom_runs = 0;  // pieces of cells zoomed as one, counted as the band holding them is built
   size_t glyphs_zoomed = 0;  // lit glyphs drawn larger, counted as the band holding them is built
-  size_t glow_sprites = 0;  // glow textures made so far; one is kept for each glyph and face, in any colour
   size_t link_readings = 0;  // frame rates the link class was updated from so far
 };
 

@@ -742,46 +742,41 @@ GskRenderNode * Window::Impl::glowNode(const CellBuffer & cells, int r0, int r1)
     glow = glowOf(cell.fg.value_or(default_fg));
     return Image::alpha(glow) != 0;
   };
+  // All the lit glyphs of the band are blurred together, two blurs for the band rather than two per run: a
+  // blur is a pass of its own, and the blur of a sum is the sum of the blurs.
+  GtkSnapshot * lit = gtk_snapshot_new();
   for (int r = r0; r < r1; r++) {
-    for (int c = 0; c < cells.cols();) {
+    for (int c = 0; c < cells.cols(); c++) {
       uint32_t glow = 0;
-      if (!litAt(r, c, glow)) {
-        c++;
-        continue;
+      if (!litAt(r, c, glow)) continue;
+      const CellBuffer::Cell & cell = cells.at(r, c);
+      GskRenderNode * glyph = glyphNode(cell, Color(Image::red(glow), Image::green(glow), Image::blue(glow)));
+      if (!glyph) continue;
+      graphene_point_t at = GRAPHENE_POINT_INIT(static_cast<float>(c * cell_w), static_cast<float>((r - r0) * cell_h));
+      gtk_snapshot_save(lit);
+      gtk_snapshot_translate(lit, &at);
+      if (cell.zoom > 0) {
+        // Zoomed with its glyph, about the centre of the piece it is in (this cell's own coordinates).
+        ZoomRun zrun = zoomRun(cells, r, c);
+        graphene_point_t centre = GRAPHENE_POINT_INIT(static_cast<float>(zrun.first + zrun.last + 1) * cell_w / 2.0f - static_cast<float>(c * cell_w), static_cast<float>(cell_h) / 2.0f);
+        graphene_point_t back = GRAPHENE_POINT_INIT(-centre.x, -centre.y);
+        float zoom = static_cast<float>(zoomFactor(zrun.zoom));
+        gtk_snapshot_translate(lit, &centre);
+        gtk_snapshot_scale(lit, zoom, zoom);
+        gtk_snapshot_translate(lit, &back);
       }
-      int end = c;
-      GtkSnapshot * run = gtk_snapshot_new();
-      for (; end < cells.cols() && litAt(r, end, glow); end++) {
-        const CellBuffer::Cell & cell = cells.at(r, end);
-        GskRenderNode * glyph = glyphNode(cell, Color(Image::red(glow), Image::green(glow), Image::blue(glow)));
-        if (!glyph) continue;
-        graphene_point_t at = GRAPHENE_POINT_INIT(static_cast<float>(end * cell_w), static_cast<float>((r - r0) * cell_h));
-        gtk_snapshot_save(run);
-        gtk_snapshot_translate(run, &at);
-        if (cell.zoom > 0) {
-          // Zoomed with its glyph, about the centre of the piece it is in (this cell's own coordinates).
-          ZoomRun zrun = zoomRun(cells, r, end);
-          graphene_point_t centre = GRAPHENE_POINT_INIT(static_cast<float>(zrun.first + zrun.last + 1) * cell_w / 2.0f - static_cast<float>(end * cell_w), static_cast<float>(cell_h) / 2.0f);
-          graphene_point_t back = GRAPHENE_POINT_INIT(-centre.x, -centre.y);
-          float zoom = static_cast<float>(zoomFactor(zrun.zoom));
-          gtk_snapshot_translate(run, &centre);
-          gtk_snapshot_scale(run, zoom, zoom);
-          gtk_snapshot_translate(run, &back);
-        }
-        gtk_snapshot_push_opacity(run, static_cast<double>(Image::alpha(glow)) / 255.0);
-        gtk_snapshot_append_node(run, glyph);
-        gtk_snapshot_pop(run);
-        gtk_snapshot_restore(run);
-      }
-      GskRenderNode * source = gtk_snapshot_free_to_node(run);
-      if (source) {
-        auto draw = [&]() { gtk_snapshot_append_node(snap, source); };
-        glowLayer(snap, draw, kPictureCoreRadius * cell_h, kPictureCoreGain, kPictureCoreThreshold, 1.0);
-        glowLayer(snap, draw, kPictureHaloRadius * cell_h, kPictureHaloGain, 0.0, kPictureHaloStrength);
-        gsk_render_node_unref(source);
-      }
-      c = end;
+      gtk_snapshot_push_opacity(lit, static_cast<double>(Image::alpha(glow)) / 255.0);
+      gtk_snapshot_append_node(lit, glyph);
+      gtk_snapshot_pop(lit);
+      gtk_snapshot_restore(lit);
     }
+  }
+  GskRenderNode * source = gtk_snapshot_free_to_node(lit);
+  if (source) {
+    auto draw = [&]() { gtk_snapshot_append_node(snap, source); };
+    glowLayer(snap, draw, kPictureCoreRadius * cell_h, kPictureCoreGain, kPictureCoreThreshold, 1.0);
+    glowLayer(snap, draw, kPictureHaloRadius * cell_h, kPictureHaloGain, 0.0, kPictureHaloStrength);
+    gsk_render_node_unref(source);
   }
   return gtk_snapshot_free_to_node(snap);
 }

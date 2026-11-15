@@ -91,8 +91,8 @@ TEST(gtk_bench_glow) {
       pumpUntil(*w, [&] { return w->stats().frames > before; });
     }
     double ms = std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - start).count();
-    std::printf("BENCH %-22s %6.2f ms/frame  (snapshot %5.2f ms, raster %5.2f ms, %zu glow textures so far)\n", name, ms / frames,
-                (w->stats().draw_ms_total - draw0) / frames, (w->stats().raster_ms_total - raster0) / frames, w->stats().glow_sprites);
+    std::printf("BENCH %-22s %6.2f ms/frame  (snapshot %5.2f ms, raster %5.2f ms)\n", name, ms / frames,
+                (w->stats().draw_ms_total - draw0) / frames, (w->stats().raster_ms_total - raster0) / frames);
   };
   run("no glow (control)", 0);
   run("glow, continuous", 1);
@@ -216,32 +216,6 @@ TEST(gtk_window_lays_the_frame_out_once_however_many_areas_are_raised) {
   CHECK(pumpUntil(*w, [&] { return w->stats().frames > before; }));
   CHECK(w->stats().shadows == 6);
   CHECK(w->stats().glows == 1);
-}
-
-// A glow texture is made once for a glyph in a colour and kept: showing it again makes none.
-TEST(gtk_window_keeps_the_glow_of_a_glyph) {
-  gtk::Window * w = theWindow();
-  if (!w) return;
-  StyleProvider styles;
-  auto present = [&](const Color & fg, const char * text) {
-    CellBuffer screen(w->rows(), w->cols());
-    BufferPlane root(screen, styles);
-    root.setFgColor(fg);
-    root.putstr(3, 4, text);
-    root.refresh();
-    size_t before = w->stats().frames;
-    w->present(screen, {}, root.images());
-    CHECK(pumpUntil(*w, [&] { return w->stats().frames > before; }));
-  };
-  Color lit = Color::linear(2.5f, 2.5f, 2.5f);
-  present(lit, "C-4");
-  size_t made = w->stats().glow_sprites;
-  CHECK(made >= 2);  // "C", "-" and "4" are three glyphs; the same one twice would be fewer
-  present(lit, "C-4");
-  present(Color::linear(1.0f, 1.0f, 1.0f), "C-4");  // not lit: no glow
-  CHECK(w->stats().glow_sprites == made);
-  present(lit, "4-C");  // the same glyphs in another order: nothing new
-  CHECK(w->stats().glow_sprites == made);
 }
 
 TEST(gtk_window_reports_its_display_and_size) {
@@ -902,9 +876,8 @@ TEST(gtk_window_draws_text_runs_in_its_own_face) {
   CHECK(pumpUntil(*w, [&] { return w->stats().frames > before; }));
 }
 
-// A glyph is shaped once and its glow blurred once; another colour of it is made from those,
-// the glow's at draw time.
-TEST(gtk_window_makes_another_colour_of_a_glyph_without_shaping_or_blurring_it_again) {
+// A glyph is shaped once; another colour of it, and its glow in that colour, are made from that.
+TEST(gtk_window_makes_another_colour_of_a_glyph_without_shaping_it_again) {
   gtk::Window * w = theWindow();
   if (!w) return;
   StyleProvider styles;
@@ -919,10 +892,9 @@ TEST(gtk_window_makes_another_colour_of_a_glyph_without_shaping_or_blurring_it_a
     CHECK(pumpUntil(*w, [&] { return w->stats().frames > before; }));
   };
   present(Color::linear(2.5f, 2.5f, 2.5f));
-  size_t shaped = w->stats().glyphs_shaped, sprites = w->stats().glow_sprites;
-  CHECK(shaped >= 1 && sprites >= 1);
+  size_t shaped = w->stats().glyphs_shaped;
+  CHECK(shaped >= 1);
   present(Color::linear(2.0f, 1.2f, 1.2f));
   present(Color::linear(1.6f, 2.4f, 1.3f));
-  CHECK(w->stats().glyphs_shaped == shaped);  // no glyph shaped again
-  CHECK(w->stats().glow_sprites == sprites);  // and no glow blurred again
+  CHECK(w->stats().glyphs_shaped == shaped);  // no glyph shaped again, its glow included
 }

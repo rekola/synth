@@ -111,7 +111,7 @@ class StyleProvider {
   // levelColor() with its top lit past white from kLevelHdrStart of the height (see lineColor()), for a meter
   // drawn as a picture: the loud end glows in the bar's own green on a display that can show it.
   Color levelLitColor(float fraction) const { return levelColor(fraction) * litGain(fraction, kLevelHdrStart, kLevelHdrGain); }
-  static constexpr float kLevelHdrStart = 0.7f, kLevelHdrGain = 3.0f;
+  static constexpr float kLevelHdrStart = 0.55f, kLevelHdrGain = 8.0f;
   // The colour of a Lamp (Lamp.h): colourless while off, a grey a little way from the background toward the text
   // (so there is no doubt whether it is lit), and when lit the alarm colour well past white, so it glows like an
   // LED.

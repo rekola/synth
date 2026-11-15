@@ -316,13 +316,15 @@ Controller-level and per-widget commands. Not migrated: `StatusLine`,
   `Ballistics` smoothing block RMS in the power domain, a bar of one hue, the theme's
   greens, shaded by height via `StyleProvider::levelColor()` like the spectrum's and the heatmap's, its loud
   end lit past white in a picture (`levelLitColor()`) so the window blooms it in the bar's own green, a
-  `PeakHold` marker). Clipping is not the bar's to show: a meter has a clip lamp (a `cellui::Lamp`, `cellui/Lamp.h`, which knows nothing of clipping), a
-  round lamp one cell wide and one row tall, dim until the track clips and then the clip colour lit well
-  past white (a glow in the window, bold in a terminal), a picture where the plane has pixels and a
-  large circle where it has not. It is held lit for `ClipHold::kHoldSeconds` after the last
-  clip by whoever owns the meter's state. The clip grid draws it in the meter's own column, in the Sends group's
-  last row, above the meter's bar; `ChannelMeter` in its top row (one lamp, lit by any channel); the pattern
-  editor's heading has no room and shows the held clip on the track's status dot;
+  `PeakHold` marker). Clipping is not the bar's to show: a meter has a clip lamp (a `cellui::Lamp`,
+  `cellui/Lamp.h`, which knows nothing of clipping), a large circle one cell wide: grey while the track is not
+  clipping, and when it is the alarm colour lit well past white, which the window blooms like any cell colour past
+  white. A clip is one audio block's and a snapshot is taken every several blocks, so the audio side remembers
+  a clip until a snapshot has reported it (`TrackState::snapshotTrackInfo()`, `SongState::takeMasterClipping()`),
+  and whoever owns a meter's state holds the lamp lit for `ClipHold::kHoldSeconds` after the last clip it was
+  told of. The clip grid draws it in the meter's own column, in the Sends group's last row, above the meter's
+  bar; `ChannelMeter` in its top row (one lamp, lit by any channel); the pattern editor's heading has no room
+  and shows the held clip on the track's status dot;
   the pattern editor's track meters and the scope row's `ChannelMeter`
   (`getChannelLoudness()`, per-channel RMS) share it, and the master's reads
   the master track's `TrackInfo`.
