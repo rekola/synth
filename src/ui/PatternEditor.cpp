@@ -3602,7 +3602,8 @@ PatternEditor::renderRow(const StyleProvider & styles, int heading_height, const
       extra = stopped_seconds_;
     }
     if (row_seconds <= 0.0) return 0.0f;
-    return StyleProvider::noteFlash(rows_since * row_seconds + extra, styles.reduced_motion);
+    // A dimmed pass (a loop's previous one, fading out) takes the flash down with it, not at once.
+    return StyleProvider::noteFlash(rows_since * row_seconds + extra, styles.reduced_motion) * (1.0f - track_dim);
   };
 
   // One pattern row's slice of a sample clip's waveform, drawn by the
@@ -4087,7 +4088,7 @@ PatternEditor::renderRow(const StyleProvider & styles, int heading_height, const
           cell_bg = cell_is_selected ? cur_bg : tintForPlayhead(bg);
           // A command lights with a note or aftertouch on its row, at that one's velocity; a free one doesn't.
           float flash = 0.0f;
-          if (command.isDefined() && !cell_is_selected && track_dim <= 0.0f) {
+          if (command.isDefined() && !cell_is_selected) {
             int velocity = 0;
             for (auto & n : notes) {
               if (n.hasVelocityAndDelay() && !n.isOff()) velocity = std::max<int>(velocity, n.getVelocity());
@@ -4119,7 +4120,7 @@ PatternEditor::renderRow(const StyleProvider & styles, int heading_height, const
 	  cell_bg = cell_is_selected ? cur_bg : tintForPlayhead(bg);
           float flash = 0.0f;
           if (!note.hasFx()) cell_fg = cell_fg.blend(0.5f, cell_bg);
-          else if (!cell_is_selected && track_dim <= 0.0f)
+          else if (!cell_is_selected)
             flash = noteFlashOf(track_id, note.getDelay()) * StyleProvider::velocityFlash(note.isOff() ? 0 : note.getVelocity());
           cell_fg = StyleProvider::lit(cell_fg, flash);
           setFgColor(cell_fg);
@@ -4140,7 +4141,7 @@ PatternEditor::renderRow(const StyleProvider & styles, int heading_height, const
 	  cell_bg = cell_is_selected ? cur_bg : tintForPlayhead(bg);
 	  if (!note.isDefined()) cell_fg = cell_fg.blend(0.5f, cell_bg);
           // A note that has just started is lit past white.
-          float note_flash = !cell_is_selected && track_dim <= 0.0f && note.isDefined() ? noteFlashOf(track_id, note.getDelay()) * StyleProvider::velocityFlash(note.isOff() ? 0 : note.getVelocity()) : 0.0f;
+          float note_flash = !cell_is_selected && note.isDefined() ? noteFlashOf(track_id, note.getDelay()) * StyleProvider::velocityFlash(note.isOff() ? 0 : note.getVelocity()) : 0.0f;
           cell_fg = StyleProvider::lit(cell_fg, note_flash);
           setFgColor(cell_fg);
 	  setBgColor(cell_bg);
@@ -4199,7 +4200,7 @@ PatternEditor::renderRow(const StyleProvider & styles, int heading_height, const
           if (!note.hasVelocityAndDelay()) cell_fg = cell_fg.blend(0.5f, cell_bg);
           // Lit with its note, when it has a value to show.
           float flash = 0.0f;
-          if (!cell_is_selected && track_dim <= 0.0f && note.hasVelocityAndDelay()) flash = noteFlashOf(track_id, note.getDelay()) * StyleProvider::velocityFlash(note.isOff() ? 0 : note.getVelocity());
+          if (!cell_is_selected && note.hasVelocityAndDelay()) flash = noteFlashOf(track_id, note.getDelay()) * StyleProvider::velocityFlash(note.isOff() ? 0 : note.getVelocity());
           cell_fg = StyleProvider::lit(cell_fg, flash);
           setFgColor(cell_fg);
 	  setBgColor(cell_bg);
