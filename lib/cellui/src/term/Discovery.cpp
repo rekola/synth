@@ -398,6 +398,7 @@ Capabilities Discovery::result() const {
   if (caps.display.cell_px_height <= 0 || caps.display.cell_px_width <= 0) caps.pixels = PixelProtocol::NONE;
   caps.kitty_graphics_animation = caps.pixels == PixelProtocol::KITTY && kitty_graphics_ && name == "kitty" && atLeast(version, "0.20");
   caps.display.pictures = caps.pixels != PixelProtocol::NONE;
+  caps.display.hdr_pictures = caps.display.pictures;  // flattened on the CPU before they are sent (flattenHdr())
   caps.display.cell_borders = caps.pixels == PixelProtocol::KITTY;
   return caps;
 }

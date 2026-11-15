@@ -1,5 +1,7 @@
 #pragma once
 
+#include <unordered_map>
+
 #include <cellui/Backend.h>
 #include <cellui/CellBuffer.h>
 #include <cellui/PollEventLoop.h>
@@ -18,6 +20,7 @@
 #include <deque>
 #include <map>
 #include <memory>
+#include <cellui/HdrBloom.h>
 #include <optional>
 #include <string>
 #include <vector>
@@ -167,6 +170,16 @@ class TerminalSession : public Backend {
   // Every kitty id the session transmits, from every image feature; deleted when the terminal is restored.
   std::shared_ptr<KittyImageRegistry> kitty_ids_ = std::make_shared<KittyImageRegistry>();
   ImageEncoder images_;
+  // Float pictures flattened to 8-bit (flattenHdr()), by the placement's key, with what each was made from so a
+  // changed picture is recomputed only where it changed. Kept while a frame shows the picture.
+  struct Flattened {
+    HdrFlattenState state;
+    std::shared_ptr<const Image> flat;
+    uint64_t version = ~0ull;
+    bool used = false;
+  };
+  std::unordered_map<uint64_t, Flattened> flattened_;
+  std::vector<ImagePlacement> flattenPictures(const std::vector<ImagePlacement> & images);
   // What a terminal makes of a backdrop (it cannot blur one).
   BackdropEmulation backdrops_;
   std::string setup_;

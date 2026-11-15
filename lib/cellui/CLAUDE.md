@@ -213,7 +213,7 @@ carries the app's object as an opaque `getAppContext()`.
   (`Image::hdr`, linear Rec.2020 RGBA, the display maps and blooms it itself) or `drawImage()`.
   The heatmap's float picture needs no float canvas: its grid is enlarged by nearest neighbour into floats
   directly (hot cells lit past white, `heatmap_image::litCellColor()`), and only the labels' text is canvas.
-  The GTK window sets `hdr_pictures`; the terminals and Win32 do not and get 8-bit pictures. Dials
+  The GTK window and a terminal with a picture protocol set `hdr_pictures`; Win32 does not and gets 8-bit pictures. A terminal has no GPU, so `TerminalSession` flattens each float picture on the CPU (`flattenHdr()`, `HdrBloom.h`): the same tone map, a core blur that thickens and a halo, screened over it, once per version and not per frame, with the glow kept inside the picture (a terminal's pixels cannot spill past its cells). With a `HdrFlattenState` (kept per placement key) only the rectangle of floats that changed, grown by the blur's reach (`hdrBloomReach()`), is recomputed, so the result is equal outside the damage and Sixel sends only the cells that differ; kitty and iTerm2 still send the whole picture. Dials
   stay 8-bit on purpose: they are shared pictures (`drawSharedImageAt()`, one per value, placed wherever it
   shows), and a control has no use for light past white. An
   `ImageData` handed to canvas is RGB straight-alpha unless tagged

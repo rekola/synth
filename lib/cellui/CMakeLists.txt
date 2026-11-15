@@ -180,7 +180,7 @@ endif()
 # Apple platforms or its GDI+ one on Windows. The cell rasterizer (the GTK
 # window's, the terminal's backdrops) is not built on Windows, whose window
 # draws cells itself.
-target_sources(cellui PRIVATE src/Dial.cpp src/NumberParse.cpp src/DialImage.cpp src/HeatmapImage.cpp src/NativeContext.cpp src/PixelCharts.cpp src/LineImage.cpp src/HdrSplit.cpp src/SparklineImage.cpp src/WaveformImage.cpp)
+target_sources(cellui PRIVATE src/Dial.cpp src/NumberParse.cpp src/DialImage.cpp src/HeatmapImage.cpp src/NativeContext.cpp src/PixelCharts.cpp src/LineImage.cpp src/HdrSplit.cpp src/HdrBloom.cpp src/SparklineImage.cpp src/WaveformImage.cpp)
 if(NOT WIN32)
   target_sources(cellui PRIVATE src/CanvasRasterizer.cpp)
   target_compile_definitions(cellui PRIVATE CELLUI_CANVAS_RASTERIZER)
@@ -270,7 +270,7 @@ add_executable(cellui_tests
   tests/NumberParseTests.cpp
   tests/Utf8Tests.cpp)
 if(NOT WIN32)
-  target_sources(cellui_tests PRIVATE tests/BackdropEmulationTests.cpp tests/CanvasRasterizerTests.cpp tests/EventLoopTests.cpp tests/ThreadPostsTests.cpp tests/TerminalSessionTests.cpp tests/TestBackendTests.cpp tests/HeatmapImageTests.cpp tests/LineImageTests.cpp tests/HdrSplitTests.cpp
+  target_sources(cellui_tests PRIVATE tests/BackdropEmulationTests.cpp tests/CanvasRasterizerTests.cpp tests/EventLoopTests.cpp tests/ThreadPostsTests.cpp tests/TerminalSessionTests.cpp tests/TestBackendTests.cpp tests/HeatmapImageTests.cpp tests/LineImageTests.cpp tests/HdrSplitTests.cpp tests/HdrBloomTests.cpp
     tests/SparklineTests.cpp
   tests/StageStatsTests.cpp tests/DialTests.cpp)
 endif()
