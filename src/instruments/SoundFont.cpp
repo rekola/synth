@@ -894,20 +894,12 @@ adjustPositionForPan(const SphericalPosition & position, const tsf_region * regi
   return adjusted;
 }
 
-// Combines the track's own user-configured SendA knob with this region's
-// SF2 reverbEffectsSend generator data (parsed in tenths of a percent,
-// 0-1000) - additive-then-clamped, mirroring SF2's own existing
-// generator-merge convention (region + preset offsets, summed then
-// clamped) rather than inventing a new combination rule. SendA still
-// means exactly what it always has (the shared reverb bus), so this
-// combination is unaffected by anything below. Named for the region side
-// of the merge specifically (not just "adjustSendA") so it can't be
-// confused with - or shadow via unqualified lookup in this constructor's
-// own initializer list - VoiceState::adjustSendA()/InstrumentVoice::
-// adjustSendA(), the unrelated live-voice Send A push (VoiceState.h).
+// Scales the track's SendA knob by this region's SF2 reverbEffectsSend
+// (tenths of a percent, 0-1000): 1x at none, 2x at full, clamped to 1. The
+// track's send stays the master control - zero is off. Named for the region
+// side so it can't shadow VoiceState::adjustSendA() in the initializer list.
 static float
 combineRegionSendA(float send_a, const tsf_region * region) {
-  // The region's reverb scales the track's send (zero stays off, no jump at the first step).
   return std::min(1.0f, send_a * (1.0f + (region ? region->reverbEffectsSend / 1000.0f : 0.0f)));
 }
 
