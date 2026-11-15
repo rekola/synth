@@ -1211,3 +1211,31 @@ TEST(kitty_frame_edit_sends_only_the_changed_rectangle) {
   root.refresh();
   CHECK(count(enc.encode(b, root.images(), false), "a=f") == 0);
 }
+
+// Every chunk of a frame edit names a=f: one with only m and q would be taken for image data and
+// replace the whole picture with the rectangle.
+TEST(kitty_frame_edit_chunks_all_name_the_frame_action) {
+  StyleProvider styles;
+  CellBuffer b(10, 50);
+  BufferPlane root(b, styles);
+  root.setCellPixelSize(6, 2);
+  auto chart = root.createChild();
+  chart->resize(10, 50);
+  auto pixels = solid(100, 60, Image::pack(10, 20, 30));
+  chart->drawImage(pixels, 100, 60);
+  auto edit = profile(PixelProtocol::KITTY);
+  edit.kitty_frame_edit = true;
+  ImageEncoder enc(edit);
+  enc.setCompressing(false);
+  root.refresh();
+  enc.encode(b, root.images(), true);
+  for (int y = 10; y < 50; y++)
+    for (int x = 10; x < 60; x++) pixels[static_cast<size_t>(y * 100 + x)] = Image::pack(static_cast<uint8_t>(x * 3), static_cast<uint8_t>(y * 4), 99);
+  chart->drawImage(pixels, 100, 60);
+  root.refresh();
+  std::string next = enc.encode(b, root.images(), false);
+  CHECK(count(next, "a=t") == 0);
+  CHECK(count(next, "a=f,r=1,X=1,f=24,i=1,x=10,y=10,s=50,v=40,q=1,m=1;") == 1);
+  CHECK(count(next, "\x1b_Ga=f,q=1,m=") >= 1);
+  CHECK(count(next, "\x1b_Gq=1") == 0 && count(next, "\x1b_Gm=") == 0);
+}
