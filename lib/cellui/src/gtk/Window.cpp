@@ -14,6 +14,7 @@
 #include <algorithm>
 #include <chrono>
 #include <cmath>
+#include <cstdlib>
 #include <deque>
 #include <map>
 #include <set>
@@ -585,8 +586,10 @@ constexpr float kGlowFullExcess = 0.6f;
 constexpr double kGlowStrength = 0.6;
 // The light past white in a picture (Image::hdr) is blurred twice over it, tight and wide: the radii in
 // cell heights and how much of each is added.
-constexpr double kPictureGlowTight = 0.25, kPictureGlowWide = 0.8;
-constexpr double kPictureGlowTightStrength = 0.8, kPictureGlowWideStrength = 0.9;
+constexpr double kPictureGlowWide = 0.8;
+constexpr double kPictureGlowWideStrength = 0.9;
+// The core (see appendImages()): the blur in cell heights, and the gain the grey glow is multiplied by.
+constexpr double kPictureCoreRadius = 0.1, kPictureCoreGain = 8.0;
 // How much larger a glyph with the full zoom (Cell::zoom of 255) is drawn, and the factor for a
 // zoom. A transform about the cell's centre on the glyph's cached node and its glow's quad, so no
 // node or texture is made again.
@@ -1127,11 +1130,32 @@ void Window::Impl::appendImages(GtkSnapshot * snap, const CellBuffer & cells) {
       if (!glow) {
         gtk_snapshot_append_scaled_texture(snap, texture, filter, &bounds);
       } else {
-        // The picture with its light past white spread around it: the glow layer blurred tight and wide
-        // (on the GPU), added to each other and to the picture by screening.
+        // The picture with its light past white spread around it, all added to it by screening: a wide
+        // coloured halo, and a core that thickens what is brightest. A bright line is wider than it is
+        // drawn because its glow, added to its neighbours, takes them past white too, and the brighter the
+        // light, the further out: the glow blurred a little, made grey, multiplied until what is near
+        // enough to the line reaches white, and clamped.
         auto blurred = [&](double radius, double strength) {
           gtk_snapshot_push_opacity(snap, strength);
           gtk_snapshot_push_blur(snap, radius);
+          gtk_snapshot_append_scaled_texture(snap, glow, filter, &bounds);
+          gtk_snapshot_pop(snap);
+          gtk_snapshot_pop(snap);
+        };
+        auto core = [&]() {
+          const float lum[3] = { 0.2126f, 0.7152f, 0.0722f };
+          const float gain = static_cast<float>(kPictureCoreGain);
+          float v[16] = {};
+          for (int k = 0; k < 3; k++) {
+            for (int j = 0; j < 3; j++) v[4 * k + j] = lum[k] * gain;  // every colour channel is the grey, times the gain
+          }
+          v[15] = 1.0f;
+          graphene_matrix_t matrix;
+          graphene_matrix_init_from_float(&matrix, v);
+          graphene_vec4_t offset;
+          graphene_vec4_init(&offset, 0.0f, 0.0f, 0.0f, 0.0f);
+          gtk_snapshot_push_color_matrix(snap, &matrix, &offset);
+          gtk_snapshot_push_blur(snap, kPictureCoreRadius * cell_h);
           gtk_snapshot_append_scaled_texture(snap, glow, filter, &bounds);
           gtk_snapshot_pop(snap);
           gtk_snapshot_pop(snap);
@@ -1140,11 +1164,11 @@ void Window::Impl::appendImages(GtkSnapshot * snap, const CellBuffer & cells) {
         gtk_snapshot_append_scaled_texture(snap, texture, filter, &bounds);
         gtk_snapshot_pop(snap);
         gtk_snapshot_push_blend(snap, GSK_BLEND_MODE_SCREEN);
-        blurred(kPictureGlowTight * cell_h, kPictureGlowTightStrength);
+        core();
         gtk_snapshot_pop(snap);
         blurred(kPictureGlowWide * cell_h, kPictureGlowWideStrength);
-        gtk_snapshot_pop(snap);
-        gtk_snapshot_pop(snap);
+        gtk_snapshot_pop(snap);  // the halo and the core
+        gtk_snapshot_pop(snap);  // those and the picture
       }
       gtk_snapshot_pop(snap);
     }
