@@ -238,7 +238,7 @@ std::vector<uint8_t> encodePng(const Image & image, int x0, int y0, int width, i
       raw.push_back(Image::alpha(p));
     }
   }
-  std::vector<uint8_t> z = zlibCompress(raw);
+  std::vector<uint8_t> z = zlibCompress(raw, 2, static_cast<size_t>(width) * 4 + 1);
 
   std::vector<uint8_t> png = {0x89, 'P', 'N', 'G', '\r', '\n', 0x1a, '\n'};
   std::vector<uint8_t> ihdr;
@@ -784,7 +784,7 @@ std::vector<uint8_t> encodePalettePng(const Image & image, int x0, int y0, int w
     plte.push_back(static_cast<uint8_t>(c & 0xff));
   }
   chunk(png, "PLTE", plte);
-  chunk(png, "IDAT", zlibCompress(raw));
+  chunk(png, "IDAT", zlibCompress(raw, 2, row_bytes + 1));
   chunk(png, "IEND", {});
   return png;
 }
@@ -866,7 +866,7 @@ void ImageEncoder::uploadKitty(const Image & img, uint32_t id, std::string & out
   // Compressed when that saves enough to be worth the terminal inflating it.
   auto deflate = [&](Upload & u) {
     if (!compress_ || u.png) return;
-    std::vector<uint8_t> z = zlibCompress(u.bytes);
+    std::vector<uint8_t> z = zlibCompress(u.bytes, 2, static_cast<size_t>(img.width) * 3);
     if (z.size() * 10 < u.bytes.size() * 9) {
       u.bytes = std::move(z);
       u.deflated = true;

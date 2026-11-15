@@ -649,7 +649,12 @@ deflate ratio on real charts is known.
      (UI-thread CPU, percent of a core, demo3 playing): Sixel Live View at full speed 41 to 23 (image encode 24 to 9),
      Arrangement 48 to 31 (28 to 12), Live View at 15 Hz 31 to 20 (13 to 5.7); kitty at 15 Hz 28 to 20 (the palette PNG
      8.5 to 4.4). The audio thread: unchanged (1.5 to 1.8 % of a block, no late block).
-     Looked at and left: deflate runs at 300 to 460 MB/s on x86 and the NEON and AVX2 paths cannot be tried here; a
+     Deflate was tuned afterwards (`zlibCompress(..., row_bytes)`): a picture's callers pass its row size, and the row above is tried
+     as a candidate that wins only by being longer, which gives the fast level 3 times fewer bytes on a flat-celled heatmap (2396 to 774) and
+     level 2, the one in use, 1 to 5 % fewer on the charts and the backdrop's tiles; level 3 no longer takes a longer match from far away
+     (`nice` 128), which made it larger than level 2 on that heatmap (927 against 746 bytes). Tried and left: inserting every position
+     inside a long match into the hash chains takes 2 % more off the tiles but floods the chains where a picture has long runs of one colour
+     (the heatmap went to 2.4 kB without the row size). Looked at and left: deflate runs at 300 to 460 MB/s on x86 and the NEON and AVX2 paths cannot be tried here; a
      picture's render is 0.2 ms for a spectrum and 0.8 ms for the heatmap, all of it cairo's highest-quality filter
      scaling the 26x14 grid up (a bilinear scaler of our own takes 0.1 ms but differs from it by 19 levels on average,
      100 at worst, on a contrasty grid: a change of look, so a decision, not a cut; made since: the heatmap is enlarged by nearest
