@@ -99,3 +99,14 @@ TEST(keyboard_pythagorean_scales_are_on_the_q_row) {
   CHECK(std::string(keyToMidiNote(key('o'), Tuning::EDO53, Scale::KITMUM)) == "D'");
   CHECK(std::string(keyToMidiNote(key('p'), Tuning::EDO53, Scale::KITMUM)).empty());
 }
+
+// Rāst's seven degrees, with the tonic and second an octave up, are on q..o.
+TEST(keyboard_rast_is_on_the_q_row) {
+  const char * expected[] = {"C", "D", "E𝄳", "F", "G", "A", "B𝄳", "C'", "D'"};
+  std::string row = "qwertyuio";
+  for (size_t i = 0; i < row.size(); i++) {
+    CHECK(std::string(keyToMidiNote(key(row[i]), Tuning::EDO24, Scale::RAST)) == expected[i]);
+  }
+  CHECK(std::string(keyToMidiNote(key('z'), Tuning::EDO24, Scale::RAST)).empty());
+  CHECK(std::string(keyToMidiNote(key('p'), Tuning::EDO24, Scale::RAST)).empty());
+}

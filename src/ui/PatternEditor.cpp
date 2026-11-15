@@ -1,6 +1,7 @@
 #include "../playback/KeyboardNotes.h"
 #include "PatternEditor.h"
 #include "LevelMeter.h"
+#include "TrackNameEdit.h"
 
 #include "../playback/InputEvent.h"
 #include "../state/SongState.h"
@@ -1018,6 +1019,7 @@ PatternEditor::startLocatorEdit() {
   field.width = width;
   auto & song = getController().getSong();
   field.initial_text = song.getLocator(*locator_row);
+  renaming_track_id_.reset();
   inline_editor_.open(field, [this, locator_row](std::string text) {
     auto & target = getController().getSong();
     Song::Edit edit(target, "set locator");
@@ -1088,27 +1090,12 @@ PatternEditor::startTrackNameEdit() {
   auto col = track_name_screen_col_;
   auto width = track_name_screen_width_;
 
-  // The leading "T<N> " is renderHeading()'s own structural label (N =
-  // color_ordinal_), not part of the track's own editable name - left
-  // for renderHeading() itself to draw below, in its own normal color,
-  // while only the name past it opens for editing.
+  // The field covers the name in the heading's label, after the "T<N> "
+  // prefix, which renderHeading() keeps drawing (the number alone while the
+  // name is edited).
   auto track_info = getTrackInfoFor(song, track_id);
-  auto prefix_width = std::min(static_cast<int>(("T" + std::to_string(track_info.color_ordinal_) + " ").size()), width);
-  auto edit_col = col + prefix_width;
-  auto edit_width = std::max(width - prefix_width, 1);
-
-  // The editable span only (not the "T<N> " prefix) gets a barely
-  // darkened track color as its backdrop, so it reads as "this track, now
-  // being edited". White text, since the reader's default pink reads
-  // poorly against it.
-  InlineEditor::Field field;
-  field.row = row;
-  field.col = edit_col;
-  field.width = edit_width;
-  field.initial_text = track->getName();
-  field.text_color = last_styles_->track_chips ? last_styles_->window_accent_fg_color : last_styles_->clip_text_color;
-  field.backdrop = last_styles_->track_chips ? last_styles_->heading_bg_color
-                                             : track_info.getColor(synthStyles().tracks).blend(0.05f, Color(0, 0, 0));
+  auto field = track_name_edit::field(*last_styles_, track_info, track->getName(), row, col, width);
+  renaming_track_id_ = track_id;
   inline_editor_.open(field, [this, track_id](std::string text) {
     auto & target_song = getController().getSong();
     if (target_song.getMasterTrack().getChildByInternalId(track_id)) {
@@ -2641,8 +2628,11 @@ bool PatternEditor::keyDown(const cellui::KeyDown & e) {
           } else if (is_lost) {
             edit_target.pattern->setNote(edit_target.effective_row, note_column, Note::lost());
           } else if (is_off) {
-            edit_target.pattern->setNote(edit_target.effective_row, note_column, Note::off(constants::NEUTRAL_VELOCITY, current_delay));
-            event_queue.push(make_unique<PlaybackControlEvent>(PlaybackControlEvent::STOP_NOTE, getController().getActiveBufferName(), track_id, note_column));
+            // Every column under the cursor, in its first row only.
+            for (int c = note_column; c < note_column + cursor_width_; c++) {
+              edit_target.pattern->setNote(edit_target.effective_row, c, Note::off(constants::NEUTRAL_VELOCITY, current_delay));
+              event_queue.push(make_unique<PlaybackControlEvent>(PlaybackControlEvent::STOP_NOTE, getController().getActiveBufferName(), track_id, c));
+            }
           } else {
             Note note(midi_note, constants::DEFAULT_NOTE_ON_VELOCITY, current_delay);
             tuneNewNote(song, track_id, note);
@@ -3298,9 +3288,8 @@ PatternEditor::renderHeadingOnPlane(const StyleProvider & styles, const std::vec
 	    // noise more often than it reads as useful; a hand-authored,
 	    // genuinely meaningful id is the rare exception, not the case to
 	    // design this fallback around.
-	    auto prefix = !is_color_eligible ? string() : "T" + std::to_string(vis_info->color_ordinal_);
-	    auto friendly_name = !is_color_eligible || track->getName().empty() ? string() : " " + track->getName();
-            auto name = prefix + friendly_name;
+            auto name = !is_color_eligible ? string()
+                                           : track_name_edit::label(vis_info->color_ordinal_, track->getName(), renaming_track_id_ == track->getInternalId() && inline_editor_.isOpen());
             if (has_collapse_toggle) {
 	      // White, matching the heading text - a heading control, not a
 	      // status indicator (contrast the faint Mute/Solo OFF glyphs

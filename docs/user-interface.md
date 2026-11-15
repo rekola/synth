@@ -195,6 +195,11 @@ pressed; Enter commits it and moves to the next column. A delay needs a note (or
 aftertouch) to belong to, so typing one on an empty column is refused; a velocity
 there makes an aftertouch. An OFF row shows its release velocity (its *lift*) in the velocity
 column and edits it the same way; velocity 00 on a note-on is a real note that starts from silence, never an OFF. `?` in the note column enters a lost note, `???`: a note whose pitch is unknown; it makes no sound but ends the previous note in its column. A lost note and a lacuna show `--` in the velocity and delay columns, which refuse a typed value. `~` enters a lacuna, `~~~`: a span of missing notes, which makes no sound and ends the previous note in the same way.
+**OFF** (`a`) with a cursor wider than one column writes an OFF in every
+column under the cursor, in the cursor's first row only, over whatever those
+cells held; the cursor then steps on as after any entry, keeping its width,
+and it is one undo step. This holds in every scale. With one column it writes
+the one OFF.
 A newly entered note-on gets velocity 200 (shown `c8`), a newly entered OFF the neutral 128 (shown `80`),
 Launchpads included. A command is text and is written as it is typed. Typed digits are amalgamated as Emacs does with typed characters: the hex
 digits of a velocity or delay, the characters of a command, and typed notes
@@ -250,7 +255,7 @@ Each of them shows the new edit step on the status line.
 
 ## Chord entry
 
-The pattern editor's cursor is 1 to 4 note columns wide. `widen-cursor`
+The pattern editor's cursor is 1 to 5 note columns wide. `widen-cursor`
 extends it to the right and `narrow-cursor` takes columns off its right end;
 the left edge stays. It lies within one track, and keeps its width
 as it moves and after an entry, until you change it. The width has nothing to
@@ -269,13 +274,22 @@ empty column with a used one to its right stays). `add-note-column` and
 columns (N above 1) completes the notes you play to a chord of N notes of the
 scale. The lowest note played is the degree. Its chords
 ([extended-diamond.md](extended-diamond.md)) are tried in order: the seventh
-chords, a stand-alone triad, then the major sevenths and the 7♯9 chords. The
-first that contains every other note played, octaves aside, is written: the
+chords, a stand-alone triad, then the major sevenths and the 7♯9 chords. At
+five columns the five-note chords (ninths, below) come first and these
+four-note chords are the fallback. The first that contains every other note played, octaves aside, is written: the
 notes played keep their octaves, and the chord's other notes are added from
 its lowest upward, within the octave above the lowest note played, until
 there are N. A chord of fewer notes than N is written whole and not padded.
 Nothing is ever added below the lowest note played, so E with A♯↑ at four
 columns gives E G A♯↑ C.
+
+**Five-note chords** are offered only at a width, or a palette size, of five;
+they are not cut down for a narrower cursor. At five columns the candidates
+are the five-note chords that contain all the notes played, in list order,
+followed by the four-note candidates as they are found at four: C at five
+columns gives C D♯ F G A ("F harmonic ninth / C"), F gives F G A C D♯ ("F
+harmonic ninth"), C with B gives C D E G B, and D𝄫, which has no five-note
+chord, gives its four-note chord and the fifth column is emptied.
 
 The chord is written in rising order from the cursor's first column, on one
 row, the added notes with the velocity and delay of the played ones; every
@@ -325,7 +339,7 @@ window in Japanese text input: each move writes the chord it lands on.
   note there, a note that is not a note of the scale, or a song whose scale
   is not otonal or utonal, the palette does not open and the status line says
   why.
-- **Size.** The chords of the palette have 2 to 4 notes. The size starts at
+- **Size.** The chords of the palette have 2 to 5 notes. The size starts at
   the cursor's width; with a cursor of one column, at the size last used
   there, 4 the first time. So with a narrow cursor you can play one or more
   notes and open the palette to complete them. While it is open,
@@ -379,10 +393,7 @@ The price is that some triads are a comma off. The duodene has one note for
 each of its twelve keys, so in C major the D is 9/8, the pure fifth G-D and
 fourth, but D-A is 40/27, 81/80 flat of 3/2, and F-B♭ in minor is 27/20. Any
 fixed twelve-note just scale leaves a comma somewhere; B♭ is 9/5 rather than
-16/9 so that in minor the v and ♭III triads come out pure. (Adaptive just
-intonation, planned, would move the whole scale by a comma at a switch; that
-is a different thing from tuning a chord against its own bass, which is not
-done at all.)
+16/9 so that in minor the v and ♭III triads come out pure. (Tuning notes against each other, adaptively, is not done.)
 
 Percussion, offs and aftertouch are skipped; any other fx a note had is
 replaced, and the message says how many. A correction over 255 cents, which no real gamut needs, is never clamped: the note is left untuned and the message counts those too. In a song with no scale, or a scale
@@ -457,11 +468,11 @@ notes between them on the number row (the tritone on `5`, between F and G), and
 the notes that cluster round the tonic and the tritone on `1` and the home row
 below (`s`, `f`, `g`; not `a`, the note-off key), with B and B♯ on `k` and `l`.
 The `[` and `]` keys are octave down and up. In a song in one of the Pythagorean
-scales (the seven Babylonian modes, Phrygian tonos) the scale's degrees are on
+scales (the seven Babylonian modes, Phrygian tonos) or in Rāst the scale's degrees are on
 `q w e r t y u i o p` in ascending order, followed by the tonic and second an
 octave up where keys remain; Phrygian tonos has ten degrees and fills the row.
-A song with any other scale (or none) keeps its own layouts, which do not follow
-the scale; the maqām Rāst has its own. The Launchpad's step view steps through
+A song with any other scale (or none) keeps the layout that does not follow
+the scale. The Launchpad's step view steps through
 all eighteen notes of the scale.
 
 ## Terminal

@@ -68,7 +68,7 @@ class PatternEditor : public UIElement {
   // The cursor covers this many note columns of its row, from its own
   // rightward (fewer where the track ends); notes played are completed to a
   // chord that wide.
-  static constexpr int kMaxCursorWidth = 4;
+  static constexpr int kMaxCursorWidth = chords::kMaxSize;
   int getCursorWidth() const { return cursor_width_; }
 
   // Aborts the locator/track-name editor without committing anything -
@@ -515,7 +515,7 @@ private:
     int selected = 0;
   };
   ChordPalette chord_palette_;
-  static constexpr int kPaletteColumns = 4;
+  static constexpr int kPaletteColumns = kMaxCursorWidth;
   int palette_size_ = 4; // the size last used with a cursor of one column
   bool palette_drawn_ = false;
   std::unique_ptr<Plane> palette_plane_;
@@ -618,6 +618,8 @@ private:
 
   // Shared by the locator and track-name editors; only one is ever open.
   InlineEditor inline_editor_{getPlane()};
+  // The track whose name the editor is open on (its heading shows the number alone).
+  std::optional<int> renaming_track_id_;
 
   // Where each column of a drawn row starts on screen (renderRow()), by
   // row below the heading - what a mouse click is resolved against.

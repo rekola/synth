@@ -165,7 +165,7 @@ Controller-level and per-widget commands. Not migrated: `StatusLine`,
 
 ## Chord cursor and chord entry
 
-- The cursor has a width of 1 to `kMaxCursorWidth` note columns
+- The cursor has a width of 1 to `kMaxCursorWidth` (`chords::kMaxSize`, 5) note columns
   (`widen-cursor`/`narrow-cursor`), drawn across them and clipped where the
   track ends; with no mark the region is that span. The width is not the
   selection. Widening past the last note column raises the track's

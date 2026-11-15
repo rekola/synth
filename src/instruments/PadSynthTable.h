@@ -60,6 +60,13 @@ class PadSynthTable {
   // point), building and caching it on first use.
   const std::vector<float> & getTable(float f0) const;
 
+  // The part of getTable(f0) made of partials whose number is a multiple of
+  // `step` (0Hxx): the same bins with the same phases and the same scale, so
+  // adding it to the plain table, times a coefficient, raises exactly those
+  // partials. Empty when the region has no such partial. Built and cached on
+  // first use, like the plain table.
+  const std::vector<float> & getOvertoneTable(float f0, int step) const;
+
   // The region's own reference frequency (Hz) that getTable(f0)'s table
   // was actually generated at - see PadSynthVoice.h's own render() for
   // how a voice resamples from this to its note's real pitch.
@@ -71,7 +78,10 @@ class PadSynthTable {
   int sampleCount() const { return params_.octaves * params_.samples_per_octave; }
   float sampleFrequency(int j) const;
   int nearestSampleIndex(float f0) const;
-  std::vector<float> renderSample(int j) const;
+  // Region j's table from the partials whose number is a multiple of `step`
+  // (1: all of them, the plain table, which sets the region's scale). Empty
+  // when no partial is placed.
+  std::vector<float> renderSample(int j, int step = 1) const;
 
   int sample_rate_;
   PadSynthParams params_;
@@ -84,6 +94,8 @@ class PadSynthTable {
   const std::vector<float> & oscillatorMagnitudes() const;
 
   mutable std::unordered_map<int, std::vector<float>> tables_;
+  mutable std::unordered_map<int, float> scales_;                           // per region: the plain table's RMS normalisation
+  mutable std::unordered_map<int64_t, std::vector<float>> overtone_tables_; // by step << 32 | region
 };
 
 #endif

@@ -1,6 +1,8 @@
 #ifndef _INSTRUMENTVOICE_H_
 #define _INSTRUMENTVOICE_H_
 
+#include "OvertoneComb.h"
+#include "OvertoneProfile.h"
 #include "../state/PositionedVoice.h"
 #include "../dsp/HashField.h"
 #include "../util/Velocity.h"
@@ -103,7 +105,37 @@ class InstrumentVoice : public PositionedVoice {
     glide_now_ = glide_target_;
   }
 
-protected:
+  // 0Hxx: the profile is the voice's own; each instrument reads it in its
+  // render() in the way that suits how it makes its sound. One that reads
+  // nothing (noise, which has no overtones) is unchanged by the command.
+  void setOvertoneTarget(int step) override {
+    VoiceState::setOvertoneTarget(step);
+    overtones_.setTarget(step);
+  }
+  void advanceOvertoneGlide(double per_frame, int frames) override {
+    VoiceState::advanceOvertoneGlide(per_frame, frames);
+    if (overtones_.engaged()) overtones_.advance(per_frame, frames);
+  }
+  void jumpOvertoneGlide() override {
+    VoiceState::jumpOvertoneGlide();
+    overtones_.jump();
+  }
+  const OvertoneProfile & getOvertoneProfile() const { return overtones_; }
+
+ protected:
+  // The comb that applies the profile to a finished mono signal, for an
+  // instrument with no level per partial; nothing until a command has aimed
+  // the profile. `fundamental_ratio` is the note's own detune where the voice
+  // applies it itself rather than through playNote()'s frequency.
+  void applyOvertoneComb(OvertoneComb & comb, float * signal, int frames, float fundamental_ratio = 1.0f) {
+    applyOvertoneComb(comb, signal, frames, static_cast<double>(getFrequency() * fundamental_ratio), static_cast<double>(getFrequencyEnd() * fundamental_ratio));
+  }
+  // The same with the fundamental (Hz) at the first and the last sample given.
+  void applyOvertoneComb(OvertoneComb & comb, float * signal, int frames, double f0, double f1) {
+    if (!overtones_.engaged()) return;
+    comb.process(signal, frames, getChannelConfiguration().getAudioOutSampleRate(), f0, f1, overtones_);
+  }
+
   double getSourceSamplePosition() const { return sourceSamplePosition_; }
 
   inline void stepForward(int frames) {
@@ -146,6 +178,7 @@ private:
   double slide_start_cents_ = 0.0, slide_end_cents_ = 0.0;
   double glide_target_ = 0.0, glide_now_ = 0.0, glide_start_ = 0.0, glide_end_ = 0.0;
   float slide_ratio_start_ = 1.0f, slide_ratio_end_ = 1.0f;
+  OvertoneProfile overtones_;
 };
 
 #endif

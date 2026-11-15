@@ -78,7 +78,8 @@ class AdditiveVoice : public InstrumentVoice {
     const size_t rows = directions_.size();
 
     rows_.assign(rows * stride, 0.0f);
-    if (bank_) bank_->render(rows_.data(), stride, frames);
+    // 0Hxx sets each string partial's level by its overtone number.
+    if (bank_) bank_->render(rows_.data(), stride, frames, &getOvertoneProfile());
     for (auto & s : rows_) s *= gain;
 
     stepForward(frames);

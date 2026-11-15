@@ -199,6 +199,68 @@ against E (5/4), a 15/14 apart. Two of them are familiar:
 - C D♯ E A (12:14:15:20) is the minor triad A C E with D♯, a 7/5 above the
   A: A minor with its augmented fourth sounding as well.
 
+### Five-note chords
+
+Chord entry at a width of five offers these, nine to a scale. Each kind has
+a mirror, and a chord is named after its lowest note in that form.
+
+| Kind | Proportion | Notes above the lowest |
+|---|---|---|
+| harmonic ninth | 4:5:6:7:9 | 5/4, 3/2, 7/4, 9/4 |
+| mirror harmonic ninth | 1/9:1/7:1/6:1/5:1/4 | 9/8, 9/7, 3/2, 9/5 |
+| major ninth | 8:10:12:15:18 | 5/4, 3/2, 15/8, 9/4 |
+| mirror major ninth | 1/18:1/15:1/12:1/10:1/8 | 6/5, 3/2, 9/5, 9/4 |
+| 7♯9 with fifth | 12:14:15:18:21 | 7/6, 5/4, 3/2, 7/4 |
+| mirror 7♯9 with fifth | 1/21:1/18:1/15:1/14:1/12 | 7/6, 7/5, 3/2, 7/4 |
+
+The nine of otonal are F harmonic ninth (C D♯ F G A on C), F major ninth,
+C 7♯9 with fifth, C harmonic ninth, C mirror harmonic ninth, C major ninth,
+A mirror major ninth, C mirror 7♯9 with fifth and A mirror harmonic ninth.
+The nine of utonal are F mirror harmonic ninth, F mirror major ninth, E𝄫
+mirror 7♯9 with fifth, B♭↓ harmonic ninth, B♭↓ mirror harmonic ninth, D♭↓
+major ninth, B♭↓ mirror major ninth, E𝄫 7♯9 with fifth and D♭↓ harmonic
+ninth. A degree's list is every one of the nine that contains it, read
+upward from it: chords from a lower step first, then harmonic ninths and
+their mirrors, major ninths and theirs, 7♯9 chords and theirs, then the chord
+named after the degree itself. Degrees with none (D𝄫, for one) have only
+their four-note chords.
+
+Otonal, on C (transpose with the tonic):
+
+| Degree | Five-note chords |
+|---|---|
+| C | F harmonic ninth / C, F major ninth / C, C 7♯9 with fifth, C harmonic ninth, C mirror harmonic ninth, C major ninth, A mirror major ninth / C, C mirror 7♯9 with fifth |
+| D♭↓ | A mirror harmonic ninth / D♭↓ |
+| D | C harmonic ninth / D, C mirror harmonic ninth / D, C major ninth / D |
+| D♯ | F harmonic ninth / D♯, C 7♯9 with fifth / D♯, C mirror 7♯9 with fifth / D♯ |
+| E | F major ninth / E, C 7♯9 with fifth / E, C harmonic ninth / E, A mirror harmonic ninth / E, C major ninth / E, A mirror major ninth / E |
+| F♭ | C mirror harmonic ninth / F♭ |
+| F | F harmonic ninth, F major ninth |
+| F♯↑ | C mirror 7♯9 with fifth / F♯↑ |
+| G | F harmonic ninth / G, F major ninth / G, C 7♯9 with fifth / G, C harmonic ninth / G, A mirror harmonic ninth / G, C mirror harmonic ninth / G, C major ninth / G, A mirror major ninth / G, C mirror 7♯9 with fifth / G |
+| A | F harmonic ninth / A, F major ninth / A, A mirror harmonic ninth, A mirror major ninth |
+| A♯↑ | C 7♯9 with fifth / A♯↑, C harmonic ninth / A♯↑, C mirror 7♯9 with fifth / A♯↑ |
+| B♭ | C mirror harmonic ninth / B♭ |
+| B | A mirror harmonic ninth / B, C major ninth / B, A mirror major ninth / B |
+
+Utonal, on C:
+
+| Degree | Five-note chords |
+|---|---|
+| C | F mirror harmonic ninth / C, F mirror major ninth / C, E𝄫 mirror 7♯9 with fifth / C, B♭↓ harmonic ninth / C, B♭↓ mirror harmonic ninth / C, D♭↓ major ninth / C, B♭↓ mirror major ninth / C, E𝄫 7♯9 with fifth / C |
+| D♭↓ | D♭↓ harmonic ninth, D♭↓ major ninth, B♭↓ mirror major ninth / D♭↓ |
+| D↓ | B♭↓ harmonic ninth / D↓ |
+| E𝄫 | E𝄫 mirror 7♯9 with fifth, B♭↓ mirror harmonic ninth / E𝄫, E𝄫 7♯9 with fifth |
+| E♭ | F mirror harmonic ninth / E♭, F mirror major ninth / E♭, D♭↓ harmonic ninth / E♭, D♭↓ major ninth / E♭ |
+| F | F mirror harmonic ninth, F mirror major ninth, E𝄫 mirror 7♯9 with fifth / F, D♭↓ harmonic ninth / F, B♭↓ harmonic ninth / F, B♭↓ mirror harmonic ninth / F, D♭↓ major ninth / F, B♭↓ mirror major ninth / F, E𝄫 7♯9 with fifth / F |
+| G♭↓ | E𝄫 7♯9 with fifth / G♭↓ |
+| G | F mirror harmonic ninth / G, F mirror major ninth / G |
+| G♯ | B♭↓ harmonic ninth / G♯ |
+| A♭ | F mirror major ninth / A♭, E𝄫 mirror 7♯9 with fifth / A♭, D♭↓ harmonic ninth / A♭, B♭↓ mirror harmonic ninth / A♭, D♭↓ major ninth / A♭, B♭↓ mirror major ninth / A♭ |
+| B𝄫 | F mirror harmonic ninth / B𝄫, E𝄫 mirror 7♯9 with fifth / B𝄫, E𝄫 7♯9 with fifth / B𝄫 |
+| B♭↓ | B♭↓ harmonic ninth, B♭↓ mirror harmonic ninth, B♭↓ mirror major ninth |
+| B | D♭↓ harmonic ninth / B |
+
 ## The gamut
 
 The gamut has 33 ratios: the tonic, F and G, which both scales share, and

@@ -3,6 +3,7 @@
 
 #include "../ambisonic/ChannelConfiguration.h"
 #include "../model/Command.h"
+#include "../model/JustIntonation.h"
 #include "../model/NoteCoordinate.h"
 #include "../model/SampleContent.h"
 #include "../model/Tuning.h"
@@ -38,6 +39,14 @@ struct NoteOverride {
   float glide_cents_per_frame = 0;
   int glide_frames = 0;
   bool glide_instant = false;
+  // 0Hxx for this note's column: the column's sounding note glides its
+  // overtone profile toward the overtones it shares with this note, by
+  // `overtone_per_frame` of the whole change a frame for the
+  // `overtone_frames` left of the row (instantly when `overtone_instant`).
+  bool has_overtone_glide = false;
+  float overtone_per_frame = 0;
+  int overtone_frames = 0;
+  bool overtone_instant = false;
   float azimuth = 0, extent = 0, detune_cents = 0;
 };
 
@@ -200,12 +209,30 @@ class RenderContext {
     return pending_pitch_glides_[track_id];
   }
 
+  // 0Hxx's rate on a row with no target: from `frame`, the overtone profiles
+  // of `column` (-1: every column) move by `per_frame` of the whole change a
+  // frame for `frames` frames (instantly when `instant`). The same shape as a
+  // pitch glide's, `cents_per_frame` holding the share.
+  void addPendingOvertoneGlide(int track_id, int frame, int column, float per_frame, int frames, bool instant) {
+    pending_overtone_glides_[track_id][frame].push_back({column, per_frame, frames, instant});
+  }
+  std::map<int, std::vector<PitchGlide> > & getPendingOvertoneGlides(int track_id) {
+    return pending_overtone_glides_[track_id];
+  }
+
+  // The song's just ratios per key (0Hxx finds the shared overtones from them).
+  void setScaleCorrections(const just_intonation::ScaleCorrections & scale) {
+    if (!(scale == scale_corrections_)) scale_corrections_ = scale;
+  }
+  const just_intonation::ScaleCorrections & getScaleCorrections() const { return scale_corrections_; }
+
   // The transport stopped or jumped: slides not yet begun are dropped, and
   // the epoch tells each track to end the ones running (it freezes them
   // where they are).
   void noteTransportJump() {
     pending_pitch_slides_.clear();
     pending_pitch_glides_.clear();
+    pending_overtone_glides_.clear();
     transport_epoch_++;
     if (keep_global_pitch_)
       keep_global_pitch_ = false;
@@ -314,6 +341,9 @@ class RenderContext {
     for (auto & td : pending_pitch_glides_) {
       if (!td.second.empty()) return false;
     }
+    for (auto & td : pending_overtone_glides_) {
+      if (!td.second.empty()) return false;
+    }
     for (auto & td : pending_sample_events_) {
       if (!td.second.empty()) return false;
     }
@@ -344,12 +374,14 @@ class RenderContext {
       }
     }
 
-    for (auto & [track_id, glides] : pending_pitch_glides_) {
-      auto old_glides = glides;
-      glides.clear();
-      for (auto & [frame, list] : old_glides) {
-        auto new_frame = frame + offset;
-        if (new_frame >= 0) glides[new_frame] = list;
+    for (auto * pending : {&pending_pitch_glides_, &pending_overtone_glides_}) {
+      for (auto & [track_id, glides] : *pending) {
+        auto old_glides = glides;
+        glides.clear();
+        for (auto & [frame, list] : old_glides) {
+          auto new_frame = frame + offset;
+          if (new_frame >= 0) glides[new_frame] = list;
+        }
       }
     }
 
@@ -383,6 +415,8 @@ class RenderContext {
   std::unordered_map<int, std::map<int, float> > pending_azimuth_ticks_;
   std::unordered_map<int, std::map<int, std::vector<PitchSlide> > > pending_pitch_slides_;
   std::unordered_map<int, std::map<int, std::vector<PitchGlide> > > pending_pitch_glides_;
+  std::unordered_map<int, std::map<int, std::vector<PitchGlide> > > pending_overtone_glides_;
+  just_intonation::ScaleCorrections scale_corrections_;
   std::unordered_map<int, std::map<int, std::vector<SampleTrackEvent> > > pending_sample_events_;
   float bpm_ = 0.0f;
   int transport_epoch_ = 0;
