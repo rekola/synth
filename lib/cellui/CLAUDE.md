@@ -211,7 +211,9 @@ carries the app's object as an opaque `getAppContext()`.
   renderPicture()` so far) asks `Plane::hdrPictures()` (`DisplayInfo::hdr_pictures`, the root's
   for the tree) and shows the result with `drawPicture()`: `Plane::drawHdrImage()` for floats
   (`Image::hdr`, linear Rec.2020 RGBA, the display maps and blooms it itself) or `drawImage()`.
-  The GTK window sets `hdr_pictures`; the terminals and Win32 do not and get 8-bit pictures. An
+  The GTK window sets `hdr_pictures`; the terminals and Win32 do not and get 8-bit pictures. Dials
+  stay 8-bit on purpose: they are shared pictures (`drawSharedImageAt()`, one per value, placed wherever it
+  shows), and a control has no use for light past white. An
   `ImageData` handed to canvas is RGB straight-alpha unless tagged
   (`setFormat(ChannelOrder::BGR, true)` for premultiplied B,G,R,A as we build
   them); renderers return RGBA.
