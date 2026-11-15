@@ -317,10 +317,10 @@ Controller-level and per-widget commands. Not migrated: `StatusLine`,
   greens, shaded by height via `StyleProvider::levelColor()` like the spectrum's and the heatmap's, its loud
   end lit past white in a picture (`levelLitColor()`) so the window blooms it in the bar's own green, a
   `PeakHold` marker). Clipping is not the bar's to show: a meter has a clip lamp (`cellui/ClipLamp.h`), a
-  round lamp two cells wide and one row tall, dim until the track clips and then the clip colour lit well
+  round lamp one cell wide and one row tall, dim until the track clips and then the clip colour lit well
   past white (a glow in the window, bold in a terminal), a picture where the plane has pixels and a
-  large circle and a space where it has not. It is held lit for `ClipHold::kHoldSeconds` after the last
-  clip by whoever owns the meter's state. The clip grid draws it in the last two cells of the Sends group's
+  large circle where it has not. It is held lit for `ClipHold::kHoldSeconds` after the last
+  clip by whoever owns the meter's state. The clip grid draws it in the meter's own column, in the Sends group's
   last row, above the meter's bar; `ChannelMeter` in its top row (one lamp, lit by any channel); the pattern
   editor's heading has no room and shows the held clip on the track's status dot;
   the pattern editor's track meters and the scope row's `ChannelMeter`

@@ -33,10 +33,15 @@ Picture renderPicture(bool lit, unsigned width, unsigned height, const Color & b
   if (!drawn.context) return blank;
   canvas::Context & ctx = *drawn.context;
   const float w = static_cast<float>(width), h = static_cast<float>(height);
-  ctx.fillStyle = toCanvas(background);
-  ctx.fillRect(0, 0, w, h);
+  // On a float picture, which only a window takes, the lamp is on nothing: the glow of a lit one then meets the
+  // cells under it the same way inside the picture as outside it, with no seam at its edge. An 8-bit picture is
+  // opaque, as a terminal's encoders want.
+  if (!drawn.is_float) {
+    ctx.fillStyle = toCanvas(background);
+    ctx.fillRect(0, 0, w, h);
+  }
   // A disc a little smaller than the cells, so a lit one has room to glow and a dim one sits in its place.
-  const double radius = 0.42 * std::min(w, h);
+  const double radius = 0.4 * std::min(w, h);
   ctx.beginPath().arc(w / 2.0, h / 2.0, radius, 0.0, 6.283185307179586).closePath();
   ctx.fillStyle = toCanvas(styles.clipLedColor(lit, background));
   ctx.fill();
@@ -85,7 +90,7 @@ void drawCellClipLamp(Plane & plane, int row, int col, bool lit, const Color & b
   if (row < clip_top || row >= clip_bottom) return;
   plane.setFgColor(plane.getStyles().clipLedColor(lit, background));
   plane.setBgColor(background);
-  plane.putstr(row, col, std::string(kClipLampGlyph) + " ");
+  plane.putstr(row, col, kClipLampGlyph);
 }
 
 }  // namespace cellui

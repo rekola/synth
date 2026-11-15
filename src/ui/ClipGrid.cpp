@@ -1470,8 +1470,8 @@ ClipGrid::renderMeter(const StyleProvider & styles, int x, int rows, int track_i
   // Inside the body plane.
   static const auto fallback = cellui::cellCharts();
   (charts_ ? charts_ : fallback.get())->drawSparkline(body(), top, x + kColWidth - 1, kMeterRows, reading, look, 0, rows, static_cast<uint64_t>(track_id) + 2);
-  // The clip lamp, in the last two cells of the Sends group's last row: the B dial ends before them, so they
-  // are free, and the meter's bar starts below the divider that follows.
+  // The clip lamp, in the meter's own column in the Sends group's last row: the B dial ends before it, so the
+  // cell is free, and the meter's bar starts below the divider that follows.
   cellui::drawClipLamp(body(), clipRowCount() + kSendsBottom - first_row_, x + kColWidth - cellui::kClipLampCols, clipping, styles.grid_bg_color, 0, rows,
                        static_cast<uint64_t>(track_id) + 0x100000);
 }
