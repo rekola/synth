@@ -75,20 +75,7 @@ class Command {
   bool updateData(int i, int32_t codepoint) {
     if (i < 0 || i >= 4) return false;
     if (codepoint >= 'a' && codepoint <= 'z') codepoint -= 'a' - 'A'; // normalize once, up front, rather than testing lowercase separately below
-    bool valid;
-    if (i == 0) {
-      // Column 0 is the device index (docs/commands.md): a digit or a letter
-      // says how far up this track's own ancestor chain the command targets
-      // ('-' a typed synonym for '0', see below), except 'Z' (a global
-      // command) and 'Y' (this engine's own reserved namespace - see
-      // isVolumeGlide()'s own comment). Letters extend the digits so the
-      // index doesn't run out.
-      valid = codepoint == '-' || (codepoint >= '0' && codepoint <= '9') || (codepoint >= 'A' && codepoint <= 'Z');
-    } else {
-      char hi = i < 2 ? 'Z' : 'F'; // column 1 (the action letter) allows the full alphabet; the hex argument columns (2/3) don't
-      valid = codepoint == '-' || (codepoint >= '0' && codepoint <= '9') || (codepoint >= 'A' && codepoint <= hi);
-    }
-    if (!valid) return false;
+    if (!acceptsCharacter(i, codepoint)) return false;
     // Every column *other* than 0 still stores a literal '-' when typed -
     // that's this class's own "not set" placeholder (values_'s
     // default-constructed value, isDefined()'s own check), unaffected by
@@ -97,15 +84,27 @@ class Command {
     return true;
   }
 
+  // The one definition of which (uppercase) characters a column may hold:
+  // column 0 the device index - a digit or a letter, 'Z' (a global command)
+  // and 'Y' (this engine's own reserved namespace, see isVolumeGlide()) among
+  // them, '-' a typed synonym for '0'; column 1 the full mnemonic alphabet;
+  // columns 2/3 the hex argument. '-' is "not set" in all of them.
+  static bool acceptsCharacter(int i, int32_t codepoint) {
+    if (codepoint == '-' || (codepoint >= '0' && codepoint <= '9')) return true;
+    return codepoint >= 'A' && codepoint <= (i < 2 ? 'Z' : 'F');
+  }
+
   bool isDefined() const { return values_[0] != '-' || values_[1] != '-' || values_[2] != '-' || values_[3] != '-'; }
 
   // Whether playback understands this command: an unset one is valid (nothing
-  // to do); a set one needs a mnemonic from docs/commands.md with its device
-  // digit and two hex argument characters filled in (ZTxx below the minimum
-  // tempo is not valid either). Invalid commands are shown in red and skipped.
+  // to do); a set one needs a mnemonic from docs/commands.md and every
+  // column filled in (ZTxx below the minimum tempo is not valid either).
+  // Whatever is stored passed acceptsCharacter() already, so an argument
+  // that is not '-' is a hex digit. Invalid commands are shown in red and
+  // skipped.
   bool isValid() const {
     if (!isDefined()) return true;
-    if (digit(values_[2], 16) < 0 || digit(values_[3], 16) < 0) return false;
+    if (values_[1] == '-' || values_[2] == '-' || values_[3] == '-') return false;
     if (values_[0] == 'Z') return isPatternBreak() || (isTempoSet() && getTempoBpm() > 0);
     if (values_[0] == 'Y') return std::string_view("MABZLRUD").find(values_[1]) != std::string_view::npos;
     return values_[0] == '0' && std::string_view("UDGHRPWL").find(values_[1]) != std::string_view::npos;
