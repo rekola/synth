@@ -91,11 +91,11 @@ class StyleProvider {
   Color info_line_fg_color;
   Color info_line_bg_color;
 
-  // A level indicator's colours: clipping (the clip lamp's), and sounding.
+  // A level indicator's colours: the alarm colour (a Lamp's, lit), and sounding.
   Color level_full_color;
   Color level_active_color;
   // The level meters' bars are one hue, shaded by height from quiet to loud, like the spectrum's: the
-  // theme's greens, low to level_active_color at the top. Clipping is the lamp's, not the bar's.
+  // theme's greens, low to level_active_color at the top. A warning is a Lamp's to show, not the bar's.
   Color level_low_color;
   Color level_mid_color;
   // The spectrum's bars shade from low to high.
@@ -112,12 +112,12 @@ class StyleProvider {
   // drawn as a picture: the loud end glows in the bar's own green on a display that can show it.
   Color levelLitColor(float fraction) const { return levelColor(fraction) * litGain(fraction, kLevelHdrStart, kLevelHdrGain); }
   static constexpr float kLevelHdrStart = 0.7f, kLevelHdrGain = 3.0f;
-  // The clip lamp of a meter drawn as a picture: dim while the meter is not clipping (the clip colour a little
-  // way from the background), and when it is the clip colour lit well past white, so it glows like an LED.
-  Color clipLedColor(bool lit, const Color & background) const {
-    return lit ? level_full_color * (1.0f + kClipLedGain) : background.blend(0.3f, level_full_color);
+  // The colour of a Lamp (Lamp.h): dim while off (the alarm colour a little way from the background), and
+  // when lit that colour well past white, so it glows like an LED.
+  Color lampColor(bool lit, const Color & background) const {
+    return lit ? level_full_color * (1.0f + kLampGain) : background.blend(0.3f, level_full_color);
   }
-  static constexpr float kClipLedGain = 3.0f;
+  static constexpr float kLampGain = 3.0f;
   // The spectrum's colour at a level, 0 to 1: the ramp from line_low_color to line_high_color, whose top
   // is lit past white (a channel above 1, HDR) from kLineHdrStart on, so the loudest part of a curve
   // glows on a display that can show it, and is the ramp's own colour washed toward white on one that

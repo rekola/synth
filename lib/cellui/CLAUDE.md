@@ -43,7 +43,7 @@ carries the app's object as an opaque `getAppContext()`.
 - Theme (`Theme`, `StyleProvider`), `Plane`, `Widget` (`Widget.h`: the plane,
   drawing, keymap and prefix-key dispatch),
   `UIMenu`, `Viewport.h`, the generic widgets (`ChoiceList`/`ChoiceDialog`,
-  `InlineEditor`, `SpinBox`, `Dial`, `ClipLamp`, `LineChart`, `HeatmapChart`, `InfoDialog`,
+  `InlineEditor`, `SpinBox`, `Dial`, `Lamp`, `LineChart`, `HeatmapChart`, `InfoDialog`,
   `CommandPalette` with `FuzzyMatch.h`, `ModalDialog`), `Gallery.h`.
 
 ## Events and input dispatch

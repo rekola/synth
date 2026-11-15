@@ -1,6 +1,6 @@
 #include "ChannelMeter.h"
 
-#include <cellui/ClipLamp.h>
+#include <cellui/Lamp.h>
 #include <cellui/Plane.h>
 #include <cellui/StyleProvider.h>
 
@@ -33,8 +33,8 @@ void ChannelMeter::show(const std::string & label) {
 
   // The clip lamp takes the top row, when there is one to spare for it; the bars are under it and the legend
   // is the last row.
-  int top = rows >= 3 && cols >= cellui::kClipLampCols ? 1 : 0;
-  if (top) cellui::drawClipLamp(getPlane(), 0, 0, clipping(), styles.window_bg_color, 0, rows, 2);
+  int top = rows >= 3 && cols >= cellui::kLampCols ? 1 : 0;
+  if (top) cellui::drawLamp(getPlane(), 0, 0, clipping(), styles.window_bg_color, 0, rows, 2);
   int bar_rows = (label.empty() ? rows : rows - 1) - top;
   cellui::SparklineLook look{styles.window_bg_color, std::nullopt};
   // One sparkline, two bars to a cell, as many as fit.

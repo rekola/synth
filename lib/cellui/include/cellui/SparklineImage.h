@@ -11,8 +11,8 @@
 namespace cellui {
 
 // A sparkline's reading: the level and the held peak as 0..1 fractions of the
-// meter (level_meter::fraction()). Clipping is not the bar's to show: a meter has a clip lamp of its own
-// (ClipLamp.h).
+// meter (level_meter::fraction()). The bar shows level and nothing else; a warning beside it is a Lamp's
+// (Lamp.h).
 struct SparklineReading {
   float fraction = 0.0f;
   float peak = 0.0f;  // 0: no peak marker

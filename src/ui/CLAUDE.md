@@ -316,7 +316,7 @@ Controller-level and per-widget commands. Not migrated: `StatusLine`,
   `Ballistics` smoothing block RMS in the power domain, a bar of one hue, the theme's
   greens, shaded by height via `StyleProvider::levelColor()` like the spectrum's and the heatmap's, its loud
   end lit past white in a picture (`levelLitColor()`) so the window blooms it in the bar's own green, a
-  `PeakHold` marker). Clipping is not the bar's to show: a meter has a clip lamp (`cellui/ClipLamp.h`), a
+  `PeakHold` marker). Clipping is not the bar's to show: a meter has a clip lamp (a `cellui::Lamp`, `cellui/Lamp.h`, which knows nothing of clipping), a
   round lamp one cell wide and one row tall, dim until the track clips and then the clip colour lit well
   past white (a glow in the window, bold in a terminal), a picture where the plane has pixels and a
   large circle where it has not. It is held lit for `ClipHold::kHoldSeconds` after the last

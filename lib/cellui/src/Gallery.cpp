@@ -1,6 +1,6 @@
 #include <cellui/Gallery.h>
 
-#include <cellui/ClipLamp.h>
+#include <cellui/Lamp.h>
 
 #include <cellui/ChoiceList.h>
 #include <cellui/InfoDialog.h>
@@ -257,9 +257,9 @@ Gallery::Gallery(Plane & plane, const Theme & theme, const DisplayInfo & display
     const std::vector<SparklineReading> readings = {
       { 0.7f, 0.8f }, { 0.3f, 0.5f }, { 0.12f, 0.2f }, { 0.5f, 0.6f }, { 0.02f, 0.05f }, { 1.0f, 1.0f }, { 0.0f, 0.0f } };
     charts.drawSparkline(plane, page.row(), 44, 5, readings, look, 0, plane.getDim().first, 0);
-    // The clip lamp, dim and lit, to the right of them.
-    drawClipLamp(plane, page.row(), 50, false, plane.getStyles().window_bg_color, 0, plane.getDim().first);
-    drawClipLamp(plane, page.row(), 53, true, plane.getStyles().window_bg_color, 0, plane.getDim().first);
+    // A lamp, off and lit, to the right of them.
+    drawLamp(plane, page.row(), 50, false, plane.getStyles().window_bg_color, 0, plane.getDim().first);
+    drawLamp(plane, page.row(), 53, true, plane.getStyles().window_bg_color, 0, plane.getDim().first);
   }
   page.skip(5);
 
