@@ -502,3 +502,19 @@ TEST(terminal_ui_clip_grid_track_rename_shows_the_typed_name) {
   CHECK(row.find("...") == std::string::npos && row.find("\xE2\x80\xA6") == std::string::npos); // the number is not ellipsized
   f.press(cellui::Key::Escape);
 }
+
+// The pattern editor's heading shares the clip grid's track-name field: what is
+// typed shows, and the old name is not left under it.
+TEST(terminal_ui_pattern_editor_track_rename_shows_the_typed_name) {
+  UIFixture f(fixture("terminal_ui_live.xml"), UI::View::LIVE);
+  f.otherWindow();
+  f.execute("rename-track");
+  f.type("abc");
+  f.press(cellui::Key::Enter);
+  f.execute("rename-track");
+  f.type("Qz");
+  auto text = f.text();
+  CHECK(text.find("abcQz") != std::string::npos);
+  CHECK(text.find("T0 abc") == std::string::npos || text.find("T0 abcQz") != std::string::npos);
+  f.press(cellui::Key::Escape);
+}
