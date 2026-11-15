@@ -47,16 +47,16 @@ Picture renderPicture(const std::vector<float> & levels, unsigned width, unsigne
   ctx.lineTo(w, h).closePath();
 
   auto fill = ctx.createLinearGradient(0, h, 0, 0);
-  fill.addColorStop(0.0f, toCanvas(styles.lineColor(0.0f), 0.22f));
-  fill.addColorStop(1.0f, toCanvas(styles.lineColor(1.0f), 0.22f));
+  fill.addColorStop(0.0f, toCanvas(styles.lineFillColor(0.0f), 0.22f));
+  fill.addColorStop(1.0f, toCanvas(styles.lineFillColor(1.0f), 0.22f));
   ctx.fillStyle = fill;
   ctx.fill();
 
   ctx.beginPath().moveTo(x_at(0), y_at(0));
   for (unsigned x = 1; x < width; x++) ctx.lineTo(x_at(x), y_at(x));
   auto stroke = ctx.createLinearGradient(0, h, 0, 0);
-  stroke.addColorStop(0.0f, toCanvas(styles.lineColor(0.0f)));
-  stroke.addColorStop(1.0f, toCanvas(styles.lineColor(1.0f)));
+  // The ramp's top is lit past white, so it is more than its two ends.
+  for (int i = 0; i <= 8; i++) stroke.addColorStop(static_cast<float>(i) / 8.0f, toCanvas(styles.lineColor(static_cast<float>(i) / 8.0f)));
   ctx.strokeStyle = stroke;
   ctx.lineWidth = 1.5f;
   ctx.stroke();

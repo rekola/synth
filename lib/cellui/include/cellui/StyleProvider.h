@@ -124,7 +124,18 @@ class StyleProvider {
     }
     return level_full_color;
   }
-  Color lineColor(float fraction) const { return line_low_color.blend(std::clamp(fraction, 0.0f, 1.0f), line_high_color); }
+  // The spectrum's colour at a level, 0 to 1: the ramp from line_low_color to line_high_color, whose top
+  // is lit past white (a channel above 1, HDR) from kLineHdrStart on, so the loudest part of a curve
+  // glows on a display that can show it, and is the ramp's own colour washed toward white on one that
+  // cannot (Color::toSrgb8()). lineFillColor() is the ramp without the light.
+  Color lineColor(float fraction) const {
+    fraction = std::clamp(fraction, 0.0f, 1.0f);
+    float t = std::clamp((fraction - kLineHdrStart) / (1.0f - kLineHdrStart), 0.0f, 1.0f);
+    float smooth = t * t * (3.0f - 2.0f * t);
+    return lineFillColor(fraction) * (1.0f + kLineHdrGain * smooth);
+  }
+  Color lineFillColor(float fraction) const { return line_low_color.blend(std::clamp(fraction, 0.0f, 1.0f), line_high_color); }
+  static constexpr float kLineHdrStart = 0.35f, kLineHdrGain = 6.0f;
 
   // Panel headers (a list's heading, a grid's header row, and
   // the divider between them) - brighter than

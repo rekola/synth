@@ -268,7 +268,7 @@ TEST(deflate_stays_within_three_percent_of_zlib_level_six_on_the_charts) {
   }
   // The figures are for the pictures Cairo draws; another backend draws other pixels.
 #if !defined(__APPLE__) && !defined(_WIN32)
-  constexpr size_t kSpectrumZlib6 = 3906, kHeatmapZlib6 = 675;
+  constexpr size_t kSpectrumZlib6 = 4150, kHeatmapZlib6 = 675;
   CHECK(zlibCompress(spectrum, 2).size() * 100 <= kSpectrumZlib6 * 103);
   // The heatmap is blocks of one colour, which this encoder does a little worse on than zlib does (746 bytes
   // against 675); its figure was 3258 when Cairo smoothed it.
