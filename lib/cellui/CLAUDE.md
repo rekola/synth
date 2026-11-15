@@ -352,8 +352,11 @@ bright; this window decides that bright means light around it. A float picture
 (`Image::hdr`) is cut once per version on the CPU by `splitHdr()` (`HdrSplit.h`, a pass with no
 blur: the picture as `Color::toSrgb8()` maps it, and the light past white, a channel's excess
 over 1, as a second 8-bit texture), and its bloom is on the GPU: the glow texture blurred
-tight and wide (`gtk_snapshot_push_blur()`) and screened over the picture
-(`GSK_BLEND_MODE_SCREEN`), so a frame without light past white costs only the first texture.
+wide (`gtk_snapshot_push_blur()`) and screened over the picture
+(`GSK_BLEND_MODE_SCREEN`), together with a core that thickens what is brightest: the glow blurred a little,
+made grey, multiplied by a large gain and clamped (a colour-matrix node), so what is near enough to a
+bright line reaches white and the line looks wider the more light it carries, as an overexposed
+filament does. A frame without light past white costs only the first texture.
 Not done yet:
 per-plane render nodes, input methods, HiDPI, native dialogs and menus.
 
