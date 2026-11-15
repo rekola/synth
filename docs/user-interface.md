@@ -270,11 +270,14 @@ track go when the cursor leaves the track and when the song is saved (an
 empty column with a used one to its right stays). `add-note-column` and
 `remove-note-column` are in the command palette and have no shortcut.
 
-**Completion.** In a song whose scale is otonal or utonal, a cursor of N
+**Completion.** In a song whose scale is otonal, utonal or diamond, a cursor of N
 columns (N above 1) completes the notes you play to a chord of N notes of the
 scale. The lowest note played is the degree. Its chords
 ([extended-diamond.md](extended-diamond.md)) are tried in order: the seventh
-chords, a stand-alone triad, then the major sevenths and the 7♯9 chords. At
+chord the degree is the root of (a harmonic seventh by its lowest note, a mirror
+seventh by its top note) first, then the seventh chords, a stand-alone triad,
+the major sevenths and the 7♯9 chords, and the chords with a borrowed note
+after those of their kind. At
 five columns the five-note chords (ninths, below) come first and these
 four-note chords are the fallback. The first that contains every other note played, octaves aside, is written: the
 notes played keep their octaves, and the chord's other notes are added from
@@ -295,7 +298,8 @@ The chord is written in rising order from the cursor's first column, on one
 row, the added notes with the velocity and delay of the played ones; every
 column under the cursor is rewritten, and one the chord does not use is
 emptied. The status line shows its name: "C harmonic seventh", or "F harmonic
-seventh / D♯" for a chord read upward from another of its notes. Three notes
+seventh / D♯" for a chord read upward from another of its notes ("E mirror
+seventh / C" for C E G♭↓ A: a mirror seventh is named by its top note). Three notes
 that make a major, minor, narrow major, narrow minor, septimal diminished or
 mirror diminished triad on the lowest take the triad's name ("C major");
 other chords written short say how many notes they have. One entry is one
@@ -377,7 +381,7 @@ nothing else:
 | Scale | Gamut |
 | --- | --- |
 | major, minor | duodene (Ellis's 12 notes: 1/1 16/15 9/8 6/5 5/4 4/3 45/32 3/2 8/5 5/3 9/5 15/8) |
-| otonal, utonal | the extended diamond (33 ratios; [extended-diamond.md](extended-diamond.md)) |
+| otonal, utonal, diamond | the extended diamond (33 ratios; [extended-diamond.md](extended-diamond.md)) |
 | the seven Babylonian modes (nīš tuḫrim, išartum, embūbum, nīd qablim, qablītum, kitmum, pītum) and Phrygian tonos | Pythagorean (53-EDO only) |
 | none, the maqamat | no gamut: tempered, no corrections |
 
@@ -452,30 +456,70 @@ See `launchpad.md` for the gestures.
 ### Note keyboard
 
 The laptop/PC keyboard plays notes on the row `q w e r t y u i o p` and the
-rows around it. In an otonal or utonal song all eighteen notes of the scale
-are on keys, with the same layout shape in both (spellings as in
-[extended-diamond.md](extended-diamond.md)). The keys are staggered, so a key
-on the number row sits between two keys of the `q` row, and the note on it
-lies between theirs:
+rows around it. In an otonal or utonal song all 21 notes of the scale (the 18 of
+its own and the three it borrows; [extended-diamond.md](extended-diamond.md))
+are on keys, and the `q` row is a chord keyboard: it holds the ten roots of the
+scale's ten seventh chords, in rising order. Every other note is on the number
+row above or the `a` row below, on a key at or next to its place between two
+roots: a number key lies above and between two `q`-row keys (`2` between `q` and
+`w`, ... `0` between `o` and `p`), an `a`-row key below and between two (`s`
+between `w` and `e`, ... `l` between `o` and `p`). The `z` row is not used and
+`a` is note-off. A root is named for the chord it roots (a harmonic seventh by
+its lowest note, a mirror seventh by its top note).
 
-| Key | `q` | `1` | `s` | `2` | `w` | `3` | `e` | `4` | `r` | `f` | `5` | `g` | `t` | `6` | `y` | `7` | `u` | `8` | `k` | `l` | `i` | `o` | `p` |
-| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| otonal | C | D𝄫 | D♭↓ | D | D♯ | D𝄪 | E | F♭ | F | | F♯↑ | F𝄪 | G | G𝄪 | A | | A♯↑ | B♭ | B | B♯ | C′ | D♯′ | E′ |
-| utonal | C | D𝄫 | D♭↓ | D↓ | E𝄫 | | E♭ | F𝄫 | F | G𝄫 | G♭↓ | | G | G♯ | A♭ | A♭↑ | B𝄫 | B♭↓ | B | B♯ | C′ | E𝄫′ | E♭′ |
+| Otonal | `2` | `7` | `8` | `9` | `0` | | |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| number row | D𝄫 49/48 | F♯↑ 7/5 | G♭↓ 10/7 | G𝄪 49/30 | B♭ 9/5 | | |
 
-The seven core notes (the 7-note step of the scale) are on the `q` row, the
-notes between them on the number row (the tritone on `5`, between F and G), and
-the notes that cluster round the tonic and the tritone on `1` and the home row
-below (`s`, `f`, `g`; not `a`, the note-off key), with B and B♯ on `k` and `l`.
-The table is the layout in the key of C. A key stands for a ratio of the scale's
+| Otonal | `q` | `w` | `e` | `r` | `t` | `y` | `u` | `i` | `o` | `p` |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| `q` row (roots) | C 1/1 | D♭↓ 15/14 | D 9/8 | D♯ 7/6 | D𝄪 49/40 | E 5/4 | F 4/3 | B𝄫 12/7 | A♯↑ 7/4 | B 15/8 |
+
+| Otonal | `f` | `g` | `h` | `j` | `k` | `l` |
+| --- | --- | --- | --- | --- | --- | --- |
+| `a` row | F𝄫 60/49 | F♭ 9/7 | F𝄪 35/24 | G 3/2 | A 5/3 | B♯ 49/25 |
+
+| Utonal | `2` | `4` | `5` | `6` |
+| --- | --- | --- | --- | --- |
+| number row | D𝄫 50/49 | E♭ 6/5 | G𝄫 48/35 | F♯↑ 7/5 |
+
+| Utonal | `q` | `w` | `e` | `r` | `t` | `y` | `u` | `i` | `o` | `p` |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| `q` row (roots) | C 1/1 | D♭↓ 16/15 | E𝄫 8/7 | D♯ 7/6 | G 3/2 | A♭ 8/5 | A♭↑ 80/49 | B𝄫 12/7 | B♭↓ 16/9 | B 28/15 |
+
+| Utonal | `s` | `d` | `f` | `g` | `h` | `j` | `l` |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| `a` row | D↓ 10/9 | F𝄫 60/49 | F 4/3 | G♭↓ 10/7 | G♯ 14/9 | G𝄪 49/30 | B♯ 96/49 |
+
+Each row rises from left to right, no note is more than one key from its place
+between the roots, and no other key gives a note. G is not a root in otonal
+and sits on `j`; F is not a root in utonal and sits on `f`.
+
+With a cursor four columns wide each `q`-row key writes the chord it is the
+root of, read upward from the key's note (a narrower cursor cuts the chord to
+its width); a key that is not a root gives the first chord that contains its
+note:
+
+| Key | Otonal | Utonal |
+| --- | --- | --- |
+| `q` | C E G A♯↑ | C E𝄫 F A♭ |
+| `w` | D♭↓ F𝄫 G♭↓ B𝄫 | D♭↓ F A♭ B |
+| `e` | D F♭ G B♭ | E𝄫 G♭↓ B𝄫 C |
+| `r` | D♯ F𝄪 A♯↑ D𝄫 | D♯ F G♯ B |
+| `t` | D𝄪 F♯↑ G𝄪 B♯ | G B𝄫 C E♭ |
+| `y` | E G♭↓ A C | A♭ C E♭ F♯↑ |
+| `u` | F A C D♯ | A♭↑ D𝄫 F𝄫 G♭↓ |
+| `i` | B𝄫 D♭↓ F♭ G | B𝄫 B♯ E𝄫 G𝄫 |
+| `o` | A♯↑ C D♯ F♯↑ | B♭↓ D↓ F G♯ |
+| `p` | B D♭↓ E G | B D♯ F♯↑ G𝄪 |
+
+The tables are the layouts in the key of C. A key stands for a ratio of the scale's
 gamut, not for a fixed note: `q` is the tonic (1/1) in whatever key the song is
 in, and each other key is its ratio above it. In a song in A otonal `q` writes
-A and `e` (5/4) writes C♯, each with the correction that brings it to exactly
+A and `y` (5/4) writes C♯, each with the correction that brings it to exactly
 that ratio, and playing a key sounds the exact ratio. The octave is counted from
 the tonic: `q` in the current octave is the tonic in that octave, and the keys
 above it rise from there. Chord entry takes the ratios of the keys pressed.
-In the key of C nothing is different. (In 12, 19 and 31-EDO four keys whose
-name is a step off the nearest step of their ratio now give that step.)
 
 In a **diamond** song the 13 notes are on two rows like a piano: the eight
 otonal ones on the `q` row, the five utonal ones on the number row, each on the
@@ -488,41 +532,6 @@ next octave. No other key gives a note (`a` is note-off).
 | Ratio | 1/1 | 8/7 | 7/6 | 6/5 | 5/4 | 4/3 | 7/5 | 10/7 | 3/2 | 8/5 | 5/3 | 12/7 | 7/4 | 2/1 |
 | In C | C | E𝄫 | D♯ | E♭ | E | F | F♯↑ | G♭↓ | G | A♭ | A | B𝄫 | A♯↑ | C′ |
 
-In an **extended diamond** song every one of the 33 ratios has a key. The otonal
-scale runs along the `q` row and on along the `a` row like two lines of text;
-each utonal note is on the outer row next to the otonal note it lies just below,
-on the number row above the `q` row and on the `z` row below the `a` row, and
-G♯, which has no such neighbour, is under G. The left columns are otonal in
-rising order, `q` to `p` and then `s` to `l`; the right columns are utonal, also
-rising: `2` to `0`, then `z` to the comma. `a` is note-off, the digits `1` and
-`8` are unused, and `9` is the tonic of the next octave. The keys that are the
-same name in two scales (D𝄫, D♭↓, B and B♯) are told apart by the ratio, which
-the key writes as the note's correction.
-
-| Key | Ratio | In C | | Key | Ratio | In C |
-| --- | --- | --- | --- | --- | --- | --- |
-| `q` | 1/1 | C | | | | |
-| `w` | 49/48 | D𝄫 | | `2` | 50/49 | D𝄫 |
-| `e` | 15/14 | D♭↓ | | `3` | 16/15 | D♭↓ |
-| `r` | 9/8 | D | | `4` | 10/9 | D↓ |
-| `t` | 7/6 | D♯ | | `5` | 8/7 | E𝄫 |
-| `y` | 49/40 | D𝄪 | | `6` | 6/5 | E♭ |
-| `u` | 5/4 | E | | `7` | 60/49 | F𝄫 |
-| `i` | 9/7 | F♭ | | | | |
-| `o` | 4/3 | F | | | | |
-| `p` | 7/5 | F♯↑ | | `0` | 48/35 | G𝄫 |
-| `s` | 35/24 | F𝄪 | | `z` | 10/7 | G♭↓ |
-| `d` | 3/2 | G | | `x` | 14/9 | G♯ |
-| `f` | 49/30 | G𝄪 | | `c` | 8/5 | A♭ |
-| `g` | 5/3 | A | | `v` | 80/49 | A♭↑ |
-| `h` | 7/4 | A♯↑ | | `b` | 12/7 | B𝄫 |
-| `j` | 9/5 | B♭ | | `n` | 16/9 | B♭↓ |
-| `k` | 15/8 | B | | `m` | 28/15 | B |
-| `l` | 49/25 | B♯ | | `,` | 96/49 | B♯ |
-
-In the key of C the names are as shown; in any key the keys give the same
-ratios above that song's tonic.
-
 The `[` and `]` keys are octave down and up. In a song in one of the Pythagorean
 scales (the seven Babylonian modes, Phrygian tonos) or in Rāst the scale's degrees are on
 `q w e r t y u i o p` in ascending order, followed by the tonic and second an
@@ -530,7 +539,7 @@ octave up where keys remain; Phrygian tonos has ten degrees and fills the row.
 A song with any other scale (or none) keeps the layout that does not follow
 the scale. The layouts of the Pythagorean scales, Rāst and the layout for no scale
 give fixed notes named from C, so in a key other than C they are not transposed. The Launchpad's step view steps through
-all eighteen notes of the scale.
+all the notes of the scale: 21 in otonal and utonal, 13 in diamond.
 
 ## Terminal
 

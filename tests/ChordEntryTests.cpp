@@ -15,10 +15,12 @@ namespace {
 const int kC = 5 * 53; // C-4 in 53-EDO
 // Steps of 53-EDO above C; the otonal keys are z C, x D♯, c E, v F, b G, n A, m A♯↑.
 enum Step { C = 0,
+            Dbv = 5,
             Ds = 12,
             E = 17,
             F = 22,
             Fsu = 26,
+            Gbv = 27,
             G = 31,
             A = 39,
             Asu = 43 };
@@ -102,10 +104,10 @@ TEST(chord_cursor_leaves_the_columns_in_use_when_it_leaves_the_track) {
   ChordFixture f;
   f.widen(3);
   f.down('q');
-  f.down('w');
+  f.down('r');
   f.wait();
   f.up('q');
-  f.up('w');
+  f.up('r');
   CHECK(f.row(0) == (V{C, Ds, F, A}));
   f.widen(0);
   f.controller->ensureNoteColumns(f.track_id, 6);
@@ -124,9 +126,9 @@ TEST(chord_entry_completes_one_key_to_a_chord_as_wide_as_the_cursor) {
   CHECK(f.shows("C harmonic seventh"));
   f.up('q');
   // The cursor has stepped on and kept its width.
-  f.down('r');
+  f.down('u');
   f.wait();
-  f.up('r');
+  f.up('u');
   CHECK(f.row(0) == (V{C, E, G, Asu}));
   CHECK(f.row(1) == (V{F, A, 53 + C, 53 + Ds}));
   // One undo removes one chord.
@@ -145,8 +147,8 @@ TEST(chord_entry_at_three_columns_names_the_triad) {
   f.up('q');
   CHECK(f.row(0) == (V{C, E, G}));
   CHECK(f.shows("C major"));
-  f.down('y');
-  f.up('y');
+  f.down('k');
+  f.up('k');
   CHECK(f.row(1) == (V{A, 53 + C, 53 + Ds}));
 }
 
@@ -155,11 +157,11 @@ TEST(chord_entry_completes_several_keys_from_the_chords_that_contain_them) {
     ChordFixture f;
     f.widen(3);
     f.down('q');
-    f.down('w');
+    f.down('r');
     CHECK(f.row(0) == (V{C, Ds})); // no other chord on the way
     f.wait();
     CHECK(f.row(0) == (V{C, Ds, F, A}));
-    f.up('w');
+    f.up('r');
     f.up('q');
     CHECK(f.row(0) == (V{C, Ds, F, A}));
   }
@@ -167,17 +169,17 @@ TEST(chord_entry_completes_several_keys_from_the_chords_that_contain_them) {
     ChordFixture f;
     f.widen(2);
     f.down('q');
-    f.down('u');
+    f.down('o');
     f.wait();
     CHECK(f.row(0) == (V{C, E, Asu}));
   }
   {
     ChordFixture f;
     f.widen(3);
-    f.down('u');
-    f.down('e');
-    f.up('u');
-    f.up('e');
+    f.down('o');
+    f.down('y');
+    f.up('o');
+    f.up('y');
     CHECK(f.row(0) == (V{E, G, Asu, 53 + C}));
     CHECK(f.shows("C harmonic seventh / E"));
   }
@@ -189,12 +191,12 @@ TEST(chord_entry_works_the_chord_out_again_when_a_key_joins_the_held_ones) {
   f.down('q');
   f.wait();
   CHECK(f.row(0) == (V{C, E, G, Asu}));
-  f.down('w');
+  f.down('r');
   CHECK(f.row(0) == (V{C, Ds})); // what the first completion added is gone
   f.wait();
   CHECK(f.row(0) == (V{C, Ds, F, A}));
   f.up('q');
-  f.up('w');
+  f.up('r');
   f.execute("undo");
   CHECK(f.row(0).empty());
 }
@@ -204,9 +206,9 @@ TEST(chord_entry_adds_nothing_without_a_chord_to_add) {
     // As many keys as the cursor is wide, or more: all are written and the width stays.
     ChordFixture f;
     f.widen(1);
-    for (char key : std::string("qet")) f.down(key);
+    for (char key : std::string("qyj")) f.down(key);
     f.wait();
-    for (char key : std::string("qet")) f.up(key);
+    for (char key : std::string("qyj")) f.up(key);
     CHECK(f.row(0) == (V{C, E, G}));
     CHECK(f.columns() >= 3);
     f.down('q');
@@ -217,7 +219,7 @@ TEST(chord_entry_adds_nothing_without_a_chord_to_add) {
     // No chord holds C, G and A.
     ChordFixture f;
     f.widen(3);
-    for (char key : std::string("qty")) f.down(key);
+    for (char key : std::string("qjk")) f.down(key);
     f.wait();
     CHECK(f.row(0) == (V{C, G, A}));
     CHECK(f.shows("No chord of the scale contains these notes"));
@@ -254,8 +256,8 @@ TEST(chord_entry_leaves_an_active_selection_alone) {
   // The mark is still there to exchange with.
   f.execute("exchange-point-and-mark");
   CHECK(!f.shows("No mark"));
-  f.down('r');
-  f.up('r');
+  f.down('u');
+  f.up('u');
   CHECK(f.row(0) == (V{F, A, 53 + C}));
 }
 
@@ -265,7 +267,7 @@ TEST(chord_entry_without_key_releases_completes_when_the_interval_closes) {
   ChordFixture f;
   f.widen(3);
   f.type("q");
-  f.type("w");
+  f.type("r");
   CHECK(f.row(0) == (V{C, Ds}));
   f.wait();
   CHECK(f.row(0) == (V{C, Ds, F, A}));
@@ -308,17 +310,21 @@ TEST(chord_palette_steps_through_the_chords_of_the_entry_just_made) {
   CHECK(f.row(0) == (V{C, Ds, Fsu}));
   CHECK(f.shows("C mirror diminished"));
   f.press(cellui::Key::Down);
+  CHECK(f.row(0) == (V{C, E, Gbv})); // E mirror seventh, with a borrowed note
+  f.press(cellui::Key::Down);
   CHECK(f.row(0) == (V{C, E, F}));
   f.press(cellui::Key::Down);
   CHECK(f.row(0) == (V{C, Ds, E}));
+  f.press(cellui::Key::Down);
+  CHECK(f.row(0) == (V{C, Dbv, G})); // B𝄫 7♯9, with a borrowed note
   // Round to the first, with no chord twice.
   f.press(cellui::Key::Down);
   CHECK(f.row(0) == (V{C, E, G}));
   f.press(cellui::Key::Up);
-  CHECK(f.row(0) == (V{C, Ds, E}));
+  CHECK(f.row(0) == (V{C, Dbv, G}));
   f.press(cellui::Key::Enter);
   CHECK(!f.shows("Chord: 3 notes"));
-  CHECK(f.row(0) == (V{C, Ds, E}));
+  CHECK(f.row(0) == (V{C, Dbv, G}));
   // The whole session is one undo step, the entry another.
   f.execute("undo");
   CHECK(f.row(0) == (V{C, E, G}));
@@ -329,9 +335,9 @@ TEST(chord_palette_steps_through_the_chords_of_the_entry_just_made) {
 TEST(chord_palette_completes_notes_played_with_a_cursor_of_one_column) {
   ChordFixture f;
   f.down('q');
-  f.down('w');
+  f.down('r');
   f.up('q');
-  f.up('w');
+  f.up('r');
   CHECK(f.row(0) == (V{C, Ds}));
   // Four notes the first time; the notes played are the given ones, and
   // with no chord there yet the first is written.
@@ -366,8 +372,8 @@ TEST(chord_palette_size_changes_without_the_cursor) {
   CHECK(f.row(0) == (V{C, E, G}));
   f.press(cellui::Key::Enter);
   // The cursor is still one column wide, and the size is remembered.
-  f.down('r');
-  f.up('r');
+  f.down('u');
+  f.up('u');
   CHECK(f.row(1) == (V{F}));
   f.meta('/');
   CHECK(f.shows("Chord: 3 notes"));
@@ -377,10 +383,12 @@ TEST(chord_palette_size_changes_without_the_cursor) {
 TEST(chord_palette_writes_a_short_chord_and_empties_the_rest) {
   ChordFixture f;
   f.widen(3);
-  f.down('y');
-  f.up('y');
+  f.down('k');
+  f.up('k');
   CHECK(f.row(0) == (V{A, 53 + C, 53 + Ds, 53 + F}));
   f.meta('/');
+  f.press(cellui::Key::Down);
+  CHECK(f.row(0) == (V{A, 53 + C, 53 + E, 53 + Gbv})); // E mirror seventh, with a borrowed note
   f.press(cellui::Key::Down);
   CHECK(f.shows("A minor"));
   CHECK(f.row(0) == (V{A, 53 + C, 53 + E}));
@@ -394,8 +402,8 @@ TEST(chord_palette_opens_on_a_chord_entered_earlier) {
   f.widen(2);
   f.down('q');
   f.up('q');
-  f.down('r');
-  f.up('r');
+  f.down('u');
+  f.up('u');
   f.press(cellui::Key::Up);
   f.press(cellui::Key::Up);
   CHECK(f.row(0) == (V{C, E, G}));
@@ -403,7 +411,7 @@ TEST(chord_palette_opens_on_a_chord_entered_earlier) {
   f.meta('/');
   CHECK(f.row(0) == (V{C, E, G}));
   f.press(cellui::Key::Up);
-  CHECK(f.row(0) == (V{C, Ds, E}));
+  CHECK(f.row(0) == (V{C, Dbv, G}));
   f.press(cellui::Key::Down);
   f.press(cellui::Key::Down);
   CHECK(f.row(0) == (V{C, Ds, F}));
@@ -452,11 +460,11 @@ TEST(chord_palette_is_accepted_by_the_next_note) {
   f.up('q');
   f.meta('/');
   f.press(cellui::Key::Up);
-  CHECK(f.row(0) == (V{C, Ds, E}));
-  f.down('r');
-  f.up('r');
+  CHECK(f.row(0) == (V{C, Dbv, G}));
+  f.down('u');
+  f.up('u');
   CHECK(!f.shows("Chord: 3 notes"));
-  CHECK(f.row(0) == (V{C, Ds, E}));
+  CHECK(f.row(0) == (V{C, Dbv, G}));
   CHECK(f.row(1) == (V{F, A, 53 + C}));
   f.meta('/');
   CHECK(f.shows("Chord: 3 notes"));
@@ -538,8 +546,8 @@ TEST(cursor_moves_down_by_its_height_after_an_entry_that_writes_its_first_row) {
   f.up('q');
   CHECK(f.row(0) == (V{C}));
   CHECK(f.cursorRow() == 4);
-  f.down('e');
-  f.up('e');
+  f.down('y');
+  f.up('y');
   for (int r : {1, 2, 3, 5}) CHECK(f.row(r).empty());
   CHECK(f.row(4) == (V{E}));
   CHECK(f.cursorRow() == 8);
@@ -583,9 +591,9 @@ TEST(chord_entry_at_five_columns_writes_five_note_chords) {
   {
     ChordFixture f;
     f.widen(4);
-    f.down('r');
+    f.down('u');
     f.wait();
-    f.up('r');
+    f.up('u');
     CHECK(f.row(0) == (V{F, G, A, 53 + C, 53 + Ds}));
     CHECK(f.shows("F harmonic ninth"));
     // The palette then offers the F major ninth.
@@ -608,18 +616,18 @@ TEST(chord_entry_at_five_columns_writes_five_note_chords) {
     // Read from F♯↑: its only five-note chord.
     ChordFixture f;
     f.widen(4);
-    f.down('5');
+    f.down('7');
     f.wait();
-    f.up('5');
+    f.up('7');
     CHECK(f.row(0) == (V{Fsu, G, Asu, 53 + C, 53 + Ds}));
   }
   {
     // D𝄫 has no five-note chord: four notes, and the fifth column is emptied.
     ChordFixture f;
     f.widen(4);
-    f.down('1');
+    f.down('2');
     f.wait();
-    f.up('1');
+    f.up('2');
     auto row = f.row(0);
     CHECK(row.size() >= 4);
     CHECK(row[0] == 2);
@@ -631,10 +639,10 @@ TEST(chord_entry_at_five_columns_writes_five_note_chords) {
     ChordFixture f;
     f.widen(4);
     f.down('q');
-    f.down('k');
+    f.down('p');
     f.wait();
     f.up('q');
-    f.up('k');
+    f.up('p');
     auto row = f.row(0);
     CHECK(row.size() == 5);
     CHECK(row[0] == C);
@@ -644,9 +652,9 @@ TEST(chord_entry_at_five_columns_writes_five_note_chords) {
     // At four columns no five-note chord is offered.
     ChordFixture f;
     f.widen(3);
-    f.down('r');
+    f.down('u');
     f.wait();
-    f.up('r');
+    f.up('u');
     CHECK(f.row(0) == (V{F, A, 53 + C, 53 + Ds}));
     CHECK(!f.shows("ninth"));
   }
@@ -654,8 +662,8 @@ TEST(chord_entry_at_five_columns_writes_five_note_chords) {
 
 TEST(chord_palette_is_five_notes_at_most) {
   ChordFixture f;
-  f.down('r');
-  f.up('r');
+  f.down('u');
+  f.up('u');
   f.meta('/');
   CHECK(f.shows("Chord: 4 notes"));
   f.execute("widen-cursor");
@@ -704,7 +712,7 @@ TEST(chord_entry_in_another_key_gives_the_chords_of_c_moved) {
   f.up('q');
   CHECK(f.row(0) == (V{A, A + E, A + G, A + Asu}));
   CHECK(f.shows("A harmonic seventh"));
-  f.down('r'); // 4/3
+  f.down('u'); // 4/3
   f.wait();
   f.up('r');
   CHECK(f.row(1) == (V{A + F, A + F + E, A + F + G, A + F + Asu}));
@@ -734,86 +742,87 @@ double ratioCents(int num, int den) {
   Ratio r(num, den);
   return r.cents() - r.steps(53) * 1200.0 / 53;
 }
-// Steps the open palette on until the first row reads `want`; false if it never does.
-bool paletteReaches(ChordFixture & f, const V & want) {
-  for (int i = 0; i < 60; i++) {
-    if (f.row(0) == want) return true;
-    f.press(cellui::Key::Down);
+
+// A chord written by notes' names in C: steps above C-4, rising from the first.
+V rising(std::initializer_list<const char *> names) {
+  V out;
+  for (auto name : names) {
+    int step = Note(name, Tuning::EDO53, 0x28, 0, 4).getValue() - kC;
+    while (!out.empty() && step <= out.back()) step += 53;
+    out.push_back(step);
   }
-  return false;
+  return out;
 }
 } // namespace
 
-// The extended diamond's keys give ratios, so a chord of notes from both scales is entered
-// with each note's own correction, B as 28/15 on one key and as 15/8 on another.
-TEST(chord_entry_in_the_extended_diamond_writes_the_ratio_of_each_key) {
-  {
-    // F mirror seventh: F G♯ B D♯ with B as 28/15.
-    ChordFixture f(Scale::EXTENDED_DIAMOND);
-    f.widen(3);
-    f.down('o');
-    f.down('x');
-    f.down('m');
-    f.wait();
-    f.up('o');
-    f.up('x');
-    f.up('m');
-    CHECK(f.row(0) == (V{22, 34, 48, 53 + 12}));
-    CHECK(f.shows("F mirror seventh"));
-    auto cents = corrections(f, 0);
-    CHECK_NEAR(cents[2], ratioCents(28, 15), 0.07);
-    CHECK_NEAR(cents[0], ratioCents(4, 3), 0.07);
-    CHECK_NEAR(cents[3], ratioCents(7, 6), 0.07);
+// With a four-column cursor each key of the q row writes the chord it is the root of,
+// read upward from the key's note; the chords are those of the table, in any song key.
+TEST(each_q_row_key_writes_the_chord_it_is_the_root_of) {
+  struct Root {
+    char key;
+    std::initializer_list<const char *> otonal, utonal;
+  };
+  const Root roots[] = {
+      {'q', {"C", "E", "G", "A♯↑"}, {"C", "E𝄫", "F", "A♭"}},
+      {'w', {"D♭↓", "F𝄫", "G♭↓", "B𝄫"}, {"D♭↓", "F", "A♭", "B"}},
+      {'e', {"D", "F♭", "G", "B♭"}, {"E𝄫", "G♭↓", "B𝄫", "C"}},
+      {'r', {"D♯", "F𝄪", "A♯↑", "D𝄫"}, {"D♯", "F", "G♯", "B"}},
+      {'t', {"D𝄪", "F♯↑", "G𝄪", "B♯"}, {"G", "B𝄫", "C", "E♭"}},
+      {'y', {"E", "G♭↓", "A", "C"}, {"A♭", "C", "E♭", "F♯↑"}},
+      {'u', {"F", "A", "C", "D♯"}, {"A♭↑", "D𝄫", "F𝄫", "G♭↓"}},
+      {'i', {"B𝄫", "D♭↓", "F♭", "G"}, {"B𝄫", "B♯", "E𝄫", "G𝄫"}},
+      {'o', {"A♯↑", "C", "D♯", "F♯↑"}, {"B♭↓", "D↓", "F", "G♯"}},
+      {'p', {"B", "D♭↓", "E", "G"}, {"B", "D♯", "F♯↑", "G𝄪"}},
+  };
+  for (auto scale : {Scale::OTONAL, Scale::UTONAL}) {
+    for (auto & root : roots) {
+      ChordFixture f(scale);
+      f.widen(3);
+      f.down(root.key);
+      f.wait();
+      f.up(root.key);
+      CHECK(f.row(0) == rising(scale == Scale::OTONAL ? root.otonal : root.utonal));
+    }
   }
-  {
-    // B as 15/8 is no note of that chord: the chord is another one.
-    ChordFixture f(Scale::EXTENDED_DIAMOND);
-    f.widen(3);
-    f.down('o');
-    f.down('x');
-    f.down('k');
-    f.wait();
-    f.up('o');
-    f.up('x');
-    f.up('k');
-    CHECK(f.shows("No chord of the scale contains these notes"));
-  }
-  {
-    // B harmonic seventh: B D♯ F♯↑ G𝄪, with B as 28/15.
-    ChordFixture f(Scale::EXTENDED_DIAMOND);
-    f.widen(3);
-    f.down('m');
-    f.down('t');
-    f.down('p');
-    f.wait();
-    f.up('m');
-    f.up('t');
-    f.up('p');
-    CHECK(f.shows("B harmonic seventh"));
-    // The notes are written rising; B is the one on key 48.
-    auto notes = f.row(0);
-    auto cents = corrections(f, 0);
-    auto at = std::find(notes.begin(), notes.end(), 48) - notes.begin();
-    CHECK(at < static_cast<long>(notes.size()));
-    CHECK_NEAR(cents[static_cast<size_t>(at)], ratioCents(28, 15), 0.07);
-  }
+  // In another song key the chords are those of C moved to it, with the same corrections.
+  ChordFixture f(Scale::OTONAL);
+  f.controller->getSong().setKey(A);
+  f.widen(3);
+  f.down('w');
+  f.wait();
+  f.up('w');
+  V moved;
+  for (auto step : rising({"D♭↓", "F𝄫", "G♭↓", "B𝄫"})) moved.push_back(A + step);
+  CHECK(f.row(0) == moved);
+  auto cents = corrections(f, 0);
+  CHECK_NEAR(cents[0], ratioCents(15, 14), 0.07);
+  CHECK_NEAR(cents[1], ratioCents(60, 49), 0.07);
+  CHECK_NEAR(cents[2], ratioCents(10, 7), 0.07);
+  CHECK_NEAR(cents[3], ratioCents(12, 7), 0.07);
 }
 
-// With a four-column cursor, A♭ offers A♭ C E♭ F♯↑ after its utonal chords, and C its otonal chords before its utonal ones.
-TEST(chord_palette_in_the_extended_diamond_offers_the_chords_of_both_scales) {
-  ChordFixture f(Scale::EXTENDED_DIAMOND);
+// A key that is not a root gives the first chord that contains its note, as before.
+TEST(a_key_that_is_no_root_gives_the_first_chord_that_contains_its_note) {
+  ChordFixture f(Scale::OTONAL);
   f.widen(3);
-  f.down('c'); // A♭
+  f.down('j'); // G
   f.wait();
-  f.up('c');
-  // The first chord is a utonal one, A♭ C E𝄫 F.
-  CHECK(f.row(0) == (V{36, 53, 53 + 10, 53 + 22}));
-  f.meta('/');
-  CHECK(paletteReaches(f, V{36, 53, 53 + 14, 53 + 26}));
+  f.up('j');
+  CHECK(f.row(0)[0] == Note("G", Tuning::EDO53, 0x28, 0, 4).getValue() - kC);
+  CHECK(f.row(0).size() == 4);
+  CHECK(f.shows("G"));
+}
+
+// A chord with a borrowed note is offered by the palette, in either scale.
+TEST(chord_palette_offers_the_chords_with_borrowed_notes) {
+  ChordFixture f(Scale::UTONAL);
+  f.widen(3);
+  f.down('y'); // A♭ : its own chord is A♭ C E♭ F♯↑ with the borrowed F♯↑
+  f.wait();
+  f.up('y');
   CHECK(f.shows("A♭ harmonic seventh"));
   auto cents = corrections(f, 0);
   CHECK_NEAR(cents[3], ratioCents(7, 5), 0.07);
-  CHECK_NEAR(cents[1], 0.0, 0.07);
 }
 
 TEST(chord_entry_in_a_diamond_song_uses_the_diamond_keys) {

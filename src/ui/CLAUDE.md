@@ -183,22 +183,25 @@ Controller-level and per-widget commands. Not migrated: `StatusLine`,
   the field's gap in the border to the first row; one row while the cursor
   is a playhead) - except Delete and Backspace, which empty the whole
   rectangle (`cursorRows()` cuts it off at the pattern's end).
-- In a scale with a gamut layout (`keyboardGivesRatios()`: otonal, utonal and the
-  two diamond scales; the extended diamond's keys are a table of ratios,
-  `kExtendedDiamondKeys`, since a spelling can name two) a
-  note key gives a ratio, not a fixed note (`keyToNote()`, `playback/KeyboardNotes.h`):
-  the song's tonic in the keyboard's octave plus the ratio's steps, written with
-  the ratio's own correction (`ratioCorrectionCents()`). Chord entry passes those
-  ratios to `chords::complete()` (its `known` map) and writes each note with its
-  ratio's correction.
+- In a scale with a gamut layout (`keyboardGivesRatios()`: otonal, utonal and
+  diamond; `kOtonalKeys`/`kUtonalKeys` are tables of key and name, the q row
+  holding the ten roots of the scale's seventh chords) a note key gives a ratio,
+  not a fixed note (`keyToNote()`, `playback/KeyboardNotes.h`): the song's tonic
+  in the keyboard's octave plus the ratio's steps, written with the ratio's own
+  correction (`ratioCorrectionCents()`). Chord entry passes those ratios to
+  `chords::complete()` (its `known` map) and writes each note with its ratio's
+  correction; a played note carries it in `PLAY_NOTE`'s `parameter5`.
 - With a wide cursor a note key goes to `enterChordKey()`, not the single-note
   path: a `ChordEntry` collects the keys of one entry (held together, or
   within `kCompletionInterval` where no release is reported), writes each
   as it is pressed, and `applyChordCompletion()` rewrites the cursor's columns
   with `chords::complete()`'s first result (`model/Chords.h`: the lists,
-  names and completion, for the otonal, utonal and diamond scales; the diamond
-  scales' lists are the two scales' own, then the chords that take notes from
-  both; a key two ratios share is the one a note's correction is nearer to,
+  names and completion, for the otonal, utonal and diamond scales; otonal and
+  utonal have the three notes they borrow (`model/Division.h`, the one table of
+  the division of the seventh chords) and the chords those add, a root's own
+  chord first in its list; the diamond's lists are the two scales' own, then
+  the chords that take notes from both; a key two ratios share, in a set of
+  notes that has one, is the one a note's correction is nearer to,
   `ScaleChords::degreeOf()`) when the deadline passes
   (`tickChordEntry()`, from `render()`) or the last key is released. A held
   key's voice stays on the column it started on, whatever column its note is

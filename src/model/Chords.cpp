@@ -290,6 +290,22 @@ optional<size_t> gamutIndex(string_view spelling, GamutSide side) {
   return nullopt;
 }
 
+// The note a chord is named after: the lowest of its form, except a mirror
+// seventh, which is named by its top note.
+size_t rootOf(Kind kind, const vector<size_t> & notes, size_t lowest) {
+  if (kind != Kind::MIRROR_SEVENTH) return lowest;
+  size_t top = lowest;
+  Ratio highest{1, 1};
+  for (auto note : notes) {
+    auto above = (ratioOf(note) / ratioOf(lowest)).reduced();
+    if (above > highest) {
+      highest = above;
+      top = note;
+    }
+  }
+  return top;
+}
+
 using ChordTable = map<size_t, vector<Entry>>;
 
 template <size_t N>
@@ -311,7 +327,7 @@ ChordTable buildTable(const array<const char *, N> & chords, GamutSide side) {
       for (auto & form : forms()) {
         if (form.above != above) continue;
         entry.kind = form.kind;
-        entry.root = root;
+        entry.root = rootOf(form.kind, entry.notes, root);
         named = true;
       }
     }
@@ -324,56 +340,122 @@ bool hasSide(const vector<size_t> & notes, GamutSide side) {
   return any_of(notes.begin(), notes.end(), [&](size_t i) { return gamut::kExtendedDiamond[i].side == side; });
 }
 
-// Every chord of every form whose notes are all ratios of the gamut and that has
-// notes of both scales, each read upward from each of its notes. By kind, in the
-// order the lists offer them (seventh chords, triads, then the major sevenths
-// and the 7♯9 chords; the five-note kinds as the enum has them), and by
-// ascending root within a kind.
-ChordTable buildCrossTable(bool five) {
-  static const array<Kind, 6> four_order = {Kind::HARMONIC_SEVENTH, Kind::MIRROR_SEVENTH, Kind::MAJOR, Kind::MINOR, Kind::MAJOR_SEVENTH, Kind::SEVEN_SHARP_NINE};
+// The kinds of chord, in the order the lists offer them (seventh chords, triads,
+// then the major sevenths and the 7♯9 chords; the five-note kinds as the enum has them).
+vector<Kind> kindOrder(bool five) {
   vector<Kind> order;
   if (five) {
     for (auto & form : forms()) {
       if (form.above.size() == 4) order.push_back(form.kind);
     }
   } else {
-    order.assign(four_order.begin(), four_order.end());
+    order = {Kind::HARMONIC_SEVENTH, Kind::MIRROR_SEVENTH, Kind::MAJOR, Kind::MINOR, Kind::MAJOR_SEVENTH, Kind::SEVEN_SHARP_NINE};
   }
-  ChordTable table;
-  for (auto kind : order) {
+  return order;
+}
+
+// Calls `use` with each chord of every form (by kind, then by ascending lowest
+// note) whose notes are all ratios of the gamut: the notes by gamut index, the
+// lowest of the form first, and the chord's root.
+template <class Use>
+void forEachChord(bool five, Use use) {
+  for (auto kind : kindOrder(five)) {
     const Form * form = nullptr;
     for (auto & candidate : forms()) {
       if (candidate.kind == kind) form = &candidate;
     }
-    for (size_t root = 0; root < gamut::kExtendedDiamond.size(); root++) {
-      vector<size_t> notes = {root};
+    for (size_t lowest = 0; lowest < gamut::kExtendedDiamond.size(); lowest++) {
+      vector<size_t> notes = {lowest};
       for (auto & above : form->above) {
-        auto ratio = (ratioOf(root) * above).reduced();
-        bool found = false;
+        auto ratio = (ratioOf(lowest) * above).reduced();
         for (size_t i = 0; i < gamut::kExtendedDiamond.size(); i++) {
           if (ratioOf(i) == ratio) {
             notes.push_back(i);
-            found = true;
             break;
           }
         }
-        if (!found) break;
       }
-      if (notes.size() != form->above.size() + 1) continue;
-      if (!hasSide(notes, GamutSide::OTONAL) || !hasSide(notes, GamutSide::UTONAL)) continue;
-      for (auto degree : notes) {
-        Entry entry;
-        entry.kind = kind;
-        entry.root = root;
-        entry.notes = {degree};
-        vector<pair<Ratio, size_t>> upward;
-        for (auto note : notes) {
-          if (note != degree) upward.emplace_back((ratioOf(note) / ratioOf(degree)).reduced(), note);
+      if (notes.size() == form->above.size() + 1) use(kind, notes, rootOf(kind, notes, lowest));
+    }
+  }
+}
+
+// The chord read upward from one of its notes.
+Entry readFrom(Kind kind, size_t root, const vector<size_t> & notes, size_t degree) {
+  Entry entry;
+  entry.kind = kind;
+  entry.root = root;
+  entry.notes = {degree};
+  vector<pair<Ratio, size_t>> upward;
+  for (auto note : notes) {
+    if (note != degree) upward.emplace_back((ratioOf(note) / ratioOf(degree)).reduced(), note);
+  }
+  sort(upward.begin(), upward.end());
+  for (auto & [ratio, note] : upward) entry.notes.push_back(note);
+  return entry;
+}
+
+// Every chord of every form that has notes of both scales, each read upward from
+// each of its notes, by kind and by ascending lowest note within a kind.
+ChordTable buildCrossTable(bool five) {
+  ChordTable table;
+  forEachChord(five, [&](Kind kind, const vector<size_t> & notes, size_t root) {
+    if (!hasSide(notes, GamutSide::OTONAL) || !hasSide(notes, GamutSide::UTONAL)) return;
+    for (auto degree : notes) table[degree].push_back(readFrom(kind, root, notes, degree));
+  });
+  return table;
+}
+
+// Where a chord of a kind goes in a list: the seventh chords, then the triads,
+// then the major sevenths and the 7♯9 chords.
+int kindClass(Kind kind) {
+  switch (kind) {
+    case Kind::HARMONIC_SEVENTH:
+    case Kind::MIRROR_SEVENTH:
+      return 0;
+    case Kind::MAJOR:
+    case Kind::MINOR:
+      return 1;
+    default:
+      return 2;
+  }
+}
+
+// A scale's own lists with the chords its borrowed notes add: every chord of every
+// form whose notes are all notes of the scale and that has a borrowed one, placed
+// by kind after what the list has of that class (the five-note lists at the end).
+// Then the chord a degree is the root of comes first in its list.
+ChordTable buildScaleTable(Scale scale, bool five, const ChordTable & own) {
+  ChordTable table = own;
+  auto just = justScale(scale);
+  if (!just) return table;
+  auto side = just->side.value_or(GamutSide::OTONAL);
+  forEachChord(five, [&](Kind kind, const vector<size_t> & notes, size_t root) {
+    bool borrowed = false;
+    for (auto note : notes) {
+      auto & gamut_note = gamut::kExtendedDiamond[note];
+      if (!just->contains(gamut_note)) return;
+      borrowed = borrowed || (gamut_note.side != GamutSide::BOTH && gamut_note.side != side);
+    }
+    if (!borrowed) return;
+    for (auto degree : notes) {
+      auto & list = table[degree];
+      auto entry = readFrom(kind, root, notes, degree);
+      auto at = list.end();
+      if (!five) {
+        at = list.begin();
+        for (auto it = list.begin(); it != list.end(); ++it) {
+          if (kindClass(it->kind) <= kindClass(kind)) at = it + 1;
         }
-        sort(upward.begin(), upward.end());
-        for (auto & [ratio, note] : upward) entry.notes.push_back(note);
-        table[degree].push_back(std::move(entry));
       }
+      list.insert(at, std::move(entry));
+    }
+  });
+  if (!five) {
+    for (auto & [degree, list] : table) {
+      stable_partition(list.begin(), list.end(), [&](const Entry & entry) {
+        return (entry.kind == Kind::HARMONIC_SEVENTH || entry.kind == Kind::MIRROR_SEVENTH) && entry.root == degree;
+      });
     }
   }
   return table;
@@ -391,14 +473,18 @@ ChordTable joinTables(const ChordTable & otonal, const ChordTable & utonal, cons
 
 // The chords of notes up to four (size 4), or of exactly five.
 const ChordTable & tableFor(Scale scale, int size) {
-  static const ChordTable otonal = buildTable(kOtonalChords, GamutSide::OTONAL);
-  static const ChordTable utonal = buildTable(kUtonalChords, GamutSide::UTONAL);
-  static const ChordTable otonal5 = buildTable(kOtonalNinths, GamutSide::OTONAL);
-  static const ChordTable utonal5 = buildTable(kUtonalNinths, GamutSide::UTONAL);
+  static const ChordTable otonal_own = buildTable(kOtonalChords, GamutSide::OTONAL);
+  static const ChordTable utonal_own = buildTable(kUtonalChords, GamutSide::UTONAL);
+  static const ChordTable otonal5_own = buildTable(kOtonalNinths, GamutSide::OTONAL);
+  static const ChordTable utonal5_own = buildTable(kUtonalNinths, GamutSide::UTONAL);
+  static const ChordTable otonal = buildScaleTable(Scale::OTONAL, false, otonal_own);
+  static const ChordTable utonal = buildScaleTable(Scale::UTONAL, false, utonal_own);
+  static const ChordTable otonal5 = buildScaleTable(Scale::OTONAL, true, otonal5_own);
+  static const ChordTable utonal5 = buildScaleTable(Scale::UTONAL, true, utonal5_own);
   static const ChordTable cross = buildCrossTable(false);
   static const ChordTable cross5 = buildCrossTable(true);
-  static const ChordTable diamond = joinTables(otonal, utonal, cross);
-  static const ChordTable diamond5 = joinTables(otonal5, utonal5, cross5);
+  static const ChordTable diamond = joinTables(otonal_own, utonal_own, cross);
+  static const ChordTable diamond5 = joinTables(otonal5_own, utonal5_own, cross5);
   static const ChordTable none;
   bool five = size >= 5;
   switch (scale) {
@@ -407,7 +493,6 @@ const ChordTable & tableFor(Scale scale, int size) {
     case Scale::UTONAL:
       return five ? utonal5 : utonal;
     case Scale::DIAMOND:
-    case Scale::EXTENDED_DIAMOND:
       return five ? diamond5 : diamond;
     default:
       return none;
@@ -443,9 +528,14 @@ optional<string> triadName(Ratio second, Ratio third) {
 }
 
 ScaleChords::ScaleChords(Scale scale, Tuning tuning, int key) : scale_(scale), tuning_(tuning) {
-  int edo = edoStepsFor(tuning);
   auto just = justScale(scale);
-  if (!chords::hasChords(scale) || edo <= 0 || !just) return;
+  if (chords::hasChords(scale) && just) *this = ScaleChords(scale, *just, tuning, key);
+}
+
+ScaleChords::ScaleChords(Scale lists, const JustScale & scale, Tuning tuning, int key) : scale_(lists), tuning_(tuning) {
+  int edo = edoStepsFor(tuning);
+  const JustScale * just = &scale;
+  if (!chords::hasChords(lists) || edo <= 0) return;
   edo_ = edo;
   key_ = ((max(key, 0) % edo) + edo) % edo;
   held_.assign(static_cast<size_t>(edo), {});
@@ -453,15 +543,19 @@ ScaleChords::ScaleChords(Scale scale, Tuning tuning, int key) : scale_(scale), t
   // (the extended diamond holds one of each side, so a step may have two).
   for (auto group : just->groups()) {
     vector<int> held(static_cast<size_t>(edo), -1);
+    vector<int> rank(static_cast<size_t>(edo), 0);
     vector<double> error(static_cast<size_t>(edo), 0.0);
     for (size_t i = 0; i < just->gamut.size(); i++) {
       auto & note = just->gamut[i];
-      if (!just->inGroup(note, group)) continue;
+      int note_rank = just->rank(note, group);
+      if (note_rank == 0) continue;
       int steps = note.ratio.steps(edo);
       auto step = static_cast<size_t>(((steps % edo) + edo) % edo);
       double off = fabs(note.ratio.cents() - steps * 1200.0 / edo);
-      if (held[step] >= 0 && off >= error[step] - 1e-9) continue;
+      // An own note keeps its key against a borrowed one; else the nearer has it.
+      if (held[step] >= 0 && (note_rank < rank[step] || (note_rank == rank[step] && off >= error[step] - 1e-9))) continue;
       held[step] = static_cast<int>(i);
+      rank[step] = note_rank;
       error[step] = off;
     }
     for (size_t step = 0; step < held.size(); step++) {

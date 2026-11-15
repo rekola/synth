@@ -40,7 +40,7 @@ struct Entry {
 };
 
 inline bool hasChords(Scale scale) {
-  return scale == Scale::OTONAL || scale == Scale::UTONAL || scale == Scale::DIAMOND || scale == Scale::EXTENDED_DIAMOND;
+  return scale == Scale::OTONAL || scale == Scale::UTONAL || scale == Scale::DIAMOND;
 }
 
 // A degree's chords, in order; empty for a note that is no degree of the scale.
@@ -62,6 +62,8 @@ class ScaleChords {
  public:
   // `key` is a note value of which only the pitch class counts (-1 reads as C).
   ScaleChords(Scale scale, Tuning tuning, int key);
+  // The lists of `lists` over the notes of any set of gamut notes (a scale built for a test).
+  ScaleChords(Scale lists, const JustScale & scale, Tuning tuning, int key);
 
   bool hasChords() const { return edo_ > 0; }
   int edo() const { return edo_; }

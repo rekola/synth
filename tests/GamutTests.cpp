@@ -117,21 +117,22 @@ TEST(the_extended_diamond_is_closed_under_r_to_2_over_r_and_the_mirror_swaps_sid
   CHECK(gamut::mirrorsAreConsistent(gamut::kExtendedDiamond));
 }
 
-TEST(otonal_and_utonal_have_exactly_their_eighteen_notes) {
-  CHECK((ratios(Scale::OTONAL) == std::vector<Ratio>{1 / 1_r, 49 / 48_r, 15 / 14_r, 9 / 8_r, 7 / 6_r, 49 / 40_r, 5 / 4_r, 9 / 7_r, 4 / 3_r, 7 / 5_r, 35 / 24_r, 3 / 2_r, 49 / 30_r, 5 / 3_r, 7 / 4_r, 9 / 5_r, 15 / 8_r, 49 / 25_r}));
-  CHECK((ratios(Scale::UTONAL) == std::vector<Ratio>{1 / 1_r, 50 / 49_r, 16 / 15_r, 10 / 9_r, 8 / 7_r, 6 / 5_r, 60 / 49_r, 4 / 3_r, 48 / 35_r, 10 / 7_r, 3 / 2_r, 14 / 9_r, 8 / 5_r, 80 / 49_r, 12 / 7_r, 16 / 9_r, 28 / 15_r, 96 / 49_r}));
+TEST(otonal_and_utonal_have_their_eighteen_notes_and_three_borrowed) {
+  // Three of each are borrowed from the other: otonal 60/49 10/7 12/7, utonal 7/6 7/5 49/30.
+  CHECK((ratios(Scale::OTONAL) == std::vector<Ratio>{1 / 1_r, 49 / 48_r, 15 / 14_r, 9 / 8_r, 7 / 6_r, 60 / 49_r, 49 / 40_r, 5 / 4_r, 9 / 7_r, 4 / 3_r, 7 / 5_r, 10 / 7_r, 35 / 24_r, 3 / 2_r, 49 / 30_r, 5 / 3_r, 12 / 7_r, 7 / 4_r, 9 / 5_r, 15 / 8_r, 49 / 25_r}));
+  CHECK((ratios(Scale::UTONAL) == std::vector<Ratio>{1 / 1_r, 50 / 49_r, 16 / 15_r, 10 / 9_r, 8 / 7_r, 7 / 6_r, 6 / 5_r, 60 / 49_r, 4 / 3_r, 48 / 35_r, 7 / 5_r, 10 / 7_r, 3 / 2_r, 14 / 9_r, 8 / 5_r, 80 / 49_r, 49 / 30_r, 12 / 7_r, 16 / 9_r, 28 / 15_r, 96 / 49_r}));
   auto names = [](Scale scale) {
     std::vector<std::string> out;
     for (auto name : scaleDegreeNames(scale)) out.emplace_back(name);
     return out;
   };
-  CHECK((names(Scale::OTONAL) == std::vector<std::string>{"C", "D𝄫", "D♭↓", "D", "D♯", "D𝄪", "E", "F♭", "F", "F♯↑", "F𝄪", "G", "G𝄪", "A", "A♯↑", "B♭", "B", "B♯"}));
-  CHECK((names(Scale::UTONAL) == std::vector<std::string>{"C", "D𝄫", "D♭↓", "D↓", "E𝄫", "E♭", "F𝄫", "F", "G𝄫", "G♭↓", "G", "G♯", "A♭", "A♭↑", "B𝄫", "B♭↓", "B", "B♯"}));
+  CHECK((names(Scale::OTONAL) == std::vector<std::string>{"C", "D𝄫", "D♭↓", "D", "D♯", "F𝄫", "D𝄪", "E", "F♭", "F", "F♯↑", "G♭↓", "F𝄪", "G", "G𝄪", "A", "B𝄫", "A♯↑", "B♭", "B", "B♯"}));
+  CHECK((names(Scale::UTONAL) == std::vector<std::string>{"C", "D𝄫", "D♭↓", "D↓", "E𝄫", "D♯", "E♭", "F𝄫", "F", "G𝄫", "F♯↑", "G♭↓", "G", "G♯", "A♭", "A♭↑", "G𝄪", "B𝄫", "B♭↓", "B", "B♯"}));
   // Every note of a scale has a key of its own in 53-EDO.
   for (auto scale : {Scale::OTONAL, Scale::UTONAL}) {
     std::set<int> keys;
     for (auto r : ratios(scale)) keys.insert(keyOf(r, 53));
-    CHECK(keys.size() == 18);
+    CHECK(keys.size() == 21); // no key carries two ratios
   }
 }
 
@@ -153,21 +154,21 @@ TEST(the_removed_scales_are_gone) {
   CHECK(scaleFromString(to_string(Scale::UTONAL)) == Scale::UTONAL);
 }
 
-TEST(the_two_scales_step_through_eighteen_degrees_in_53_edo) {
+TEST(the_two_scales_step_through_21_degrees_in_53_edo) {
   auto steps = [](Tuning tuning, Scale scale) {
     std::vector<int> out;
     for (auto i : scaleGamutIndices(scale)) out.push_back(gamut::kExtendedDiamond[i].ratio.steps(edoStepsFor(tuning)));
     return out;
   };
-  CHECK((steps(Tuning::EDO53, Scale::OTONAL) == std::vector<int>{0, 2, 5, 9, 12, 16, 17, 19, 22, 26, 29, 31, 38, 39, 43, 45, 48, 51}));
-  CHECK((steps(Tuning::EDO53, Scale::UTONAL) == std::vector<int>{0, 2, 5, 8, 10, 14, 15, 22, 24, 27, 31, 34, 36, 37, 41, 44, 48, 51}));
+  CHECK((steps(Tuning::EDO53, Scale::OTONAL) == std::vector<int>{0, 2, 5, 9, 12, 15, 16, 17, 19, 22, 26, 27, 29, 31, 38, 39, 41, 43, 45, 48, 51}));
+  CHECK((steps(Tuning::EDO53, Scale::UTONAL) == std::vector<int>{0, 2, 5, 8, 10, 12, 14, 15, 22, 24, 26, 27, 31, 34, 36, 37, 38, 41, 44, 48, 51}));
   // The Launchpad's step view reads these: a window of the song's scale
-  // degrees, one octave up from the eighteenth.
+  // degrees, one octave up from the 21st.
   Song song(Tuning::EDO53, -1);
   song.setScale(Scale::OTONAL);
-  auto window = song.getScaleDegreesWindow(0, 19);
-  CHECK(window.size() == 19);
-  CHECK(window.front() == 0 && window[17] == 51 && window[18] == 53);
+  auto window = song.getScaleDegreesWindow(0, 22);
+  CHECK(window.size() == 22);
+  CHECK(window.front() == 0 && window[20] == 51 && window[21] == 53);
 }
 
 TEST(no_gamut_ratio_is_more_than_11_cents_from_its_key_in_53_edo_and_the_first_17_within_7) {

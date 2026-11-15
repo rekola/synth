@@ -68,6 +68,8 @@ struct ScaleCorrections {
 
 // `key` is a full note value of which only the pitch class counts (-1 reads as C).
 ScaleCorrections scaleCorrectionsFor(Tuning tuning, Scale scale, int key);
+// The same for any set of gamut notes, such as a scale built for a test.
+ScaleCorrections scaleCorrectionsFor(Tuning tuning, const JustScale & just, int key);
 }
 
 #endif

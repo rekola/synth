@@ -14,60 +14,55 @@
 #include <string_view>
 #include <vector>
 
-// The extended diamond's keys, each a ratio of the gamut (several ratios share a
-// name, so a key says which): the otonal scale runs along the q row and on along
-// the a row, each utonal note on the outer row next to the otonal one it lies just
-// below (the number row above the q row, the z row below the a row), the tonic of
-// the next octave on 9. The names are those in the key of C.
-struct ExtendedDiamondKey {
+// The otonal and utonal layouts, each a table of key and note (named in the key
+// of C). The q row holds the ten roots of the scale's seventh chords in rising
+// order, so that it is a chord keyboard; every other note is on the number row
+// above or the a row below, on a key at or next to its place between two roots
+// (2 is between q and w, ... 0 between o and p; s is between w and e, ... l
+// between o and p). The z row is not used, and a is the note-off key.
+struct KeyName {
   char key;
-  int num, den;
   std::string_view name;
-  int octaves;
 };
-inline constexpr ExtendedDiamondKey kExtendedDiamondKeys[] = {
-    {'q', 1, 1, "C", 0},
-    {'w', 49, 48, "D𝄫", 0},
-    {'2', 50, 49, "D𝄫", 0},
-    {'e', 15, 14, "D♭↓", 0},
-    {'3', 16, 15, "D♭↓", 0},
-    {'r', 9, 8, "D", 0},
-    {'4', 10, 9, "D↓", 0},
-    {'t', 7, 6, "D♯", 0},
-    {'5', 8, 7, "E𝄫", 0},
-    {'y', 49, 40, "D𝄪", 0},
-    {'6', 6, 5, "E♭", 0},
-    {'u', 5, 4, "E", 0},
-    {'7', 60, 49, "F𝄫", 0},
-    {'i', 9, 7, "F♭", 0},
-    {'o', 4, 3, "F", 0},
-    {'p', 7, 5, "F♯↑", 0},
-    {'0', 48, 35, "G𝄫", 0},
-    {'s', 35, 24, "F𝄪", 0},
-    {'z', 10, 7, "G♭↓", 0},
-    {'d', 3, 2, "G", 0},
-    {'x', 14, 9, "G♯", 0},
-    {'f', 49, 30, "G𝄪", 0},
-    {'c', 8, 5, "A♭", 0},
-    {'g', 5, 3, "A", 0},
-    {'v', 80, 49, "A♭↑", 0},
-    {'h', 7, 4, "A♯↑", 0},
-    {'b', 12, 7, "B𝄫", 0},
-    {'j', 9, 5, "B♭", 0},
-    {'n', 16, 9, "B♭↓", 0},
-    {'k', 15, 8, "B", 0},
-    {'m', 28, 15, "B", 0},
-    {'l', 49, 25, "B♯", 0},
-    {',', 96, 49, "B♯", 0},
-    {'9', 1, 1, "C'", 1},
+inline constexpr KeyName kOtonalKeys[] = {
+    {'2', "D𝄫"}, {'7', "F♯↑"}, {'8', "G♭↓"}, {'9', "G𝄪"}, {'0', "B♭"}, // number row
+    {'q', "C"},
+    {'w', "D♭↓"},
+    {'e', "D"},
+    {'r', "D♯"},
+    {'t', "D𝄪"},
+    {'y', "E"},
+    {'u', "F"},
+    {'i', "B𝄫"},
+    {'o', "A♯↑"},
+    {'p', "B"}, // roots
+    {'f', "F𝄫"},
+    {'g', "F♭"},
+    {'h', "F𝄪"},
+    {'j', "G"},
+    {'k', "A"},
+    {'l', "B♯"}, // a row
 };
-
-inline const ExtendedDiamondKey * extendedDiamondKey(int key) {
-  for (auto & entry : kExtendedDiamondKeys) {
-    if (entry.key == key) return &entry;
-  }
-  return nullptr;
-}
+inline constexpr KeyName kUtonalKeys[] = {
+    {'2', "D𝄫"}, {'4', "E♭"}, {'5', "G𝄫"}, {'6', "F♯↑"}, // number row
+    {'q', "C"},
+    {'w', "D♭↓"},
+    {'e', "E𝄫"},
+    {'r', "D♯"},
+    {'t', "G"},
+    {'y', "A♭"},
+    {'u', "A♭↑"},
+    {'i', "B𝄫"},
+    {'o', "B♭↓"},
+    {'p', "B"}, // roots
+    {'s', "D↓"},
+    {'d', "F𝄫"},
+    {'f', "F"},
+    {'g', "G♭↓"},
+    {'h', "G♯"},
+    {'j', "G𝄪"},
+    {'l', "B♯"}, // a row
+};
 
 // The note-entry keyboard mapping: the MIDI note a key plays in a tuning, or -1.
 inline const std::string_view keyToMidiNote(int key, Tuning tuning, Scale scale) {
@@ -128,9 +123,6 @@ inline const std::string_view keyToMidiNote(int key, Tuning tuning, Scale scale)
     static constexpr std::string_view kKeys = "qwertyuiop";
     auto at = key >= 0 && key < 128 ? kKeys.find(static_cast<char>(key)) : std::string_view::npos;
     if (at != std::string_view::npos && at < table.at(scale).size()) return table.at(scale)[at];
-  } else if (scale == Scale::EXTENDED_DIAMOND) {
-    // The 33 ratios, each on its key (kExtendedDiamondKeys); the digits 1 and 8 and the letter a stay free.
-    if (auto entry = extendedDiamondKey(key)) return entry->name;
   } else if (scale == Scale::DIAMOND) {
     // The thirteen notes of the 7-limit diamond on two rows like a piano: the otonal
     // ones on the q row, the utonal ones on the digit row, each on the digit between the
@@ -167,61 +159,10 @@ inline const std::string_view keyToMidiNote(int key, Tuning tuning, Scale scale)
         return "C'";
     }
   } else if (scale == Scale::OTONAL || scale == Scale::UTONAL) {
-    // The scale's eighteen notes. The row q w e r t y u has the seven of the
-    // core, then the tonic and two more notes an octave up on i o p. The number
-    // row, staggered above, has the notes that lie between neighbouring core
-    // notes: 2 D (D↓), 3 D𝄪, 4 F♭ (F𝄫), 5 the tritone, 6 G𝄪 (G♯), 7 A♭↑ (utonal),
-    // 8 B♭ (B♭↓). The notes clustered around the tonic and the tritone are on
-    // 1 (D𝄫), the home row below (s D♭↓; f G𝄫 (utonal); g F𝄪 (otonal)) and, by
-    // the octave, k B and l B♯. The two layouts mirror each other.
-    const bool otonal = scale == Scale::OTONAL;
-    switch (key) {
-      case 'q':
-        return "C";
-      case '1':
-        return "D𝄫";
-      case 's':
-        return "D♭↓";
-      case '2':
-        return otonal ? "D" : "D↓";
-      case 'w':
-        return otonal ? "D♯" : "E𝄫";
-      case '3':
-        return otonal ? "D𝄪" : "";
-      case 'e':
-        return otonal ? "E" : "E♭";
-      case '4':
-        return otonal ? "F♭" : "F𝄫";
-      case 'r':
-        return "F";
-      case 'f':
-        return otonal ? "" : "G𝄫";
-      case '5':
-        return otonal ? "F♯↑" : "G♭↓";
-      case 'g':
-        return otonal ? "F𝄪" : "";
-      case 't':
-        return "G";
-      case '6':
-        return otonal ? "G𝄪" : "G♯";
-      case 'y':
-        return otonal ? "A" : "A♭";
-      case '7':
-        return otonal ? "" : "A♭↑";
-      case 'u':
-        return otonal ? "A♯↑" : "B𝄫";
-      case '8':
-        return otonal ? "B♭" : "B♭↓";
-      case 'k':
-        return "B";
-      case 'l':
-        return "B♯";
-      case 'i':
-        return "C'";
-      case 'o':
-        return otonal ? "D♯'" : "E𝄫'";
-      case 'p':
-        return otonal ? "E'" : "E♭'";
+    // The scale's 21 notes: the ten chord roots on the q row, the rest around them
+    // (kOtonalKeys, kUtonalKeys).
+    for (auto & entry : scale == Scale::OTONAL ? kOtonalKeys : kUtonalKeys) {
+      if (entry.key == key) return entry.name;
     }
   } else {
     // A scale with no layout of its own plays this one (the layout the earlier
@@ -280,7 +221,7 @@ inline const std::string_view keyToMidiNote(const cellui::Input & input, Tuning 
 // fixed notes. The layout is written as the notes of the key of C; each key
 // stands for the ratio of the note it names there.
 inline bool keyboardGivesRatios(Scale scale) {
-  return scale == Scale::OTONAL || scale == Scale::UTONAL || scale == Scale::DIAMOND || scale == Scale::EXTENDED_DIAMOND;
+  return scale == Scale::OTONAL || scale == Scale::UTONAL || scale == Scale::DIAMOND;
 }
 
 // What a key of such a layout plays: a gamut note and the octaves above the
@@ -293,19 +234,6 @@ struct KeyboardRatio {
 inline std::optional<KeyboardRatio> keyToRatio(int key, Tuning tuning, Scale scale) {
   if (!keyboardGivesRatios(scale) || edoStepsFor(tuning) <= 0) return std::nullopt;
   KeyboardRatio out;
-  if (scale == Scale::EXTENDED_DIAMOND) {
-    // A key names its ratio, which the spelling does not.
-    auto entry = extendedDiamondKey(key);
-    if (!entry) return std::nullopt;
-    out.octaves = entry->octaves;
-    for (std::size_t i = 0; i < gamut::kExtendedDiamond.size(); i++) {
-      if (gamut::kExtendedDiamond[i].ratio == Ratio(entry->num, entry->den)) {
-        out.gamut_index = i;
-        return out;
-      }
-    }
-    return std::nullopt;
-  }
   auto name = keyToMidiNote(key, tuning, scale);
   while (!name.empty() && name.back() == '\'') {
     name.remove_suffix(1);

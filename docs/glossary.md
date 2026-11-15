@@ -33,7 +33,7 @@ sequence* (several shortcuts in a row, such as `C-x C-s`).
 **Chord completion**
 What the pattern editor adds to the notes played when its cursor is wider
 than one note column: the other notes of a chord of the song's scale that
-contains them (user-interface.md, Chord entry). Songs in the otonal, utonal, diamond and extended diamond scales only.
+contains them (user-interface.md, Chord entry). Songs in the otonal, utonal and diamond scales only.
 
 **Chord palette**
 The list of a degree's chords the pattern editor offers for the notes of an
@@ -236,18 +236,21 @@ notes that arise only between the two scales (otonal D𝄪 G𝄪 B♯).
 From 7 notes on each note has a seventh chord made of the step’s
 notes, a harmonic seventh 4:5:6:7 or its mirror 1/7:1/6:1/5:1/4, read
 upward from the degree; its fourth note is often dropped. The
-application’s scale is the full 18 notes; which step a piece uses,
-and when it moves up or down, is the artist’s choice. Only the cores
+application’s scale is the full 18 notes and three borrowed from the other
+scale; which step a piece uses, and when it moves up or down, is the
+artist’s choice. Only the cores
 are a single series. Each core contains a septimal pentatonic as a
 melodic subscale (otonal C D♯ F G A♯↑, utonal C E𝄫 F G B𝄫). Partch’s
 Otonalities and Utonalities are chords, not scales; these scales and
 their chords are the author’s own. Their chords are tabled in
 extended-diamond.md.
-Two more scales hold both: the **diamond**, the 13 notes of the 7-limit
-tonality diamond (the two 7-note cores and the two tritones), and the
-**extended diamond**, all 33 ratios. Four keys of 53-EDO carry two ratios
-there, one of each scale, told apart by the correction a note carries
-(extended-diamond.md, The two diamond scales).
+Each scale borrows three notes from the other (otonal F𝄫 G♭↓ B𝄫, utonal
+D♯ F♯↑ G𝄪) and gains three seventh chords: the gamut has twenty, seven of each
+scale's own notes and six that take notes from both, divided between the
+scales three each (extended-diamond.md, Borrowed notes). A harmonic seventh is
+named by its lowest note, a mirror seventh by its top note, its *root*.
+The **diamond** scale holds both: the 13 notes of the 7-limit tonality
+diamond.
 
 **Overtone profile and shared overtones**
 A sounding note's overtone profile is how loud each of its overtones

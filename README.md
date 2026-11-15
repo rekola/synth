@@ -122,16 +122,17 @@ The application draws on several traditions.
   In **utonal** it is the same turned upside down, C E𝄫 E♭ F G A♭ B𝄫 = 1/1
   8/7 6/5 4/3 3/2 8/5 12/7. The 15-note scale is everything a scale produces
   from itself, and the 18-note scale adds three notes that arise between the
-  two scales. A chord uses only intervals that are ratios of the gamut, and
-  from 7 notes on every note has a seventh chord. Nothing drifts: each note
+  two scales. Each scale also borrows three notes from the other, to have 21
+  notes and ten seventh chords. A chord uses only intervals that are ratios of
+  the gamut, and from 7 notes on every note has a seventh chord. Nothing drifts: each note
   has one fixed ratio, and no chord holds a near-pure interval. Partch's own
   otonalities and utonalities are chords, not scales; the scales, the
   extension and their chords are the author's own. With just intonation
   every note sounds at its exact ratio; without it, 53-EDO is within 10
   cents up to 15 notes. [extended-diamond.md](docs/extended-diamond.md) has
   the steps, their chords and the gamut.
-  Two more scales hold both at once: **diamond**, the 13 notes of the 7-limit
-  tonality diamond, and **extended diamond**, all 33 ratios.
+  A third scale holds both at once: **diamond**, the 13 notes of the 7-limit
+  tonality diamond.
 
 ### Pianos and Just Intervals
 

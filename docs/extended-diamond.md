@@ -14,14 +14,16 @@ ladder of steps that each hold the ones below:
 | 2 | 7 | D♯ E A A♯↑ | E𝄫 E♭ A♭ B𝄫 | 2 |
 | 3 and 4 | 15 | D𝄫 D♭↓ D F♭ F♯↑ F𝄪 B♭ B | D♭↓ D↓ G𝄫 G♭↓ G♯ B♭↓ B B♯ | 6 |
 | extended | 18 | D𝄪 G𝄪 B♯ | D𝄫 F𝄫 A♭↑ | 7 |
+| borrowed | 21 | F𝄫 G♭↓ B𝄫 | D♯ F♯↑ G𝄪 | 10 |
 
 Every step is complete: it holds every note of the gamut that splitting the
 intervals of the step before produces. From 7 notes on, every note also has
 a seventh chord made of the step's own notes. An artist can stay on a small
 step, or go up and down the ladder, even within one song: going up adds
 chords, going down takes them away, and nothing already played changes. The
-application's scale is the full 18 notes; which step a piece uses is the
-artist's choice.
+application's scale is the full 18 notes and the three it borrows from the
+other scale (see [Borrowed notes](#borrowed-notes-and-the-division-of-the-seventh-chords)),
+21 notes in all; which step a piece uses is the artist's choice.
 
 Three things set these scales apart from major and minor:
 
@@ -261,10 +263,62 @@ Utonal, on C:
 | B♭↓ | B♭↓ harmonic ninth, B♭↓ mirror harmonic ninth, B♭↓ mirror major ninth |
 | B | D♭↓ harmonic ninth / B |
 
-## The two diamond scales
+## Borrowed notes and the division of the seventh chords
 
-Besides otonal and utonal the application has two scales that hold both. Each
-is on the gamut below and can be built on any tonic; they are given on C.
+The gamut has twenty seventh chords. A harmonic seventh (4:5:6:7) is named by
+its root, the lowest note, and marked +; a mirror seventh (1/7:1/6:1/5:1/4) is
+named by its top note and marked −. The note that names a chord is its root,
+for both kinds, and chord names in the application use it (a mirror seventh
+read from its lowest note is named, for example, "E mirror seventh / C").
+
+Each scale has seven seventh chords made of its own notes. Six more take notes
+from both scales, and so belong to neither. Each scale borrows the three notes
+it lacks for three of them, so it has 21 notes and ten seventh chords, one on
+each of ten roots. Brackets mark borrowed notes. Notes are given on C.
+
+| Otonal | Utonal |
+|---|---|
+| C+ : C E G A♯↑ | C− : E𝄫 F A♭ C |
+| F+ : F A C D♯ | G− : B𝄫 C E♭ G |
+| D♯+ : D♯ F𝄪 A♯↑ D𝄫 | B𝄫− : B♯ E𝄫 G𝄫 B𝄫 |
+| A♯↑− : C D♯ F♯↑ A♯↑ | E𝄫+ : E𝄫 G♭↓ B𝄫 C |
+| B− : D♭↓ E G B | D♭↓+ : D♭↓ F A♭ B |
+| D− : F♭ G B♭ D | B♭↓+ : B♭↓ D↓ F G♯ |
+| D𝄪− : F♯↑ G𝄪 B♯ D𝄪 | A♭↑+ : A♭↑ D𝄫 F𝄫 G♭↓ |
+| E− : [G♭↓] A C E | A♭+ : A♭ C E♭ [F♯↑] |
+| D♭↓− : [F𝄫] [G♭↓] [B𝄫] D♭↓ | B+ : B [D♯] [F♯↑] [G𝄪] |
+| B𝄫+ : [B𝄫] D♭↓ F♭ G | D♯− : F G♯ B [D♯] |
+
+Each row is a mirror pair. The division is one table of data in the program
+(`model/Division.h`), and a scale's borrowed notes, tuning, chords and layout
+follow from it; the last row may be swapped between the scales later. A
+borrowed note is a note of the scale in every respect: it is tuned to its
+ratio, the Launchpad's step view steps through it (21 keys), and chord entry
+may use it. No key carries two ratios in either scale: otonal borrows F𝄫 60/49
+(key 15), G♭↓ 10/7 (27) and B𝄫 12/7 (41), utonal D♯ 7/6 (12), F♯↑ 7/5 (26) and
+G𝄪 49/30 (38), none of which is a key of its own scale.
+
+In 31-EDO the scales have fewer notes, and a borrowed note never takes the key
+of an own note. Otonal keeps G♭↓ and B𝄫 (not F𝄫, which shares a key with D𝄪),
+and so nine of its ten seventh chords (D♭↓− needs F𝄫); utonal keeps D♯ and
+F♯↑ (not G𝄪, whose key A♭↑ has) and nine (B+ needs G𝄪).
+
+**Other kinds.** Every other kind of chord that chord entry has is offered
+wherever all its notes are notes of the scale, borrowed notes included. That
+adds to otonal the triads B𝄫 major (B𝄫 D♭↓ F♭) and G♭↓ minor (G♭↓ B𝄫 D♭↓), the
+7♯9 chord on B𝄫 (B𝄫 C D♭↓ G), and the five-note chords B𝄫 7♯9 with fifth
+(B𝄫 C D♭↓ F♭ G) and G♭↓ mirror 7♯9 with fifth (G♭↓ A C D♭↓ E); to utonal the
+triads B major (B D♯ F♯↑) and G♯ minor (G♯ B D♯), the 7♯9 chord on A♭ (A♭ B C
+F♯↑, B as 28/15), and the five-note chords A♭ 7♯9 with fifth (A♭ B C E♭ F♯↑)
+and F mirror 7♯9 with fifth (F G♯ B C D♯).
+
+**Chord lists.** A degree's list keeps its order; the chord a degree is the
+root of comes first, and a chord with a borrowed note goes after the seventh
+chords or triads already there, by kind. On the keyboard each key of the q row
+is the root of a seventh chord and writes it (see
+[user-interface.md](user-interface.md#note-keyboard)).
+
+## The diamond scale
 
 **Diamond** is the 7-limit tonality diamond itself, every ratio between two of
 1, 3, 5 and 7: the two 7-note cores and the two tritones, 13 notes.
@@ -274,13 +328,15 @@ is on the gamut below and can be built on any tonic; they are given on C.
 | Ratio | 1/1 | 8/7 | 7/6 | 6/5 | 5/4 | 4/3 | 7/5 | 10/7 | 3/2 | 8/5 | 5/3 | 12/7 | 7/4 |
 
 Each note has a key of its own in 53-EDO and in 31-EDO, and the Launchpad's
-step view steps through its 13 keys.
+step view steps through its 13 keys. A note's chords are those of otonal, then
+those of utonal, then the chords that take notes from both, and a chord is
+offered only if all its notes are notes of the diamond, so it has eight seventh
+chords: C E G A♯↑, F A C D♯ and C D♯ F♯↑ A♯↑ from otonal, E𝄫 F A♭ C, B𝄫 C E♭
+G and E𝄫 G♭↓ B𝄫 C from utonal, and the two of the division that need no note
+outside the 13, E− and A♭+.
 
-**Extended diamond** has every ratio of the gamut: the 18 of otonal and the 18
-of utonal, which share C, F and G, so 33 ratios. In 53-EDO they lie on 29 keys.
-In 31-EDO it has the notes of the two 15-note scales.
-
-**Two ratios on one key.** In 53-EDO four keys carry one ratio of each scale:
+**A key with two ratios.** In 53-EDO four keys of the gamut carry one ratio
+of each scale:
 
 | Key | Name | Otonal ratio | Utonal ratio |
 |---|---|---|---|
@@ -289,47 +345,15 @@ In 31-EDO it has the notes of the two 15-note scales.
 | 48 | B | 15/8 | 28/15 |
 | 51 | B♯ | 49/25 | 96/49 |
 
-In an otonal or utonal song the scale decides which ratio such a key carries.
-In an extended diamond song both are wanted, and what tells them apart is the
-tuning correction written on the note; the name and the key are the same, and
-there is no note name or accidental for it. A note on one of the four keys
-stands for the ratio its correction brings it nearer to, in chord entry, the
-chord palette and `apply-just-intonation-region`, which keeps that ratio and
-gives it the exact value. A note with no correction stands for the ratio nearer
-the key's own pitch: 49/48, 16/15, 15/8 and 96/49. The keyboard has a key for
-each of the 33 ratios and writes the correction of its ratio, so entry never
-guesses (the layouts are in [user-interface.md](user-interface.md#note-keyboard)).
-
-**Chords.** A note's chords are those of its own scale in their usual order;
-C, F and G belong to both, and their otonal chords come before their utonal
-ones. After them come the chords that take notes from both scales: for every
-kind of chord, each instance whose notes are all ratios of the gamut and has
-notes of both scales, read upward from each of its notes, by kind and by
-ascending root. As always, a chord is offered only if all its notes are notes
-of the song's scale, so the diamond has exactly eight seventh chords: C E G A♯↑,
-F A C D♯ and C D♯ F♯↑ A♯↑ from otonal, E𝄫 F A♭ C, B𝄫 C E♭ G and E𝄫 G♭↓ B𝄫 C
-from utonal, and the first two of the six below.
-
-Six seventh chords span both scales:
-
-| Chord | Name |
-|---|---|
-| A♭ C E♭ F♯↑ | A♭ harmonic seventh |
-| G♭↓ A C E | G♭↓ mirror seventh |
-| B𝄫 D♭↓ F♭ G, with D♭↓ as 15/14 | B𝄫 harmonic seventh |
-| F G♯ B D♯, with B as 28/15 | F mirror seventh |
-| B D♯ F♯↑ G𝄪, with B as 28/15 | B harmonic seventh |
-| F𝄫 G♭↓ B𝄫 D♭↓, with D♭↓ as 15/14 | F𝄫 mirror seventh |
-
-The other chords of both scales, by the root they are named after: the triads
-D↓ minor (D↓ F A), E♭ major (E♭ G B♭), G♭↓ minor (G♭↓ B𝄫 D♭↓), G♯ minor
-(G♯ B D♯), B𝄫 major (B𝄫 D♭↓ F♭) and B major (B D♯ F♯↑, B as 28/15); the major
-sevenths E𝄫 (E𝄫 G♭↓ B𝄫 D♭↓), E♭ (E♭ G B♭ D), B♭↓ (B♭↓ D↓ F A) and B (B D♯
-F♯↑ A♯↑); the 7♯9 chords F (F G♯ A D♯), A♭ (A♭ B C F♯↑, B as 28/15) and B𝄫
-(B𝄫 C D♭↓ G); and the sixteen five-note chords: the mirror major ninth on C (C
-D E♭ G B♭), D↓ (two) and G♯ (two), the harmonic ninths on E𝄫 and A♭, the major
-ninths on E𝄫, A♭ and B♭↓, the 7♯9 chords with fifth on F, A♭ and B𝄫, and the
-mirror ones on F, G♭↓ and B𝄫.
+No scale of the application holds both, so no song has a key with two ratios.
+The program still handles it, for a set of notes that does (the tests build
+one), and moving a row of the division to the other scale could need it: there
+the tuning correction written on a note says which ratio it is, with no new
+note name or accidental. A note on such a key stands for the ratio its
+correction brings it nearer to, in chord entry, the chord palette and
+`apply-just-intonation-region` (which keeps that ratio and gives it the exact
+value); a note with no correction stands for the ratio nearer the key's own
+pitch: 49/48, 16/15, 15/8 and 96/49.
 
 ## The gamut
 
@@ -393,8 +417,9 @@ gamut notes share a key.
 **The diamond.** The 7-limit tonality diamond was first set out by Max Meyer
 (1929); Harry Partch's diamond is its 11-limit form. Its thirteen notes are
 the notes of the eight seventh chords that contain the tonic: the two cores
-and the two tritones. Two of the eight, G♭↓ A C E and A♭ C E♭ F♯↑, take
-notes from both scales and belong to neither.
+and the two tritones. Two of the eight, G♭↓ A C E (E−) and A♭ C E♭ F♯↑
+(A♭+), take notes from both scales and belong to neither; they are among the
+six that the division gives to the scales three each.
 
 **The pairs converge.** The two members of a pair lie ever closer: 204, 71,
 36, 22, 7.7 and 0.7 cents apart. In the last pair the otonal 49/48 and the

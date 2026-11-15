@@ -44,10 +44,10 @@ Result completeIn(Scale scale, std::initializer_list<int> given, int size, Tunin
 }
 
 std::size_t gamutNote(Scale scale, const char * spelling) {
-  auto side = scale == Scale::OTONAL ? GamutSide::OTONAL : GamutSide::UTONAL;
+  auto just = justScale(scale);
   for (std::size_t i = 0; i < gamut::kExtendedDiamond.size(); i++) {
     auto & note = gamut::kExtendedDiamond[i];
-    if (note.spelling == spelling && (note.side == GamutSide::BOTH || note.side == side)) return i;
+    if (note.spelling == spelling && just && just->contains(note)) return i;
   }
   CHECK(false);
   return 0;
@@ -62,35 +62,39 @@ std::vector<std::string> namesOf(Scale scale, const char * degree, int size = 4)
 
 using NinthNames = std::vector<std::pair<const char *, std::vector<std::string>>>;
 const NinthNames kOtonalNinthNames = {
-    {"C", {"F harmonic ninth / C", "F major ninth / C", "C 7♯9 with fifth", "C harmonic ninth", "C mirror harmonic ninth", "C major ninth", "A mirror major ninth / C", "C mirror 7♯9 with fifth"}},
-    {"D♭↓", {"A mirror harmonic ninth / D♭↓"}},
+    {"C", {"F harmonic ninth / C", "F major ninth / C", "C 7♯9 with fifth", "C harmonic ninth", "C mirror harmonic ninth", "C major ninth", "A mirror major ninth / C", "C mirror 7♯9 with fifth", "B𝄫 7♯9 with fifth / C", "G♭↓ mirror 7♯9 with fifth / C"}},
+    {"D♭↓", {"A mirror harmonic ninth / D♭↓", "B𝄫 7♯9 with fifth / D♭↓", "G♭↓ mirror 7♯9 with fifth / D♭↓"}},
     {"D", {"C harmonic ninth / D", "C mirror harmonic ninth / D", "C major ninth / D"}},
     {"D♯", {"F harmonic ninth / D♯", "C 7♯9 with fifth / D♯", "C mirror 7♯9 with fifth / D♯"}},
-    {"E", {"F major ninth / E", "C 7♯9 with fifth / E", "C harmonic ninth / E", "A mirror harmonic ninth / E", "C major ninth / E", "A mirror major ninth / E"}},
-    {"F♭", {"C mirror harmonic ninth / F♭"}},
+    {"E", {"F major ninth / E", "C 7♯9 with fifth / E", "C harmonic ninth / E", "A mirror harmonic ninth / E", "C major ninth / E", "A mirror major ninth / E", "G♭↓ mirror 7♯9 with fifth / E"}},
+    {"F♭", {"C mirror harmonic ninth / F♭", "B𝄫 7♯9 with fifth / F♭"}},
     {"F", {"F harmonic ninth", "F major ninth"}},
     {"F♯↑", {"C mirror 7♯9 with fifth / F♯↑"}},
-    {"G", {"F harmonic ninth / G", "F major ninth / G", "C 7♯9 with fifth / G", "C harmonic ninth / G", "A mirror harmonic ninth / G", "C mirror harmonic ninth / G", "C major ninth / G", "A mirror major ninth / G", "C mirror 7♯9 with fifth / G"}},
-    {"A", {"F harmonic ninth / A", "F major ninth / A", "A mirror harmonic ninth", "A mirror major ninth"}},
+    {"G♭↓", {"G♭↓ mirror 7♯9 with fifth"}},
+    {"G", {"F harmonic ninth / G", "F major ninth / G", "C 7♯9 with fifth / G", "C harmonic ninth / G", "A mirror harmonic ninth / G", "C mirror harmonic ninth / G", "C major ninth / G", "A mirror major ninth / G", "C mirror 7♯9 with fifth / G", "B𝄫 7♯9 with fifth / G"}},
+    {"A", {"F harmonic ninth / A", "F major ninth / A", "A mirror harmonic ninth", "A mirror major ninth", "G♭↓ mirror 7♯9 with fifth / A"}},
+    {"B𝄫", {"B𝄫 7♯9 with fifth"}},
     {"A♯↑", {"C 7♯9 with fifth / A♯↑", "C harmonic ninth / A♯↑", "C mirror 7♯9 with fifth / A♯↑"}},
     {"B♭", {"C mirror harmonic ninth / B♭"}},
     {"B", {"A mirror harmonic ninth / B", "C major ninth / B", "A mirror major ninth / B"}},
 };
 
 const NinthNames kUtonalNinthNames = {
-    {"C", {"F mirror harmonic ninth / C", "F mirror major ninth / C", "E𝄫 mirror 7♯9 with fifth / C", "B♭↓ harmonic ninth / C", "B♭↓ mirror harmonic ninth / C", "D♭↓ major ninth / C", "B♭↓ mirror major ninth / C", "E𝄫 7♯9 with fifth / C"}},
+    {"C", {"F mirror harmonic ninth / C", "F mirror major ninth / C", "E𝄫 mirror 7♯9 with fifth / C", "B♭↓ harmonic ninth / C", "B♭↓ mirror harmonic ninth / C", "D♭↓ major ninth / C", "B♭↓ mirror major ninth / C", "E𝄫 7♯9 with fifth / C", "A♭ 7♯9 with fifth / C", "F mirror 7♯9 with fifth / C"}},
     {"D♭↓", {"D♭↓ harmonic ninth", "D♭↓ major ninth", "B♭↓ mirror major ninth / D♭↓"}},
     {"D↓", {"B♭↓ harmonic ninth / D↓"}},
     {"E𝄫", {"E𝄫 mirror 7♯9 with fifth", "B♭↓ mirror harmonic ninth / E𝄫", "E𝄫 7♯9 with fifth"}},
-    {"E♭", {"F mirror harmonic ninth / E♭", "F mirror major ninth / E♭", "D♭↓ harmonic ninth / E♭", "D♭↓ major ninth / E♭"}},
-    {"F", {"F mirror harmonic ninth", "F mirror major ninth", "E𝄫 mirror 7♯9 with fifth / F", "D♭↓ harmonic ninth / F", "B♭↓ harmonic ninth / F", "B♭↓ mirror harmonic ninth / F", "D♭↓ major ninth / F", "B♭↓ mirror major ninth / F", "E𝄫 7♯9 with fifth / F"}},
+    {"D♯", {"F mirror 7♯9 with fifth / D♯"}},
+    {"E♭", {"F mirror harmonic ninth / E♭", "F mirror major ninth / E♭", "D♭↓ harmonic ninth / E♭", "D♭↓ major ninth / E♭", "A♭ 7♯9 with fifth / E♭"}},
+    {"F", {"F mirror harmonic ninth", "F mirror major ninth", "E𝄫 mirror 7♯9 with fifth / F", "D♭↓ harmonic ninth / F", "B♭↓ harmonic ninth / F", "B♭↓ mirror harmonic ninth / F", "D♭↓ major ninth / F", "B♭↓ mirror major ninth / F", "E𝄫 7♯9 with fifth / F", "F mirror 7♯9 with fifth"}},
+    {"F♯↑", {"A♭ 7♯9 with fifth / F♯↑"}},
     {"G♭↓", {"E𝄫 7♯9 with fifth / G♭↓"}},
     {"G", {"F mirror harmonic ninth / G", "F mirror major ninth / G"}},
-    {"G♯", {"B♭↓ harmonic ninth / G♯"}},
-    {"A♭", {"F mirror major ninth / A♭", "E𝄫 mirror 7♯9 with fifth / A♭", "D♭↓ harmonic ninth / A♭", "B♭↓ mirror harmonic ninth / A♭", "D♭↓ major ninth / A♭", "B♭↓ mirror major ninth / A♭"}},
+    {"G♯", {"B♭↓ harmonic ninth / G♯", "F mirror 7♯9 with fifth / G♯"}},
+    {"A♭", {"F mirror major ninth / A♭", "E𝄫 mirror 7♯9 with fifth / A♭", "D♭↓ harmonic ninth / A♭", "B♭↓ mirror harmonic ninth / A♭", "D♭↓ major ninth / A♭", "B♭↓ mirror major ninth / A♭", "A♭ 7♯9 with fifth"}},
     {"B𝄫", {"F mirror harmonic ninth / B𝄫", "E𝄫 mirror 7♯9 with fifth / B𝄫", "E𝄫 7♯9 with fifth / B𝄫"}},
     {"B♭↓", {"B♭↓ harmonic ninth", "B♭↓ mirror harmonic ninth", "B♭↓ mirror major ninth"}},
-    {"B", {"D♭↓ harmonic ninth / B"}},
+    {"B", {"D♭↓ harmonic ninth / B", "A♭ 7♯9 with fifth / B", "F mirror 7♯9 with fifth / B"}},
 };
 
 } // namespace
@@ -109,27 +113,26 @@ TEST(chords_every_degree_of_both_scales_has_its_list) {
       }
       total += list.size();
     }
-    CHECK(total == (scale == Scale::OTONAL ? 45u : 49u));
+    CHECK(total == (scale == Scale::OTONAL ? 67u : 71u));
   }
   CHECK(degreeChords(Scale::MAJOR, 0).empty());
 }
 
-TEST(chords_are_named_after_the_lowest_note_of_their_form) {
+TEST(chords_are_named_after_their_root) {
+  // A harmonic seventh by its lowest note, a mirror seventh by its top note.
   using V = std::vector<std::string>;
-  CHECK(namesOf(Scale::OTONAL, "C") == (V{"C harmonic seventh", "F harmonic seventh / C", "C mirror seventh", "F major seventh / C",
-                                          "C major seventh", "C 7♯9"}));
-  CHECK(namesOf(Scale::OTONAL, "D♯") == (V{"F harmonic seventh / D♯", "C mirror seventh / D♯", "D♯ harmonic seventh", "C 7♯9 / D♯"}));
-  CHECK(namesOf(Scale::OTONAL, "A") == (V{"F harmonic seventh / A", "A minor", "F major seventh / A"}));
-  CHECK(namesOf(Scale::OTONAL, "D𝄪") == (V{"F♯↑ mirror seventh / D𝄪", "F♯↑ 7♯9 / D𝄪"}));
-  CHECK(namesOf(Scale::OTONAL, "D♭↓") == (V{"D♭↓ mirror seventh"}));
-  CHECK(namesOf(Scale::OTONAL, "B") == (V{"D♭↓ mirror seventh / B", "C major seventh / B"}));
-  CHECK(namesOf(Scale::UTONAL, "C") == (V{"E𝄫 mirror seventh / C", "B𝄫 mirror seventh / C", "E𝄫 harmonic seventh / C",
-                                          "A♭ major seventh / C", "D♭↓ major seventh / C", "E𝄫 7♯9 / C"}));
-  CHECK(namesOf(Scale::UTONAL, "A♭") == (V{"E𝄫 mirror seventh / A♭", "D♭↓ harmonic seventh / A♭", "A♭ major", "A♭ major seventh",
-                                           "D♭↓ major seventh / A♭", "G𝄫 7♯9 / A♭"}));
+  CHECK(namesOf(Scale::OTONAL, "C") == (V{"C harmonic seventh", "F harmonic seventh / C", "A♯↑ mirror seventh / C", "E mirror seventh / C", "F major seventh / C", "C major seventh", "C 7♯9", "B𝄫 7♯9 / C"}));
+  CHECK(namesOf(Scale::OTONAL, "D♯") == (V{"D♯ harmonic seventh", "F harmonic seventh / D♯", "A♯↑ mirror seventh / D♯", "C 7♯9 / D♯"}));
+  CHECK(namesOf(Scale::OTONAL, "A") == (V{"F harmonic seventh / A", "E mirror seventh / A", "A minor", "F major seventh / A"}));
+  CHECK(namesOf(Scale::OTONAL, "D𝄪") == (V{"D𝄪 mirror seventh", "F♯↑ 7♯9 / D𝄪"}));
+  CHECK(namesOf(Scale::OTONAL, "D♭↓") == (V{"D♭↓ mirror seventh", "B mirror seventh / D♭↓", "B𝄫 harmonic seventh / D♭↓", "B𝄫 major / D♭↓", "G♭↓ minor / D♭↓", "B𝄫 7♯9 / D♭↓"}));
+  CHECK(namesOf(Scale::OTONAL, "B") == (V{"B mirror seventh", "C major seventh / B"}));
+  CHECK(namesOf(Scale::OTONAL, "B𝄫") == (V{"B𝄫 harmonic seventh", "D♭↓ mirror seventh / B𝄫", "B𝄫 major", "G♭↓ minor / B𝄫", "B𝄫 7♯9"}));
+  CHECK(namesOf(Scale::UTONAL, "C") == (V{"C mirror seventh", "G mirror seventh / C", "E𝄫 harmonic seventh / C", "A♭ harmonic seventh / C", "A♭ major seventh / C", "D♭↓ major seventh / C", "E𝄫 7♯9 / C", "A♭ 7♯9 / C"}));
+  CHECK(namesOf(Scale::UTONAL, "A♭") == (V{"A♭ harmonic seventh", "C mirror seventh / A♭", "D♭↓ harmonic seventh / A♭", "A♭ major", "A♭ major seventh", "D♭↓ major seventh / A♭", "G𝄫 7♯9 / A♭", "A♭ 7♯9"}));
   CHECK(namesOf(Scale::UTONAL, "D♭↓") == (V{"D♭↓ harmonic seventh", "D♭↓ major seventh"}));
-  CHECK(namesOf(Scale::UTONAL, "B♯") == (V{"B♯ mirror seventh", "B♯ 7♯9"}));
-  CHECK(namesOf(Scale::UTONAL, "B") == (V{"D♭↓ harmonic seventh / B"}));
+  CHECK(namesOf(Scale::UTONAL, "B♯") == (V{"B𝄫 mirror seventh / B♯", "B♯ 7♯9"}));
+  CHECK(namesOf(Scale::UTONAL, "B") == (V{"B harmonic seventh", "D♭↓ harmonic seventh / B", "D♯ mirror seventh / B", "B major", "G♯ minor / B", "A♭ 7♯9 / B"}));
 }
 
 TEST(chords_one_note_is_completed_to_the_first_notes_of_its_first_chord) {
@@ -137,26 +140,30 @@ TEST(chords_one_note_is_completed_to_the_first_notes_of_its_first_chord) {
   CHECK(four.status == Status::OK);
   CHECK(four.chords[0].notes == notes({C, E, G, Asu}));
   CHECK(four.chords[0].name == "C harmonic seventh");
-  CHECK(four.chords.size() == 6);
+  CHECK(four.chords.size() == 8);
 
   auto three = completeIn(Scale::OTONAL, {C}, 3);
   CHECK(three.chords[0].notes == notes({C, E, G}));
   CHECK(three.chords[0].name == "C major");
   // The alternatives in list order; C E G of the major seventh repeats the first and is dropped.
-  CHECK(three.chords.size() == 5);
+  CHECK(three.chords.size() == 7);
   CHECK(three.chords[1].notes == notes({C, Ds, F}));
   CHECK(three.chords[1].name == "C narrow major");
   CHECK(three.chords[2].notes == notes({C, Ds, Fsu}));
   CHECK(three.chords[2].name == "C mirror diminished");
-  CHECK(three.chords[3].notes == notes({C, E, F}));
-  CHECK(three.chords[3].name == "F major seventh / C (3 notes)");
-  CHECK(three.chords[4].notes == notes({C, Ds, E}));
+  CHECK(three.chords[3].notes == notes({C, E, Gbv}));
+  CHECK(three.chords[3].name == "E mirror seventh / C (3 notes)"); // a borrowed note
+  CHECK(three.chords[4].notes == notes({C, E, F}));
+  CHECK(three.chords[4].name == "F major seventh / C (3 notes)");
+  CHECK(three.chords[5].notes == notes({C, Ds, E}));
+  CHECK(three.chords[6].notes == notes({C, Dbv, G}));
 
   auto two = completeIn(Scale::OTONAL, {C}, 2);
-  CHECK(two.chords.size() == 2);
+  CHECK(two.chords.size() == 3);
   CHECK(two.chords[0].notes == notes({C, E}));
   CHECK(two.chords[0].name == "C harmonic seventh (2 notes)");
   CHECK(two.chords[1].notes == notes({C, Ds}));
+  CHECK(two.chords[2].notes == notes({C, Dbv}));
 
   auto a = completeIn(Scale::OTONAL, {A}, 3);
   CHECK(a.chords[0].notes == notes({A, 53 + C, 53 + Ds}));
@@ -166,9 +173,9 @@ TEST(chords_one_note_is_completed_to_the_first_notes_of_its_first_chord) {
 
   auto utonal = completeIn(Scale::UTONAL, {C}, 4);
   CHECK(utonal.chords[0].notes == notes({C, Ebb, F, Ab}));
-  CHECK(utonal.chords[0].name == "E𝄫 mirror seventh / C");
+  CHECK(utonal.chords[0].name == "C mirror seventh");
   CHECK(completeIn(Scale::UTONAL, {C}, 3).chords[0].name == "C narrow minor");
-  CHECK(completeIn(Scale::UTONAL, {Ab}, 3).chords[2].name == "A♭ major");
+  CHECK(completeIn(Scale::UTONAL, {Ab}, 3).chords[0].name == "A♭ major");
 }
 
 TEST(chords_several_given_notes_pick_the_chords_that_contain_them) {
@@ -194,13 +201,15 @@ TEST(chords_several_given_notes_pick_the_chords_that_contain_them) {
 
   // Given notes keep their octaves; added ones lie within an octave above the lowest.
   auto wide = complete(ScaleChords(Scale::OTONAL, Tuning::EDO53, 0), {kC + E, kC + 2 * 53 + C}, 4);
-  CHECK(wide.chords[0].notes == (std::vector<int>{kC + E, kC + G, kC + Asu, kC + 2 * 53 + C}));
+  CHECK(wide.chords[0].notes == (std::vector<int>{kC + E, kC + Gbv, kC + A, kC + 2 * 53 + C})); // E mirror seventh, with a borrowed note
 
   // A short chord is not padded.
   auto minor = completeIn(Scale::OTONAL, {A, 53 + E}, 4);
-  CHECK(minor.chords[0].notes == notes({A, 53 + C, 53 + E}));
-  CHECK(minor.chords[0].name == "A minor");
-  CHECK(minor.chords[1].notes == notes({A, 53 + C, 53 + E, 53 + F}));
+  CHECK(minor.chords[0].notes == notes({A, 53 + C, 53 + E, 53 + Gbv}));
+  CHECK(minor.chords[0].name == "E mirror seventh / A");
+  CHECK(minor.chords[1].notes == notes({A, 53 + C, 53 + E}));
+  CHECK(minor.chords[1].name == "A minor");
+  CHECK(minor.chords[2].notes == notes({A, 53 + C, 53 + E, 53 + F}));
 }
 
 TEST(chords_nothing_is_added_without_a_chord) {
@@ -266,7 +275,7 @@ TEST(chords_every_degree_has_its_five_note_chords_in_order) {
         CHECK(entry.notes[0] == gamutNote(scale, degree));
       }
     }
-    CHECK(total == 45u);
+    CHECK(total == 55u);
   }
   CHECK(degreeChords(Scale::MAJOR, 0, 5).empty());
 }
