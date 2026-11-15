@@ -941,6 +941,9 @@ void ImageEncoder::editKitty(const Image & img, uint32_t id, int x, int y, int w
       out += std::string(deflated ? "o=z," : "") + "a=f,r=1,X=1,f=24,i=" + std::to_string(id) + ",x=" + std::to_string(x) + ",y=" + std::to_string(y) +
              ",s=" + std::to_string(w) + ",v=" + std::to_string(h) + ",";
     }
+    // Frame data's later chunks name the action too (a chunk with only m and q is image data, which would
+    // replace the whole picture with this rectangle).
+    else out += "a=f,";
     out += "q=1,m=" + std::string(more ? "1" : "0") + ";";
     out += data.substr(i, kKittyChunk);
     out += "\x1b\\";
