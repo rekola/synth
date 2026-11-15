@@ -327,8 +327,10 @@ std::array<uint8_t, 3> Color::toSrgb8() const {
   float c[3] = {r_, g_, b_}, v[3];
   apply(t.m2020to709, c, v);
   // A colour inside sRGB and at or under white is just encoded (the tables keep this
-  // fast: it is done for every colour a frame shows).
-  if (std::fmin(v[0], std::fmin(v[1], v[2])) >= -kGamutSlack * 0.1f && std::fmax(v[0], std::fmax(v[1], v[2])) <= 1.0f)
+  // fast: it is done for every colour a frame shows). The matrix leaves a primary a hair
+  // outside (a component of -1e-9 or 1.0000001, by how a build rounds), which is not a
+  // colour to map: the slack keeps pure colours exact.
+  if (std::fmin(v[0], std::fmin(v[1], v[2])) >= -kGamutSlack * 0.1f && std::fmax(v[0], std::fmax(v[1], v[2])) <= 1.0f + kGamutSlack * 0.1f)
     return {linearToSrgb8(v[0]), linearToSrgb8(v[1]), linearToSrgb8(v[2])};
   // Outside the gamut or past white is canvas' to map: the same mapping an 8-bit canvas
   // surface applies to a colour it is given, so a picture and a cell agree.
