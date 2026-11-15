@@ -2,6 +2,7 @@
 
 #include <cellui/Plane.h>
 
+#include <climits>
 #include <cstdint>
 #include <vector>
 
@@ -22,6 +23,13 @@ struct Picture {
 inline void drawPicture(Plane & plane, const Picture & picture, uint64_t id = 0) {
   if (picture.isHdr()) plane.drawHdrImage(picture.hdr, picture.width, picture.height, id);
   else plane.drawImage(picture.pixels, picture.width, picture.height, id);
+}
+
+// The same from cell (row, col), as Plane::drawImageAt().
+inline void drawPictureAt(Plane & plane, int row, int col, const Picture & picture, uint64_t id = 0, int clip_top = INT_MIN,
+                          int clip_bottom = INT_MAX) {
+  if (picture.isHdr()) plane.drawHdrImageAt(row, col, picture.hdr, picture.width, picture.height, id, clip_top, clip_bottom);
+  else plane.drawImageAt(row, col, picture.pixels, picture.width, picture.height, id, clip_top, clip_bottom);
 }
 
 }  // namespace cellui

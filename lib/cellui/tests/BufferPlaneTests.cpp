@@ -1355,3 +1355,32 @@ TEST(bufferplane_hdr_picture_too_small_for_its_size_is_ignored) {
   root.refresh();
   CHECK(root.images().empty());
 }
+
+TEST(bufferplane_hdr_picture_at_a_cell_covers_only_its_cells) {
+  StyleProvider styles;
+  CellBuffer b(3, 6);
+  BufferPlane root(b, styles);
+  root.setCellPixelSize(4, 2);
+  root.setHdrPictures(true);
+  root.putstr(0, 0, "abcdef");
+  root.putstr(1, 0, "ghijkl");
+  // Two cells wide, one tall, from (1, 2); then redrawn there with other light.
+  std::vector<float> rgba(4 * 4 * 4, 2.0f);
+  root.drawHdrImageAt(1, 2, rgba, 4, 4, 7);
+  uint64_t version = 0;
+  root.refresh();
+  CHECK(root.images().size() == 1 && root.images()[0].image->isHdr());
+  version = root.images()[0].image->version;
+  CHECK(b.at(1, 2).image == 1 && b.at(1, 3).image == 1);
+  CHECK(!b.at(1, 1).image && !b.at(1, 4).image && !b.at(0, 2).image);
+  rgba[0] = 3.0f;
+  root.drawHdrImageAt(1, 2, rgba, 4, 4, 7);
+  root.refresh();
+  CHECK(root.images().size() == 1 && root.images()[0].image->version != version);
+  // The same picture after an erase() is the same image, moved: not sent again.
+  uint64_t key = root.images()[0].key;
+  root.erase();
+  root.drawHdrImageAt(1, 4, rgba, 4, 4, 7);
+  root.refresh();
+  CHECK(root.images().size() == 1 && root.images()[0].key == key && root.images()[0].col == 4);
+}

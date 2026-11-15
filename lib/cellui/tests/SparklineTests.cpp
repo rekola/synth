@@ -6,6 +6,7 @@
 #include <cellui/term/CellCharts.h>
 #include <cellui/term/GlyphMeter.h>
 #include <cellui/Charts.h>
+#include <algorithm>
 #include <cellui/SparklineImage.h>
 #include <cellui/WaveformImage.h>
 
@@ -37,7 +38,23 @@ TEST(sparkline_image_fills_its_slot_from_the_bottom) {
   img = sparkline_image::render({SparklineReading{0.0f, 0.75f, false}}, look, 10, 40, styles);
   CHECK(same(at(img, 10, 5, 10), *look.color) && same(at(img, 10, 5, 30), look.background));
   img = sparkline_image::render({SparklineReading{1.0f, 0.0f, true}}, look, 10, 40, styles);
-  CHECK(same(at(img, 10, 5, 20), styles.level_full_color));
+  // The clip colour is lit past white, so on an 8-bit picture it is that light mapped to sRGB: the clip
+  // colour washed toward white, never darker.
+  CHECK(same(at(img, 10, 5, 20), styles.levelFullLitColor()));
+  CHECK(at(img, 10, 5, 20).g >= styles.level_full_color.getGreen() && at(img, 10, 5, 20).b >= styles.level_full_color.getBlue());
+}
+
+TEST(sparkline_image_float_picture_lights_the_clip_colour_past_white) {
+  StyleProvider styles;
+  SparklineLook look{Color(10, 20, 30), Color(200, 100, 50)};
+  auto pic = sparkline_image::renderPicture({SparklineReading{1.0f, 0.0f, true}}, look, 10, 40, styles, 1.0f, true);
+  if (!pic.isHdr()) return;  // no float surfaces here; the 8-bit picture is checked above
+  CHECK(pic.hdr.size() == 10u * 40u * 4u);
+  // A bar pixel holds the colour as given: a channel past 1. The background beside it does not.
+  const float * bar = &pic.hdr[(20 * 10 + 5) * 4];
+  CHECK(std::max({bar[0], bar[1], bar[2]}) > 1.5f);
+  const float * bg = &pic.hdr[0];
+  CHECK(std::max({bg[0], bg[1], bg[2]}) <= 1.0f);
 }
 
 TEST(sparkline_image_spaces_its_bars_evenly_with_the_rest_at_the_edges) {

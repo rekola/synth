@@ -1,6 +1,7 @@
 #pragma once
 
 #include <cellui/Color.h>
+#include <cellui/Picture.h>
 #include <cellui/StyleProvider.h>
 
 #include <cstdint>
@@ -34,6 +35,11 @@ namespace sparkline_image {
 // top, bytes R, G, B, A (all opaque).
 std::vector<uint32_t> render(const std::vector<std::optional<SparklineReading>> & columns, const SparklineLook & look, unsigned width,
                              unsigned height, const StyleProvider & styles, float scale = 1.0f);
+
+// The same as a Picture, drawn on a float canvas when `prefer_float` and the backend has one (the top of
+// the meter's colours is lit past white), else on an 8-bit one that maps each colour to sRGB.
+Picture renderPicture(const std::vector<std::optional<SparklineReading>> & columns, const SparklineLook & look, unsigned width,
+                      unsigned height, const StyleProvider & styles, float scale, bool prefer_float);
 
 }  // namespace sparkline_image
 

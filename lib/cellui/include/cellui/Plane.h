@@ -129,6 +129,19 @@ class Plane {
     (void)height;
     (void)id;
   }
+  // drawHdrImage() from cell (row, col), as drawImageAt() does it (the cells it covers, the id, the rows
+  // it shows in).
+  virtual void drawHdrImageAt(int row, int col, const std::vector<float> & rgba, int width, int height, uint64_t id = 0, int clip_top = INT_MIN,
+                              int clip_bottom = INT_MAX) {
+    (void)row;
+    (void)col;
+    (void)rgba;
+    (void)width;
+    (void)height;
+    (void)id;
+    (void)clip_top;
+    (void)clip_bottom;
+  }
   // The same from cell (row, col), covering only the cells the image
   // reaches; the plane's text shows in the others. A plane holds one image
   // per position, each replacing the last drawn there. `id` names the
