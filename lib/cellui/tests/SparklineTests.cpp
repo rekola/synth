@@ -22,60 +22,40 @@ Rgb at(const std::vector<uint32_t> & img, unsigned width, unsigned x, unsigned y
 }
 
 bool same(Rgb a, const Color & c) { return a.r == c.getRed() && a.g == c.getGreen() && a.b == c.getBlue(); }
-// To a level: canvas and the tables map a colour to a byte a hair apart at times.
-bool near(Rgb a, const Color & c) { return std::abs(a.r - c.getRed()) <= 1 && std::abs(a.g - c.getGreen()) <= 1 && std::abs(a.b - c.getBlue()) <= 1; }
 
 }  // namespace
 
 TEST(sparkline_image_fills_its_slot_from_the_bottom) {
   StyleProvider styles;
   SparklineLook look{Color(10, 20, 30), Color(200, 100, 50)};
-  // One cell's two dot columns, the bar in the right one, half full. The picture is 40 tall: the clip lamp
-  // takes the top 7 and a gap, the bar's scale is the 32 below.
-  auto img = sparkline_image::render({std::nullopt, SparklineReading{0.5f, 0.0f, false}}, look, 20, 40, styles);
+  // One cell's two dot columns, the bar in the right one, half full.
+  auto img = sparkline_image::render({std::nullopt, SparklineReading{0.5f, 0.0f}}, look, 20, 40, styles);
   CHECK(img.size() == 800u);
   CHECK(same(at(img, 20, 15, 39), *look.color));    // low in the right slot
-  CHECK(same(at(img, 20, 15, 12), look.background));  // above the level, under the lamp
+  CHECK(same(at(img, 20, 15, 12), look.background));  // above the level
   CHECK(same(at(img, 20, 5, 39), look.background));   // the empty left slot
-  CHECK(same(at(img, 20, 5, 2), look.background));    // and it has no lamp
   // A peak line.
-  img = sparkline_image::render({SparklineReading{0.0f, 0.75f, false}}, look, 10, 40, styles);
-  CHECK(same(at(img, 10, 5, 16), *look.color) && same(at(img, 10, 5, 12), look.background) && same(at(img, 10, 5, 30), look.background));
+  img = sparkline_image::render({SparklineReading{0.0f, 0.75f}}, look, 10, 40, styles);
+  CHECK(same(at(img, 10, 5, 10), *look.color) && same(at(img, 10, 5, 4), look.background) && same(at(img, 10, 5, 30), look.background));
 }
 
-TEST(sparkline_image_the_clip_lamp_is_dim_until_the_meter_clips_and_the_bar_keeps_its_colours) {
+TEST(sparkline_image_the_bar_is_one_hue_shaded_by_height) {
   StyleProvider styles;
   SparklineLook look{Color(10, 20, 30), std::nullopt};
-  auto off = sparkline_image::render({SparklineReading{1.0f, 1.0f, false}}, look, 10, 40, styles);
-  auto on = sparkline_image::render({SparklineReading{1.0f, 1.0f, true}}, look, 10, 40, styles);
-  // The lamp at the top: dim, then lit; the lit one is the clip colour lit past white, mapped.
-  CHECK(near(at(off, 10, 5, 2), styles.clipLedColor(false, look.background)));
-  CHECK(near(at(on, 10, 5, 2), styles.clipLedColor(true, look.background)));
-  Rgb dim = at(off, 10, 5, 2), lit = at(on, 10, 5, 2);
-  CHECK(lit.r > dim.r && lit.g > dim.g);
-  // Clipping does not touch the bar: low in it is green, the top of its scale red, as when it is not clipping.
-  for (unsigned y : {unsigned(36), unsigned(20), unsigned(10)}) {
-    Rgb a = at(off, 10, 5, y), b = at(on, 10, 5, y);
-    CHECK(a.r == b.r && a.g == b.g && a.b == b.b);
+  auto img = sparkline_image::render({SparklineReading{1.0f, 1.0f}}, look, 10, 40, styles);
+  // Green all the way up: never another hue, loud brighter than quiet.
+  for (unsigned y : {unsigned(38), unsigned(28), unsigned(18), unsigned(8), unsigned(1)}) {
+    Rgb p = at(img, 10, 5, y);
+    CHECK(p.g >= p.r && p.g >= p.b);
   }
-  Rgb low = at(on, 10, 5, 36), mid = at(on, 10, 5, 22), top = at(on, 10, 5, 10);
-  CHECK(low.g > low.r && mid.g > mid.r);
-  CHECK(top.r > top.g + 40 && top.r > top.b + 40);
+  CHECK(at(img, 10, 5, 38).g < at(img, 10, 5, 20).g);
+  CHECK(at(img, 10, 5, 20).g < at(img, 10, 5, 8).g + 1);
 }
 
-TEST(sparkline_image_a_picture_too_short_for_the_lamp_has_none) {
-  StyleProvider styles;
-  SparklineLook look{Color(10, 20, 30), Color(200, 100, 50)};
-  auto img = sparkline_image::render({SparklineReading{0.5f, 0.0f, true}}, look, 10, 10, styles);
-  // The bar fills from the bottom over the whole 10, whatever the clip.
-  CHECK(same(at(img, 10, 5, 9), *look.color) && same(at(img, 10, 5, 6), *look.color));
-  CHECK(same(at(img, 10, 5, 3), look.background) && same(at(img, 10, 5, 0), look.background));
-}
-
-TEST(sparkline_image_float_picture_lights_the_lamp_past_white_and_nothing_else) {
+TEST(sparkline_image_float_picture_lights_the_loud_end_of_the_bar_past_white) {
   StyleProvider styles;
   SparklineLook look{Color(10, 20, 30), std::nullopt};
-  auto pic = sparkline_image::renderPicture({SparklineReading{1.0f, 1.0f, true}}, look, 10, 40, styles, 1.0f, true);
+  auto pic = sparkline_image::renderPicture({SparklineReading{1.0f, 1.0f}}, look, 10, 40, styles, 1.0f, true);
   if (!pic.isHdr()) return;  // no float surfaces here; the 8-bit picture is the same colours mapped
   CHECK(pic.hdr.size() == 10u * 40u * 4u);
   // Past white is judged in linear sRGB, where Color::toSrgb8() maps it.
@@ -84,19 +64,21 @@ TEST(sparkline_image_float_picture_lights_the_lamp_past_white_and_nothing_else) 
     auto v = Color::linear(p[0], p[1], p[2]).linearSrgb();
     return std::max({v[0], v[1], v[2]});
   };
-  CHECK(peak(5, 2) > 2.0f);  // the lit lamp
-  for (unsigned y = 8; y < 40; y++) CHECK(peak(5, y) <= 1.0f);  // the bar and its peak mark are not
-  auto off = sparkline_image::renderPicture({SparklineReading{1.0f, 1.0f, false}}, look, 10, 40, styles, 1.0f, true);
-  const float * p = &off.hdr[(2 * 10 + 5) * 4];
-  auto v = Color::linear(p[0], p[1], p[2]).linearSrgb();
-  CHECK(std::max({v[0], v[1], v[2]}) <= 1.0f);  // an unlit lamp is not
+  auto green_share = [&](unsigned y) {
+    const float * p = &pic.hdr[(y * 10 + 5) * 4];
+    auto v = Color::linear(p[0], p[1], p[2]).linearSrgb();
+    return v[1] / std::max(v[0] + v[1] + v[2], 1e-6f);
+  };
+  CHECK(peak(5, 1) > 1.5f);  // the top
+  for (unsigned y = 30; y < 40; y++) CHECK(peak(5, y) <= 1.0f);  // the quiet end is not
+  CHECK(green_share(1) > 0.6f && green_share(35) > 0.6f);  // one hue
 }
 
 TEST(sparkline_image_spaces_its_bars_evenly_with_the_rest_at_the_edges) {
   StyleProvider styles;
   SparklineLook look{Color(10, 20, 30), Color(200, 100, 50)};
   // 27 pixels don't divide into 4 slots: the bars stay evenly spaced.
-  std::vector<std::optional<SparklineReading>> full(4, SparklineReading{1.0f, 0.0f, false});
+  std::vector<std::optional<SparklineReading>> full(4, SparklineReading{1.0f, 0.0f});
   auto img = sparkline_image::render(full, look, 27, 8, styles);
   std::vector<unsigned> starts, ends;
   for (unsigned x = 0; x < 27; x++) {
@@ -121,7 +103,7 @@ TEST(sparkline_cell_version_is_the_braille_bar_clipped_to_its_rows) {
   StyleProvider styles;
   CellBuffer b(6, 2);
   BufferPlane root(b, styles);
-  SparklineReading reading{0.6f, 0.9f, false};
+  SparklineReading reading{0.6f, 0.9f};
   // Five rows from row 0, the top one clipped away.
   term::drawCellSparkline(root, 0, 1, 5, {reading}, SparklineLook{styles.window_bg_color, std::nullopt}, 1, 6);
   root.refresh();
@@ -138,7 +120,7 @@ TEST(sparkline_pixel_version_shows_only_its_visible_rows) {
   BufferPlane root(b, styles);
   root.setCellPixelSize(8, 4);
   // A five-row meter from row -2: rows 0-2 show, of the whole picture.
-  scopes->drawSparkline(root, -2, 2, 5, SparklineReading{0.5f, 0.0f, false}, SparklineLook{styles.window_bg_color, std::nullopt}, 0, 6);
+  scopes->drawSparkline(root, -2, 2, 5, SparklineReading{0.5f, 0.0f}, SparklineLook{styles.window_bg_color, std::nullopt}, 0, 6);
   root.refresh();
   CHECK(root.images().size() == 1);
   CHECK(root.images()[0].row == -2 && root.images()[0].col == 2 && root.images()[0].image->height == 5 * 8);
@@ -147,7 +129,7 @@ TEST(sparkline_pixel_version_shows_only_its_visible_rows) {
   uint64_t version = 0;
   for (int row = -1; row <= 3; row++) {
     root.erase();
-    scopes->drawSparkline(root, row, 2, 5, SparklineReading{0.5f, 0.0f, false}, SparklineLook{styles.window_bg_color, std::nullopt}, 0, 6, 9);
+    scopes->drawSparkline(root, row, 2, 5, SparklineReading{0.5f, 0.0f}, SparklineLook{styles.window_bg_color, std::nullopt}, 0, 6, 9);
     root.refresh();
     CHECK(root.images().size() == 1 && root.images()[0].row == row);
     if (row == -1) version = root.images()[0].image->version;
@@ -155,13 +137,13 @@ TEST(sparkline_pixel_version_shows_only_its_visible_rows) {
   }
   // Clipped to rows 1-2 of the plane: the cells outside stay text.
   root.erase();
-  scopes->drawSparkline(root, 0, 2, 5, SparklineReading{0.5f, 0.0f, false}, SparklineLook{styles.window_bg_color, std::nullopt}, 1, 3, 9);
+  scopes->drawSparkline(root, 0, 2, 5, SparklineReading{0.5f, 0.0f}, SparklineLook{styles.window_bg_color, std::nullopt}, 1, 3, 9);
   root.refresh();
   CHECK(!b.at(0, 2).image && b.at(1, 2).image && b.at(2, 2).image && !b.at(3, 2).image);
   // Without the cell size in pixels it falls back to cells.
   CellBuffer c(5, 1);
   BufferPlane plain(c, styles);
-  scopes->drawSparkline(plain, 0, 0, 5, SparklineReading{1.0f, 0.0f, false}, SparklineLook{styles.window_bg_color, std::nullopt}, 0, 5);
+  scopes->drawSparkline(plain, 0, 0, 5, SparklineReading{1.0f, 0.0f}, SparklineLook{styles.window_bg_color, std::nullopt}, 0, 5);
   plain.refresh();
   CHECK(plain.images().empty() && c.at(4, 0).text != " ");
 }
@@ -215,7 +197,7 @@ TEST(sparkline_with_several_bars_puts_two_to_a_cell_from_the_left) {
   BufferPlane root(b, styles);
   SparklineLook look{styles.window_bg_color, std::nullopt};
   // Three bars: two cells, the second with only its left bar.
-  term::drawCellSparkline(root, 0, 1, 4, {{1.0f, 0.0f, false}, {1.0f, 0.0f, false}, {1.0f, 0.0f, false}}, look, 0, 4);
+  term::drawCellSparkline(root, 0, 1, 4, {{1.0f, 0.0f}, {1.0f, 0.0f}, {1.0f, 0.0f}}, look, 0, 4);
   root.refresh();
   CHECK(b.at(3, 1).text == "\xe2\xa3\xbf");  // both columns full
   CHECK(b.at(3, 2).text == "\xe2\xa1\x87");  // only the left column

@@ -163,14 +163,11 @@ void drawCellSparkline(Plane & plane, int row, int col, int rows, const std::vec
     const SparklineReading & left = lone ? none : readings[static_cast<size_t>(2 * c)];
     const SparklineReading & right = lone ? readings[0] : (static_cast<size_t>(2 * c + 1) < readings.size() ? readings[static_cast<size_t>(2 * c + 1)] : none);
     auto glyphs = glyph_meter::verticalBar(glyph_meter::Glyphs::BRAILLE, rows, lone ? glyph_meter::BarColumn{} : column(left), column(right));
-    bool saturated = left.saturated || right.saturated;
     for (int i = 0; i < rows; i++) {
       int y = row + i;
       if (y < clip_top || y >= clip_bottom) continue;
       // Shaded by the height of this cell; i = 0 is the top one.
-      Color fg = saturated    ? styles.level_full_color
-                 : look.color ? *look.color
-                              : styles.levelColor((static_cast<float>(rows - i) - 0.5f) / static_cast<float>(rows));
+      Color fg = look.color ? *look.color : styles.levelColor((static_cast<float>(rows - i) - 0.5f) / static_cast<float>(rows));
       plane.setFgColor(fg);
       plane.putstr(y, col + c, glyphs[static_cast<size_t>(i)]);
     }

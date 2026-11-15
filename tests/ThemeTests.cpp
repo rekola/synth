@@ -65,9 +65,6 @@ TEST(dark_theme_keeps_the_other_colours_too) {
   CHECK(same(s.level_active_color, "#10e040"));
   CHECK(same(s.level_low_color, "#0b5f2a"));
   CHECK(same(s.level_mid_color, "#0f9a3a"));
-  CHECK(same(s.level_lime_color, "#9ae02e"));
-  CHECK(same(s.level_warn_color, "#f09020"));
-  CHECK(same(s.level_hot_color, "#ff5a20"));
   CHECK(same(s.line_low_color, "#1e5fd0"));
   CHECK(same(s.line_high_color, "#7af0d8"));
   CHECK(same(s.mute_color, "#ff5a5a"));
@@ -327,7 +324,7 @@ TEST(the_ansi_themes_keep_the_pairs_that_must_differ_apart) {
       CHECK(differ(bg(b.button_bg), bg(b.button_pressed_bg), "button and pressed button"));
       CHECK(differ(bg(b.menu_bg), bg(b.surface_base), "menu bar and surface"));
       CHECK(differ(fg(b.level_low), fg(b.level_full), "meter low and clip"));
-      CHECK(differ(fg(b.level_warn), fg(b.level_full), "meter warning and clip"));
+      CHECK(differ(fg(b.level_active), fg(b.level_full), "meter top and clip"));
       CHECK(differ(fg(p.mute), fg(p.solo), "mute and solo"));
       // Tracks: neighbours always differ, and the first N are all different for every N the palette allows.
       int distinct = eight ? 6 : 12;
