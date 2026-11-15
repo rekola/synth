@@ -51,21 +51,23 @@ Picture renderPicture(const std::vector<std::optional<SparklineReading>> & colum
     const float fill = std::clamp(reading.fraction, 0.0f, 1.0f) * h;
     if (fill > 0.0f) {
       if (reading.saturated) {
-        ctx.fillStyle = toCanvas(styles.levelFullLitColor());
+        ctx.fillStyle = toCanvas(styles.level_full_color);
       } else if (look.color) {
         ctx.fillStyle = toCanvas(*look.color);
       } else {
-        // The meter colours by height, over the whole meter, its top lit past white.
+        // The meter colours by height, over the whole meter. The bar keeps the ramp as it is: its colours
+        // are the information, and light past white would wash them toward white and veil a bar this thin.
         auto gradient = ctx.createLinearGradient(0, h, 0, 0);
         for (int k = 0; k <= 8; k++) {
           float t = static_cast<float>(k) / 8.0f;
-          gradient.addColorStop(t, toCanvas(styles.levelLitColor(t)));
+          gradient.addColorStop(t, toCanvas(styles.levelColor(t)));
         }
         ctx.fillStyle = gradient;
       }
       ctx.fillRect(x0, h - fill, x1 - x0, fill);
     }
-    // The peak: a line as thick as the display scale, at the peak's height.
+    // The peak: a line as thick as the display scale, at the peak's height. It alone is lit past white
+    // (a hot mark above the bar that blooms in the colour of its height).
     if (reading.peak > 0.0f) {
       float y = std::clamp(h - std::clamp(reading.peak, 0.0f, 1.0f) * h, 0.0f, h - thickness);
       Color peak_color = reading.saturated ? styles.levelFullLitColor() : look.color ? *look.color : styles.levelLitColor(reading.peak);

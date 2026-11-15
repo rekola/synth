@@ -38,23 +38,23 @@ TEST(sparkline_image_fills_its_slot_from_the_bottom) {
   img = sparkline_image::render({SparklineReading{0.0f, 0.75f, false}}, look, 10, 40, styles);
   CHECK(same(at(img, 10, 5, 10), *look.color) && same(at(img, 10, 5, 30), look.background));
   img = sparkline_image::render({SparklineReading{1.0f, 0.0f, true}}, look, 10, 40, styles);
-  // The clip colour is lit past white, so on an 8-bit picture it is that light mapped to sRGB: the clip
-  // colour washed toward white, never darker.
-  CHECK(same(at(img, 10, 5, 20), styles.levelFullLitColor()));
-  CHECK(at(img, 10, 5, 20).g >= styles.level_full_color.getGreen() && at(img, 10, 5, 20).b >= styles.level_full_color.getBlue());
+  // The clip colour is the plain one: a bar keeps its colours.
+  CHECK(same(at(img, 10, 5, 20), styles.level_full_color));
 }
 
-TEST(sparkline_image_float_picture_lights_the_clip_colour_past_white) {
+TEST(sparkline_image_float_picture_lights_only_the_peak_mark_past_white) {
   StyleProvider styles;
-  SparklineLook look{Color(10, 20, 30), Color(200, 100, 50)};
-  auto pic = sparkline_image::renderPicture({SparklineReading{1.0f, 0.0f, true}}, look, 10, 40, styles, 1.0f, true);
-  if (!pic.isHdr()) return;  // no float surfaces here; the 8-bit picture is checked above
+  SparklineLook look{Color(10, 20, 30), std::nullopt};
+  // A bar at half height with its peak mark near the top, over the meter's colours by height.
+  auto pic = sparkline_image::renderPicture({SparklineReading{0.5f, 0.95f, false}}, look, 10, 40, styles, 1.0f, true);
+  if (!pic.isHdr()) return;  // no float surfaces here; the 8-bit picture is the same colours mapped
   CHECK(pic.hdr.size() == 10u * 40u * 4u);
-  // A bar pixel holds the colour as given: a channel past 1. The background beside it does not.
-  const float * bar = &pic.hdr[(20 * 10 + 5) * 4];
-  CHECK(std::max({bar[0], bar[1], bar[2]}) > 1.5f);
-  const float * bg = &pic.hdr[0];
-  CHECK(std::max({bg[0], bg[1], bg[2]}) <= 1.0f);
+  auto peak = [&](unsigned x, unsigned y) { const float * p = &pic.hdr[(y * 10 + x) * 4]; return std::max({p[0], p[1], p[2]}); };
+  CHECK(peak(5, 2) > 1.5f);    // the mark, at 95% of the height
+  for (unsigned y = 20; y < 40; y++) CHECK(peak(5, y) <= 1.0f);  // the bar is not
+  // The clip colour on a saturated bar is the plain one too.
+  auto clip = sparkline_image::renderPicture({SparklineReading{1.0f, 0.0f, true}}, look, 10, 40, styles, 1.0f, true);
+  if (clip.isHdr()) CHECK(std::max({clip.hdr[(20 * 10 + 5) * 4], clip.hdr[(20 * 10 + 5) * 4 + 1], clip.hdr[(20 * 10 + 5) * 4 + 2]}) <= 1.0f);
 }
 
 TEST(sparkline_image_spaces_its_bars_evenly_with_the_rest_at_the_edges) {

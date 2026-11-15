@@ -124,11 +124,12 @@ class StyleProvider {
     }
     return level_full_color;
   }
-  // levelColor() with its top lit past white from kLevelHdrStart of the height (see lineColor()), for a
-  // meter drawn as a picture; levelFullLitColor() is the clip colour lit the whole way.
+  // levelColor() with its top lit past white from kLevelHdrStart of the height (see lineColor()), for the peak
+  // mark of a meter drawn as a picture (a bar keeps levelColor(): lit, its colours would wash toward white);
+  // levelFullLitColor() is the clip colour lit the whole way.
   Color levelLitColor(float fraction) const { return levelColor(fraction) * litGain(fraction, kLevelHdrStart, kLevelHdrGain); }
   Color levelFullLitColor() const { return level_full_color * (1.0f + kLevelHdrGain); }
-  static constexpr float kLevelHdrStart = 0.75f, kLevelHdrGain = 4.0f;
+  static constexpr float kLevelHdrStart = 0.75f, kLevelHdrGain = 3.0f;
   // The spectrum's colour at a level, 0 to 1: the ramp from line_low_color to line_high_color, whose top
   // is lit past white (a channel above 1, HDR) from kLineHdrStart on, so the loudest part of a curve
   // glows on a display that can show it, and is the ramp's own colour washed toward white on one that
