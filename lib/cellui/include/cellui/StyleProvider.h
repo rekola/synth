@@ -112,10 +112,11 @@ class StyleProvider {
   // drawn as a picture: the loud end glows in the bar's own green on a display that can show it.
   Color levelLitColor(float fraction) const { return levelColor(fraction) * litGain(fraction, kLevelHdrStart, kLevelHdrGain); }
   static constexpr float kLevelHdrStart = 0.7f, kLevelHdrGain = 3.0f;
-  // The colour of a Lamp (Lamp.h): dim while off (the alarm colour a little way from the background), and
-  // when lit that colour well past white, so it glows like an LED.
+  // The colour of a Lamp (Lamp.h): colourless while off, a grey a little way from the background toward the text
+  // (so there is no doubt whether it is lit), and when lit the alarm colour well past white, so it glows like an
+  // LED.
   Color lampColor(bool lit, const Color & background) const {
-    return lit ? level_full_color * (1.0f + kLampGain) : background.blend(0.3f, level_full_color);
+    return lit ? level_full_color * (1.0f + kLampGain) : background.blend(0.3f, window_fg_color);
   }
   static constexpr float kLampGain = 3.0f;
   // The spectrum's colour at a level, 0 to 1: the ramp from line_low_color to line_high_color, whose top

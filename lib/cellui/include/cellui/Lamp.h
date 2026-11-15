@@ -9,8 +9,8 @@
 
 namespace cellui {
 
-// A lamp: a round indicator light, one cell wide and one row tall. Dim while off, and when lit the theme's
-// alarm colour (level_full_color) well past white (StyleProvider::lampColor()), so a display that blooms light
+// A lamp: a round indicator light, one cell wide and one row tall. Colourless while off, a grey, so there is no
+// doubt whether it is lit; when lit the theme's alarm colour (level_full_color) well past white (StyleProvider::lampColor()), so a display that blooms light
 // makes it glow like an LED. What lit means, and for how long, is the owner's to say.
 constexpr int kLampCols = 1;
 
