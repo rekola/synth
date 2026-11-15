@@ -38,23 +38,54 @@ TEST(sparkline_image_fills_its_slot_from_the_bottom) {
   img = sparkline_image::render({SparklineReading{0.0f, 0.75f, false}}, look, 10, 40, styles);
   CHECK(same(at(img, 10, 5, 10), *look.color) && same(at(img, 10, 5, 30), look.background));
   img = sparkline_image::render({SparklineReading{1.0f, 0.0f, true}}, look, 10, 40, styles);
-  // The clip colour is the plain one: a bar keeps its colours.
-  CHECK(same(at(img, 10, 5, 20), styles.level_full_color));
+  // An explicit colour is the bar's, saturated or not.
+  CHECK(same(at(img, 10, 5, 20), *look.color));
 }
 
-TEST(sparkline_image_float_picture_lights_only_the_peak_mark_past_white) {
+TEST(sparkline_image_a_clipping_bar_is_the_whole_ramp_with_red_on_top) {
   StyleProvider styles;
   SparklineLook look{Color(10, 20, 30), std::nullopt};
-  // A bar at half height with its peak mark near the top, over the meter's colours by height.
-  auto pic = sparkline_image::renderPicture({SparklineReading{0.5f, 0.95f, false}}, look, 10, 40, styles, 1.0f, true);
+  auto img = sparkline_image::render({SparklineReading{1.0f, 1.0f, true}}, look, 10, 40, styles);
+  // Low and middle in the bar are green, not the clip colour; the top is red.
+  Rgb low = at(img, 10, 5, 36), mid = at(img, 10, 5, 20), top = at(img, 10, 5, 2);
+  CHECK(low.g > low.r && mid.g > mid.r);
+  CHECK(top.r > top.g + 40 && top.r > top.b + 40);
+}
+
+TEST(sparkline_image_float_picture_brightens_the_top_of_the_ramp_a_little_past_white) {
+  StyleProvider styles;
+  SparklineLook look{Color(10, 20, 30), std::nullopt};
+  auto pic = sparkline_image::renderPicture({SparklineReading{1.0f, 1.0f, true}}, look, 10, 40, styles, 1.0f, true);
   if (!pic.isHdr()) return;  // no float surfaces here; the 8-bit picture is the same colours mapped
   CHECK(pic.hdr.size() == 10u * 40u * 4u);
-  auto peak = [&](unsigned x, unsigned y) { const float * p = &pic.hdr[(y * 10 + x) * 4]; return std::max({p[0], p[1], p[2]}); };
-  CHECK(peak(5, 2) > 1.5f);    // the mark, at 95% of the height
-  for (unsigned y = 20; y < 40; y++) CHECK(peak(5, y) <= 1.0f);  // the bar is not
-  // The clip colour on a saturated bar is the plain one too.
-  auto clip = sparkline_image::renderPicture({SparklineReading{1.0f, 0.0f, true}}, look, 10, 40, styles, 1.0f, true);
-  if (clip.isHdr()) CHECK(std::max({clip.hdr[(20 * 10 + 5) * 4], clip.hdr[(20 * 10 + 5) * 4 + 1], clip.hdr[(20 * 10 + 5) * 4 + 2]}) <= 1.0f);
+  // Past white is judged in linear sRGB, where Color::toSrgb8() maps it.
+  auto peak = [&](unsigned x, unsigned y) {
+    const float * p = &pic.hdr[(y * 10 + x) * 4];
+    auto v = Color::linear(p[0], p[1], p[2]).linearSrgb();
+    return std::max({v[0], v[1], v[2]});
+  };
+  auto red = [&](unsigned y) { auto v = Color::linear(pic.hdr[(y * 10 + 5) * 4], pic.hdr[(y * 10 + 5) * 4 + 1], pic.hdr[(y * 10 + 5) * 4 + 2]).linearSrgb(); return v[0] / std::max(v[1], 1e-4f); };
+  // The top is a little past white, not far past it (so it glows without washing to white), and red.
+  CHECK(peak(5, 1) > 1.03f && peak(5, 1) < 1.25f);
+  CHECK(red(1) > 3.0f);
+  // Brightness grows toward the top: no light past white lower down.
+  for (unsigned y = 14; y < 40; y++) CHECK(peak(5, y) <= 1.0f);
+  CHECK(peak(5, 4) >= peak(5, 14));
+}
+
+TEST(sparkline_image_float_picture_lights_the_peak_mark_like_the_ramp_at_its_height) {
+  StyleProvider styles;
+  SparklineLook look{Color(10, 20, 30), std::nullopt};
+  // A bar at half height with its peak mark near the top.
+  auto pic = sparkline_image::renderPicture({SparklineReading{0.5f, 0.95f, false}}, look, 10, 40, styles, 1.0f, true);
+  if (!pic.isHdr()) return;
+  auto peak = [&](unsigned x, unsigned y) {
+    const float * p = &pic.hdr[(y * 10 + x) * 4];
+    auto v = Color::linear(p[0], p[1], p[2]).linearSrgb();
+    return std::max({v[0], v[1], v[2]});
+  };
+  CHECK(peak(5, 2) > 1.0f);                                           // the mark, at 95% of the height
+  for (unsigned y = 20; y < 40; y++) CHECK(peak(5, y) <= 1.0f);       // the bar is not
 }
 
 TEST(sparkline_image_spaces_its_bars_evenly_with_the_rest_at_the_edges) {

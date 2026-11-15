@@ -588,8 +588,10 @@ constexpr double kGlowStrength = 0.6;
 // cell heights and how much of each is added.
 constexpr double kPictureGlowWide = 0.8;
 constexpr double kPictureGlowWideStrength = 0.9;
-// The core (see appendImages()): the blur in cell heights, and the gain the grey glow is multiplied by.
-constexpr double kPictureCoreRadius = 0.1, kPictureCoreGain = 8.0;
+// The core (see appendImages()): the blur in cell heights, the gain the grey glow is multiplied by, and what
+// is taken off after it, so a weak glow (a colour a little past white) makes no core and does not whiten the
+// colour, and only strong light thickens.
+constexpr double kPictureCoreRadius = 0.1, kPictureCoreGain = 10.0, kPictureCoreThreshold = 0.5;
 // How much larger a glyph with the full zoom (Cell::zoom of 255) is drawn, and the factor for a
 // zoom. A transform about the cell's centre on the glyph's cached node and its glow's quad, so no
 // node or texture is made again.
@@ -1153,7 +1155,8 @@ void Window::Impl::appendImages(GtkSnapshot * snap, const CellBuffer & cells) {
           graphene_matrix_t matrix;
           graphene_matrix_init_from_float(&matrix, v);
           graphene_vec4_t offset;
-          graphene_vec4_init(&offset, 0.0f, 0.0f, 0.0f, 0.0f);
+          const float threshold = static_cast<float>(kPictureCoreThreshold);
+          graphene_vec4_init(&offset, -threshold, -threshold, -threshold, 0.0f);
           gtk_snapshot_push_color_matrix(snap, &matrix, &offset);
           gtk_snapshot_push_blur(snap, kPictureCoreRadius * cell_h);
           gtk_snapshot_append_scaled_texture(snap, glow, filter, &bounds);

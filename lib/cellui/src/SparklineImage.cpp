@@ -50,27 +50,25 @@ Picture renderPicture(const std::vector<std::optional<SparklineReading>> & colum
     const float x1 = x0 + static_cast<float>(bar);
     const float fill = std::clamp(reading.fraction, 0.0f, 1.0f) * h;
     if (fill > 0.0f) {
-      if (reading.saturated) {
-        ctx.fillStyle = toCanvas(styles.level_full_color);
-      } else if (look.color) {
+      if (look.color) {
         ctx.fillStyle = toCanvas(*look.color);
       } else {
-        // The meter colours by height, over the whole meter. The bar keeps the ramp as it is: its colours
-        // are the information, and light past white would wash them toward white and veil a bar this thin.
+        // The meter colours by height, over the whole meter, from green to red at the top, and brighter
+        // toward the top, so a bar that reaches it glows a little (levelLitColor()). A clipping bar is not
+        // all red: it is the whole ramp, with the red on top.
         auto gradient = ctx.createLinearGradient(0, h, 0, 0);
-        for (int k = 0; k <= 8; k++) {
-          float t = static_cast<float>(k) / 8.0f;
-          gradient.addColorStop(t, toCanvas(styles.levelColor(t)));
+        for (int k = 0; k <= 16; k++) {
+          float t = static_cast<float>(k) / 16.0f;
+          gradient.addColorStop(t, toCanvas(styles.levelLitColor(t)));
         }
         ctx.fillStyle = gradient;
       }
       ctx.fillRect(x0, h - fill, x1 - x0, fill);
     }
-    // The peak: a line as thick as the display scale, at the peak's height. It alone is lit past white
-    // (a hot mark above the bar that blooms in the colour of its height).
+    // The peak: a line as thick as the display scale, at the peak's height, in the colour of that height.
     if (reading.peak > 0.0f) {
       float y = std::clamp(h - std::clamp(reading.peak, 0.0f, 1.0f) * h, 0.0f, h - thickness);
-      Color peak_color = reading.saturated ? styles.levelFullLitColor() : look.color ? *look.color : styles.levelLitColor(reading.peak);
+      Color peak_color = reading.saturated ? styles.levelLitColor(1.0f) : look.color ? *look.color : styles.levelLitColor(reading.peak);
       ctx.fillStyle = toCanvas(peak_color);
       ctx.fillRect(x0, y, x1 - x0, thickness);
     }
