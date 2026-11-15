@@ -832,9 +832,19 @@ GskRenderNode * Window::Impl::glowNode(const CellBuffer & cells, int r0, int r1)
       double once = kGlowStrength * static_cast<double>(level) / 16.0;
       double strength = 1.0 - (1.0 - once) * (1.0 - once);
       // The white sprite in the glyph's colour and strength: a colour matrix on the GPU, which
-      // takes any colour (no steps) and any strength without another texture.
-      auto rgb = fg.toSrgb8();
-      float m[16] = { rgb[0] / 255.0f, 0, 0, 0, 0, rgb[1] / 255.0f, 0, 0, 0, 0, rgb[2] / 255.0f, 0, 0, 0, 0, static_cast<float>(strength) };
+      // takes any colour (no steps) and any strength without another texture. The colour is the glyph's own
+      // hue at full strength: the one it is shown in has had its light past white washed toward white, and a
+      // red lamp would glow white.
+      auto linear = fg.linearSrgb();
+      float peak = std::max({ linear[0], linear[1], linear[2] });
+      float tint[3];
+      if (peak > 0.0f) {
+        for (size_t i = 0; i < 3; i++) tint[i] = static_cast<float>(Color::linearToSrgb8(std::max(linear[i], 0.0f) / peak)) / 255.0f;
+      } else {
+        auto rgb = fg.toSrgb8();
+        for (size_t i = 0; i < 3; i++) tint[i] = static_cast<float>(rgb[i]) / 255.0f;
+      }
+      float m[16] = { tint[0], 0, 0, 0, 0, tint[1], 0, 0, 0, 0, tint[2], 0, 0, 0, 0, static_cast<float>(strength) };
       graphene_matrix_t matrix;
       graphene_matrix_init_from_float(&matrix, m);
       graphene_vec4_t offset;
