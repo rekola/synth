@@ -26,10 +26,6 @@ namespace {
 const int kC = 5 * 53; // C-4 in 53-EDO
 const int kA = 39;
 
-cellui::Input key(int id) {
-  return cellui::Input(id, 0, 0, false, false, false, false, cellui::Input::Kind::PRESS);
-}
-
 // A key's note, which the test says the key gives.
 KeyboardNote noteOf(int id, Scale scale, int song_key = 0, Tuning tuning = Tuning::EDO53) {
   auto note = keyToNote(id, tuning, scale, song_key, 4);
@@ -353,11 +349,6 @@ Completion first(const ScaleChords & scale, std::vector<std::pair<int, Ratio>> g
   return result.chords.empty() ? Completion() : result.chords[0];
 }
 
-std::vector<Ratio> ratiosOf(const Completion & chord) {
-  std::vector<Ratio> out;
-  for (auto note : chord.ratios) out.push_back(gamut::kExtendedDiamond[note].ratio);
-  return out;
-}
 } // namespace
 
 // The six seventh chords of both scales.
