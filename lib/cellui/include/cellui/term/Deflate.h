@@ -19,11 +19,15 @@ uint32_t crc32(const uint8_t * data, size_t size, uint32_t crc = 0);
 // through longer chains. All three choose, for each block, the smaller of dynamic Huffman codes,
 // the fixed ones and stored bytes.
 //
-// The output depends on the input and the level only: the wide compare used to find match lengths
+// `row_bytes`, for a picture, is the bytes of one row (with a PNG's filter byte): the row above is the first
+// place a match is looked for, which is where a flat area or a repeated line has its copy. 0 for no picture;
+// a row longer than the 32 kB window is ignored.
+//
+// The output depends on the input, the level and the row size only: the wide compare used to find match lengths
 // changes the speed and never the bytes.
-std::vector<uint8_t> zlibCompress(const uint8_t * data, size_t size, int level = 2);
-inline std::vector<uint8_t> zlibCompress(const std::vector<uint8_t> & data, int level = 2) {
-  return zlibCompress(data.data(), data.size(), level);
+std::vector<uint8_t> zlibCompress(const uint8_t * data, size_t size, int level = 2, size_t row_bytes = 0);
+inline std::vector<uint8_t> zlibCompress(const std::vector<uint8_t> & data, int level = 2, size_t row_bytes = 0) {
+  return zlibCompress(data.data(), data.size(), level, row_bytes);
 }
 
 // For tests: use the portable code only, to check that it makes the same bytes.

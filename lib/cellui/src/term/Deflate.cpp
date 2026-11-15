@@ -331,7 +331,7 @@ LevelParameters parametersFor(int level) {
   switch (level) {
     case 1: return {1, 64, false};
     case 2: return {16, 128, true};
-    default: return {128, kMaxMatch, true};
+    default: return {128, 128, true};
   }
 }
 
@@ -355,7 +355,8 @@ Scratch & scratch(size_t size) {
 
 class Matcher {
  public:
-  Matcher(const uint8_t * data, size_t size, LevelParameters p) : d_(data), n_(size), p_(p), s_(scratch(size)), base_(s_.base) {
+  Matcher(const uint8_t * data, size_t size, LevelParameters p, size_t row_bytes)
+      : d_(data), n_(size), p_(p), row_(row_bytes <= kWindow ? row_bytes : 0), s_(scratch(size)), base_(s_.base) {
     s_.base += static_cast<uint32_t>(size) + 8;  // the next input starts above everything stored for this one
   }
 
@@ -398,6 +399,12 @@ class Matcher {
       if (next <= base_ || next - base_ - 1 >= c) break;
       stored = next;
     }
+    // The row above, for a picture: its rows repeat at that distance, and no chain of nearer copies of one colour
+    // need be walked to reach it. It wins only by being longer (a nearer match of the same length is cheaper).
+    if (row_ != 0 && pos >= row_) {
+      size_t len = matchLength(d_ + pos - row_, d_ + pos, max_len);
+      if (len >= 3 && len > static_cast<size_t>(best.len)) best = {static_cast<int>(len), static_cast<int>(row_)};
+    }
     // A match of three bytes from far away costs as much as the three bytes.
     if (best.len == 3 && best.dist > kTooFar) best = Match{};
     return best;
@@ -414,6 +421,7 @@ class Matcher {
   const uint8_t * d_;
   size_t n_;
   LevelParameters p_;
+  size_t row_;
   Scratch & s_;
   uint32_t base_;
   size_t next_insert_ = 0;
@@ -424,10 +432,10 @@ class Matcher {
 
 class Encoder {
  public:
-  Encoder(const uint8_t * data, size_t size, std::vector<uint8_t> & out) : data_(data), size_(size), bw_(out) { }
+  Encoder(const uint8_t * data, size_t size, size_t row_bytes, std::vector<uint8_t> & out) : data_(data), size_(size), row_bytes_(row_bytes), bw_(out) { }
 
   void compress(int level) {
-    Matcher matcher(data_, size_, parametersFor(level));
+    Matcher matcher(data_, size_, parametersFor(level), row_bytes_);
     const bool lazy = matcher.parameters().lazy;
     std::vector<Token> tokens;
     tokens.reserve(std::min<size_t>(size_, kBlockTokens) + 1);
@@ -564,6 +572,7 @@ class Encoder {
 
   const uint8_t * data_;
   size_t size_;
+  size_t row_bytes_;
   BitWriter bw_;
 };
 
@@ -643,7 +652,7 @@ uint32_t crc32(const uint8_t * data, size_t size, uint32_t crc) {
   return ~crc;
 }
 
-std::vector<uint8_t> zlibCompress(const uint8_t * data, size_t size, int level) {
+std::vector<uint8_t> zlibCompress(const uint8_t * data, size_t size, int level, size_t row_bytes) {
   StageTimer timer(Stage::DEFLATE);
   level = std::clamp(level, 1, 3);
   // Small pictures cost little to search well, and the fast search does worst on them.
@@ -652,7 +661,7 @@ std::vector<uint8_t> zlibCompress(const uint8_t * data, size_t size, int level) 
   out.reserve(size / 2 + 64);
   out.push_back(0x78);
   out.push_back(level == 1 ? 0x01 : 0x9c);
-  Encoder(data, size, out).compress(level);
+  Encoder(data, size, row_bytes, out).compress(level);
   uint32_t check = adler32(data, size);
   for (int shift = 24; shift >= 0; shift -= 8) out.push_back(static_cast<uint8_t>(check >> shift));
   return out;
