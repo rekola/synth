@@ -1,3 +1,4 @@
+#include <cellui/HdrBloom.h>
 #include <cellui/HdrSplit.h>
 #include <cellui/gtk/Window.h>
 
@@ -584,14 +585,6 @@ bool hasText(const CellBuffer::Cell & cell) {
 constexpr float kGlowFullExcess = 0.6f;
 // How much of its strength a glow is drawn with.
 constexpr double kGlowStrength = 0.6;
-// The light past white in a picture (Image::hdr) is blurred twice over it, tight and wide: the radii in
-// cell heights and how much of each is added.
-// The glow of a picture (see appendImages()): the halo's blur in cell heights, the gain its alpha is multiplied
-// by, and how much of it is added.
-constexpr double kPictureHaloRadius = 0.5, kPictureHaloGain = 12.0, kPictureHaloStrength = 0.8;
-// The core: the blur in cell heights, the alpha gain, and what is taken off after it, so a weak glow makes no
-// core and only strong light thickens.
-constexpr double kPictureCoreRadius = 0.1, kPictureCoreGain = 10.0, kPictureCoreThreshold = 0.5;
 // How much larger a glyph with the full zoom (Cell::zoom of 255) is drawn, and the factor for a
 // zoom. A transform about the cell's centre on the glyph's cached node and its glow's quad, so no
 // node or texture is made again.
