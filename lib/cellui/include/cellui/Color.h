@@ -81,7 +81,8 @@ class Color {
   // (chroma reduced at constant OKLCH hue and lightness), the range brought to
   // 0..1 (a colour above 1 is scaled down, keeping its hue), and encoded with
   // the sRGB transfer. A colour inside sRGB with every component at most 1
-  // comes back exactly.
+  // comes back exactly. The mapping is canvas' linearRec2020ToSrgb(), the same
+  // one an 8-bit canvas surface applies, so a picture and a cell agree.
   std::array<uint8_t, 3> toSrgb8() const;
   // The same, one channel at a time. Prefer toSrgb8() when you need more than
   // one.

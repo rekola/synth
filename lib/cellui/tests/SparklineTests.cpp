@@ -6,6 +6,7 @@
 #include <cellui/term/CellCharts.h>
 #include <cellui/term/GlyphMeter.h>
 #include <cellui/Charts.h>
+#include <algorithm>
 #include <cellui/SparklineImage.h>
 #include <cellui/WaveformImage.h>
 
@@ -37,7 +38,23 @@ TEST(sparkline_image_fills_its_slot_from_the_bottom) {
   img = sparkline_image::render({SparklineReading{0.0f, 0.75f, false}}, look, 10, 40, styles);
   CHECK(same(at(img, 10, 5, 10), *look.color) && same(at(img, 10, 5, 30), look.background));
   img = sparkline_image::render({SparklineReading{1.0f, 0.0f, true}}, look, 10, 40, styles);
+  // The clip colour is the plain one: a bar keeps its colours.
   CHECK(same(at(img, 10, 5, 20), styles.level_full_color));
+}
+
+TEST(sparkline_image_float_picture_lights_only_the_peak_mark_past_white) {
+  StyleProvider styles;
+  SparklineLook look{Color(10, 20, 30), std::nullopt};
+  // A bar at half height with its peak mark near the top, over the meter's colours by height.
+  auto pic = sparkline_image::renderPicture({SparklineReading{0.5f, 0.95f, false}}, look, 10, 40, styles, 1.0f, true);
+  if (!pic.isHdr()) return;  // no float surfaces here; the 8-bit picture is the same colours mapped
+  CHECK(pic.hdr.size() == 10u * 40u * 4u);
+  auto peak = [&](unsigned x, unsigned y) { const float * p = &pic.hdr[(y * 10 + x) * 4]; return std::max({p[0], p[1], p[2]}); };
+  CHECK(peak(5, 2) > 1.5f);    // the mark, at 95% of the height
+  for (unsigned y = 20; y < 40; y++) CHECK(peak(5, y) <= 1.0f);  // the bar is not
+  // The clip colour on a saturated bar is the plain one too.
+  auto clip = sparkline_image::renderPicture({SparklineReading{1.0f, 0.0f, true}}, look, 10, 40, styles, 1.0f, true);
+  if (clip.isHdr()) CHECK(std::max({clip.hdr[(20 * 10 + 5) * 4], clip.hdr[(20 * 10 + 5) * 4 + 1], clip.hdr[(20 * 10 + 5) * 4 + 2]}) <= 1.0f);
 }
 
 TEST(sparkline_image_spaces_its_bars_evenly_with_the_rest_at_the_edges) {
@@ -140,6 +157,21 @@ TEST(waveform_row_pixel_version_is_a_row_wide_image) {
   // Centre column is covered by the bar; the outer edge is the background.
   CHECK((image[5 * 40 + 20] & 0xffffffu) != 0u);
   CHECK((image[5 * 40 + 0] & 0xffffffu) == 0u);
+}
+
+TEST(waveform_row_float_picture_lights_only_the_loud_slices_past_white) {
+  std::vector<float> slices(kWaveformSlices, 0.5f);
+  slices[0] = 1.0f;  // the first band: full scale
+  auto pic = waveform_image::renderPicture(slices, Color(200, 200, 200), Color(0, 0, 0), Color(128, 128, 128), 40, 40, 1.0f, true);
+  if (!pic.isHdr()) return;  // no float surfaces here; the 8-bit picture is checked above
+  CHECK(pic.hdr.size() == 40u * 40u * 4u);
+  auto peak = [&](unsigned x, unsigned y) {
+    const float * p = &pic.hdr[(y * 40 + x) * 4];
+    return std::max({p[0], p[1], p[2]});
+  };
+  // The first band's bar is past white; a half-amplitude band's is the colour as given, under it.
+  CHECK(peak(20, 0) > 1.5f);
+  CHECK(peak(20, 20) <= 1.0f && peak(20, 20) > 0.3f);
 }
 
 TEST(sparkline_with_several_bars_puts_two_to_a_cell_from_the_left) {

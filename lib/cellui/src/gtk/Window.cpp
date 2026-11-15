@@ -1,3 +1,4 @@
+#include <cellui/HdrSplit.h>
 #include <cellui/gtk/Window.h>
 
 #include <cellui/CellRasterizer.h>
@@ -234,7 +235,15 @@ struct Window::Impl {
     std::shared_ptr<const Image> image;
     uint64_t version = 0;
     GdkTexture * texture = nullptr;
+    // For a float picture, the light past white (HdrLayers::glow), to be blurred over the texture;
+    // null when there is none.
+    GdkTexture * glow = nullptr;
     bool used = false;
+    void release() {
+      if (texture) g_object_unref(texture);
+      if (glow) g_object_unref(glow);
+      texture = glow = nullptr;
+    }
   };
   std::map<const Image *, ImageTexture> image_textures;
   std::vector<Painted> painted;
@@ -302,9 +311,7 @@ struct Window::Impl {
   void appendShadows(GtkSnapshot * snap, GskRenderNode * top, GskRenderNode * below, const std::vector<GskRenderNode *> & stacks);
   void forgetTextures() {
     for (Painted & p : painted) release(p);
-    for (auto & [key, entry] : image_textures) {
-      if (entry.texture) g_object_unref(entry.texture);
-    }
+    for (auto & [key, entry] : image_textures) entry.release();
     image_textures.clear();
   }
   void allocated(int width, int height);
@@ -510,6 +517,7 @@ void Window::Impl::measure(const WindowOptions & options) {
   display_info.default_fg = fg;
   display_info.default_bg = bg;
   display_info.display_scale = 1.0;
+  display_info.hdr_pictures = true;
   display_info.smooth_scroll = true;
   display_info.proportional_text = true;
   display_info.keymap_profile = KeymapProfile::DESKTOP;
@@ -575,6 +583,10 @@ bool hasText(const CellBuffer::Cell & cell) {
 constexpr float kGlowFullExcess = 0.6f;
 // How much of its strength a glow is drawn with.
 constexpr double kGlowStrength = 0.6;
+// The light past white in a picture (Image::hdr) is blurred twice over it, tight and wide: the radii in
+// cell heights and how much of each is added.
+constexpr double kPictureGlowTight = 0.25, kPictureGlowWide = 0.8;
+constexpr double kPictureGlowTightStrength = 0.8, kPictureGlowWideStrength = 0.9;
 // How much larger a glyph with the full zoom (Cell::zoom of 255) is drawn, and the factor for a
 // zoom. A transform about the cell's centre on the glyph's cached node and its glow's quad, so no
 // node or texture is made again.
@@ -1024,17 +1036,29 @@ GskRenderNode * Window::Impl::textNode(const CellBuffer & cells, int r0, int r1)
   return node;
 }
 
-// The texture of a picture, uploaded when it is new or has changed.
+// The texture of a picture, uploaded when it is new or has changed. A float picture is cut into
+// what the display shows of it and the light past white (HdrLayers), once, here: the first is the
+// texture, the second the entry's glow.
 GdkTexture * Window::Impl::imageTexture(const ImagePlacement & placement) {
   if (!placement.image || placement.image->width <= 0 || placement.image->height <= 0) return nullptr;
   ImageTexture & entry = image_textures[placement.image.get()];
   entry.used = true;
   if (!entry.texture || entry.version != placement.image->version || entry.image != placement.image) {
-    if (entry.texture) g_object_unref(entry.texture);
+    entry.release();
     const Image & image = *placement.image;
-    GBytes * bytes = g_bytes_new(image.pixels.data(), image.pixels.size() * sizeof(uint32_t));
-    entry.texture = gdk_memory_texture_new(image.width, image.height, GDK_MEMORY_R8G8B8A8, bytes, static_cast<gsize>(image.width) * 4);
-    g_bytes_unref(bytes);
+    auto upload = [&](const std::vector<uint32_t> & pixels) {
+      GBytes * bytes = g_bytes_new(pixels.data(), pixels.size() * sizeof(uint32_t));
+      GdkTexture * texture = gdk_memory_texture_new(image.width, image.height, GDK_MEMORY_R8G8B8A8, bytes, static_cast<gsize>(image.width) * 4);
+      g_bytes_unref(bytes);
+      return texture;
+    };
+    if (image.isHdr()) {
+      HdrLayers cut = splitHdr(image.hdr, image.width, image.height);
+      if (!cut.base.empty()) entry.texture = upload(cut.base);
+      if (!cut.glow.empty()) entry.glow = upload(cut.glow);
+    } else {
+      entry.texture = upload(image.pixels);
+    }
     entry.image = placement.image;
     entry.version = image.version;
   }
@@ -1079,6 +1103,7 @@ void Window::Impl::appendImages(GtkSnapshot * snap, const CellBuffer & cells) {
     const ImagePlacement & placement = images[static_cast<size_t>(index - 1)];
     GdkTexture * texture = imageTexture(placement);
     if (!texture) continue;
+    GdkTexture * glow = image_textures[placement.image.get()].glow;
     const Image & image = *placement.image;
     // A picture stretched over cells shows its middle, the edge there only to
     // scale with.
@@ -1099,7 +1124,28 @@ void Window::Impl::appendImages(GtkSnapshot * snap, const CellBuffer & cells) {
       graphene_rect_t clip = GRAPHENE_RECT_INIT(static_cast<float>(run.col * cell_w), static_cast<float>(run.row * cell_h),
                                                 static_cast<float>(run.cols * cell_w), static_cast<float>(run.rows * cell_h));
       gtk_snapshot_push_clip(snap, &clip);
-      gtk_snapshot_append_scaled_texture(snap, texture, filter, &bounds);
+      if (!glow) {
+        gtk_snapshot_append_scaled_texture(snap, texture, filter, &bounds);
+      } else {
+        // The picture with its light past white spread around it: the glow layer blurred tight and wide
+        // (on the GPU), added to each other and to the picture by screening.
+        auto blurred = [&](double radius, double strength) {
+          gtk_snapshot_push_opacity(snap, strength);
+          gtk_snapshot_push_blur(snap, radius);
+          gtk_snapshot_append_scaled_texture(snap, glow, filter, &bounds);
+          gtk_snapshot_pop(snap);
+          gtk_snapshot_pop(snap);
+        };
+        gtk_snapshot_push_blend(snap, GSK_BLEND_MODE_SCREEN);
+        gtk_snapshot_append_scaled_texture(snap, texture, filter, &bounds);
+        gtk_snapshot_pop(snap);
+        gtk_snapshot_push_blend(snap, GSK_BLEND_MODE_SCREEN);
+        blurred(kPictureGlowTight * cell_h, kPictureGlowTightStrength);
+        gtk_snapshot_pop(snap);
+        blurred(kPictureGlowWide * cell_h, kPictureGlowWideStrength);
+        gtk_snapshot_pop(snap);
+        gtk_snapshot_pop(snap);
+      }
       gtk_snapshot_pop(snap);
     }
   }
@@ -1549,7 +1595,7 @@ void Window::Impl::snapshot(GtkSnapshot * snap) {
         ++it;
         continue;
       }
-      if (it->second.texture) g_object_unref(it->second.texture);
+      it->second.release();
       it = image_textures.erase(it);
     }
   }

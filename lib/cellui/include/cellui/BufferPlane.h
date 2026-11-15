@@ -137,6 +137,12 @@ class BufferPlane : public Plane {
   bool pixelSize(int & height, int & width) const override;
   bool cellPixelSize(int & height, int & width) const override;
   void drawImage(const std::vector<uint32_t> & pixels, int width, int height, uint64_t id = 0) override;
+  bool hdrPictures() const override { return root().hdr_pictures_; }
+  void drawHdrImage(const std::vector<float> & rgba, int width, int height, uint64_t id = 0) override;
+  void drawHdrImageAt(int row, int col, const std::vector<float> & rgba, int width, int height, uint64_t id = 0, int clip_top = INT_MIN,
+                      int clip_bottom = INT_MAX) override;
+  // Whether the display takes float pictures (root only).
+  void setHdrPictures(bool on) { hdr_pictures_ = on; }
   void drawImageAt(int row, int col, const std::vector<uint32_t> & pixels, int width, int height, uint64_t id = 0, int clip_top = INT_MIN,
                    int clip_bottom = INT_MAX) override;
   void drawSharedImageAt(int row, int col, ImageKey key, int width, int height, const std::function<std::vector<uint32_t>()> & render,
@@ -260,6 +266,7 @@ class BufferPlane : public Plane {
   BufferPlane * active_reader_ = nullptr;
   Color default_fg_ = Color(255, 255, 255), default_bg_ = Color(0, 0, 0);
   double display_scale_ = 1.0;
+  bool hdr_pictures_ = false;
   KeymapProfile keymap_profile_ = KeymapProfile::TERMINAL;
   bool smooth_scroll_ = false;
   bool cell_borders_ = false;
@@ -297,6 +304,8 @@ class BufferPlane : public Plane {
   };
   // The pictures of drawSharedImageAt(), by key and size (root only).
   std::map<std::tuple<std::string, uint64_t, int, int>, std::shared_ptr<Image>> shared_images_;
+  void placeImage(int row, int col, uint64_t identity, bool explicit_id, int clip_top, int clip_bottom,
+                  const std::function<bool(const PlacedImage &)> & equal, const std::function<std::shared_ptr<Image>()> & fresh);
   std::vector<PlacedImage> images_;
   std::vector<PlacedImage> erased_images_;  // what erase() last took away
 };

@@ -17,9 +17,13 @@ carries the app's object as an opaque `getAppContext()`.
   above 1 is HDR. Built from `#rgb`/`#rrggbb`, `oklch()`,
   `color(srgb|srgb-linear|display-p3|rec2020 ...)`, HSL or linear values; an
   sRGB-only backend takes `toSrgb8()` (gamut-mapped; light past white is scaled to
-  fit and washes toward white the more there is, `ToneMap.h`'s `neutralToneMap()`:
-  Khronos PBR Neutral's compression and desaturation, started at 1 so display
-  white stays white). `mix()`
+  fit and washes toward white the more there is). A colour inside sRGB and at or
+  under white is encoded through the tables here; anything else is canvas'
+  `linearRec2020ToSrgb()` (chroma reduced at constant OKLab lightness and hue, then
+  Khronos PBR Neutral's compression and desaturation started at 1 so display white
+  stays white), the mapping an 8-bit canvas surface applies to a colour given in
+  linear Rec.2020 (`setInputColorSpace`), so cells and pictures agree. `ToneMap.h`'s
+  `neutralToneMap()` is the general form of that tone map. `mix()`
   is in linear light (the compositor, `bg_blend`, backdrops); `blend()` is a
   widget's tween in encoded sRGB, where the theme was tuned.
 - `NumberParse.h`: `parseFloat()` is `std::from_chars` on every platform,
@@ -198,7 +202,20 @@ carries the app's object as an opaque `getAppContext()`.
   canvas (`rekola/canvas`: Cairo, Quartz 2D on macOS, GDI+ on Windows) is
   fetched at a pinned commit by `lib/cellui/CMakeLists.txt` with none of our
   warning flags and SYSTEM includes; `cellui::nativeContext()`
-  (`src/NativeContext.h`) is the one place that names a canvas backend. An
+  (`src/NativeContext.h`) is the one place that names a canvas backend.
+  `nativeLinearContext()` is what a painter draws on: a context of exact pixels whose colours
+  are linear Rec.2020 (`setInputColorSpace`), a float surface when asked for and the backend has
+  one (`LinearContext::is_float`), else an 8-bit one where canvas maps each colour to sRGB, so
+  a painter draws the same colours either way and `readPicture()` gives back a `Picture`
+  (`Picture.h`: 8-bit `pixels` or float `hdr`). A painter that supports it (`line_image::
+  renderPicture()` so far) asks `Plane::hdrPictures()` (`DisplayInfo::hdr_pictures`, the root's
+  for the tree) and shows the result with `drawPicture()`: `Plane::drawHdrImage()` for floats
+  (`Image::hdr`, linear Rec.2020 RGBA, the display maps and blooms it itself) or `drawImage()`.
+  The heatmap's float picture needs no float canvas: its grid is enlarged by nearest neighbour into floats
+  directly (hot cells lit past white, `heatmap_image::litCellColor()`), and only the labels' text is canvas.
+  The GTK window sets `hdr_pictures`; the terminals and Win32 do not and get 8-bit pictures. Dials
+  stay 8-bit on purpose: they are shared pictures (`drawSharedImageAt()`, one per value, placed wherever it
+  shows), and a control has no use for light past white. An
   `ImageData` handed to canvas is RGB straight-alpha unless tagged
   (`setFormat(ChannelOrder::BGR, true)` for premultiplied B,G,R,A as we build
   them); renderers return RGBA.
@@ -331,7 +348,13 @@ of its piece (`zoomRun()`: the cells joined to each other), so its characters ke
 in it. The zoom is the writer's, not tied to the light. A background never glows. A band with no such
 glyph keeps no glow node, and the glow's cache print holds the strengths, since
 the cells' own prints are of the colours scaled to white. An app only says how
-bright; this window decides that bright means light around it. Not done yet:
+bright; this window decides that bright means light around it. A float picture
+(`Image::hdr`) is cut once per version on the CPU by `splitHdr()` (`HdrSplit.h`, a pass with no
+blur: the picture as `Color::toSrgb8()` maps it, and the light past white, a channel's excess
+over 1, as a second 8-bit texture), and its bloom is on the GPU: the glow texture blurred
+tight and wide (`gtk_snapshot_push_blur()`) and screened over the picture
+(`GSK_BLEND_MODE_SCREEN`), so a frame without light past white costs only the first texture.
+Not done yet:
 per-plane render nodes, input methods, HiDPI, native dialogs and menus.
 
 ## Win32 window backend (`cellui/win32/`)

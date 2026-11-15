@@ -53,10 +53,8 @@ public:
     // Labels are drawn into the image itself: text in the plane's cells would
     // be hidden under the bitmap. Small, unobtrusive marks: a bit over half
     // the cell's height.
-    auto buffer = heatmap_image::render(brightness_, saturation_, gridCols(), gridRows(), markers_, labels_, pxx, pxy, getPlane().getStyles(),
-                                        static_cast<float>(celldimy) * 0.6f);
-
-    getPlane().drawImage(buffer, static_cast<int>(pxx), static_cast<int>(pxy));
+    drawPicture(getPlane(), heatmap_image::renderPicture(brightness_, saturation_, gridCols(), gridRows(), markers_, labels_, pxx, pxy,
+                                                         getPlane().getStyles(), static_cast<float>(celldimy) * 0.6f, getPlane().hdrPictures()));
   }
 
 private:
@@ -95,9 +93,8 @@ protected:
       has_pixels_ = true;
     }
     // Opaque, so a pixel never composites against the raw terminal background.
-    auto buffer = line_image::render(samples, static_cast<unsigned>(pxx), static_cast<unsigned>(pxy), getPlane().getStyles(),
-                                         static_cast<float>(getPlane().displayScale()));
-    getPlane().drawImage(buffer, pxx, pxy);
+    drawPicture(getPlane(), line_image::renderPicture(samples, static_cast<unsigned>(pxx), static_cast<unsigned>(pxy), getPlane().getStyles(),
+                                                      static_cast<float>(getPlane().displayScale()), getPlane().hdrPictures()));
   }
 
  private:
@@ -139,8 +136,9 @@ class PixelCharts : public Charts {
     else slots.assign(readings.begin(), readings.end());
     if (slots.size() % 2) slots.push_back(std::nullopt);
     unsigned width = static_cast<unsigned>(slots.size() / 2 * static_cast<size_t>(cell_w)), height = static_cast<unsigned>(rows * cell_h);
-    auto pixels = sparkline_image::render(slots, look, width, height, plane.getStyles(), static_cast<float>(plane.displayScale()));
-    plane.drawImageAt(row, col, pixels, static_cast<int>(width), static_cast<int>(height), id, clip_top, clip_bottom);
+    drawPictureAt(plane, row, col,
+                  sparkline_image::renderPicture(slots, look, width, height, plane.getStyles(), static_cast<float>(plane.displayScale()), plane.hdrPictures()), id,
+                  clip_top, clip_bottom);
   }
   void drawWaveformRow(Plane & plane, int row, int col, int width, const std::vector<float> & slices, const WaveformLook & look) const override {
     int cell_h = 0, cell_w = 0;
@@ -149,8 +147,8 @@ class PixelCharts : public Charts {
       return;
     }
     unsigned pixel_w = static_cast<unsigned>(width * cell_w), pixel_h = static_cast<unsigned>(cell_h);
-    auto pixels = waveform_image::render(slices, look.fg, look.bg, look.guide, pixel_w, pixel_h, static_cast<float>(plane.displayScale()));
-    plane.drawImageAt(row, col, pixels, static_cast<int>(pixel_w), static_cast<int>(pixel_h));
+    drawPictureAt(plane, row, col,
+                  waveform_image::renderPicture(slices, look.fg, look.bg, look.guide, pixel_w, pixel_h, static_cast<float>(plane.displayScale()), plane.hdrPictures()));
   }
 
  private:

@@ -13,21 +13,23 @@ namespace sparkline_image {
 
 namespace {
 
-canvas::Color toCanvas(const Color & c) {
-  auto rgb = c.toSrgb8();
-  return canvas::Color(static_cast<float>(rgb[0]) / 255.0f, static_cast<float>(rgb[1]) / 255.0f, static_cast<float>(rgb[2]) / 255.0f, 1.0f);
-}
+// A colour as canvas takes it from a linear Rec.2020 context: the components as they are.
+canvas::Color toCanvas(const Color & c) { return canvas::Color(c.r(), c.g(), c.b(), 1.0f); }
 
 }  // namespace
 
-std::vector<uint32_t> render(const std::vector<std::optional<SparklineReading>> & columns, const SparklineLook & look, unsigned width,
-                             unsigned height, const StyleProvider & styles, float scale) {
+Picture renderPicture(const std::vector<std::optional<SparklineReading>> & columns, const SparklineLook & look, unsigned width,
+                      unsigned height, const StyleProvider & styles, float scale, bool prefer_float) {
   StageTimer timer(Stage::PICTURE_RENDER);
-  std::vector<uint32_t> out(static_cast<size_t>(width) * height, 0);
-  if (width == 0 || height == 0) return out;
+  Picture blank;
+  blank.width = static_cast<int>(width);
+  blank.height = static_cast<int>(height);
+  blank.pixels.assign(static_cast<size_t>(width) * height, 0);
+  if (width == 0 || height == 0) return blank;
 
-  auto context = cellui::nativeContext(width, height);
-  canvas::Context & ctx = *context;
+  LinearContext drawn = nativeLinearContext(width, height, 1.0f, prefer_float);
+  if (!drawn.context) return blank;
+  canvas::Context & ctx = *drawn.context;
   const float w = static_cast<float>(width), h = static_cast<float>(height);
   ctx.fillStyle = toCanvas(look.background);
   ctx.fillRect(0, 0, w, h);
@@ -53,7 +55,8 @@ std::vector<uint32_t> render(const std::vector<std::optional<SparklineReading>> 
       } else if (look.color) {
         ctx.fillStyle = toCanvas(*look.color);
       } else {
-        // The meter colours by height, over the whole meter.
+        // The meter colours by height, over the whole meter. The bar keeps the ramp as it is: its colours
+        // are the information, and light past white would wash them toward white and veil a bar this thin.
         auto gradient = ctx.createLinearGradient(0, h, 0, 0);
         for (int k = 0; k <= 8; k++) {
           float t = static_cast<float>(k) / 8.0f;
@@ -63,30 +66,23 @@ std::vector<uint32_t> render(const std::vector<std::optional<SparklineReading>> 
       }
       ctx.fillRect(x0, h - fill, x1 - x0, fill);
     }
-    // The peak: a line as thick as the display scale, at the peak's height.
+    // The peak: a line as thick as the display scale, at the peak's height. It alone is lit past white
+    // (a hot mark above the bar that blooms in the colour of its height).
     if (reading.peak > 0.0f) {
       float y = std::clamp(h - std::clamp(reading.peak, 0.0f, 1.0f) * h, 0.0f, h - thickness);
-      Color peak_color = reading.saturated ? styles.level_full_color : look.color ? *look.color : styles.levelColor(reading.peak);
+      Color peak_color = reading.saturated ? styles.levelFullLitColor() : look.color ? *look.color : styles.levelLitColor(reading.peak);
       ctx.fillStyle = toCanvas(peak_color);
       ctx.fillRect(x0, y, x1 - x0, thickness);
     }
   }
 
-  // The surface holds premultiplied B, G, R, A; everything is opaque, so
-  // swapping the first and third byte gives straight R, G, B, A.
-  auto image = ctx.getDefaultSurface().createImage(1.0f);
-  const canvas::ImageData & data = image->getData();
-  if (data.getNumChannels() != 4 || data.getWidth() < width || data.getHeight() < height) return out;
-  const unsigned char * src = data.getData();
-  const size_t stride = static_cast<size_t>(data.getWidth()) * 4;
-  for (unsigned y = 0; y < height; y++) {
-    for (unsigned x = 0; x < width; x++) {
-      const unsigned char * p = src + y * stride + static_cast<size_t>(x) * 4;
-      uint32_t b = p[0], g = p[1], r = p[2];
-      out[static_cast<size_t>(y) * width + x] = r | (g << 8) | (b << 16) | (0xffu << 24);
-    }
-  }
-  return out;
+  Picture out = readPicture(drawn, width, height, 1.0f);
+  return out.width ? out : blank;
+}
+
+std::vector<uint32_t> render(const std::vector<std::optional<SparklineReading>> & columns, const SparklineLook & look, unsigned width,
+                             unsigned height, const StyleProvider & styles, float scale) {
+  return renderPicture(columns, look, width, height, styles, scale, false).pixels;
 }
 
 }  // namespace sparkline_image

@@ -124,7 +124,25 @@ class StyleProvider {
     }
     return level_full_color;
   }
-  Color lineColor(float fraction) const { return line_low_color.blend(std::clamp(fraction, 0.0f, 1.0f), line_high_color); }
+  // levelColor() with its top lit past white from kLevelHdrStart of the height (see lineColor()), for the peak
+  // mark of a meter drawn as a picture (a bar keeps levelColor(): lit, its colours would wash toward white);
+  // levelFullLitColor() is the clip colour lit the whole way.
+  Color levelLitColor(float fraction) const { return levelColor(fraction) * litGain(fraction, kLevelHdrStart, kLevelHdrGain); }
+  Color levelFullLitColor() const { return level_full_color * (1.0f + kLevelHdrGain); }
+  static constexpr float kLevelHdrStart = 0.75f, kLevelHdrGain = 3.0f;
+  // The spectrum's colour at a level, 0 to 1: the ramp from line_low_color to line_high_color, whose top
+  // is lit past white (a channel above 1, HDR) from kLineHdrStart on, so the loudest part of a curve
+  // glows on a display that can show it, and is the ramp's own colour washed toward white on one that
+  // cannot (Color::toSrgb8()). lineFillColor() is the ramp without the light.
+  Color lineColor(float fraction) const { return lineFillColor(fraction) * litGain(fraction, kLineHdrStart, kLineHdrGain); }
+  Color lineFillColor(float fraction) const { return line_low_color.blend(std::clamp(fraction, 0.0f, 1.0f), line_high_color); }
+  static constexpr float kLineHdrStart = 0.35f, kLineHdrGain = 6.0f;
+  // How much light a ramp's colour is multiplied by at `fraction`: 1 up to `start`, then up to 1 + `gain` at
+  // the top on a smooth curve.
+  static float litGain(float fraction, float start, float gain) {
+    float t = std::clamp((std::clamp(fraction, 0.0f, 1.0f) - start) / (1.0f - start), 0.0f, 1.0f);
+    return 1.0f + gain * t * t * (3.0f - 2.0f * t);
+  }
 
   // Panel headers (a list's heading, a grid's header row, and
   // the divider between them) - brighter than
