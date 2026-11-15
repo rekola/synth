@@ -1163,3 +1163,51 @@ TEST(kitty_an_error_on_a_border_picture_frees_its_placements_and_sends_them_agai
   // The pictures are never deflated or PNGs, so an error is never taken for a refused compression.
   CHECK(enc.compressing());
 }
+
+// A terminal that edits a picture in place gets only the rectangle that changed.
+TEST(kitty_frame_edit_sends_only_the_changed_rectangle) {
+  StyleProvider styles;
+  CellBuffer b(4, 8);
+  BufferPlane root(b, styles);
+  root.setCellPixelSize(6, 2);
+  auto chart = root.createChild();
+  chart->resize(2, 3);
+  auto pixels = solid(6, 12, Image::pack(10, 20, 30));
+  chart->drawImage(pixels, 6, 12);
+  auto edit = profile(PixelProtocol::KITTY);
+  edit.kitty_frame_edit = true;
+  ImageEncoder enc(edit);
+  enc.setCompressing(false);
+  root.refresh();
+  std::string first = enc.encode(b, root.images(), true);
+  CHECK(count(first, "a=t,f=24,s=6,v=12,i=1,") == 1);
+  pixels[3 * 6 + 2] = Image::pack(200, 0, 0);
+  pixels[4 * 6 + 3] = Image::pack(0, 200, 0);
+  chart->drawImage(pixels, 6, 12);
+  root.refresh();
+  std::string next = enc.encode(b, root.images(), false);
+  CHECK(count(next, "a=t") == 0 && count(next, "a=d,d=I") == 0);
+  CHECK(count(next, "a=f,r=1,X=1,f=24,i=1,x=2,y=3,s=2,v=2,") == 1);
+  CHECK(next.size() < first.size());
+  // The same pixels again: nothing to send.
+  chart->drawImage(pixels, 6, 12);
+  root.refresh();
+  CHECK(enc.encode(b, root.images(), false).empty());
+  // Most of the picture changed: it goes up whole, under a new id.
+  chart->drawImage(solid(6, 12, Image::pack(1, 2, 3)), 6, 12);
+  root.refresh();
+  CHECK(count(enc.encode(b, root.images(), false), "a=t") == 1);
+  // A terminal that refuses an edit gets whole pictures from then on.
+  pixels = solid(6, 12, Image::pack(1, 2, 3));
+  pixels[0] = Image::pack(9, 9, 9);
+  chart->drawImage(pixels, 6, 12);
+  root.refresh();
+  CHECK(count(enc.encode(b, root.images(), false), "a=f") == 1);
+  enc.handleKittyReply("i=2;EINVAL:bad frame");
+  root.refresh();
+  CHECK(count(enc.encode(b, root.images(), false), "a=t") == 1);
+  pixels[1] = Image::pack(8, 8, 8);
+  chart->drawImage(pixels, 6, 12);
+  root.refresh();
+  CHECK(count(enc.encode(b, root.images(), false), "a=f") == 0);
+}

@@ -77,6 +77,9 @@ class ImageEncoder {
     // The terminal's own register count, which decides whether its default palette can be used.
     int sixel_registers_total = 256;
     Dither::Method dither = Dither::Method::ORDERED;
+    // (kitty) The terminal edits a rectangle of an uploaded picture in place (an animation frame edit), so a
+    // picture that changed a little is not uploaded again whole.
+    bool kitty_frame_edit = false;
     static Profile from(const Capabilities & caps);
   };
 
@@ -159,6 +162,8 @@ class ImageEncoder {
   // The deletion of an image's placements and data; the id is no longer tracked.
   std::string freeImage(uint32_t id);
   void uploadKitty(const Image & img, uint32_t id, std::string & out);
+  // Replaces the rectangle (x, y, w, h) of picture `id` with that of `img`, in place.
+  void editKitty(const Image & img, uint32_t id, int x, int y, int w, int h, std::string & out);
   std::string kittyBorders(const std::vector<CellBorder> & borders, bool cleared);
   std::string kittySharedPlacement(const CellBuffer & frame, const ImagePlacement & p, Shown & shown, bool fresh, bool cleared);
   void evictSharedUploads(const std::set<uint32_t> & in_use, std::string & out);
@@ -178,6 +183,8 @@ class ImageEncoder {
   bool compress_ = true;
   PictureQuality quality_ = PictureQuality::FULL;
   bool palette_png_ = true;
+  bool frame_edit_ = true;  // off for good once the terminal refuses an edit
+  std::set<uint32_t> edit_ids_;  // kitty ids edited in place whose edit is not yet confirmed
   std::set<uint32_t> png_ids_;  // kitty ids uploaded as a palette PNG and not yet confirmed
   std::set<uint32_t> deflated_ids_;  // kitty ids uploaded compressed and not yet confirmed
   Sizes sizes_;
