@@ -53,10 +53,8 @@ public:
     // Labels are drawn into the image itself: text in the plane's cells would
     // be hidden under the bitmap. Small, unobtrusive marks: a bit over half
     // the cell's height.
-    auto buffer = heatmap_image::render(brightness_, saturation_, gridCols(), gridRows(), markers_, labels_, pxx, pxy, getPlane().getStyles(),
-                                        static_cast<float>(celldimy) * 0.6f);
-
-    getPlane().drawImage(buffer, static_cast<int>(pxx), static_cast<int>(pxy));
+    drawPicture(getPlane(), heatmap_image::renderPicture(brightness_, saturation_, gridCols(), gridRows(), markers_, labels_, pxx, pxy,
+                                                         getPlane().getStyles(), static_cast<float>(celldimy) * 0.6f, getPlane().hdrPictures()));
   }
 
 private:

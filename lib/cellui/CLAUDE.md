@@ -211,6 +211,8 @@ carries the app's object as an opaque `getAppContext()`.
   renderPicture()` so far) asks `Plane::hdrPictures()` (`DisplayInfo::hdr_pictures`, the root's
   for the tree) and shows the result with `drawPicture()`: `Plane::drawHdrImage()` for floats
   (`Image::hdr`, linear Rec.2020 RGBA, the display maps and blooms it itself) or `drawImage()`.
+  The heatmap's float picture needs no float canvas: its grid is enlarged by nearest neighbour into floats
+  directly (hot cells lit past white, `heatmap_image::litCellColor()`), and only the labels' text is canvas.
   The GTK window sets `hdr_pictures`; the terminals and Win32 do not and get 8-bit pictures. Dials
   stay 8-bit on purpose: they are shared pictures (`drawSharedImageAt()`, one per value, placed wherever it
   shows), and a control has no use for light past white. An
