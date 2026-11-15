@@ -149,8 +149,8 @@ class PixelCharts : public Charts {
       return;
     }
     unsigned pixel_w = static_cast<unsigned>(width * cell_w), pixel_h = static_cast<unsigned>(cell_h);
-    auto pixels = waveform_image::render(slices, look.fg, look.bg, look.guide, pixel_w, pixel_h, static_cast<float>(plane.displayScale()));
-    plane.drawImageAt(row, col, pixels, static_cast<int>(pixel_w), static_cast<int>(pixel_h));
+    drawPictureAt(plane, row, col,
+                  waveform_image::renderPicture(slices, look.fg, look.bg, look.guide, pixel_w, pixel_h, static_cast<float>(plane.displayScale()), plane.hdrPictures()));
   }
 
  private:

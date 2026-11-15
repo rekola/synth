@@ -159,6 +159,21 @@ TEST(waveform_row_pixel_version_is_a_row_wide_image) {
   CHECK((image[5 * 40 + 0] & 0xffffffu) == 0u);
 }
 
+TEST(waveform_row_float_picture_lights_only_the_loud_slices_past_white) {
+  std::vector<float> slices(kWaveformSlices, 0.5f);
+  slices[0] = 1.0f;  // the first band: full scale
+  auto pic = waveform_image::renderPicture(slices, Color(200, 200, 200), Color(0, 0, 0), Color(128, 128, 128), 40, 40, 1.0f, true);
+  if (!pic.isHdr()) return;  // no float surfaces here; the 8-bit picture is checked above
+  CHECK(pic.hdr.size() == 40u * 40u * 4u);
+  auto peak = [&](unsigned x, unsigned y) {
+    const float * p = &pic.hdr[(y * 40 + x) * 4];
+    return std::max({p[0], p[1], p[2]});
+  };
+  // The first band's bar is past white; a half-amplitude band's is the colour as given, under it.
+  CHECK(peak(20, 0) > 1.5f);
+  CHECK(peak(20, 20) <= 1.0f && peak(20, 20) > 0.3f);
+}
+
 TEST(sparkline_with_several_bars_puts_two_to_a_cell_from_the_left) {
   StyleProvider styles;
   CellBuffer b(4, 4);
