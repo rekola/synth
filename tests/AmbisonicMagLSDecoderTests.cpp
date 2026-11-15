@@ -275,7 +275,11 @@ TEST(ambisonic_magls_decoder_precomputed_filter_regression_fixture) {
   AmbisonicMagLSDecoder dec(9, 44100);
   CHECK(dec.isReady());
   auto & l = dec.leftFilter(0); // channel 0 (W) left filter
-  CHECK(l.size() == 512);
+  // The length is the FFT size: the next power of two over twice the HRIR
+  // length plus its largest delay, which depend on how libmysofa resamples the
+  // dataset (512 with an older libmysofa, 1024 with 1.3.2), so only its form
+  // is pinned.
+  CHECK(l.size() >= 512 && (l.size() & (l.size() - 1)) == 0);
   double sum = 0.0, sum_sq = 0.0;
   for (float v : l) { sum += v; sum_sq += static_cast<double>(v) * v; }
   // Loose bounds (not exact-value pinned, since float rounding across
