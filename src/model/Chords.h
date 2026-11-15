@@ -5,6 +5,7 @@
 #include "Tuning.h"
 
 #include <cstddef>
+#include <map>
 #include <optional>
 #include <string>
 #include <vector>
@@ -81,6 +82,7 @@ class ScaleChords {
 
 struct Completion {
   std::vector<int> notes; // note values, rising
+  std::vector<std::size_t> ratios; // each note's gamut index, as `notes`
   std::string name;
 };
 
@@ -105,7 +107,10 @@ struct Result {
 // within the octave above the lowest given note, until there are `size`
 // notes. A chord with fewer notes is not padded. Chords of `size` notes come
 // first (five at most), then each smaller list down to the four-note one.
-Result complete(const ScaleChords & scale, std::vector<int> given, int size);
+// `known` gives the ratio (gamut index) of a given note value that the caller
+// knows, such as the key that played it; any other given note is the scale
+// note its key holds.
+Result complete(const ScaleChords & scale, std::vector<int> given, int size, const std::map<int, std::size_t> & known = {});
 
 } // namespace chords
 

@@ -467,12 +467,23 @@ The seven core notes (the 7-note step of the scale) are on the `q` row, the
 notes between them on the number row (the tritone on `5`, between F and G), and
 the notes that cluster round the tonic and the tritone on `1` and the home row
 below (`s`, `f`, `g`; not `a`, the note-off key), with B and B♯ on `k` and `l`.
+The table is the layout in the key of C. A key stands for a ratio of the scale's
+gamut, not for a fixed note: `q` is the tonic (1/1) in whatever key the song is
+in, and each other key is its ratio above it. In a song in A otonal `q` writes
+A and `e` (5/4) writes C♯, each with the correction that brings it to exactly
+that ratio, and playing a key sounds the exact ratio. The octave is counted from
+the tonic: `q` in the current octave is the tonic in that octave, and the keys
+above it rise from there. Chord entry takes the ratios of the keys pressed.
+In the key of C nothing is different. (In 12, 19 and 31-EDO four keys whose
+name is a step off the nearest step of their ratio now give that step.)
+
 The `[` and `]` keys are octave down and up. In a song in one of the Pythagorean
 scales (the seven Babylonian modes, Phrygian tonos) or in Rāst the scale's degrees are on
 `q w e r t y u i o p` in ascending order, followed by the tonic and second an
 octave up where keys remain; Phrygian tonos has ten degrees and fills the row.
 A song with any other scale (or none) keeps the layout that does not follow
-the scale. The Launchpad's step view steps through
+the scale. The layouts of the Pythagorean scales, Rāst and the layout for no scale
+give fixed notes named from C, so in a key other than C they are not transposed. The Launchpad's step view steps through
 all eighteen notes of the scale.
 
 ## Terminal

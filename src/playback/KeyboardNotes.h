@@ -6,7 +6,10 @@
 
 #include <cellui/Input.h>
 
+#include <algorithm>
+#include <cmath>
 #include <map>
+#include <optional>
 #include <string>
 #include <string_view>
 #include <vector>
@@ -178,6 +181,73 @@ inline const std::string_view keyToMidiNote(int key, Tuning tuning, Scale scale)
 
 inline const std::string_view keyToMidiNote(const cellui::Input & input, Tuning tuning, Scale scale) {
   return keyToMidiNote(input.getId(), tuning, scale);
+}
+
+// Whether a scale's layout gives ratios of its gamut (keyToNote()) rather than
+// fixed notes. The layout is written as the notes of the key of C; each key
+// stands for the ratio of the note it names there.
+inline bool keyboardGivesRatios(Scale scale) {
+  return scale == Scale::OTONAL || scale == Scale::UTONAL;
+}
+
+// What a key of such a layout plays: a gamut note and the octaves above the
+// tonic's own octave (the octave marks of the layout).
+struct KeyboardRatio {
+  std::size_t gamut_index = 0; // into scaleGamut(scale)
+  int octaves = 0;
+};
+
+inline std::optional<KeyboardRatio> keyToRatio(int key, Tuning tuning, Scale scale) {
+  if (!keyboardGivesRatios(scale) || edoStepsFor(tuning) <= 0) return std::nullopt;
+  auto name = keyToMidiNote(key, tuning, scale);
+  KeyboardRatio out;
+  while (!name.empty() && name.back() == '\'') {
+    name.remove_suffix(1);
+    out.octaves++;
+  }
+  if (name.empty()) return std::nullopt;
+  auto found = justScale(scale);
+  if (!found) return std::nullopt;
+  const JustScale just = *found;
+  for (std::size_t i = 0; i < just.gamut.size(); i++) {
+    if (just.gamut[i].spelling == name && just.contains(just.gamut[i])) {
+      out.gamut_index = i;
+      return out;
+    }
+  }
+  return std::nullopt;
+}
+
+// A key's note in a song: the tonic's key moved by the ratio's steps, and the
+// correction (cents) that brings it to the ratio exactly. In an equal tuning
+// the correction is the same in every song key.
+struct KeyboardNote {
+  int value = 0;
+  std::size_t gamut_index = 0;
+  double correction_cents = 0;
+};
+
+// The cents from the nearest step of the tuning to the gamut note's ratio.
+inline double ratioCorrectionCents(Tuning tuning, Scale scale, std::size_t gamut_index) {
+  int edo = edoStepsFor(tuning);
+  const auto & ratio = scaleGamut(scale)[gamut_index].ratio;
+  return ratio.cents() - ratio.steps(edo) * 1200.0 / edo;
+}
+
+// `song_key` is the song's key (only its pitch class counts; -1 reads as C); `octave` is the
+// keyboard's octave, counted from the tonic: the tonic of that octave is the
+// tonic's pitch class in the octave Note() numbers from C.
+inline std::optional<KeyboardNote> keyToNote(int key, Tuning tuning, Scale scale, int song_key, int octave) {
+  auto found = keyToRatio(key, tuning, scale);
+  if (!found) return std::nullopt;
+  const KeyboardRatio ratio = *found;
+  int edo = edoStepsFor(tuning);
+  int tonic = (octave + 1) * edo + (std::max(song_key, 0) % edo); // -1 reads as C
+  KeyboardNote out;
+  out.gamut_index = ratio.gamut_index;
+  out.value = tonic + (ratio.octaves * edo) + scaleGamut(scale)[ratio.gamut_index].ratio.steps(edo);
+  out.correction_cents = ratioCorrectionCents(tuning, scale, ratio.gamut_index);
+  return out;
 }
 
 #endif

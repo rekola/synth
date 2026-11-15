@@ -902,9 +902,15 @@ bool OutlineView::keyDown(const cellui::KeyDown & e) {
     // PatternEditor's own identical guard.
     if (e.repeat) return true;
 
-    auto input_note = keyToMidiNote(e.key, getController().getSong().getTuning(), getController().getSong().getScale());
-    if (input_note.empty()) return false;
-    auto midi_note = Note(input_note, getController().getSong().getTuning(), 0x28, 0, getController().getGlobalOctave()).getValue();
+    auto & preview_song = getController().getSong();
+    int midi_note;
+    if (auto key_note = keyToNote(e.key, preview_song.getTuning(), preview_song.getScale(), preview_song.getKey(), getController().getGlobalOctave())) {
+      midi_note = key_note->value;
+    } else {
+      auto input_note = keyToMidiNote(e.key, preview_song.getTuning(), preview_song.getScale());
+      if (input_note.empty()) return false;
+      midi_note = Note(input_note, preview_song.getTuning(), 0x28, 0, getController().getGlobalOctave()).getValue();
+    }
 
     auto & row = data_[static_cast<size_t>(new_cursor_row_)];
     if (row.kind == OutlineRowKind::LIBRARY_INSTRUMENT) {

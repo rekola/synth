@@ -328,3 +328,19 @@ TEST(chords_utonal_five_note_chords_complete_from_a_degree) {
   CHECK(c.chords[0].name == "F mirror harmonic ninth / C");
   CHECK(c.chords[1].name == "F mirror major ninth / C");
 }
+
+// A given note whose ratio the caller knows is that ratio, whatever its key holds; the
+// completion says each note's ratio.
+TEST(complete_takes_the_ratio_of_a_given_note_when_it_is_known) {
+  ScaleChords scale(Scale::OTONAL, Tuning::EDO53, 39); // A otonal
+  auto tonic = gamutNote(Scale::OTONAL, "C");
+  // The note value of A is the tonic whatever its name; no ratio needs working out from it.
+  auto result = complete(scale, {kC + 39}, 4, {{kC + 39, tonic}});
+  CHECK(result.status == Status::OK);
+  CHECK(result.chords[0].notes == (std::vector<int>{kC + 39, kC + 39 + E, kC + 39 + G, kC + 39 + Asu}));
+  CHECK(result.chords[0].ratios.size() == 4);
+  CHECK(result.chords[0].ratios[0] == tonic);
+  CHECK(result.chords[0].ratios[1] == gamutNote(Scale::OTONAL, "E"));
+  // Without it, the key's own note is used: the same chord.
+  CHECK(complete(scale, {kC + 39}, 4).chords[0].notes == result.chords[0].notes);
+}

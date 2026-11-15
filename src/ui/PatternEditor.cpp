@@ -2571,10 +2571,14 @@ bool PatternEditor::keyDown(const cellui::KeyDown & e) {
         bool is_repeat = e.repeat;
 
         int midi_note = -1;
+        std::optional<KeyboardNote> key_note; // set where the key gives a ratio of the gamut
         if (!is_off && !is_lost && !is_lacuna) {
           auto track = song.getMasterTrack().getChildByInternalId(track_id);
 	  auto tuning = track ? song.getTuningForTrack(*track) : song.getTuning();
-          if (auto input_note = keyToMidiNote(e.key, tuning, song.getScale()); !input_note.empty()) {
+          key_note = keyToNote(e.key, tuning, song.getScale(), song.getKey(), getController().getGlobalOctave());
+          if (key_note) {
+            midi_note = key_note->value;
+          } else if (auto input_note = keyToMidiNote(e.key, tuning, song.getScale()); !input_note.empty()) {
             midi_note = Note(input_note, tuning, 0x28, 0, getController().getGlobalOctave()).getValue();
           }
         }
@@ -2583,7 +2587,7 @@ bool PatternEditor::keyDown(const cellui::KeyDown & e) {
 
         // A cursor wider than a column takes the keys played together as one chord entry.
         if (midi_note >= 0 && !e.mods.shift && cursor_width_ > 1 && entry_track && song.getTuningForTrack(*entry_track) != Tuning::PERCUSSION) {
-          return enterChordKey(e, track_id, midi_note, note_column, point, current_delay, transport_owns_row);
+          return enterChordKey(e, track_id, midi_note, key_note ? std::optional<std::size_t>(key_note->gamut_index) : std::nullopt, note_column, point, current_delay, transport_owns_row);
         }
 
         // Without key releases a chord can't be told from quick taps by hold
@@ -2638,7 +2642,11 @@ bool PatternEditor::keyDown(const cellui::KeyDown & e) {
             }
           } else {
             Note note(midi_note, constants::DEFAULT_NOTE_ON_VELOCITY, current_delay);
-            tuneNewNote(song, track_id, note);
+            if (key_note) {
+              note.setTuningCorrection(key_note->correction_cents); // the key's own ratio
+            } else {
+              tuneNewNote(song, track_id, note);
+            }
 
             // A terminal that never negotiated the Kitty keyboard protocol
             // reports every keystroke as InputEvent::Kind::UNKNOWN (see its
@@ -4534,7 +4542,12 @@ void PatternEditor::syncNoteColumns(const Song & song) {
 
 Note PatternEditor::chordNote(const Song & song, int value) const {
   Note note(value, constants::DEFAULT_NOTE_ON_VELOCITY, chord_entry_.delay);
-  tuneNewNote(song, chord_entry_.track_id, note);
+  // A note whose ratio is known is written with that ratio's correction.
+  if (auto it = chord_entry_.ratios.find(value); it != chord_entry_.ratios.end() && keyboardGivesRatios(song.getScale()) && edoStepsFor(song.getTuning()) > 0) {
+    note.setTuningCorrection(ratioCorrectionCents(song.getTuning(), song.getScale(), it->second));
+  } else {
+    tuneNewNote(song, chord_entry_.track_id, note);
+  }
   return note;
 }
 
@@ -4553,7 +4566,7 @@ int PatternEditor::freeVoiceColumn(int track_id, int from) const {
   return column;
 }
 
-bool PatternEditor::enterChordKey(const cellui::KeyDown & e, int track_id, int midi_note, int note_column, RowAddress point, int delay, bool transport_owns_row) {
+bool PatternEditor::enterChordKey(const cellui::KeyDown & e, int track_id, int midi_note, std::optional<std::size_t> ratio, int note_column, RowAddress point, int delay, bool transport_owns_row) {
   auto & controller = getController();
   auto & song = controller.getSong();
   auto & queue = controller.getPlaybackEventQueue();
@@ -4593,6 +4606,7 @@ bool PatternEditor::enterChordKey(const cellui::KeyDown & e, int track_id, int m
   }
   if (std::find(s.given.begin(), s.given.end(), midi_note) != s.given.end()) return true;
   s.given.push_back(midi_note);
+  if (ratio) s.ratios[midi_note] = *ratio;
 
   int count = static_cast<int>(s.given.size());
   {
@@ -4639,13 +4653,14 @@ void PatternEditor::applyChordCompletion(bool released) {
   auto track = song.getMasterTrack().getChildByInternalId(s.track_id);
   if (!track) return;
   chords::ScaleChords scale(song.getScale(), song.getTuningForTrack(*track), song.getKey());
-  auto result = chords::complete(scale, s.given, s.width);
+  auto result = chords::complete(scale, s.given, s.width, s.ratios);
   if (result.status == chords::Status::NO_CHORD) controller.log("No chord of the scale contains these notes");
   if (result.status != chords::Status::OK) return;
 
   // Every column under the cursor is rewritten, in rising order; one the chord does not use is emptied.
   auto & chord = result.chords[0];
   int count = static_cast<int>(chord.notes.size());
+  for (int i = 0; i < count; i++) s.ratios[chord.notes[static_cast<size_t>(i)]] = chord.ratios[static_cast<size_t>(i)];
   {
     Song::Edit edit(song, "complete chord", Song::Edit::Kind::CONTENT);
     auto target = source_->edit(s.track_id, s.row);

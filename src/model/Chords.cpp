@@ -414,14 +414,18 @@ string ScaleChords::chordName(const Entry & entry) const {
   return name;
 }
 
-Result complete(const ScaleChords & scale, vector<int> given, int size) {
+Result complete(const ScaleChords & scale, vector<int> given, int size, const map<int, size_t> & known) {
   Result result;
   if (!scale.hasChords()) return result;
   sort(given.begin(), given.end());
   given.erase(unique(given.begin(), given.end()), given.end());
   result.status = Status::NOT_A_DEGREE;
   if (given.empty()) return result;
-  auto degree = scale.degreeOf(given[0]);
+  auto ratio_of = [&](int value) -> optional<size_t> {
+    if (auto it = known.find(value); it != known.end()) return it->second;
+    return scale.degreeOf(value);
+  };
+  auto degree = ratio_of(given[0]);
   if (!degree) return result;
   result.status = Status::NOTHING_TO_ADD;
   if (static_cast<int>(given.size()) >= size) return result;
@@ -429,7 +433,7 @@ Result complete(const ScaleChords & scale, vector<int> given, int size) {
 
   vector<size_t> given_notes; // distinct, the degree first
   for (auto value : given) {
-    auto note = scale.degreeOf(value);
+    auto note = ratio_of(value);
     if (!note) return result;
     if (find(given_notes.begin(), given_notes.end(), *note) == given_notes.end()) given_notes.push_back(*note);
   }
@@ -439,16 +443,21 @@ Result complete(const ScaleChords & scale, vector<int> given, int size) {
     if (!all_of(given_notes.begin(), given_notes.end(), in_entry)) return;
 
     Completion chord;
-    chord.notes = given;
+    vector<pair<int, size_t>> placed; // value and ratio
+    for (auto value : given) placed.emplace_back(value, *ratio_of(value));
     auto written = given_notes;
     for (auto note : entry->notes) {
-      if (static_cast<int>(chord.notes.size()) >= size) break;
+      if (static_cast<int>(placed.size()) >= size) break;
       if (find(written.begin(), written.end(), note) != written.end()) continue;
       int above = (((scale.stepOf(note) - scale.stepOf(*degree)) % scale.edo()) + scale.edo()) % scale.edo();
-      chord.notes.push_back(given[0] + above);
+      placed.emplace_back(given[0] + above, note);
       written.push_back(note);
     }
-    sort(chord.notes.begin(), chord.notes.end());
+    sort(placed.begin(), placed.end());
+    for (auto & [value, note] : placed) {
+      chord.notes.push_back(value);
+      chord.ratios.push_back(note);
+    }
     bool repeat = any_of(result.chords.begin(), result.chords.end(), [&](const Completion & c) { return c.notes == chord.notes; });
     if (repeat) return;
 
