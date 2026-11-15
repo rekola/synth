@@ -721,3 +721,112 @@ TEST(chord_entry_in_another_key_follows_the_octave_from_the_tonic) {
   f.up('q');
   CHECK(f.row(0) == (V{53 + A, 53 + A + E, 53 + A + G, 53 + A + Asu}));
 }
+
+namespace {
+// The tuning corrections (cents) of a row of the first track, by column.
+std::vector<double> corrections(ChordFixture & f, int r) {
+  auto target = resolveEditTarget(f.controller->getSong(), f.track_id, r);
+  std::vector<double> out;
+  for (auto & note : target.pattern->getNotes(target.effective_row)) out.push_back(note.getTuningCorrectionCents());
+  return out;
+}
+double ratioCents(int num, int den) {
+  Ratio r(num, den);
+  return r.cents() - r.steps(53) * 1200.0 / 53;
+}
+// Steps the open palette on until the first row reads `want`; false if it never does.
+bool paletteReaches(ChordFixture & f, const V & want) {
+  for (int i = 0; i < 60; i++) {
+    if (f.row(0) == want) return true;
+    f.press(cellui::Key::Down);
+  }
+  return false;
+}
+} // namespace
+
+// The extended diamond's keys give ratios, so a chord of notes from both scales is entered
+// with each note's own correction, B as 28/15 on one key and as 15/8 on another.
+TEST(chord_entry_in_the_extended_diamond_writes_the_ratio_of_each_key) {
+  {
+    // F mirror seventh: F G♯ B D♯ with B as 28/15.
+    ChordFixture f(Scale::EXTENDED_DIAMOND);
+    f.widen(3);
+    f.down('o');
+    f.down('x');
+    f.down('m');
+    f.wait();
+    f.up('o');
+    f.up('x');
+    f.up('m');
+    CHECK(f.row(0) == (V{22, 34, 48, 53 + 12}));
+    CHECK(f.shows("F mirror seventh"));
+    auto cents = corrections(f, 0);
+    CHECK_NEAR(cents[2], ratioCents(28, 15), 0.07);
+    CHECK_NEAR(cents[0], ratioCents(4, 3), 0.07);
+    CHECK_NEAR(cents[3], ratioCents(7, 6), 0.07);
+  }
+  {
+    // B as 15/8 is no note of that chord: the chord is another one.
+    ChordFixture f(Scale::EXTENDED_DIAMOND);
+    f.widen(3);
+    f.down('o');
+    f.down('x');
+    f.down('k');
+    f.wait();
+    f.up('o');
+    f.up('x');
+    f.up('k');
+    CHECK(f.shows("No chord of the scale contains these notes"));
+  }
+  {
+    // B harmonic seventh: B D♯ F♯↑ G𝄪, with B as 28/15.
+    ChordFixture f(Scale::EXTENDED_DIAMOND);
+    f.widen(3);
+    f.down('m');
+    f.down('t');
+    f.down('p');
+    f.wait();
+    f.up('m');
+    f.up('t');
+    f.up('p');
+    CHECK(f.shows("B harmonic seventh"));
+    // The notes are written rising; B is the one on key 48.
+    auto notes = f.row(0);
+    auto cents = corrections(f, 0);
+    auto at = std::find(notes.begin(), notes.end(), 48) - notes.begin();
+    CHECK(at < static_cast<long>(notes.size()));
+    CHECK_NEAR(cents[static_cast<size_t>(at)], ratioCents(28, 15), 0.07);
+  }
+}
+
+// With a four-column cursor, A♭ offers A♭ C E♭ F♯↑ after its utonal chords, and C its otonal chords before its utonal ones.
+TEST(chord_palette_in_the_extended_diamond_offers_the_chords_of_both_scales) {
+  ChordFixture f(Scale::EXTENDED_DIAMOND);
+  f.widen(3);
+  f.down('c'); // A♭
+  f.wait();
+  f.up('c');
+  // The first chord is a utonal one, A♭ C E𝄫 F.
+  CHECK(f.row(0) == (V{36, 53, 53 + 10, 53 + 22}));
+  f.meta('/');
+  CHECK(paletteReaches(f, V{36, 53, 53 + 14, 53 + 26}));
+  CHECK(f.shows("A♭ harmonic seventh"));
+  auto cents = corrections(f, 0);
+  CHECK_NEAR(cents[3], ratioCents(7, 5), 0.07);
+  CHECK_NEAR(cents[1], 0.0, 0.07);
+}
+
+TEST(chord_entry_in_a_diamond_song_uses_the_diamond_keys) {
+  ChordFixture f(Scale::DIAMOND);
+  f.widen(3);
+  f.down('7'); // A♭
+  f.wait();
+  f.up('7');
+  // The utonal chord A♭ C E𝄫 F first; the keys are the diamond's, so every note is one of the 13.
+  CHECK(f.row(0) == (V{36, 53, 53 + 10, 53 + 22}));
+  // A key of no diamond note writes nothing.
+  ChordFixture g(Scale::DIAMOND);
+  g.down('4');
+  g.up('4');
+  CHECK(g.row(0) == (V{-1}) || g.row(0).empty());
+}

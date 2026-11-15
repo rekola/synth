@@ -130,6 +130,8 @@ The application draws on several traditions.
   every note sounds at its exact ratio; without it, 53-EDO is within 10
   cents up to 15 notes. [extended-diamond.md](docs/extended-diamond.md) has
   the steps, their chords and the gamut.
+  Two more scales hold both at once: **diamond**, the 13 notes of the 7-limit
+  tonality diamond, and **extended diamond**, all 33 ratios.
 
 ### Pianos and Just Intervals
 

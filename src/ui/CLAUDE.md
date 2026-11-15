@@ -183,7 +183,9 @@ Controller-level and per-widget commands. Not migrated: `StatusLine`,
   the field's gap in the border to the first row; one row while the cursor
   is a playhead) - except Delete and Backspace, which empty the whole
   rectangle (`cursorRows()` cuts it off at the pattern's end).
-- In a scale with a gamut layout (`keyboardGivesRatios()`: otonal, utonal) a
+- In a scale with a gamut layout (`keyboardGivesRatios()`: otonal, utonal and the
+  two diamond scales; the extended diamond's keys are a table of ratios,
+  `kExtendedDiamondKeys`, since a spelling can name two) a
   note key gives a ratio, not a fixed note (`keyToNote()`, `playback/KeyboardNotes.h`):
   the song's tonic in the keyboard's octave plus the ratio's steps, written with
   the ratio's own correction (`ratioCorrectionCents()`). Chord entry passes those
@@ -194,7 +196,10 @@ Controller-level and per-widget commands. Not migrated: `StatusLine`,
   within `kCompletionInterval` where no release is reported), writes each
   as it is pressed, and `applyChordCompletion()` rewrites the cursor's columns
   with `chords::complete()`'s first result (`model/Chords.h`: the lists,
-  names and completion, otonal and utonal only) when the deadline passes
+  names and completion, for the otonal, utonal and diamond scales; the diamond
+  scales' lists are the two scales' own, then the chords that take notes from
+  both; a key two ratios share is the one a note's correction is nearer to,
+  `ScaleChords::degreeOf()`) when the deadline passes
   (`tickChordEntry()`, from `render()`) or the last key is released. A held
   key's voice stays on the column it started on, whatever column its note is
   written in; added notes sound on free columns (`freeVoiceColumn()`),

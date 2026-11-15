@@ -477,6 +477,52 @@ above it rise from there. Chord entry takes the ratios of the keys pressed.
 In the key of C nothing is different. (In 12, 19 and 31-EDO four keys whose
 name is a step off the nearest step of their ratio now give that step.)
 
+In a **diamond** song the 13 notes are on two rows like a piano: the eight
+otonal ones on the `q` row, the five utonal ones on the number row, each on the
+digit between the keys of its two neighbours in pitch. Read along the rows the
+keys run `q 2 w 3 e r t 6 y 7 u 8 i` and rise in pitch; `o` is the tonic of the
+next octave. No other key gives a note (`a` is note-off).
+
+| Key | `q` | `2` | `w` | `3` | `e` | `r` | `t` | `6` | `y` | `7` | `u` | `8` | `i` | `o` |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| Ratio | 1/1 | 8/7 | 7/6 | 6/5 | 5/4 | 4/3 | 7/5 | 10/7 | 3/2 | 8/5 | 5/3 | 12/7 | 7/4 | 2/1 |
+| In C | C | E𝄫 | D♯ | E♭ | E | F | F♯↑ | G♭↓ | G | A♭ | A | B𝄫 | A♯↑ | C′ |
+
+In an **extended diamond** song every one of the 33 ratios has a key. The otonal
+scale runs along the `q` row and on along the `a` row like two lines of text;
+each utonal note is on the outer row next to the otonal note it lies just below,
+on the number row above the `q` row and on the `z` row below the `a` row, and
+G♯, which has no such neighbour, is under G. The left columns are otonal in
+rising order, `q` to `p` and then `s` to `l`; the right columns are utonal, also
+rising: `2` to `0`, then `z` to the comma. `a` is note-off, the digits `1` and
+`8` are unused, and `9` is the tonic of the next octave. The keys that are the
+same name in two scales (D𝄫, D♭↓, B and B♯) are told apart by the ratio, which
+the key writes as the note's correction.
+
+| Key | Ratio | In C | | Key | Ratio | In C |
+| --- | --- | --- | --- | --- | --- | --- |
+| `q` | 1/1 | C | | | | |
+| `w` | 49/48 | D𝄫 | | `2` | 50/49 | D𝄫 |
+| `e` | 15/14 | D♭↓ | | `3` | 16/15 | D♭↓ |
+| `r` | 9/8 | D | | `4` | 10/9 | D↓ |
+| `t` | 7/6 | D♯ | | `5` | 8/7 | E𝄫 |
+| `y` | 49/40 | D𝄪 | | `6` | 6/5 | E♭ |
+| `u` | 5/4 | E | | `7` | 60/49 | F𝄫 |
+| `i` | 9/7 | F♭ | | | | |
+| `o` | 4/3 | F | | | | |
+| `p` | 7/5 | F♯↑ | | `0` | 48/35 | G𝄫 |
+| `s` | 35/24 | F𝄪 | | `z` | 10/7 | G♭↓ |
+| `d` | 3/2 | G | | `x` | 14/9 | G♯ |
+| `f` | 49/30 | G𝄪 | | `c` | 8/5 | A♭ |
+| `g` | 5/3 | A | | `v` | 80/49 | A♭↑ |
+| `h` | 7/4 | A♯↑ | | `b` | 12/7 | B𝄫 |
+| `j` | 9/5 | B♭ | | `n` | 16/9 | B♭↓ |
+| `k` | 15/8 | B | | `m` | 28/15 | B |
+| `l` | 49/25 | B♯ | | `,` | 96/49 | B♯ |
+
+In the key of C the names are as shown; in any key the keys give the same
+ratios above that song's tonic.
+
 The `[` and `]` keys are octave down and up. In a song in one of the Pythagorean
 scales (the seven Babylonian modes, Phrygian tonos) or in Rāst the scale's degrees are on
 `q w e r t y u i o p` in ascending order, followed by the tonic and second an

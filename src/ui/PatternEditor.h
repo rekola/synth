@@ -468,6 +468,7 @@ private:
     int from_column = 0;
     bool audition = false;   // after the keys were released: the audition ends the notes
     std::vector<int> values; // still to sound, rising
+    std::vector<int> detunes; // each one's PLAY_NOTE detune parameter (0: none)
     std::chrono::steady_clock::time_point next;
     std::chrono::steady_clock::duration interval{}; // the gap before the note last played
   };
@@ -494,12 +495,13 @@ private:
     RowAddress row;
     int column = 0;
     std::vector<int> given;
+    std::map<int, std::size_t> ratios; // the gamut note of a given note, where known
     Version version;
     RowAddress cursor;
     int cursor_track = 0, cursor_col = 0;
   };
   LastEntry last_entry_;
-  void recordEntryNote(int track_id, RowAddress row, int column, int value);
+  void recordEntryNote(int track_id, RowAddress row, int column, int value, std::optional<std::size_t> ratio = std::nullopt);
   // Notes where the song and the cursor are once the entry's step is made.
   void settleLastEntry();
 
@@ -511,6 +513,7 @@ private:
     RowAddress row;
     int column = 0;
     std::vector<int> given;
+    std::map<int, std::size_t> ratios; // the gamut note of a given note, where known
     int size = 4;
     int span = 0; // note columns the session rewrites, from `column`
     std::vector<Note> original;
@@ -532,7 +535,10 @@ private:
   bool chordPaletteKey(const cellui::KeyDown & e);
   void renderChordPalette();
   // The pitched notes side by side from a note column, at most kPaletteColumns.
-  std::vector<int> chordAt(int track_id, RowAddress row, int column);
+  // The notes of the chord at the cursor; with `ratios`, the gamut note each one stands for (by its correction).
+  std::vector<int> chordAt(int track_id, RowAddress row, int column, std::map<int, std::size_t> * ratios = nullptr);
+  // The PLAY_NOTE detune parameter a note is sounded with: its own correction, 0 for none.
+  static int detuneOf(const Note & note);
 
   // Rows the cursor still owes the notes entered while keys were held: a
   // chord's keys all land on one row, and the cursor steps once the last

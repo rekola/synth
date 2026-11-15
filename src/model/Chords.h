@@ -10,9 +10,9 @@
 #include <string>
 #include <vector>
 
-// The chords of the otonal and utonal scales: each degree's ordered list, the
-// names, and the completion of played notes to a chord. No other scale has
-// chords. Notes are identified by their ratio (an index into the extended
+// The chords of the otonal, utonal and diamond scales: each degree's ordered
+// list, the names, and the completion of played notes to a chord. No other scale
+// has chords. Notes are identified by their ratio (an index into the extended
 // diamond, gamut::kExtendedDiamond), never by name: four spellings name a
 // different ratio in each scale.
 namespace chords {
@@ -39,9 +39,14 @@ struct Entry {
   std::size_t root = 0; // the gamut note the chord is named after
 };
 
-inline bool hasChords(Scale scale) { return scale == Scale::OTONAL || scale == Scale::UTONAL; }
+inline bool hasChords(Scale scale) {
+  return scale == Scale::OTONAL || scale == Scale::UTONAL || scale == Scale::DIAMOND || scale == Scale::EXTENDED_DIAMOND;
+}
 
 // A degree's chords, in order; empty for a note that is no degree of the scale.
+// In the two diamond scales a note has the chords of its own side first (a note
+// of both, the otonal ones before the utonal ones), then the chords that take
+// notes from both.
 // `size` 4 (or less) is the list of chords of two to four notes, 5 the
 // five-note chords.
 const std::vector<Entry> & degreeChords(Scale scale, std::size_t gamut_index, int size = 4);
@@ -60,8 +65,10 @@ class ScaleChords {
 
   bool hasChords() const { return edo_ > 0; }
   int edo() const { return edo_; }
-  // The scale note a note value is, if any.
-  std::optional<std::size_t> degreeOf(int note_value) const;
+  // The scale note a note value is, if any. A key that carries two ratios of
+  // the scale (the extended diamond's keys 2, 5, 48 and 51 in 53-EDO) is the one
+  // `correction_cents` (the note's tuning correction, 0 for none) brings it nearer to.
+  std::optional<std::size_t> degreeOf(int note_value, double correction_cents = 0.0) const;
   // Steps above the tonic, 0 to edo - 1.
   int stepOf(std::size_t gamut_index) const;
   // The degree's chords whose notes the tuning all holds.
@@ -73,11 +80,12 @@ class ScaleChords {
   std::string chordName(const Entry & entry) const;
 
  private:
+  bool isHeld(std::size_t gamut_index) const;
   Scale scale_;
   Tuning tuning_;
   int edo_ = 0;
   int key_ = 0;
-  std::vector<int> held_; // by step: gamut index, or -1
+  std::vector<std::vector<int>> held_; // by step: the gamut indices held there
 };
 
 struct Completion {

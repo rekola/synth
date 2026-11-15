@@ -72,7 +72,8 @@ void writeCorrections(PatternView pattern, const set<int> & pattern_rows, const 
         }
         continue;
       }
-      auto cents = context.scale.forNote(note.getValue()).value_or(0.0);
+      // Where the key carries two ratios, the note keeps the one its correction is nearer to.
+      auto cents = context.scale.forNote(note.getValue(), note.getTuningCorrectionCents()).value_or(0.0);
       auto fx = Note::tuningCorrectionFx(cents);
       if (!fx) {
         // Beyond even the coarse correction: never clamped, so the note is left

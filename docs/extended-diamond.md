@@ -261,6 +261,76 @@ Utonal, on C:
 | B♭↓ | B♭↓ harmonic ninth, B♭↓ mirror harmonic ninth, B♭↓ mirror major ninth |
 | B | D♭↓ harmonic ninth / B |
 
+## The two diamond scales
+
+Besides otonal and utonal the application has two scales that hold both. Each
+is on the gamut below and can be built on any tonic; they are given on C.
+
+**Diamond** is the 7-limit tonality diamond itself, every ratio between two of
+1, 3, 5 and 7: the two 7-note cores and the two tritones, 13 notes.
+
+| Note | C | E𝄫 | D♯ | E♭ | E | F | F♯↑ | G♭↓ | G | A♭ | A | B𝄫 | A♯↑ |
+|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
+| Ratio | 1/1 | 8/7 | 7/6 | 6/5 | 5/4 | 4/3 | 7/5 | 10/7 | 3/2 | 8/5 | 5/3 | 12/7 | 7/4 |
+
+Each note has a key of its own in 53-EDO and in 31-EDO, and the Launchpad's
+step view steps through its 13 keys.
+
+**Extended diamond** has every ratio of the gamut: the 18 of otonal and the 18
+of utonal, which share C, F and G, so 33 ratios. In 53-EDO they lie on 29 keys.
+In 31-EDO it has the notes of the two 15-note scales.
+
+**Two ratios on one key.** In 53-EDO four keys carry one ratio of each scale:
+
+| Key | Name | Otonal ratio | Utonal ratio |
+|---|---|---|---|
+| 2 | D𝄫 | 49/48 | 50/49 |
+| 5 | D♭↓ | 15/14 | 16/15 |
+| 48 | B | 15/8 | 28/15 |
+| 51 | B♯ | 49/25 | 96/49 |
+
+In an otonal or utonal song the scale decides which ratio such a key carries.
+In an extended diamond song both are wanted, and what tells them apart is the
+tuning correction written on the note; the name and the key are the same, and
+there is no note name or accidental for it. A note on one of the four keys
+stands for the ratio its correction brings it nearer to, in chord entry, the
+chord palette and `apply-just-intonation-region`, which keeps that ratio and
+gives it the exact value. A note with no correction stands for the ratio nearer
+the key's own pitch: 49/48, 16/15, 15/8 and 96/49. The keyboard has a key for
+each of the 33 ratios and writes the correction of its ratio, so entry never
+guesses (the layouts are in [user-interface.md](user-interface.md#note-keyboard)).
+
+**Chords.** A note's chords are those of its own scale in their usual order;
+C, F and G belong to both, and their otonal chords come before their utonal
+ones. After them come the chords that take notes from both scales: for every
+kind of chord, each instance whose notes are all ratios of the gamut and has
+notes of both scales, read upward from each of its notes, by kind and by
+ascending root. As always, a chord is offered only if all its notes are notes
+of the song's scale, so the diamond has exactly eight seventh chords: C E G A♯↑,
+F A C D♯ and C D♯ F♯↑ A♯↑ from otonal, E𝄫 F A♭ C, B𝄫 C E♭ G and E𝄫 G♭↓ B𝄫 C
+from utonal, and the first two of the six below.
+
+Six seventh chords span both scales:
+
+| Chord | Name |
+|---|---|
+| A♭ C E♭ F♯↑ | A♭ harmonic seventh |
+| G♭↓ A C E | G♭↓ mirror seventh |
+| B𝄫 D♭↓ F♭ G, with D♭↓ as 15/14 | B𝄫 harmonic seventh |
+| F G♯ B D♯, with B as 28/15 | F mirror seventh |
+| B D♯ F♯↑ G𝄪, with B as 28/15 | B harmonic seventh |
+| F𝄫 G♭↓ B𝄫 D♭↓, with D♭↓ as 15/14 | F𝄫 mirror seventh |
+
+The other chords of both scales, by the root they are named after: the triads
+D↓ minor (D↓ F A), E♭ major (E♭ G B♭), G♭↓ minor (G♭↓ B𝄫 D♭↓), G♯ minor
+(G♯ B D♯), B𝄫 major (B𝄫 D♭↓ F♭) and B major (B D♯ F♯↑, B as 28/15); the major
+sevenths E𝄫 (E𝄫 G♭↓ B𝄫 D♭↓), E♭ (E♭ G B♭ D), B♭↓ (B♭↓ D↓ F A) and B (B D♯
+F♯↑ A♯↑); the 7♯9 chords F (F G♯ A D♯), A♭ (A♭ B C F♯↑, B as 28/15) and B𝄫
+(B𝄫 C D♭↓ G); and the sixteen five-note chords: the mirror major ninth on C (C
+D E♭ G B♭), D↓ (two) and G♯ (two), the harmonic ninths on E𝄫 and A♭, the major
+ninths on E𝄫, A♭ and B♭↓, the 7♯9 chords with fifth on F, A♭ and B𝄫, and the
+mirror ones on F, G♭↓ and B𝄫.
+
 ## The gamut
 
 The gamut has 33 ratios: the tonic, F and G, which both scales share, and
