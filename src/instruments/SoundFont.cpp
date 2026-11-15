@@ -938,6 +938,9 @@ class SoundFontVoice : public InstrumentVoice {
   // Defaulted empty, so this is a pure addition to the parameter list; every
   // existing call site keeps compiling unchanged. See
   // effectiveInitialFilterFc() for the one generator actually consulted.
+  // A live Send A change keeps the region's scaling, like note-on.
+  void adjustSendA(float s) override { InstrumentVoice::adjustSendA(combineRegionSendA(s, voiceRegion_)); }
+
   SoundFontVoice(const ChannelConfiguration & channel_config, const SphericalPosition & position, float detune, std::shared_ptr<SoundFontFile> sf, size_t preset, size_t region_idx, const SendLevels & sends = {}, const NoteCoordinate & note_coord = {}, std::unordered_map<SF2Generator, float> generator_overrides = {})
       : InstrumentVoice(channel_config,
                         adjustPositionForPan(position, regionFor(sf.get(), preset, region_idx)),
