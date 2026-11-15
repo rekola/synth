@@ -314,7 +314,10 @@ Controller-level and per-widget commands. Not migrated: `StatusLine`,
   calls `Dial::startEdit()` on Enter. A dial has four looks (normal, pressed, selected from half the cursor's ease-in, and hover, set from the grid's pointer motion), so a position has four pictures. Every column has a vertical level meter
   beside its Main and Direction rows (`LevelMeter.h`: one dB mapping,
   `Ballistics` smoothing block RMS in the power domain, bars shaded green →
-  orange → clip red via `StyleProvider::levelColor()`, a `PeakHold` marker);
+  orange → clip red via `StyleProvider::levelColor()`, a `PeakHold` marker, and a clip lamp above the bar:
+  a pixel meter's square at the top of its picture, dim until the track clips and then lit past white so the
+  window blooms it, held lit for `ClipHold::kHoldSeconds` after the last clip by whoever owns the meter's
+  state; the bar itself does not change when it clips);
   the pattern editor's track meters and the scope row's `ChannelMeter`
   (`getChannelLoudness()`, per-channel RMS) share it, and the master's reads
   the master track's `TrackInfo`.

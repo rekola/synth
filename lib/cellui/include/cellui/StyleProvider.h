@@ -124,20 +124,12 @@ class StyleProvider {
     }
     return level_full_color;
   }
-  // levelColor() with its top lit a little past white, for a meter drawn as a picture: from kLevelHdrStart of
-  // the height the brightness grows so that at the top the brightest channel is kLevelHdrPeak times white. It is
-  // a small excess on purpose: the clip colour glows without being washed toward white (any light past white
-  // is, by Color::toSrgb8(), a little), and the green to red ramp keeps its colours.
-  Color levelLitColor(float fraction) const {
-    Color c = levelColor(fraction);
-    // The peak where it is judged to be past white: in linear sRGB (Color::toSrgb8()), not in Rec.2020, where
-    // a saturated red has a much smaller one.
-    auto linear = c.linearSrgb();
-    float peak = std::max({linear[0], linear[1], linear[2]});
-    if (!(peak > 0.0f)) return c;
-    return c * (1.0f + rampStep(fraction, kLevelHdrStart) * std::max(0.0f, kLevelHdrPeak / peak - 1.0f));
+  // The clip lamp of a meter drawn as a picture: dim while the meter is not clipping (the clip colour a little
+  // way from the background), and when it is the clip colour lit well past white, so it glows like an LED.
+  Color clipLedColor(bool lit, const Color & background) const {
+    return lit ? level_full_color * (1.0f + kClipLedGain) : background.blend(0.3f, level_full_color);
   }
-  static constexpr float kLevelHdrStart = 0.6f, kLevelHdrPeak = 1.12f;
+  static constexpr float kClipLedGain = 3.0f;
   // The spectrum's colour at a level, 0 to 1: the ramp from line_low_color to line_high_color, whose top
   // is lit past white (a channel above 1, HDR) from kLineHdrStart on, so the loudest part of a curve
   // glows on a display that can show it, and is the ramp's own colour washed toward white on one that

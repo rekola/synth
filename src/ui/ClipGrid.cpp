@@ -1114,8 +1114,9 @@ ClipGrid::render(const StyleProvider & styles, bool refresh, bool focused) {
     auto & meter = meters_[track_id];
     meter.fraction = level_meter::fraction(meter.ballistics.update(track_info.getMeterValue(), meter_dt));
     meter.peak_fraction = meter.peak_hold.update(meter.fraction, meter_dt);
+    meter.clip_lit = meter.clip_hold.update(track_info.isClipping(), meter_dt);
     auto steps = meter.level_steps.update(meter.fraction, meter_levels);
-    meter_steps.push_back(track_info.isClipping() ? -1 - steps : steps);
+    meter_steps.push_back(meter.clip_lit ? -1 - steps : steps);
     meter_steps.push_back(meter.peak_steps.update(meter.peak_fraction, meter_levels));
   }
   bool meters_changed = meter_steps != current_meter_steps_;
@@ -1184,9 +1185,8 @@ ClipGrid::render(const StyleProvider & styles, bool refresh, bool focused) {
   for (auto vc = 0; vc < drawn_cols; vc++) {
     auto track_index = first_col_ + vc;
     if (track_index == num_tracks) {
-      auto & master_info = playback_info.getTrackInfo(master_id);
       renderMasterColumn(styles, vc * (kColWidth + 1) - col_shift_, drawn_rows, focus_ > 0.0f, num_tracks, sceneState);
-      renderMeter(styles, vc * (kColWidth + 1) - col_shift_, drawn_rows, master_id, master_info.isClipping());
+      renderMeter(styles, vc * (kColWidth + 1) - col_shift_, drawn_rows, master_id, meters_[master_id].clip_lit);
       break;
     }
     if (track_index > num_tracks) break;
@@ -1444,9 +1444,8 @@ ClipGrid::render(const StyleProvider & styles, bool refresh, bool focused) {
       body_plane.putstr(y, x, text);
     }
 
-    auto & track_info = playback_info.getTrackInfo(track_id);
     if (leaf) renderDials(styles, x, drawn_rows, track_index, track_id, leaf->getSends());
-    renderMeter(styles, x, drawn_rows, track_id, track_info.isClipping());
+    renderMeter(styles, x, drawn_rows, track_id, meters_[track_id].clip_lit);
 
     setFgColor(styles.window_border_color);
     setBgColor(styles.heading_bg_color); // the header row's own backdrop, not the plain window background below it

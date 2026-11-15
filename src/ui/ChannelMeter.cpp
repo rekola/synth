@@ -17,7 +17,7 @@ void ChannelMeter::feed(const std::vector<float> & rms) {
   for (size_t i = 0; i < kMaxChannels; i++) {
     auto & channel = channels_[i];
     float level = i < rms.size() ? rms[i] : 0.0f;
-    channel.reading.saturated = level >= 1.0f;
+    channel.reading.saturated = channel.clip_hold.update(level >= 1.0f, dt);
     channel.reading.fraction = level_meter::fraction(channel.ballistics.update(level, dt));
     channel.reading.peak = channel.peak_hold.update(channel.reading.fraction, dt);
   }

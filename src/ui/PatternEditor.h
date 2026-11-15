@@ -354,6 +354,8 @@ private:
    float fraction = 0.0f;      // what the heading draws
    level_meter::StepHold held; // the same in what the sparkline can draw, with a dead band (updateMeters())
    int steps = 0;
+   level_meter::ClipHold clip_hold; // the clip lamp stays lit for a while after a clip
+   bool clip_lit = false;
   };
   std::unordered_map<int, MeterSmoothing> meter_smoothing_;
 

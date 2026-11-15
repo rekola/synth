@@ -2,6 +2,21 @@
 
 #include "../src/ui/LevelMeter.h"
 
+TEST(level_meter_clip_hold_keeps_the_lamp_lit_for_a_while_after_the_last_clip) {
+  level_meter::ClipHold hold;
+  CHECK(!hold.update(false, 0.1f) && !hold.lit());
+  CHECK(hold.update(true, 0.02f) && hold.lit());
+  // Lit through the hold, dark after it.
+  CHECK(hold.update(false, level_meter::ClipHold::kHoldSeconds * 0.5f));
+  CHECK(hold.update(false, level_meter::ClipHold::kHoldSeconds * 0.4f));
+  CHECK(!hold.update(false, level_meter::ClipHold::kHoldSeconds * 0.2f));
+  // Another clip while lit starts the hold again.
+  CHECK(hold.update(true, 0.02f));
+  CHECK(hold.update(false, level_meter::ClipHold::kHoldSeconds * 0.9f));
+  CHECK(hold.update(true, 0.02f));
+  CHECK(hold.update(false, level_meter::ClipHold::kHoldSeconds * 0.9f));
+}
+
 TEST(level_meter_fraction_maps_minus_60_to_0_db_onto_0_to_1) {
   CHECK(level_meter::fraction(-1.0f) == 0.0f); // TrackInfo's "no reading yet"
   CHECK(level_meter::fraction(0.0f) == 0.0f);

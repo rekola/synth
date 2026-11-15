@@ -45,6 +45,7 @@ struct Page {
     if (display.pictures && display.cell_px_height > 0 && display.cell_px_width > 0) {
       plane.setCellPixelSize(display.cell_px_height, display.cell_px_width);
       plane.setDisplayScale(display.display_scale);
+      plane.setHdrPictures(display.hdr_pictures);
     }
     gallery = std::make_unique<cellui::Gallery>(plane, theme, display);
     plane.refresh();
