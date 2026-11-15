@@ -350,13 +350,15 @@ glyph keeps no glow node, and the glow's cache print holds the strengths, since
 the cells' own prints are of the colours scaled to white. An app only says how
 bright; this window decides that bright means light around it. A float picture
 (`Image::hdr`) is cut once per version on the CPU by `splitHdr()` (`HdrSplit.h`, a pass with no
-blur: the picture as `Color::toSrgb8()` maps it, and the light past white, a channel's excess
-over 1, as a second 8-bit texture), and its bloom is on the GPU: the glow texture blurred
-wide (`gtk_snapshot_push_blur()`) and screened over the picture
-(`GSK_BLEND_MODE_SCREEN`), together with a core that thickens what is brightest: the glow blurred a little,
-made grey, multiplied by a large gain and clamped (a colour-matrix node), so what is near enough to a
-bright line reaches white and the line looks wider the more light it carries, as an overexposed
-filament does. A frame without light past white costs only the first texture.
+blur): the picture as `Color::toSrgb8()` maps it, and the light past white as a second texture whose colour
+is the hue of that light (each channel's excess, scaled so the strongest is full) and whose alpha is how
+much of it there is. The bloom is on the GPU and in the light's own colour: the glow blurred wide as a halo
+and blurred a little as a core, each with its alpha multiplied after the blur (a thin line's light is thin
+once blurred; a colour-matrix node that leaves the colour alone), the core with a threshold taken off so a
+weak glow makes none, screened over the picture (`GSK_BLEND_MODE_SCREEN`). The core thickens what is
+brightest: what is near a bright line reaches full strength, so the line looks wider the more light it
+carries, as an overexposed filament does. The glow has a clip of its own, wider than the picture's cells: a
+lamp at the picture's edge glows past it. A frame without light past white costs only the first texture.
 Not done yet:
 per-plane render nodes, input methods, HiDPI, native dialogs and menus.
 

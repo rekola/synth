@@ -586,10 +586,12 @@ constexpr float kGlowFullExcess = 0.6f;
 constexpr double kGlowStrength = 0.6;
 // The light past white in a picture (Image::hdr) is blurred twice over it, tight and wide: the radii in
 // cell heights and how much of each is added.
-constexpr double kPictureGlowWide = 0.8;
-constexpr double kPictureGlowWideStrength = 0.9;
-// The core (see appendImages()): the blur in cell heights, and the gain the grey glow is multiplied by.
-constexpr double kPictureCoreRadius = 0.1, kPictureCoreGain = 8.0;
+// The glow of a picture (see appendImages()): the halo's blur in cell heights, the gain its alpha is multiplied
+// by, and how much of it is added.
+constexpr double kPictureHaloRadius = 0.5, kPictureHaloGain = 12.0, kPictureHaloStrength = 0.8;
+// The core: the blur in cell heights, the alpha gain, and what is taken off after it, so a weak glow makes no
+// core and only strong light thickens.
+constexpr double kPictureCoreRadius = 0.1, kPictureCoreGain = 10.0, kPictureCoreThreshold = 0.5;
 // How much larger a glyph with the full zoom (Cell::zoom of 255) is drawn, and the factor for a
 // zoom. A transform about the cell's centre on the glyph's cached node and its glow's quad, so no
 // node or texture is made again.
@@ -1126,51 +1128,52 @@ void Window::Impl::appendImages(GtkSnapshot * snap, const CellBuffer & cells) {
     for (const MarkedRun & run : list) {
       graphene_rect_t clip = GRAPHENE_RECT_INIT(static_cast<float>(run.col * cell_w), static_cast<float>(run.row * cell_h),
                                                 static_cast<float>(run.cols * cell_w), static_cast<float>(run.rows * cell_h));
-      gtk_snapshot_push_clip(snap, &clip);
       if (!glow) {
+        gtk_snapshot_push_clip(snap, &clip);
         gtk_snapshot_append_scaled_texture(snap, texture, filter, &bounds);
+        gtk_snapshot_pop(snap);
       } else {
-        // The picture with its light past white spread around it, all added to it by screening: a wide
-        // coloured halo, and a core that thickens what is brightest. A bright line is wider than it is
-        // drawn because its glow, added to its neighbours, takes them past white too, and the brighter the
-        // light, the further out: the glow blurred a little, made grey, multiplied until what is near
-        // enough to the line reaches white, and clamped.
-        auto blurred = [&](double radius, double strength) {
+        // The picture with its light past white spread around it, in the colour of that light, added to it by
+        // screening: a halo, the glow blurred wide, and a core, blurred a little, which thickens what is
+        // brightest. A bright line is wider than it is drawn because its glow, added to its neighbours,
+        // takes them past white too, and the brighter the light, the further out. In both the glow's alpha (how
+        // much light) is multiplied after the blur - a thin line's light is thin once blurred, and would not
+        // show - and the colour is left as it is. What is taken off the core's alpha keeps a weak glow from
+        // making a core at all.
+        auto layer = [&](double radius, double gain, double threshold, double strength) {
+          float v[16] = {};
+          v[0] = v[5] = v[10] = 1.0f;  // the colour as it is
+          v[15] = static_cast<float>(gain);
+          graphene_matrix_t matrix;
+          graphene_matrix_init_from_float(&matrix, v);
+          graphene_vec4_t offset;
+          graphene_vec4_init(&offset, 0.0f, 0.0f, 0.0f, -static_cast<float>(threshold));
           gtk_snapshot_push_opacity(snap, strength);
+          gtk_snapshot_push_color_matrix(snap, &matrix, &offset);
           gtk_snapshot_push_blur(snap, radius);
           gtk_snapshot_append_scaled_texture(snap, glow, filter, &bounds);
           gtk_snapshot_pop(snap);
           gtk_snapshot_pop(snap);
-        };
-        auto core = [&]() {
-          const float lum[3] = { 0.2126f, 0.7152f, 0.0722f };
-          const float gain = static_cast<float>(kPictureCoreGain);
-          float v[16] = {};
-          for (int k = 0; k < 3; k++) {
-            for (int j = 0; j < 3; j++) v[4 * k + j] = lum[k] * gain;  // every colour channel is the grey, times the gain
-          }
-          v[15] = 1.0f;
-          graphene_matrix_t matrix;
-          graphene_matrix_init_from_float(&matrix, v);
-          graphene_vec4_t offset;
-          graphene_vec4_init(&offset, 0.0f, 0.0f, 0.0f, 0.0f);
-          gtk_snapshot_push_color_matrix(snap, &matrix, &offset);
-          gtk_snapshot_push_blur(snap, kPictureCoreRadius * cell_h);
-          gtk_snapshot_append_scaled_texture(snap, glow, filter, &bounds);
-          gtk_snapshot_pop(snap);
           gtk_snapshot_pop(snap);
         };
+        // The picture stays in the cells it shows, but its light is not part of it: it spills past the edge
+        // (a lamp at the top of a picture glows above it), so the glow has a clip of its own, wider.
+        const float reach = static_cast<float>(kPictureHaloRadius * cell_h * 2.5);
+        graphene_rect_t wide = GRAPHENE_RECT_INIT(clip.origin.x - reach, clip.origin.y - reach, clip.size.width + 2.0f * reach, clip.size.height + 2.0f * reach);
         gtk_snapshot_push_blend(snap, GSK_BLEND_MODE_SCREEN);
+        gtk_snapshot_push_clip(snap, &clip);
         gtk_snapshot_append_scaled_texture(snap, texture, filter, &bounds);
         gtk_snapshot_pop(snap);
+        gtk_snapshot_pop(snap);  // the picture, the bottom of the blend
+        gtk_snapshot_push_clip(snap, &wide);
         gtk_snapshot_push_blend(snap, GSK_BLEND_MODE_SCREEN);
-        core();
+        layer(kPictureCoreRadius * cell_h, kPictureCoreGain, kPictureCoreThreshold, 1.0);
         gtk_snapshot_pop(snap);
-        blurred(kPictureGlowWide * cell_h, kPictureGlowWideStrength);
+        layer(kPictureHaloRadius * cell_h, kPictureHaloGain, 0.0, kPictureHaloStrength);
         gtk_snapshot_pop(snap);  // the halo and the core
+        gtk_snapshot_pop(snap);  // the wide clip
         gtk_snapshot_pop(snap);  // those and the picture
       }
-      gtk_snapshot_pop(snap);
     }
   }
 }

@@ -35,18 +35,32 @@ TEST(hdr_split_light_past_white_leaves_a_glow_only_where_it_is) {
   // The base shows it as bright as the display goes, washed toward white, never past it.
   uint32_t hot = layers.base[1];
   CHECK(Image::red(hot) == 255 && Image::green(hot) > Image::blue(hot) - 1 && Image::green(hot) > 30);
-  // The glow is the excess, in its colour, and opaque; none beside it.
-  CHECK(Image::red(layers.glow[1]) > Image::green(layers.glow[1]) && Image::red(layers.glow[1]) > 100);
-  CHECK(Image::alpha(layers.glow[1]) == 255);
-  CHECK(layers.glow[0] == Image::pack(0, 0, 0, 255));
+  // The glow is the light's own colour at full strength with how much of it there is as the alpha; none beside it,
+  // where it is transparent.
+  uint32_t glow = layers.glow[1];
+  CHECK(Image::red(glow) == 255 && Image::red(glow) > Image::green(glow) && Image::red(glow) > Image::blue(glow));
+  CHECK(Image::alpha(glow) > 100);
+  CHECK(layers.glow[0] == Image::pack(0, 0, 0, 0));
 }
 
 TEST(hdr_split_more_light_is_more_glow_and_the_base_stays_in_range) {
   auto rgba = picture({{1.5f, 1.5f, 1.5f, 1.0f}, {3.0f, 3.0f, 3.0f, 1.0f}, {5.0f, 5.0f, 5.0f, 1.0f}});
   auto layers = splitHdr(rgba, 3, 1);
   CHECK(layers.glow.size() == 3u);
-  CHECK(Image::red(layers.glow[0]) < Image::red(layers.glow[1]) && Image::red(layers.glow[1]) < Image::red(layers.glow[2]));
+  CHECK(Image::alpha(layers.glow[0]) < Image::alpha(layers.glow[1]) && Image::alpha(layers.glow[1]) < Image::alpha(layers.glow[2]));
+  // Light with no hue of its own is white at any strength: more of it is only more alpha.
+  for (uint32_t g : layers.glow) CHECK(Image::red(g) == 255 && Image::green(g) == 255 && Image::blue(g) == 255);
   for (uint32_t p : layers.base) CHECK(Image::red(p) == 255 && Image::green(p) == 255);
+}
+
+TEST(hdr_split_the_glow_keeps_the_hue_of_the_light_past_white_at_any_strength) {
+  // The same colour at two strengths: the same hue, the stronger the more alpha.
+  auto rgba = picture({{3.0f, 0.3f, 0.1f, 1.0f}, {9.0f, 0.9f, 0.3f, 1.0f}});
+  auto layers = splitHdr(rgba, 2, 1);
+  CHECK(layers.glow.size() == 2u);
+  uint32_t a = layers.glow[0], b = layers.glow[1];
+  CHECK(std::abs(int(Image::red(a)) - int(Image::red(b))) <= 3 && std::abs(int(Image::green(a)) - int(Image::green(b))) <= 40);
+  CHECK(Image::alpha(a) < Image::alpha(b));
 }
 
 TEST(hdr_split_equal_neighbours_give_equal_pixels) {

@@ -1723,6 +1723,9 @@ bool PatternEditor::updateMeters(const PlaybackInfo & info, const std::vector<in
     auto steps = smoothing.held.update(fraction, levels);
     if (steps != smoothing.steps) changed = true;
     smoothing.steps = steps;
+    bool lit = smoothing.clip_hold.update(info.getTrackInfo(track_id).isClipping(), dt);
+    if (lit != smoothing.clip_lit) changed = true;
+    smoothing.clip_lit = lit;
   }
   return changed;
 }
@@ -3373,9 +3376,9 @@ PatternEditor::renderHeadingOnPlane(const StyleProvider & styles, const std::vec
 
 	    if (meter_width > 0) {
 	      auto & track_info = info.getTrackInfo(track->getInternalId());
-	      draw_vu_meter(heading_height - 2 - level + 1, current_pos + chip_width + instrument_name_width, meter_fraction(track->getInternalId(), track_info), track_info.isClipping(),
-			    chip ? segment_color(track) : styles.window_bg_color, track->getInternalId());
-	    }
+              draw_vu_meter(heading_height - 2 - level + 1, current_pos + chip_width + instrument_name_width, meter_fraction(track->getInternalId(), track_info), meter_smoothing_[track->getInternalId()].clip_lit,
+                            chip ? segment_color(track) : styles.window_bg_color, track->getInternalId());
+            }
 	    // The divider on the instrument line too, so the line is closed.
             setLift(0);
             if (chip) draw_divider(heading_height - 2 - level + 1, current_pos + actual_width - 1, track, i);

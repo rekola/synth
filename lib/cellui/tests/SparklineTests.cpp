@@ -22,39 +22,74 @@ Rgb at(const std::vector<uint32_t> & img, unsigned width, unsigned x, unsigned y
 }
 
 bool same(Rgb a, const Color & c) { return a.r == c.getRed() && a.g == c.getGreen() && a.b == c.getBlue(); }
+// To a level: canvas and the tables map a colour to a byte a hair apart at times.
+bool near(Rgb a, const Color & c) { return std::abs(a.r - c.getRed()) <= 1 && std::abs(a.g - c.getGreen()) <= 1 && std::abs(a.b - c.getBlue()) <= 1; }
 
 }  // namespace
 
 TEST(sparkline_image_fills_its_slot_from_the_bottom) {
   StyleProvider styles;
   SparklineLook look{Color(10, 20, 30), Color(200, 100, 50)};
-  // One cell's two dot columns, the bar in the right one, half full.
+  // One cell's two dot columns, the bar in the right one, half full. The picture is 40 tall: the clip lamp
+  // takes the top 7 and a gap, the bar's scale is the 32 below.
   auto img = sparkline_image::render({std::nullopt, SparklineReading{0.5f, 0.0f, false}}, look, 20, 40, styles);
   CHECK(img.size() == 800u);
-  CHECK(same(at(img, 20, 15, 39), *look.color));   // low in the right slot
-  CHECK(same(at(img, 20, 15, 5), look.background)); // above the level
-  CHECK(same(at(img, 20, 5, 39), look.background));  // the empty left slot
-  // A peak line, and the clip colour while saturated.
+  CHECK(same(at(img, 20, 15, 39), *look.color));    // low in the right slot
+  CHECK(same(at(img, 20, 15, 12), look.background));  // above the level, under the lamp
+  CHECK(same(at(img, 20, 5, 39), look.background));   // the empty left slot
+  CHECK(same(at(img, 20, 5, 2), look.background));    // and it has no lamp
+  // A peak line.
   img = sparkline_image::render({SparklineReading{0.0f, 0.75f, false}}, look, 10, 40, styles);
-  CHECK(same(at(img, 10, 5, 10), *look.color) && same(at(img, 10, 5, 30), look.background));
-  img = sparkline_image::render({SparklineReading{1.0f, 0.0f, true}}, look, 10, 40, styles);
-  // The clip colour is the plain one: a bar keeps its colours.
-  CHECK(same(at(img, 10, 5, 20), styles.level_full_color));
+  CHECK(same(at(img, 10, 5, 16), *look.color) && same(at(img, 10, 5, 12), look.background) && same(at(img, 10, 5, 30), look.background));
 }
 
-TEST(sparkline_image_float_picture_lights_only_the_peak_mark_past_white) {
+TEST(sparkline_image_the_clip_lamp_is_dim_until_the_meter_clips_and_the_bar_keeps_its_colours) {
   StyleProvider styles;
   SparklineLook look{Color(10, 20, 30), std::nullopt};
-  // A bar at half height with its peak mark near the top, over the meter's colours by height.
-  auto pic = sparkline_image::renderPicture({SparklineReading{0.5f, 0.95f, false}}, look, 10, 40, styles, 1.0f, true);
+  auto off = sparkline_image::render({SparklineReading{1.0f, 1.0f, false}}, look, 10, 40, styles);
+  auto on = sparkline_image::render({SparklineReading{1.0f, 1.0f, true}}, look, 10, 40, styles);
+  // The lamp at the top: dim, then lit; the lit one is the clip colour lit past white, mapped.
+  CHECK(near(at(off, 10, 5, 2), styles.clipLedColor(false, look.background)));
+  CHECK(near(at(on, 10, 5, 2), styles.clipLedColor(true, look.background)));
+  Rgb dim = at(off, 10, 5, 2), lit = at(on, 10, 5, 2);
+  CHECK(lit.r > dim.r && lit.g > dim.g);
+  // Clipping does not touch the bar: low in it is green, the top of its scale red, as when it is not clipping.
+  for (unsigned y : {unsigned(36), unsigned(20), unsigned(10)}) {
+    Rgb a = at(off, 10, 5, y), b = at(on, 10, 5, y);
+    CHECK(a.r == b.r && a.g == b.g && a.b == b.b);
+  }
+  Rgb low = at(on, 10, 5, 36), mid = at(on, 10, 5, 22), top = at(on, 10, 5, 10);
+  CHECK(low.g > low.r && mid.g > mid.r);
+  CHECK(top.r > top.g + 40 && top.r > top.b + 40);
+}
+
+TEST(sparkline_image_a_picture_too_short_for_the_lamp_has_none) {
+  StyleProvider styles;
+  SparklineLook look{Color(10, 20, 30), Color(200, 100, 50)};
+  auto img = sparkline_image::render({SparklineReading{0.5f, 0.0f, true}}, look, 10, 10, styles);
+  // The bar fills from the bottom over the whole 10, whatever the clip.
+  CHECK(same(at(img, 10, 5, 9), *look.color) && same(at(img, 10, 5, 6), *look.color));
+  CHECK(same(at(img, 10, 5, 3), look.background) && same(at(img, 10, 5, 0), look.background));
+}
+
+TEST(sparkline_image_float_picture_lights_the_lamp_past_white_and_nothing_else) {
+  StyleProvider styles;
+  SparklineLook look{Color(10, 20, 30), std::nullopt};
+  auto pic = sparkline_image::renderPicture({SparklineReading{1.0f, 1.0f, true}}, look, 10, 40, styles, 1.0f, true);
   if (!pic.isHdr()) return;  // no float surfaces here; the 8-bit picture is the same colours mapped
   CHECK(pic.hdr.size() == 10u * 40u * 4u);
-  auto peak = [&](unsigned x, unsigned y) { const float * p = &pic.hdr[(y * 10 + x) * 4]; return std::max({p[0], p[1], p[2]}); };
-  CHECK(peak(5, 2) > 1.5f);    // the mark, at 95% of the height
-  for (unsigned y = 20; y < 40; y++) CHECK(peak(5, y) <= 1.0f);  // the bar is not
-  // The clip colour on a saturated bar is the plain one too.
-  auto clip = sparkline_image::renderPicture({SparklineReading{1.0f, 0.0f, true}}, look, 10, 40, styles, 1.0f, true);
-  if (clip.isHdr()) CHECK(std::max({clip.hdr[(20 * 10 + 5) * 4], clip.hdr[(20 * 10 + 5) * 4 + 1], clip.hdr[(20 * 10 + 5) * 4 + 2]}) <= 1.0f);
+  // Past white is judged in linear sRGB, where Color::toSrgb8() maps it.
+  auto peak = [&](unsigned x, unsigned y) {
+    const float * p = &pic.hdr[(y * 10 + x) * 4];
+    auto v = Color::linear(p[0], p[1], p[2]).linearSrgb();
+    return std::max({v[0], v[1], v[2]});
+  };
+  CHECK(peak(5, 2) > 2.0f);  // the lit lamp
+  for (unsigned y = 8; y < 40; y++) CHECK(peak(5, y) <= 1.0f);  // the bar and its peak mark are not
+  auto off = sparkline_image::renderPicture({SparklineReading{1.0f, 1.0f, false}}, look, 10, 40, styles, 1.0f, true);
+  const float * p = &off.hdr[(2 * 10 + 5) * 4];
+  auto v = Color::linear(p[0], p[1], p[2]).linearSrgb();
+  CHECK(std::max({v[0], v[1], v[2]}) <= 1.0f);  // an unlit lamp is not
 }
 
 TEST(sparkline_image_spaces_its_bars_evenly_with_the_rest_at_the_edges) {

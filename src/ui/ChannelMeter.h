@@ -44,6 +44,7 @@ class ChannelMeter : public cellui::Widget {
   struct Channel {
     level_meter::Ballistics ballistics;
     level_meter::PeakHold peak_hold;
+    level_meter::ClipHold clip_hold; // the clip lamp stays lit for a while after a clip
     cellui::SparklineReading reading;
   };
   const cellui::Charts & charts_;

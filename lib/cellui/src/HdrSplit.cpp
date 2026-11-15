@@ -15,7 +15,7 @@ HdrLayers splitHdr(const std::vector<float> & rgba, int width, int height) {
   if (rgba.size() < count * 4) return out;
   out.base.resize(count);
 
-  const uint32_t no_glow = Image::pack(0, 0, 0, 255);
+  const uint32_t no_glow = Image::pack(0, 0, 0, 0);
   float last[4] = {-1.0f, -1.0f, -1.0f, -1.0f};
   uint32_t last_base = 0, last_glow = no_glow;
   for (size_t i = 0; i < count; i++) {
@@ -33,14 +33,18 @@ HdrLayers splitHdr(const std::vector<float> & rgba, int width, int height) {
     last_glow = no_glow;
     auto v = color.linearSrgb();
     if (std::max({v[0], v[1], v[2]}) > 1.0f) {
-      uint8_t g[3];
-      bool any = false;
-      for (int c = 0; c < 3; c++) {
-        g[c] = Color::linearToSrgb8(std::max(v[static_cast<size_t>(c)] - 1.0f, 0.0f) / kHdrGlowRange);
-        any = any || g[c] != 0;
+      // The glow of a pixel: the colour of its light past white (each channel's excess, scaled so the
+      // strongest is 1: its hue), with how much of it there is as the alpha. Kept apart, the display can
+      // make the glow wider or stronger and the colour stays the pixel's own.
+      float excess[3], strongest = 0.0f;
+      for (size_t c = 0; c < 3; c++) {
+        excess[c] = std::max(v[c] - 1.0f, 0.0f);
+        strongest = std::max(strongest, excess[c]);
       }
-      if (any) {
-        last_glow = Image::pack(g[0], g[1], g[2], 255);
+      uint8_t amount = Color::linearToSrgb8(strongest / kHdrGlowRange);
+      if (amount != 0) {
+        last_glow = Image::pack(Color::linearToSrgb8(excess[0] / strongest), Color::linearToSrgb8(excess[1] / strongest),
+                                Color::linearToSrgb8(excess[2] / strongest), amount);
         if (out.glow.empty()) out.glow.assign(count, no_glow);
       }
     }

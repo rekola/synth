@@ -260,6 +260,8 @@ class ClipGrid : public UIElement {
   struct MeterDisplay {
     level_meter::Ballistics ballistics;
     level_meter::PeakHold peak_hold;
+    level_meter::ClipHold clip_hold; // the lamp stays lit for a while after a clip
+    bool clip_lit = false;
     float fraction = 0.0f;
     float peak_fraction = 0.0f;
     level_meter::StepHold level_steps, peak_steps; // what is drawn, with a dead band
