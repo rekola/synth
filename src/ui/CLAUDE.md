@@ -332,7 +332,7 @@ Controller-level and per-widget commands. Not migrated: `StatusLine`,
   a clip until a snapshot has reported it (`TrackState::snapshotTrackInfo()`, `SongState::takeMasterClipping()`),
   and whoever owns a meter's state holds the lamp lit for `ClipHold::kHoldSeconds` after the last clip it was
   told of. The clip grid draws it in the meter's own column, in the Sends group's last row, above the meter's
-  bar; `ChannelMeter` in its top row (one lamp, lit by any channel); the pattern editor's heading has no room
+  bar (`ClipLamp.h`, one per track); the scope row's `ChannelMeter` has none; the pattern editor's heading has no room
   and shows the held clip on the track's status dot;
   the pattern editor's track meters and the scope row's `ChannelMeter`
   (`getChannelLoudness()`, per-channel RMS) share it, and the master's reads

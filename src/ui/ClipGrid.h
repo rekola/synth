@@ -3,6 +3,7 @@
 
 #include "UIElement.h"
 #include "InlineEditor.h"
+#include "ClipLamp.h"
 #include "LevelMeter.h"
 #include "TrackDrag.h"
 
@@ -260,8 +261,7 @@ class ClipGrid : public UIElement {
   struct MeterDisplay {
     level_meter::Ballistics ballistics;
     level_meter::PeakHold peak_hold;
-    level_meter::ClipHold clip_hold; // the lamp stays lit for a while after a clip
-    bool clip_lit = false;
+    ClipLamp clip_lamp;
     float fraction = 0.0f;
     float peak_fraction = 0.0f;
     level_meter::StepHold level_steps, peak_steps; // what is drawn, with a dead band
@@ -314,7 +314,7 @@ class ClipGrid : public UIElement {
   void putDialGroupRow(const StyleProvider & styles, int y, int x, int offset);
   // A column's level meter and peak marker in its last cell, over
   // whichever of its kMeterRows rows are on screen.
-  void renderMeter(const StyleProvider & styles, int x, int rows, int track_id, bool clipping);
+  void renderMeter(const StyleProvider & styles, int x, int rows, int track_id);
   // Edits the send of the column under the cursor - 0: Main, 1: A, 2: B - a
   // track's, or the master's (the dry mix and the send bus's returns).
   void putDivider(cellui::Plane & plane, const StyleProvider & styles, int y, int x, bool header);
