@@ -34,9 +34,6 @@ class ChannelMeter : public cellui::Widget {
   // being called for the bars to keep falling.
   bool atRest() const;
 
-  // Whether the lamp is lit: some channel clipped within the last ClipHold::kHoldSeconds.
-  bool clipping() const;
-
   // Forgets every level and peak. Redraws, with the legend `label`.
   void clear(const std::string & label) {
     channels_ = {};
@@ -47,8 +44,6 @@ class ChannelMeter : public cellui::Widget {
   struct Channel {
     level_meter::Ballistics ballistics;
     level_meter::PeakHold peak_hold;
-    level_meter::ClipHold clip_hold; // the clip lamp stays lit for a while after a clip
-    bool clip_lit = false;
     cellui::SparklineReading reading;
   };
   const cellui::Charts & charts_;
