@@ -2,7 +2,7 @@
 
 Status: plan, sixth revision. Every open decision is settled; awaiting approval to start phase 1. Phase 0 (measuring) is done and its tools are in the tree; the rest
 is awaiting approval.
-Builds on the terminal frame pacer (`plans/frame-pacing-terminal.md`), which
+Builds on the terminal frame pacer (`FramePacer` in cellui), which
 measures the link but changes nothing about what is drawn.
 
 ## Decisions made

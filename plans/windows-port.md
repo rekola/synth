@@ -8,7 +8,7 @@ backends, ending with `--headless` (playback + Launchpad performance) working
 on Windows; step 6 packages it. This runs alongside phase 1 of the cellui
 (the terminal backend, built), which replaced notcurses. Windows gets no
 terminal UI: its interactive UI is the graphical one, phase 2
-(`plans/cellui-window.md`), which is not part of this plan.
+(cellui's `plans/cellui-window.md`), which is not part of this plan.
 
 ## Decisions
 
@@ -230,7 +230,7 @@ MSIX/winget.
 
 ## After this plan
 
-The graphical UI: `plans/cellui-window.md`, once the cellui's terminal
+The graphical UI: cellui's `plans/cellui-window.md`, once the cellui's terminal
 phase has separated the UI.
 
 Step 4 notes: the backends are in `synth_engine` on Windows (`WasapiAudio`,
