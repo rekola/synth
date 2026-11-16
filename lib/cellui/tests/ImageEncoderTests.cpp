@@ -1266,6 +1266,80 @@ TEST(a_slow_ramp_is_followed_by_the_averages_of_what_is_drawn) {
   }
 }
 
+// A dark, tinted two-dimensional gradient with a blue glow: smooth, thousands of colours.
+namespace {
+
+Image glowGradient(int width, int height) {
+  Image img;
+  img.width = width;
+  img.height = height;
+  for (int y = 0; y < height; y++) {
+    for (int x = 0; x < width; x++) {
+      const double dx = (x - width * 0.7) / (width * 0.18), dy = (y - height * 0.4) / (height * 0.3);
+      const double glow = std::exp(-(dx * dx + dy * dy));
+      img.pixels.push_back(Image::pack(static_cast<uint8_t>(std::lround(12 + 17.0 * x / width + 9.0 * y / height + 14.0 * glow)),
+                                       static_cast<uint8_t>(std::lround(16 + 11.0 * x / width + 13.0 * y / height + 30.0 * glow)),
+                                       static_cast<uint8_t>(std::lround(24 + 9.0 * x / width + 5.0 * y / height + 100.0 * glow))));
+    }
+  }
+  return img;
+}
+
+// How far each pixel's candidates, averaged, are from the pixel's colour (the worst channel, 8-bit levels), and how
+// many horizontal neighbours differ in that error by more than `step` levels.
+struct MixError {
+  double mean = 0, steps = 0;
+  size_t most_distinct = 0;
+};
+
+MixError mixError(const Image & img, const detail::GridMixTile & t, double step) {
+  MixError e;
+  size_t pairs = 0, stepped = 0;
+  std::vector<double> error(img.pixels.size());
+  for (size_t i = 0; i < img.pixels.size(); i++) {
+    double sum[3] = {0, 0, 0};
+    std::set<int> distinct;
+    for (size_t c = 0; c < 16; c++) {
+      const size_t reg = static_cast<size_t>(t.candidates[i * 16 + c]);
+      distinct.insert(static_cast<int>(reg));
+      for (size_t k = 0; k < 3; k++) sum[k] += static_cast<double>(t.working[reg * 3 + k]) / 16.0;
+    }
+    const uint32_t p = img.pixels[i];
+    error[i] = std::max({std::fabs(sum[0] - Image::red(p)), std::fabs(sum[1] - Image::green(p)), std::fabs(sum[2] - Image::blue(p))});
+    e.mean += error[i];
+    e.most_distinct = std::max(e.most_distinct, distinct.size());
+  }
+  e.mean /= static_cast<double>(img.pixels.size());
+  for (int y = 0; y < img.height; y++) {
+    for (int x = 0; x + 1 < img.width; x++) {
+      const size_t i = static_cast<size_t>(y * img.width + x);
+      pairs++;
+      if (std::fabs(error[i] - error[i + 1]) > step) stepped++;
+    }
+  }
+  e.steps = static_cast<double>(stepped) / static_cast<double>(pairs);
+  return e;
+}
+
+}  // namespace
+
+// d. Two registers a pixel: at most two distinct candidates, and on a smooth gradient the colour is about as near as the
+// full mix's and does not step from one pixel to the next (what picking the two most frequent registers did: a
+// colour usually sits between three or four, so the shown colour moved and neighbours kept different pairs).
+TEST(two_registers_a_pixel_stay_near_the_colour_and_do_not_step_on_a_gradient) {
+  Image tile = glowGradient(192, 96);
+  for (int n : {16, 64}) {
+    MixError full = mixError(tile, detail::gridMixTile(tile, n, 0, 0, false), 2.0);
+    MixError two = mixError(tile, detail::gridMixTile(tile, n, 0, 0, true), 2.0);
+    CHECK(two.most_distinct <= 2);
+    // Measured at 16 and 64 registers: top-2 1.22 / 0.53 levels against the full mix's 1.29 / 0.39; the two most
+    // frequent registers gave 1.80 / 0.91, and 4.9 % / 2.5 % of neighbours stepping by over 2 levels where this
+    // gives 0.24 % / 0 %. The bounds sit between the two.
+    CHECK(two.mean <= full.mean * 1.15 + 0.2);
+    CHECK(two.steps < 0.01);
+  }
+}
+
 // A Sixel's pixels as a terminal draws them: each pass paints its bits in its register over what is there.
 namespace {
 
@@ -1328,6 +1402,19 @@ TEST(overpainted_sixel_passes_draw_the_same_pixels_in_fewer_bytes) {
     std::vector<int> pa = sixelPixels(a, 96, 52), pb = sixelPixels(b, 96, 52);
     CHECK(pa == pb);
   }
+}
+
+// A band that uses more than 127 registers: the pass of a pixel must not wrap and read as painted already.
+TEST(overpaint_draws_a_band_of_more_than_127_registers_as_it_is) {
+  Image tile = ramp(96, 6);  // one band
+  std::vector<bool> keep(static_cast<size_t>(96 * 6), true);
+  Dither plain;
+  plain.method = Dither::Method::NEAREST;
+  Dither over = plain;
+  over.overpaint = true;
+  std::string a = encodeSixel(tile, 0, 0, 96, 6, keep, plain, 250), b = encodeSixel(tile, 0, 0, 96, 6, keep, over, 250);
+  CHECK(count(a, ";2;") > 127);
+  CHECK(sixelPixels(a, 96, 6) == sixelPixels(b, 96, 6));
 }
 
 // A terminal that edits a picture in place gets only the rectangle that changed.

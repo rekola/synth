@@ -737,15 +737,27 @@ deflate ratio on real charts is known.
      was made with a dither that was applied twice, the other with a mapping that did no dither at all and so
      showed contour lines; neither could be compared with the default palette's.)
      **Making it smaller** (xterm, the same frame; `CELLUI_BLUR_MIX=1` turns on overpaint and the shared palette of 64
-     registers; the two-register cut is opt-in with `CELLUI_BLUR_TOP2=1`, because it is lossy). (1) *Overpaint* (`Dither::overpaint`, `CELLUI_BLUR_NOOVERPAINT`): a Sixel band is drawn a register at a
+     registers; the two-register cut is on with it while the experiment is tried, `CELLUI_BLUR_NOTOP2=1` turns it off, because it is lossy). (1) *Overpaint* (`Dither::overpaint`, `CELLUI_BLUR_NOOVERPAINT`): a Sixel band is drawn a register at a
      time, and a pixel a later register paints over need not be left empty by an earlier one, so the passes go from
      the register with most pixels to least, the first is one run across the band, and each later one sets the
      bits of the pixels still to be painted over wherever that makes a run longer. The same pixels (a test decodes
      both and compares; xterm's screen is identical to the pixel), 20 % fewer bytes on the custom palette and 32 %
      fewer on the terminal's default palette (118 kB to 75 kB a frame, `CELLUI_BLUR_OVERPAINT=1`, which is not on
-     by default for it). (2) *Two registers a pixel* (`CELLUI_BLUR_TOP2`, off by default): a pixel's 16 candidates are cut to
-     the two most frequent, in their ratio: 25 to 30 % fewer bytes on top of (1), and not lossless: the share of the
-     dropped registers goes to the two kept, a colour error that shows in the picture. (3) *One palette for the whole
+     by default for it). (2) *Two registers a pixel* (`Dither::top2`, on with `CELLUI_BLUR_MIX`, off with `CELLUI_BLUR_NOTOP2`): a pixel's 16 candidates are cut to
+     two registers: of those already among the candidates, the pair (a register alone counts as a pair with itself)
+     and the share in 16ths whose mix is nearest the pixel's own colour, with `gridNearest()`'s channel weights
+     (3, 4, 2); a pair's share is the projection of the colour on the line between the two, rounded to 16ths and
+     clamped to 0..16, and ties go to the lowest register indices, so the result does not depend on the order of the
+     candidates. This replaced the two most frequent registers split by their counts, which moved the shown colour (a
+     colour usually sits between three or four registers) and broke 6/5/5 ties by order of appearance, so neighbouring
+     pixels kept different pairs and a gradient stepped. Measured through `detail::gridMixTile` on a 192x96 dark
+     tinted gradient with a blue glow (the test's), mean error (worst channel, 8-bit levels) and the share of
+     horizontal neighbour pairs whose error differs by over 2 levels, at 16 and 64 registers: full mix 1.29 / 0.39,
+     0.01 % / 0 %; two most frequent 1.80 / 0.91, 4.9 % / 2.5 %; nearest pair 1.22 / 0.53, 0.24 % / 0 %. Bytes of
+     that picture as one Sixel frame (96x16 cells, 64 registers, overpaint, one palette): full mix 16277, two most
+     frequent 11626 (-29 %), nearest pair 13425 (-18 %); the default palette 9776. So the cut still saves bytes but
+     less than before: the price of not moving the colour. Not a frame of the app, and not lossless.
+     (3) *One palette for the whole
      backdrop* (`CELLUI_BLUR_NOSHARED`, `CELLUI_BLUR_REGISTERS`, default 64): made from all the tiles, kept while the
      set of tiles holds and a changed tile's colours stay near a register, every tile sent again when it is made
      again. No seams, and no palette to make for each tile. Blur frame with all three: 72 kB at 8 registers,
