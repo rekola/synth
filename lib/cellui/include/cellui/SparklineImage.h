@@ -11,13 +11,11 @@
 namespace cellui {
 
 // A sparkline's reading: the level and the held peak as 0..1 fractions of the
-// meter (level_meter::fraction()), and whether its clip lamp is lit (the owner holds it lit for a while
-// after the signal clipped). A pixel sparkline draws the lamp as a square above the bar, which it lights past
-// white so it glows; a cell sparkline colours the bar with the clip colour.
+// meter (level_meter::fraction()). The bar shows level and nothing else; a warning beside it is a Lamp's
+// (Lamp.h).
 struct SparklineReading {
   float fraction = 0.0f;
   float peak = 0.0f;  // 0: no peak marker
-  bool saturated = false;
 };
 
 // How a sparkline looks: what it is drawn on, and one colour for the bar in

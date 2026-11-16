@@ -53,7 +53,13 @@ class SongState : public TrackState {
   // bus's returns, after the master's own levels - measured on the
   // omnidirectional W channel like every track's (TrackInfo).
   float getMasterMeterValue() const { return master_meter_value_; }
-  bool isMasterClipping() const { return master_clipping_; }
+  // Whether the master clipped in any block since this was last asked (a snapshot is taken every several blocks,
+  // and a clip is one block's: see TrackState::snapshotTrackInfo()).
+  bool takeMasterClipping() const {
+    bool clipped = master_clipped_since_snapshot_;
+    master_clipped_since_snapshot_ = false;
+    return clipped;
+  }
 
   void initialize(const Song & song) {
     auto content_reader = song.readContent();
@@ -1450,7 +1456,7 @@ private:
   SongStructure song_structure_;
   SendLevels master_sends_;
   float master_meter_value_ = -1.0f;
-  bool master_clipping_ = false;
+  mutable bool master_clipped_since_snapshot_ = false;
 
   static void scaleRegularChannels(AudioBuffer & buffer, float gain) {
     if (gain == 1.0f) return;
@@ -1475,7 +1481,7 @@ private:
       clipping = clipping || v < -1.0f || v > 1.0f;
     }
     master_meter_value_ = frames > 0 ? std::sqrt(sum_squares / static_cast<float>(frames)) : 0.0f;
-    master_clipping_ = clipping;
+    master_clipped_since_snapshot_ = master_clipped_since_snapshot_ || clipping;
   }
 
   // Live View's launched clips and stops, per track (see

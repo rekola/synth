@@ -40,9 +40,6 @@ class StyleProvider {
     level_active_color = t.level_active;
     level_low_color = t.level_low;
     level_mid_color = t.level_mid;
-    level_lime_color = t.level_lime;
-    level_warn_color = t.level_warn;
-    level_hot_color = t.level_hot;
     line_low_color = t.line_low;
     line_high_color = t.line_high;
     button_fg_color = t.button_fg;
@@ -94,16 +91,13 @@ class StyleProvider {
   Color info_line_fg_color;
   Color info_line_bg_color;
 
-  // A level indicator's colours: full scale, and sounding.
+  // A level indicator's colours: the alarm colour (a Lamp's, lit), and sounding.
   Color level_full_color;
   Color level_active_color;
-  // The level meters' bars shade by height, quiet to loud: greens, then
-  // lime, orange and hot orange, ending in level_full_color at full scale.
+  // The level meters' bars are one hue, shaded by height from quiet to loud, like the spectrum's: the
+  // theme's greens, low to level_active_color at the top. A warning is a Lamp's to show, not the bar's.
   Color level_low_color;
   Color level_mid_color;
-  Color level_lime_color;
-  Color level_warn_color;
-  Color level_hot_color;
   // The spectrum's bars shade from low to high.
   Color line_low_color;
   Color line_high_color;
@@ -111,25 +105,20 @@ class StyleProvider {
   // The color of a level meter at `fraction` (0..1, level_meter::fraction())
   // of its height.
   Color levelColor(float fraction) const {
-    const std::pair<float, const Color *> stops[] = {
-      { 0.0f, &level_low_color }, { 0.3f, &level_mid_color }, { 0.55f, &level_active_color }, { 0.78f, &level_lime_color },
-      { 0.86f, &level_warn_color }, { 0.94f, &level_hot_color }, { 1.0f, &level_full_color },
-    };
     fraction = std::clamp(fraction, 0.0f, 1.0f);
-    for (size_t i = 1; i < std::size(stops); i++) {
-      if (fraction <= stops[i].first) {
-        float t = (fraction - stops[i - 1].first) / (stops[i].first - stops[i - 1].first);
-        return stops[i - 1].second->blend(t, *stops[i].second);
-      }
-    }
-    return level_full_color;
+    return fraction < 0.5f ? level_low_color.blend(fraction * 2.0f, level_mid_color) : level_mid_color.blend((fraction - 0.5f) * 2.0f, level_active_color);
   }
-  // The clip lamp of a meter drawn as a picture: dim while the meter is not clipping (the clip colour a little
-  // way from the background), and when it is the clip colour lit well past white, so it glows like an LED.
-  Color clipLedColor(bool lit, const Color & background) const {
-    return lit ? level_full_color * (1.0f + kClipLedGain) : background.blend(0.3f, level_full_color);
+  // levelColor() with its top lit past white from kLevelHdrStart of the height (see lineColor()), for a meter
+  // drawn as a picture: the loud end glows in the bar's own green on a display that can show it.
+  Color levelLitColor(float fraction) const { return levelColor(fraction) * litGain(fraction, kLevelHdrStart, kLevelHdrGain); }
+  static constexpr float kLevelHdrStart = 0.55f, kLevelHdrGain = 8.0f;
+  // The colour of a Lamp (Lamp.h): colourless while off, a grey a little way from the background toward the text
+  // (so there is no doubt whether it is lit), and when lit the alarm colour well past white, so it glows like an
+  // LED.
+  Color lampColor(bool lit, const Color & background) const {
+    return lit ? level_full_color * (1.0f + kLampGain) : background.blend(0.3f, window_fg_color);
   }
-  static constexpr float kClipLedGain = 3.0f;
+  static constexpr float kLampGain = 3.0f;
   // The spectrum's colour at a level, 0 to 1: the ramp from line_low_color to line_high_color, whose top
   // is lit past white (a channel above 1, HDR) from kLineHdrStart on, so the loudest part of a curve
   // glows on a display that can show it, and is the ramp's own colour washed toward white on one that

@@ -65,9 +65,6 @@ TEST(dark_theme_keeps_the_other_colours_too) {
   CHECK(same(s.level_active_color, "#10e040"));
   CHECK(same(s.level_low_color, "#0b5f2a"));
   CHECK(same(s.level_mid_color, "#0f9a3a"));
-  CHECK(same(s.level_lime_color, "#9ae02e"));
-  CHECK(same(s.level_warn_color, "#f09020"));
-  CHECK(same(s.level_hot_color, "#ff5a20"));
   CHECK(same(s.line_low_color, "#1e5fd0"));
   CHECK(same(s.line_high_color, "#7af0d8"));
   CHECK(same(s.mute_color, "#ff5a5a"));
@@ -241,21 +238,6 @@ TEST(note_flash_is_stronger_for_a_louder_note) {
   CHECK_NEAR(StyleProvider::velocityFlash(500), 1.0f, 1e-6f);
 }
 
-TEST(note_flash_zoom_follows_the_flash_in_the_face) {
-  CHECK(StyleProvider::zoomFace(0.0f).zoom == 0);
-  CHECK(StyleProvider::zoomFace(1.0f).zoom == 255);
-  CHECK(StyleProvider::zoomFace(2.0f).zoom == 255);
-  CHECK(StyleProvider::zoomFace(-1.0f).zoom == 0);
-  uint8_t last = 0;
-  for (int i = 0; i <= 100; i++) {
-    uint8_t z = StyleProvider::zoomFace(static_cast<float>(i) / 100.0f).zoom;
-    CHECK(z >= last);
-    last = z;
-  }
-  // Only the zoom: a face for a flash is otherwise the plain one.
-  CHECK(StyleProvider::zoomFace(0.5f).weight == cellui::kWeightNormal);
-}
-
 // --- The terminal's own 16 (and 8) colours ---
 
 #include <cellui/term/FrameEncoder.h>
@@ -327,7 +309,7 @@ TEST(the_ansi_themes_keep_the_pairs_that_must_differ_apart) {
       CHECK(differ(bg(b.button_bg), bg(b.button_pressed_bg), "button and pressed button"));
       CHECK(differ(bg(b.menu_bg), bg(b.surface_base), "menu bar and surface"));
       CHECK(differ(fg(b.level_low), fg(b.level_full), "meter low and clip"));
-      CHECK(differ(fg(b.level_warn), fg(b.level_full), "meter warning and clip"));
+      CHECK(differ(fg(b.level_active), fg(b.level_full), "meter top and clip"));
       CHECK(differ(fg(p.mute), fg(p.solo), "mute and solo"));
       // Tracks: neighbours always differ, and the first N are all different for every N the palette allows.
       int distinct = eight ? 6 : 12;

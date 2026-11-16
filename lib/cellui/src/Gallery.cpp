@@ -1,5 +1,7 @@
 #include <cellui/Gallery.h>
 
+#include <cellui/Lamp.h>
+
 #include <cellui/ChoiceList.h>
 #include <cellui/InfoDialog.h>
 #include <cellui/Markdown.h>
@@ -253,9 +255,11 @@ Gallery::Gallery(Plane & plane, const Theme & theme, const DisplayInfo & display
     // Sparklines side by side, each with a peak marker; the last two at full scale.
     SparklineLook look{plane.getStyles().window_bg_color, std::nullopt};
     const std::vector<SparklineReading> readings = {
-      { 0.7f, 0.8f, false }, { 0.3f, 0.5f, false }, { 0.12f, 0.2f, false }, { 0.5f, 0.6f, false },
-      { 0.02f, 0.05f, false }, { 1.0f, 1.0f, true }, { 0.0f, 0.0f, false } };
+      { 0.7f, 0.8f }, { 0.3f, 0.5f }, { 0.12f, 0.2f }, { 0.5f, 0.6f }, { 0.02f, 0.05f }, { 1.0f, 1.0f }, { 0.0f, 0.0f } };
     charts.drawSparkline(plane, page.row(), 44, 5, readings, look, 0, plane.getDim().first, 0);
+    // A lamp, off and lit, to the right of them.
+    drawLamp(plane, page.row(), 50, false, plane.getStyles().window_bg_color, 0, plane.getDim().first);
+    drawLamp(plane, page.row(), 53, true, plane.getStyles().window_bg_color, 0, plane.getDim().first);
   }
   page.skip(5);
 

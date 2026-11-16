@@ -1,4 +1,6 @@
 #include "ClipGrid.h"
+
+#include <cellui/Lamp.h>
 #include "ClipCard.h"
 #include "LevelMeter.h"
 #include "TrackNameEdit.h"
@@ -1463,11 +1465,14 @@ ClipGrid::renderMeter(const StyleProvider & styles, int x, int rows, int track_i
   if (x + kColWidth - 1 < 0) return; // the meter's cell is scrolled out at the left
   auto & meter = meters_[track_id];
   auto top = clipRowCount() + kMainTop - first_row_; // the meter's top cell
-  cellui::SparklineReading reading{meter.fraction, meter.peak_fraction, clipping};
+  cellui::SparklineReading reading{meter.fraction, meter.peak_fraction};
   cellui::SparklineLook look{styles.grid_bg_color, std::nullopt};
   // Inside the body plane.
   static const auto fallback = cellui::cellCharts();
   (charts_ ? charts_ : fallback.get())->drawSparkline(body(), top, x + kColWidth - 1, kMeterRows, reading, look, 0, rows, static_cast<uint64_t>(track_id) + 2);
+  // The clip lamp, in the meter's own column in the Sends group's last row: the B dial ends before it, so the
+  // cell is free, and the meter's bar starts below the divider that follows.
+  cellui::drawLamp(body(), clipRowCount() + kSendsBottom - first_row_, x + kColWidth - cellui::kLampCols, clipping, styles.grid_bg_color, 0, rows);
 }
 
 void

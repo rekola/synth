@@ -10,6 +10,7 @@ add_executable(synth_tests
 	ClipArrangementViewTests.cpp
 	MetronomeTests.cpp
 	LevelMeterTests.cpp
+	TrackClipLatchTests.cpp
 	SpectrumCurveTests.cpp
 	AudioBufferTests.cpp
 	ChannelBankTests.cpp

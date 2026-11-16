@@ -43,7 +43,7 @@ carries the app's object as an opaque `getAppContext()`.
 - Theme (`Theme`, `StyleProvider`), `Plane`, `Widget` (`Widget.h`: the plane,
   drawing, keymap and prefix-key dispatch),
   `UIMenu`, `Viewport.h`, the generic widgets (`ChoiceList`/`ChoiceDialog`,
-  `InlineEditor`, `SpinBox`, `Dial`, `LineChart`, `HeatmapChart`, `InfoDialog`,
+  `InlineEditor`, `SpinBox`, `Dial`, `Lamp`, `LineChart`, `HeatmapChart`, `InfoDialog`,
   `CommandPalette` with `FuzzyMatch.h`, `ModalDialog`), `Gallery.h`.
 
 ## Events and input dispatch
@@ -335,14 +335,15 @@ the cells of every area as high or higher again over them (the frame's own
 cells as one node made once a frame, `paintedNode()`, under a clip - never a
 walk over the cells for each area, since a screen of cards has many), plus a
 light top and dark bottom edge per area. Glow: a glyph whose foreground is lit past white
-(a `Color` channel above 1, from 0.6 above it at full strength) gets a glow, drawn
-over the backgrounds and under the text as a small cached texture: the glyph blurred
-tight and wide once on the CPU for a glyph in a face (`glowSprite()`, a white texture
-reaching 0.75 cell heights past its cell), then a textured quad each frame, in the glyph's
-colour and strength through a colour matrix, so the glow takes any colour with no steps and
-no texture of its own (this assumes a GL renderer). No blur runs on the GPU, so a frame
-costs what a few hundred small quads do. A glyph is drawn larger by its cell's zoom
-(`Cell::zoom`, up to `kZoomMax` more): a transform on its cached node and on its glow's quad,
+(a `Color` channel above 1) blooms exactly as a picture's pixels do (`glowOf()` in `HdrSplit.h` is the
+glow of a colour for both: its own hue at full strength, with how much light past white as the alpha,
+and `HdrBloom.h` has the radii, gains and threshold): each run of lit cells in a row is drawn as its
+glyphs in that hue, blurred on the GPU wide as a halo and a little as a core that thickens, with the alpha
+multiplied after the blur (`glowLayer()`), and put over the backgrounds and under the text. The same colour
+therefore glows the same in a cell and in a picture. The glow is a node per band, redone only when the band's
+lit cells change, and the blur is the GPU's (a frame with a lit run costs a few small blur passes).
+A glyph is drawn larger by its cell's zoom
+(`Cell::zoom`, up to `kZoomMax` more): a transform on its cached node and on its glow's source,
 so no node or texture is made again (the band's cache print holds the zoom), about the centre
 of its piece (`zoomRun()`: the cells joined to each other), so its characters keep their places
 in it. The zoom is the writer's, not tied to the light. A background never glows. A band with no such

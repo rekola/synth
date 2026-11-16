@@ -8,7 +8,7 @@ namespace cellui {
 // core's, in cell heights, the gain the glow's alpha is multiplied by after the blur, how much of each
 // is added, and what is taken off the core's alpha so a weak glow makes no core.
 constexpr double kPictureHaloRadius = 0.5, kPictureHaloGain = 12.0, kPictureHaloStrength = 0.8;
-constexpr double kPictureCoreRadius = 0.1, kPictureCoreGain = 10.0, kPictureCoreThreshold = 0.5;
+constexpr double kPictureCoreRadius = 0.1, kPictureCoreGain = 10.0, kPictureCoreThreshold = 0.5, kPictureCoreStrength = 1.0;
 
 // What a display with no GPU shows of a float picture (Image::hdr): the picture tone mapped as
 // splitHdr() does, with its light past white blurred on the CPU, wide as a halo and a little as a core

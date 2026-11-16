@@ -3168,8 +3168,8 @@ PatternEditor::renderHeadingOnPlane(const StyleProvider & styles, const std::vec
     // scopes draw. meter_fraction() gives a track's smoothed, dB-mapped
     // level as a fraction of the meter.
     auto meter_fraction = [&](int track_id, const TrackInfo &) { return meter_smoothing_[track_id].fraction; };
-    auto draw_vu_meter = [&](int row, int col, float fraction, bool clipping, const Color & background, int track_id) {
-      cellui::SparklineReading reading{fraction, 0.0f, clipping};
+    auto draw_vu_meter = [&](int row, int col, float fraction, const Color & background, int track_id) {
+      cellui::SparklineReading reading{fraction, 0.0f};
       cellui::SparklineLook look{background, styles.level_active_color};
       static const auto fallback = cellui::cellCharts();
       (charts_ ? charts_ : fallback.get())->drawSparkline(getPlane(), row, col, 1, reading, look, row, row + 1, static_cast<uint64_t>(track_id) + 2);
@@ -3398,7 +3398,7 @@ PatternEditor::renderHeadingOnPlane(const StyleProvider & styles, const std::vec
 
 	    if (meter_width > 0) {
 	      auto & track_info = info.getTrackInfo(track->getInternalId());
-              draw_vu_meter(heading_height - 2 - level + 1, current_pos + chip_width + instrument_name_width, meter_fraction(track->getInternalId(), track_info), meter_smoothing_[track->getInternalId()].clip_lit,
+              draw_vu_meter(heading_height - 2 - level + 1, current_pos + chip_width + instrument_name_width, meter_fraction(track->getInternalId(), track_info),
                             chip ? segment_color(track) : styles.window_bg_color, track->getInternalId());
             }
 	    // The divider on the instrument line too, so the line is closed.
@@ -3459,16 +3459,16 @@ PatternEditor::renderHeadingOnPlane(const StyleProvider & styles, const std::vec
 	      // At the segment's trailing end (right before the divider),
 	      // matching where the level-0 title bar's own M/S glyphs sit,
 	      // rather than up front where the collapse toggle now is.
-	      if (track_info.isClipping()) {
+              if (meter_smoothing_[track->getInternalId()].clip_lit) {
                 setFgColor(styles.level_full_color);
               } else if (track_info.isActive()) {
                 setFgColor(styles.level_active_color);
               } else {
-		// Idle: faint_color() - see its own comment - rather than a
+                // Idle: faint_color() - see its own comment - rather than a
 		// fixed grey.
 		setFgColor(styles.track_chips ? styles.theme.text_disabled : faint_color(track));
-	      }
-	      putstr(heading_height - 2 - level, current_pos + margin + 2 + element_name_width, "•");
+              }
+              putstr(heading_height - 2 - level, current_pos + margin + 2 + element_name_width, "•");
 	    }
 	  } else {
 	    setFgColor(styles.track_chips ? segment_color(track) : Color(0, 0, 0));
@@ -4127,7 +4127,7 @@ PatternEditor::renderRow(const StyleProvider & styles, int heading_height, const
           setFgColor(cell_fg);
 	  setBgColor(cell_bg);
 	  auto s = to_string(command);
-          putstr(display_row, current_pos, s, StyleProvider::zoomFace(flash));
+          putstr(display_row, current_pos, s);
           if (column_highlighted) {
 	    setUnderline(true);
 	    putstr(display_row, current_pos + new_cursor.subcol, s[static_cast<size_t>(new_cursor.subcol)]);
@@ -4153,7 +4153,7 @@ PatternEditor::renderRow(const StyleProvider & styles, int heading_height, const
           cell_fg = StyleProvider::lit(cell_fg, flash);
           setFgColor(cell_fg);
 	  setBgColor(cell_bg);
-          putstr(display_row, current_pos, shown, StyleProvider::zoomFace(flash));
+          putstr(display_row, current_pos, shown);
           if (column_highlighted) {
 	    setUnderline(true);
 	    putstr(display_row, current_pos + new_cursor.subcol, glyph(s[static_cast<size_t>(new_cursor.subcol)]));
@@ -4196,7 +4196,7 @@ PatternEditor::renderRow(const StyleProvider & styles, int heading_height, const
             } else {
 	      setFgColor(cell_fg);
 	    }
-            putstr(display_row, x, piece, StyleProvider::zoomFace(note_flash, at > 0)); // the pieces are one field
+            putstr(display_row, x, piece);
             x += Utf8::displayWidth(piece);
 	    at += n;
 	  }
@@ -4233,7 +4233,7 @@ PatternEditor::renderRow(const StyleProvider & styles, int heading_height, const
           setFgColor(cell_fg);
 	  setBgColor(cell_bg);
 
-          putstr(display_row, current_pos, s, StyleProvider::zoomFace(flash));
+          putstr(display_row, current_pos, s);
           if (column_highlighted) {
 	    setUnderline(true);
 	    putstr(display_row, current_pos + new_cursor.subcol, s[static_cast<size_t>(new_cursor.subcol)]);

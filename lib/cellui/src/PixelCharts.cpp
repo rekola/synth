@@ -121,7 +121,7 @@ class PixelCharts : public Charts {
     // zero.
     auto key = std::make_pair(&plane, id);
     if (!drawn_.count(key)) {
-      bool silent = std::all_of(readings.begin(), readings.end(), [](const SparklineReading & r) { return r.fraction <= 0.0f && r.peak <= 0.0f && !r.saturated; });
+      bool silent = std::all_of(readings.begin(), readings.end(), [](const SparklineReading & r) { return r.fraction <= 0.0f && r.peak <= 0.0f; });
       if (silent) {
         term::drawCellSparkline(plane, row, col, rows, readings, look, clip_top, clip_bottom);
         return;

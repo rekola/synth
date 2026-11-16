@@ -41,9 +41,6 @@ struct Theme {
   Color level_active;
   Color level_low;
   Color level_mid;
-  Color level_lime;
-  Color level_warn;
-  Color level_hot;
   Color line_low;
   Color line_high;
   Color button_fg;
@@ -99,9 +96,6 @@ struct Theme {
     t.level_active = Color("#10e040");
     t.level_low = Color("#0b5f2a");
     t.level_mid = Color("#0f9a3a");
-    t.level_lime = Color("#9ae02e");
-    t.level_warn = Color("#f09020");
-    t.level_hot = Color("#ff5a20");
     t.line_low = Color("#1e5fd0");
     t.line_high = Color("#7af0d8");
     t.button_fg = Color("#ffffff");
@@ -214,9 +208,6 @@ struct Theme {
     t.accent = t.focus;
     t.level_low = t.level_mid = c(2);
     t.level_active = light ? c(2) : c(10);
-    t.level_lime = light ? c(3) : c(11);
-    t.level_warn = light ? c(3) : c(11);
-    t.level_hot = light ? c(1) : c(3);
     t.level_full = c(9);
     t.menu_bg = c(4);
     t.menu_fg = c(15);
@@ -270,9 +261,6 @@ struct Theme {
     t.level_low = Color("#2d8949");
     t.level_mid = Color("#429c44");
     t.level_active = Color("#56b93e");
-    t.level_lime = Color("#e6ad00");
-    t.level_warn = Color("#f08a00");
-    t.level_hot = Color("#f76400");
     t.level_full = Color("#e4312f");
   }
 };

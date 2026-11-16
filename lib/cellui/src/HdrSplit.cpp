@@ -8,6 +8,16 @@
 
 namespace cellui {
 
+uint32_t glowOf(const Color & color) {
+  auto v = color.linearSrgb();
+  float peak = std::max({v[0], v[1], v[2]});
+  if (!(peak > 1.0f)) return Image::pack(0, 0, 0, 0);
+  uint8_t amount = Color::linearToSrgb8((peak - 1.0f) / kHdrGlowRange);
+  if (amount == 0) return Image::pack(0, 0, 0, 0);
+  auto channel = [&](size_t i) { return Color::linearToSrgb8(std::max(v[i], 0.0f) / peak); };
+  return Image::pack(channel(0), channel(1), channel(2), amount);
+}
+
 HdrLayers splitHdr(const std::vector<float> & rgba, int width, int height) {
   HdrLayers out;
   if (width <= 0 || height <= 0) return out;
@@ -31,22 +41,10 @@ HdrLayers splitHdr(const std::vector<float> & rgba, int width, int height) {
     uint8_t alpha = static_cast<uint8_t>(std::lround(std::clamp(p[3], 0.0f, 1.0f) * 255.0f));
     last_base = Image::pack(rgb[0], rgb[1], rgb[2], alpha);
     last_glow = no_glow;
-    auto v = color.linearSrgb();
-    if (std::max({v[0], v[1], v[2]}) > 1.0f) {
-      // The glow of a pixel: the colour of its light past white (each channel's excess, scaled so the
-      // strongest is 1: its hue), with how much of it there is as the alpha. Kept apart, the display can
-      // make the glow wider or stronger and the colour stays the pixel's own.
-      float excess[3], strongest = 0.0f;
-      for (size_t c = 0; c < 3; c++) {
-        excess[c] = std::max(v[c] - 1.0f, 0.0f);
-        strongest = std::max(strongest, excess[c]);
-      }
-      uint8_t amount = Color::linearToSrgb8(strongest / kHdrGlowRange);
-      if (amount != 0) {
-        last_glow = Image::pack(Color::linearToSrgb8(excess[0] / strongest), Color::linearToSrgb8(excess[1] / strongest),
-                                Color::linearToSrgb8(excess[2] / strongest), amount);
-        if (out.glow.empty()) out.glow.assign(count, no_glow);
-      }
+    uint32_t glow = glowOf(color);
+    if (Image::alpha(glow) != 0) {
+      last_glow = glow;
+      if (out.glow.empty()) out.glow.assign(count, no_glow);
     }
     out.base[i] = last_base;
     if (!out.glow.empty()) out.glow[i] = last_glow;

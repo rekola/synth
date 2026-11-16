@@ -99,7 +99,7 @@ public:
 
   void getAllTrackInfo(std::unordered_map<int, TrackInfo> & info) const {
     for (auto & [ id, child ] : getChildren()) {
-      info[id] = child->getTrackInfo();
+      info[id] = child->snapshotTrackInfo();
       child->getAllTrackInfo(info);
     }
   }
@@ -115,10 +115,23 @@ public:
 
 protected:
   const TrackInfo & getTrackInfo() const { return track_info_; }
-  void setTrackInfo(TrackInfo track_info) { track_info_ = std::move(track_info); }
+  // Set with every block. A clip is a block's, which the next one's reading replaces, and a snapshot is taken
+  // every several blocks, so it would see few of them: a clip is remembered until a snapshot has reported it.
+  void setTrackInfo(TrackInfo track_info) {
+    clipped_since_snapshot_ = clipped_since_snapshot_ || track_info.isClipping();
+    track_info_ = std::move(track_info);
+  }
+
+  // What a snapshot reports: the latest reading, clipping if any block clipped since the last snapshot.
+  TrackInfo snapshotTrackInfo() const {
+    TrackInfo info = track_info_.withClipping(clipped_since_snapshot_);
+    clipped_since_snapshot_ = false;
+    return info;
+  }
 
 private:
   TrackInfo track_info_;
+  mutable bool clipped_since_snapshot_ = false;
 };
 
 #endif
