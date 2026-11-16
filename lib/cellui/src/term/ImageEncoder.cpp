@@ -544,47 +544,35 @@ SixelPalette xtermPalette() {
   return palette;
 }
 
-// ---- The custom palette of a blurred backdrop (CELLUI_BLUR_MIX): registers on the 101 levels, pixels never.
+// ---- The custom palette of a blurred backdrop: registers on the 101 levels, pixels never.
 // A register's working value is its grid level * 255 / 100, as a float; the dither measures against those.
 constexpr int kMixCandidates = 16;
-// The registers of the blur's custom palette unless CELLUI_BLUR_REGISTERS says otherwise.
+// The registers of the blur's custom palette (fewer where the terminal has fewer).
 constexpr int kBlurRegisters = 64;
 // The most the carried error may reach in a channel, in 8-bit levels: a colour the palette cannot get near
 // must not make it grow without bound.
 constexpr float kMixErrorLimit = 64.0f;
 
-// The blur experiment's environment switches, read once. All are off unless CELLUI_BLUR_MIX is set; with it the
-// two-register cut (CELLUI_BLUR_TOP2) is on while the experiment is tried, off with CELLUI_BLUR_NOTOP2.
+// The blur's switches, read once. A blurred backdrop (a stretched picture at full quality) is drawn in a custom
+// palette with the mixed dither, overpainted passes, two registers a pixel and one palette for the whole backdrop;
+// these turn parts of that off.
 struct BlurSwitches {
-  bool mix = false;          // CELLUI_BLUR_MIX: the custom palette and the mixed dither
-  bool no_overpaint = false; // CELLUI_BLUR_NOOVERPAINT: with mix, plain passes
-  bool overpaint = false;    // CELLUI_BLUR_OVERPAINT: overpainted passes for any stretched picture
-  bool top2 = false;         // see above
-  bool no_shared = false;    // CELLUI_BLUR_NOSHARED: a palette for each tile, not one for all
-  bool grid_off = false;     // CELLUI_BLUR_GRID=0: the picture's palette is not put on the 101 levels first
-  int registers = 0;         // CELLUI_BLUR_REGISTERS, 0 when not set
+  bool no_top2 = false;    // CELLUI_BLUR_NOTOP2: all 16 candidates a pixel
+  bool no_shared = false;  // CELLUI_BLUR_NOSHARED: a palette for each tile, not one for all
 };
 
 const BlurSwitches & blurSwitches() {
   static const BlurSwitches switches = [] {
     BlurSwitches s;
-    s.mix = std::getenv("CELLUI_BLUR_MIX") != nullptr;
-    s.no_overpaint = std::getenv("CELLUI_BLUR_NOOVERPAINT") != nullptr;
-    s.overpaint = std::getenv("CELLUI_BLUR_OVERPAINT") != nullptr;
-    s.top2 = s.mix && std::getenv("CELLUI_BLUR_NOTOP2") == nullptr;
+    s.no_top2 = std::getenv("CELLUI_BLUR_NOTOP2") != nullptr;
     s.no_shared = std::getenv("CELLUI_BLUR_NOSHARED") != nullptr;
-    const char * grid = std::getenv("CELLUI_BLUR_GRID");
-    s.grid_off = grid && std::atoi(grid) == 0;
-    const char * registers = std::getenv("CELLUI_BLUR_REGISTERS");
-    s.registers = registers ? std::max(1, std::atoi(registers)) : 0;
     return s;
   }();
   return switches;
 }
 
-// A register count for the blur's custom palette: at most 256 (mixPick()'s counts and MixPick::reg), at most what the
-// terminal has, at least 2.
-int blurRegisterCount(int wanted, int terminal_registers) { return std::clamp(wanted, 2, std::max(2, std::min(256, terminal_registers))); }
+// The blur palette's register count: kBlurRegisters, or all the terminal has if that is fewer (but two at least).
+int blurRegisterCount(int terminal_registers) { return std::clamp(terminal_registers, 2, kBlurRegisters); }
 
 float gridWorking(int grid_level) { return static_cast<float>(grid_level) * 255.0f / 100.0f; }
 
@@ -1565,7 +1553,7 @@ std::string ImageEncoder::sixel(const CellBuffer & frame, const ImagePlacement &
     size_t position = 0, picture = 0;  // of `bytes`, the cursor positions and the Sixel data
   };
   const BlurSwitches & blur = blurSwitches();
-  const bool palette_mix = blur.mix && p.image->stretched() && quality_ == PictureQuality::FULL;
+  const bool palette_mix = p.image->stretched() && quality_ == PictureQuality::FULL;
   auto piece = [&](Piece & into, const SixelPalette & palette, int x, int y, int w, int h, int row, int col) {
     std::vector<bool> keep(static_cast<size_t>(w) * static_cast<size_t>(h), true);
     std::string place = cup(row, col);
@@ -1578,8 +1566,8 @@ std::string ImageEncoder::sixel(const CellBuffer & frame, const ImagePlacement &
     dither.origin_x = p.col * cw + x;
     dither.origin_y = p.row * ch + y;
     dither.mix = palette_mix;
-    dither.overpaint = (palette_mix && !blur.no_overpaint) || (p.image->stretched() && blur.overpaint);
-    dither.top2 = palette_mix && blur.top2;
+    dither.overpaint = palette_mix;
+    dither.top2 = palette_mix && !blur.no_top2;
     std::string data = encodeSixelWith(palette, img, x, y, w, h, keep, dither);
     into.picture += data.size();
     into.bytes += data;
@@ -1620,25 +1608,17 @@ std::string ImageEncoder::sixel(const CellBuffer & frame, const ImagePlacement &
     palette_dither.origin_x = p.col * cw + x;
     palette_dither.origin_y = p.row * ch + y;
     palette_dither.gradient = p.image->stretched();
-    // A blurred backdrop (stretched over its cells) at full quality goes out in the terminal's default
-    // palette where it has the registers for it: quicker than one made from the picture, in duller colours.
-    bool fixed = p.image->stretched() && quality_ == PictureQuality::FULL && profile_.sixel_registers_total >= kXtermRegisters;
-    // EXPERIMENT: CELLUI_BLUR_REGISTERS=N draws the blur in a palette of N registers made from each tile.
-    if (blur.registers > 0 && p.image->stretched() && quality_ == PictureQuality::FULL) {
-      fixed = false;
-      registers = blurRegisterCount(blur.registers, profile_.sixel_registers);
-    }
+    // A blurred backdrop (stretched over its cells) at full quality goes out in a custom palette of kBlurRegisters
+    // registers, mixed between them by the dither.
     if (palette_mix) {
       palette_dither.mix = true;
       palette_dither.gradient = false;
-      fixed = false;
-      if (blur.registers <= 0) registers = blurRegisterCount(kBlurRegisters, profile_.sixel_registers);
+      registers = blurRegisterCount(profile_.sixel_registers);
     }
-    bool on_grid = !(blur.grid_off && p.image->stretched());
-    // EXPERIMENT (on with CELLUI_BLUR_MIX, off with CELLUI_BLUR_NOSHARED): the blur's tiles all share one palette, made from the whole backdrop.
-    const SixelPalette * shared_palette = p.image->stretched() && shared_blur_palette_ ? static_cast<const SixelPalette *>(shared_blur_palette_.get()) : nullptr;
+    // The blur's tiles all share one palette, made from the whole backdrop (not with CELLUI_BLUR_NOSHARED).
+    const SixelPalette * shared_palette = palette_mix && shared_blur_palette_ ? static_cast<const SixelPalette *>(shared_blur_palette_.get()) : nullptr;
     SixelPalette own_palette;
-    if (!shared_palette) own_palette = fixed ? xtermPalette() : makeSixelPalette(img, x, y, w, h, all, registers, on_grid, &palette_dither);
+    if (!shared_palette) own_palette = makeSixelPalette(img, x, y, w, h, all, registers, true, &palette_dither);
     const SixelPalette & palette = shared_palette ? *shared_palette : own_palette;
     // The cells to send are a row of them at a time, from the first that changed to the last: each Sixel
     // carries the definitions of its registers, which cost more than the cells between two changes.
@@ -1711,17 +1691,17 @@ std::string ImageEncoder::iterm2(const CellBuffer & frame, const ImagePlacement 
   return out;
 }
 
-// EXPERIMENT (CELLUI_BLUR_MIX, off with CELLUI_BLUR_NOSHARED): one palette for every blurred tile of the frame, so
+// One palette for every blurred tile of the frame, so
 // neighbouring tiles are never in different colours. Made again when the set of tiles changes or a changed tile's
 // colours are no longer near a register; every tile is then sent again.
 constexpr float kSharedPaletteDrift = 6.0f;  // the mean distance (8-bit levels, worst channel) from a changed tile's pixels to a register
 
 void ImageEncoder::updateSharedBlurPalette(const std::vector<ImagePlacement> & images) {
   const BlurSwitches & blur = blurSwitches();
-  if (!blur.mix || blur.no_shared) return;
+  if (blur.no_shared) return;
   std::vector<const ImagePlacement *> tiles;
   for (const ImagePlacement & p : images) {
-    if (p.image && p.image->width > 0 && p.image->height > 0 && p.image->stretched()) tiles.push_back(&p);
+    if (p.image && p.image->width > 0 && p.image->height > 0 && p.image->stretched() && quality_ == PictureQuality::FULL) tiles.push_back(&p);
   }
   std::vector<uint64_t> keys;
   for (const ImagePlacement * p : tiles) keys.push_back(p->key);
@@ -1759,7 +1739,7 @@ void ImageEncoder::updateSharedBlurPalette(const std::vector<ImagePlacement> & i
   all.height = 1;
   std::vector<bool> keep(all.pixels.size(), true);
   shared_blur_palette_ = std::make_shared<const SixelPalette>(makeGridPalette(all, 0, 0, all.width, 1, keep,
-                                                                                 blurRegisterCount(blur.registers > 0 ? blur.registers : kBlurRegisters, profile_.sixel_registers)));
+                                                                                 blurRegisterCount(profile_.sixel_registers)));
   // Tiles already on the screen are in the old colours: send them all again.
   for (const ImagePlacement * p : tiles) {
     auto it = shown_.find(p->key);

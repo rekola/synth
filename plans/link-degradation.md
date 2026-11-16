@@ -725,7 +725,7 @@ deflate ratio on real charts is known.
      path is. **The palette** is made from the tile's colours put once on the terminal's 101 levels (for choosing
      only), cut by a median cut in grid units into boxes of distinct colours, a register being the box's mean
      rounded in grid units, so every register is on the grid and all N are distinct. **The dither** (`mixPick()`,
-     `CELLUI_BLUR_MIX=1`, `CELLUI_BLUR_REGISTERS=N`) works on the pixel's own colour, never a snapped one: its 16
+     the default for a blurred backdrop) works on the pixel's own colour, never a snapped one: its 16
      candidates are the registers that, one after another, come nearest it with the error of the ones before
      carried on (against the registers' grid colours), sorted by brightness, and the Bayer matrix picks one. Tests
      pin that the palette keeps its N distinct registers, that a colour between two grid levels is a mix of its two
@@ -736,14 +736,13 @@ deflate ratio on real charts is known.
      holds 3.2 to 3.9 different registers, not two. (Two earlier sets of figures here were wrong and are gone: one
      was made with a dither that was applied twice, the other with a mapping that did no dither at all and so
      showed contour lines; neither could be compared with the default palette's.)
-     **Making it smaller** (xterm, the same frame; `CELLUI_BLUR_MIX=1` turns on overpaint and the shared palette of 64
-     registers; the two-register cut is on with it while the experiment is tried, `CELLUI_BLUR_NOTOP2=1` turns it off, because it is lossy). (1) *Overpaint* (`Dither::overpaint`, `CELLUI_BLUR_NOOVERPAINT`): a Sixel band is drawn a register at a
+     **Making it smaller** (xterm, the same frame; the custom palette, overpaint, the shared palette of 64
+     registers and the two-register cut are on for a blurred backdrop at full quality, `CELLUI_BLUR_NOTOP2=1` turns the cut off, because it is lossy). (1) *Overpaint* (`Dither::overpaint`): a Sixel band is drawn a register at a
      time, and a pixel a later register paints over need not be left empty by an earlier one, so the passes go from
      the register with most pixels to least, the first is one run across the band, and each later one sets the
      bits of the pixels still to be painted over wherever that makes a run longer. The same pixels (a test decodes
      both and compares; xterm's screen is identical to the pixel), 20 % fewer bytes on the custom palette and 32 %
-     fewer on the terminal's default palette (118 kB to 75 kB a frame, `CELLUI_BLUR_OVERPAINT=1`, which is not on
-     by default for it). (2) *Two registers a pixel* (`Dither::top2`, on with `CELLUI_BLUR_MIX`, off with `CELLUI_BLUR_NOTOP2`): a pixel's 16 candidates are cut to
+     fewer on the terminal's default palette (118 kB to 75 kB a frame, a switch since removed: the blur's default is now the custom palette, so the default palette is no longer what a blur is drawn in). (2) *Two registers a pixel* (`Dither::top2`, on, off with `CELLUI_BLUR_NOTOP2`): a pixel's 16 candidates are cut to
      two registers: of those already among the candidates, the pair (a register alone counts as a pair with itself)
      and the share in 16ths whose mix is nearest the pixel's own colour, with `gridNearest()`'s channel weights
      (3, 4, 2); a pair's share is the projection of the colour on the line between the two, rounded to 16ths and
@@ -758,7 +757,7 @@ deflate ratio on real charts is known.
      frequent 11626 (-29 %), nearest pair 13425 (-18 %); the default palette 9776. So the cut still saves bytes but
      less than before: the price of not moving the colour. Not a frame of the app, and not lossless.
      (3) *One palette for the whole
-     backdrop* (`CELLUI_BLUR_NOSHARED`, `CELLUI_BLUR_REGISTERS`, default 64): made from all the tiles, kept while the
+     backdrop* (`CELLUI_BLUR_NOSHARED`, 64 registers): made from all the tiles, kept while the
      set of tiles holds and a changed tile's colours stay near a register, every tile sent again when it is made
      again. No seams, and no palette to make for each tile. Blur frame with all three: 72 kB at 8 registers,
      96 kB at 12, 106 kB at 16, 129 kB at 24 (default palette 118 kB; per-tile palette with (1) and (2) 103 kB at

@@ -762,9 +762,9 @@ std::set<std::string> sixelColours(const std::string & sixel) {
 
 }  // namespace
 
-// A blurred backdrop (stretched over its cells) goes out in the terminal's default palette when the terminal
-// has the registers for it; anything else, and a terminal with fewer registers, in a palette of its own.
-TEST(a_stretched_picture_uses_the_terminals_default_palette) {
+// A blurred backdrop (stretched over its cells) goes out in a custom palette of at most 64 registers; anything
+// else in a palette of its own.
+TEST(a_stretched_picture_uses_a_custom_palette_not_the_terminals_default) {
   auto percent = [](int v) { return static_cast<int>(std::lround(v * 100.0 / 255.0)); };
   std::set<std::string> default_palette;
   const int cube[6] = {0, 95, 135, 175, 215, 255};
@@ -793,14 +793,15 @@ TEST(a_stretched_picture_uses_the_terminals_default_palette) {
     return enc.encode(b, {place}, true);
   };
 
-  auto fixed = sixelColours(bytes(backdrop, 256));
-  CHECK(!fixed.empty());
-  for (const std::string & c : fixed) CHECK(default_palette.count(c) == 1);
-  // Too few registers for it: the picture's own palette, which is not that one.
-  auto own = sixelColours(bytes(backdrop, 16));
-  bool all_default = true;
-  for (const std::string & c : own) all_default = all_default && default_palette.count(c) == 1;
-  CHECK(!all_default);
+  // A blurred backdrop at full quality is drawn in a custom palette of at most 64 registers, not the default one,
+  // whatever registers the terminal has.
+  for (int registers : {256, 16}) {
+    auto custom = sixelColours(bytes(backdrop, registers));
+    CHECK(!custom.empty() && custom.size() <= 64);
+    bool all_default = true;
+    for (const std::string & c : custom) all_default = all_default && default_palette.count(c) == 1;
+    CHECK(!all_default);
+  }
   // A picture that is not stretched keeps its own palette: one grey that the default palette lacks.
   Image flat_grey;
   flat_grey.width = 16;
@@ -1077,7 +1078,8 @@ TEST(the_picture_encoder_makes_the_same_bytes_for_every_kind_of_picture) {
       }
     }
   }
-  CHECK(all == 0xe3ed526c77390375ull);
+  // (A blurred backdrop at full quality in Sixel is drawn in the blur palette; every other case is as it was.)
+  CHECK(all == 0x602944a7b51770eeull);
 }
 
 // Cell borders: each edge of a colour is a picture sent once and kept; a bordered cell is one placement per
