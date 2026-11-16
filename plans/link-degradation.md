@@ -568,8 +568,8 @@ deflate ratio on real charts is known.
    the bytes of the start-up 22.8 kB to 8.8 kB. The 16-position table is done (`SendFader.h`: the Launchpad rows,
    the `YMxy`/`YAxy`/`YBxy` nibble and the dial's `step` share it). The four looks are done too (normal, pressed,
    hover, selected; the selection no longer eases through colours, so a position has four pictures at
-   most, and the letter is already in the picture, so a set per letter). Still to do: a gallery grid of
-   all of them.
+   most, and the letter is already in the picture, so a set per letter). A gallery grid of all of them was
+   dropped.
 5. **App profile** (3.6, 3.7): scope/meter rates and off, animations, page scrolling, hover, mouse
    reporting. UI tests per class with `TestBackend`; a harness run at 50 kB/s asserts the editor
    stays usable (key latency, fps). Done (`src/ui/PerformanceProfile.h`, applied by
@@ -692,7 +692,7 @@ deflate ratio on real charts is known.
    - **Done when** the UI under the slowest class and the busiest scenario costs the audio thread no
      missed blocks on the slowest machine, with the per-stage figures recorded here.
 
-9. **The Sixel blur** (3.7, the backdrop). The blurred backdrop of a dialog is the biggest single cost on a Sixel
+9. **The terminal blur** (3.7, the backdrop; the palette parts are Sixel's, the drawing is kitty's too). The blurred backdrop of a dialog is the biggest single cost on a Sixel
    terminal (phase 8: 10 to 23 points of a core of drawing and blurring tiles at full speed, and a Sixel picture of
    about 250 kB when it appears, which shows as a slide of about 50 ms on xterm) and the one with a visible
    quality problem. The algorithm is chosen first, by measurement, before any of it is made faster. What is
@@ -713,6 +713,51 @@ deflate ratio on real charts is known.
      by repeating pixels where it cannot), a box-filter approximation of the blur in place of canvas, a tile redone
      only when the cells under it changed (already so), and a static backdrop that is not redrawn at all.
    - **Where the time goes** first, with the stage timers (`backdrop`, `deflate`, `sixel_*`) on the blur alone.
+   - **Measured so far** (xterm, the About dialog over demo3 playing; the blur frame as bytes and the time xterm took
+     to take it in): the terminal's default palette 118 kB, 36 ms (greys, with a loud checkerboard of grey, blue and
+     teal dots when looked at closely); a palette of 128 registers made from each tile 252 kB, 48 ms (the right tone).
+     Taking 80 real tiles apart (96x52 px each) showed where the bytes go: a tile uses about 27 registers, so the
+     colour definitions are only 7 to 18 % of them; the pixel data is the rest. The dither of the "gradient" path puts
+     the whole tile on the terminal's 101 levels with a Bayer offset first (and counts those noisy colours to make the
+     palette), which dithers red, green and blue independently, so a small patch uses up to eight neighbouring
+     registers and every run of equal pixels is short: 290 kB for the 80 tiles, against 161 kB with plain ordered
+     dither and 130 kB with none. Those were taken before the palette was made right; this is what a correct custom
+     path is. **The palette** is made from the tile's colours put once on the terminal's 101 levels (for choosing
+     only), cut by a median cut in grid units into boxes of distinct colours, a register being the box's mean
+     rounded in grid units, so every register is on the grid and all N are distinct. **The dither** (`mixPick()`,
+     `CELLUI_BLUR_MIX=1`, `CELLUI_BLUR_REGISTERS=N`) works on the pixel's own colour, never a snapped one: its 16
+     candidates are the registers that, one after another, come nearest it with the error of the ones before
+     carried on (against the registers' grid colours), sorted by brightness, and the Bayer matrix picks one. Tests
+     pin that the palette keeps its N distinct registers, that a colour between two grid levels is a mix of its two
+     neighbours, and that a slow ramp's 8x8 block averages follow the source. The look is a fine Bayer texture in
+     the right tone with no rings at 16, 32 or 64 registers. The size is not good: 229, 264 and 275 kB a blur frame
+     at 16, 32 and 64 registers against the default palette's 118 kB, because a band of six rows uses 9.9, 17.3 and
+     21.1 registers where the default palette's uses 3.8, and each register is a pass over the band. A pixel's list
+     holds 3.2 to 3.9 different registers, not two. (Two earlier sets of figures here were wrong and are gone: one
+     was made with a dither that was applied twice, the other with a mapping that did no dither at all and so
+     showed contour lines; neither could be compared with the default palette's.)
+     **Making it smaller** (xterm, the same frame; `CELLUI_BLUR_MIX=1` turns on overpaint and the shared palette of 64
+     registers; the two-register cut is opt-in with `CELLUI_BLUR_TOP2=1`, because it is lossy). (1) *Overpaint* (`Dither::overpaint`, `CELLUI_BLUR_NOOVERPAINT`): a Sixel band is drawn a register at a
+     time, and a pixel a later register paints over need not be left empty by an earlier one, so the passes go from
+     the register with most pixels to least, the first is one run across the band, and each later one sets the
+     bits of the pixels still to be painted over wherever that makes a run longer. The same pixels (a test decodes
+     both and compares; xterm's screen is identical to the pixel), 20 % fewer bytes on the custom palette and 32 %
+     fewer on the terminal's default palette (118 kB to 75 kB a frame, `CELLUI_BLUR_OVERPAINT=1`, which is not on
+     by default for it). (2) *Two registers a pixel* (`CELLUI_BLUR_TOP2`, off by default): a pixel's 16 candidates are cut to
+     the two most frequent, in their ratio: 25 to 30 % fewer bytes on top of (1), and not lossless: the share of the
+     dropped registers goes to the two kept, a colour error that shows in the picture. (3) *One palette for the whole
+     backdrop* (`CELLUI_BLUR_NOSHARED`, `CELLUI_BLUR_REGISTERS`, default 64): made from all the tiles, kept while the
+     set of tiles holds and a changed tile's colours stay near a register, every tile sent again when it is made
+     again. No seams, and no palette to make for each tile. Blur frame with all three: 72 kB at 8 registers,
+     96 kB at 12, 106 kB at 16, 129 kB at 24 (default palette 118 kB; per-tile palette with (1) and (2) 103 kB at
+     8, 122 kB at 12, 135 kB at 16). At 16 the look is the right tone with a fine Bayer texture and no seams, with a
+     few bright blue dots where the glow's accent colour has a register of its own; at 8 a plateau where one
+     register covers a whole patch. So: the default palette with overpaint is the smallest (75 kB) and a custom
+     palette of 8 to 12 registers matches it only by giving up on the look; whether to switch the default palette
+     to overpaint is a decision for the maintainer (it changes the bytes of every stretched picture and relies on
+     later passes replacing earlier ones, which xterm does; other terminals are untried).
+     Not yet tried: the look in a light theme and on other songs and terminals, and the error against a reference
+     blur.
    Done when one algorithm is chosen on the figures, its colours are not visibly worse than the cells under it, the
    blur appears in one frame at full speed without a slide, and the per-stage figures are recorded here.
 
