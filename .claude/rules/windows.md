@@ -10,7 +10,6 @@ paths:
   - "**/ShutdownSignal.*"
   - "**/Daemon.*"
   - "**/AudioBuffer.h"
-  - "lib/cellui/**/win32/**"
   - "tools/windows/**"
   - ".github/workflows/*windows*"
   - "docs/building.md"
@@ -24,7 +23,7 @@ paths:
   soundtouch,libunistring,python}`. User-facing instructions: `docs/building.md`.
 - cellui's terminal backend is POSIX only, so on Windows `InteractiveUI` runs
   on the Win32 window (`--ui raster`, what `auto` picks; see
-  `lib/cellui/CLAUDE.md`). The loop waits on handles (`WaitSet::handles()`,
+  cellui's CLAUDE.md). The loop waits on handles (`WaitSet::handles()`,
   `Backend::inputHandles()`, `EventLoop::addHandles()`); stderr reaches the
   status line through `util/StderrCapture.h`, a reader thread on a pipe,
   since a pipe cannot be waited on. The pixel scopes use canvas' GDI+ backend.

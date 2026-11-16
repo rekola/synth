@@ -7,7 +7,7 @@ Plays idle_frames_test.xml (notes of a bell with a 1.17 s decay and a 0.231 s re
 after 5 s, and counts the frames the UI asks the terminal for each second (one per fence reply).
 Scopes run while a voice decays; once it is gone (its decay, release and the analysers' settling, at most
 SETTLE seconds after the pause) the frame rate must be at or under IDLE_FPS. Needs cellui's pacing
-harness (lib/cellui/tools/pacing/ptylink.py).
+harness (tools/pacing/ptylink.py in cellui).
 """
 import os
 import sys

@@ -5,7 +5,7 @@ The values behind `plans/modern-look.md` step 2, mocked in
 which holds the OKLCH source, converts to sRGB and checks the contrast rules;
 this file is written from its output by `tools/modern_look/tokens_doc.py`.
 Change the values in `tokens.py` and re-run both. `Theme::dark()` and
-`Theme::light()` (`lib/cellui/include/cellui/Theme.h`) hold these values;
+`Theme::light()` (`include/cellui/Theme.h` in cellui) hold these values;
 today's look is kept as `Theme::original()`. Roles the tables do not list
 (cursor tints, command and reader text, track flags, locators, buttons, the
 spectrum) take values derived from them there.

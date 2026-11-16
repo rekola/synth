@@ -10,8 +10,11 @@ ctest --test-dir build --output-on-failure
 
 Produces `build/synth`. On Ubuntu the dependencies are `libfmt-dev libsndfile1-dev libasound2-dev libunistring-dev
 libsoundtouch-dev libcairo2-dev`, plus CMake, pkg-config, git and a C++20
-compiler. The 2D drawing library [canvas](https://github.com/rekola/canvas) is
-fetched at configure time, so the first `cmake -B build` needs network access. `libmysofa-dev` (binaural
+compiler. The UI toolkit [cellui](https://github.com/rekola/cellui) and, through it,
+the 2D drawing library [canvas](https://github.com/rekola/canvas) are fetched at
+configure time at pinned commits, so the first `cmake -B build` needs network access.
+To edit cellui alongside synth, configure with
+`-DFETCHCONTENT_SOURCE_DIR_CELLUI=/path/to/cellui`. `libmysofa-dev` (binaural
 decoding), `libpipewire-0.3-dev` (PipeWire device lists) and `libgtk-4-dev` (GTK 4.10 or later: the window UI,
 `--ui raster`) are optional.
 

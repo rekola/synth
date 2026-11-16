@@ -1,6 +1,6 @@
 #pragma once
 
-// The implementation lives in lib/cellui; this keeps the old names.
+// The implementation lives in cellui; this keeps the old names.
 #include "UIElement.h"
 
 #include <cellui/HeatmapChart.h>

@@ -1,6 +1,6 @@
 #pragma once
 
-// The implementation lives in lib/cellui; this keeps the old name.
+// The implementation lives in cellui; this keeps the old name.
 #include "../playback/InputEvent.h"
 
 #include <cellui/KeyStroke.h>
