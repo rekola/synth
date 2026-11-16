@@ -774,7 +774,7 @@ GskRenderNode * Window::Impl::glowNode(const CellBuffer & cells, int r0, int r1)
   GskRenderNode * source = gtk_snapshot_free_to_node(lit);
   if (source) {
     auto draw = [&]() { gtk_snapshot_append_node(snap, source); };
-    glowLayer(snap, draw, kPictureCoreRadius * cell_h, kPictureCoreGain, kPictureCoreThreshold, 1.0);
+    glowLayer(snap, draw, kPictureCoreRadius * cell_h, kPictureCoreGain, kPictureCoreThreshold, kPictureCoreStrength);
     glowLayer(snap, draw, kPictureHaloRadius * cell_h, kPictureHaloGain, 0.0, kPictureHaloStrength);
     gsk_render_node_unref(source);
   }
@@ -1040,43 +1040,56 @@ void Window::Impl::appendImages(GtkSnapshot * snap, const CellBuffer & cells) {
       filter = GSK_SCALING_FILTER_LINEAR;
     }
     graphene_rect_t bounds = GRAPHENE_RECT_INIT(x, y, w, h);
-    for (const MarkedRun & run : list) {
-      graphene_rect_t clip = GRAPHENE_RECT_INIT(static_cast<float>(run.col * cell_w), static_cast<float>(run.row * cell_h),
-                                                static_cast<float>(run.cols * cell_w), static_cast<float>(run.rows * cell_h));
-      if (!glow) {
+    auto cutTo = [&](const MarkedRun & run) {
+      return GRAPHENE_RECT_INIT(static_cast<float>(run.col * cell_w), static_cast<float>(run.row * cell_h),
+                                static_cast<float>(run.cols * cell_w), static_cast<float>(run.rows * cell_h));
+    };
+    if (!glow) {
+      for (const MarkedRun & run : list) {
+        graphene_rect_t clip = cutTo(run);
         gtk_snapshot_push_clip(snap, &clip);
         gtk_snapshot_append_scaled_texture(snap, texture, filter, &bounds);
         gtk_snapshot_pop(snap);
-      } else {
-        // The picture with its light past white spread around it, in the colour of that light, added to it by
-        // screening: a halo, the glow blurred wide, and a core, blurred a little, which thickens what is
-        // brightest. A bright line is wider than it is drawn because its glow, added to its neighbours,
-        // takes them past white too, and the brighter the light, the further out. In both the glow's alpha (how
-        // much light) is multiplied after the blur - a thin line's light is thin once blurred, and would not
-        // show - and the colour is left as it is. What is taken off the core's alpha keeps a weak glow from
-        // making a core at all.
-        auto layer = [&](double radius, double gain, double threshold, double strength) {
-          glowLayer(snap, [&]() { gtk_snapshot_append_scaled_texture(snap, glow, filter, &bounds); }, radius, gain, threshold, strength);
-        };
-        // The picture stays in the cells it shows, but its light is not part of it: it spills past the edge
-        // (a lamp at the top of a picture glows above it), so the glow has a clip of its own, wider.
-        const float reach = static_cast<float>(kPictureHaloRadius * cell_h * 2.5);
-        graphene_rect_t wide = GRAPHENE_RECT_INIT(clip.origin.x - reach, clip.origin.y - reach, clip.size.width + 2.0f * reach, clip.size.height + 2.0f * reach);
-        gtk_snapshot_push_blend(snap, GSK_BLEND_MODE_SCREEN);
-        gtk_snapshot_push_clip(snap, &clip);
-        gtk_snapshot_append_scaled_texture(snap, texture, filter, &bounds);
-        gtk_snapshot_pop(snap);
-        gtk_snapshot_pop(snap);  // the picture, the bottom of the blend
-        gtk_snapshot_push_clip(snap, &wide);
-        gtk_snapshot_push_blend(snap, GSK_BLEND_MODE_SCREEN);
-        layer(kPictureCoreRadius * cell_h, kPictureCoreGain, kPictureCoreThreshold, 1.0);
-        gtk_snapshot_pop(snap);
-        layer(kPictureHaloRadius * cell_h, kPictureHaloGain, 0.0, kPictureHaloStrength);
-        gtk_snapshot_pop(snap);  // the halo and the core
-        gtk_snapshot_pop(snap);  // the wide clip
-        gtk_snapshot_pop(snap);  // those and the picture
       }
+      continue;
     }
+    // The picture with its light past white spread around it, in the colour of that light, added to it by
+    // screening: a halo, the glow blurred wide, and a core, blurred a little, which thickens what is
+    // brightest. A bright line is wider than it is drawn because its glow, added to its neighbours,
+    // takes them past white too, and the brighter the light, the further out. In both the glow's alpha (how
+    // much light) is multiplied after the blur - a thin line's light is thin once blurred, and would not
+    // show - and the colour is left as it is. What is taken off the core's alpha keeps a weak glow from
+    // making a core at all.
+    auto layer = [&](double radius, double gain, double threshold, double strength) {
+      glowLayer(snap, [&]() { gtk_snapshot_append_scaled_texture(snap, glow, filter, &bounds); }, radius, gain, threshold, strength);
+    };
+    // The picture stays in the cells it shows, but its light is not part of it: it spills past the edge
+    // (a lamp at the top of a picture glows above it), so the glow has a clip of its own, wider. The pieces
+    // of the picture are all drawn before the light, which is added once over the lot: a piece drawn after
+    // another's light would cover it.
+    const float reach = static_cast<float>(kPictureHaloRadius * cell_h * 2.5);
+    graphene_rect_t wide = cutTo(list.front());
+    for (const MarkedRun & run : list) {
+      graphene_rect_t r = cutTo(run);
+      graphene_rect_union(&wide, &r, &wide);
+    }
+    wide = GRAPHENE_RECT_INIT(wide.origin.x - reach, wide.origin.y - reach, wide.size.width + 2.0f * reach, wide.size.height + 2.0f * reach);
+    gtk_snapshot_push_blend(snap, GSK_BLEND_MODE_SCREEN);
+    for (const MarkedRun & run : list) {
+      graphene_rect_t clip = cutTo(run);
+      gtk_snapshot_push_clip(snap, &clip);
+      gtk_snapshot_append_scaled_texture(snap, texture, filter, &bounds);
+      gtk_snapshot_pop(snap);
+    }
+    gtk_snapshot_pop(snap);  // the picture, the bottom of the blend
+    gtk_snapshot_push_clip(snap, &wide);
+    gtk_snapshot_push_blend(snap, GSK_BLEND_MODE_SCREEN);
+    layer(kPictureCoreRadius * cell_h, kPictureCoreGain, kPictureCoreThreshold, kPictureCoreStrength);
+    gtk_snapshot_pop(snap);
+    layer(kPictureHaloRadius * cell_h, kPictureHaloGain, 0.0, kPictureHaloStrength);
+    gtk_snapshot_pop(snap);  // the halo and the core
+    gtk_snapshot_pop(snap);  // the wide clip
+    gtk_snapshot_pop(snap);  // those and the picture
   }
 }
 

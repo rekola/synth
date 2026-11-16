@@ -114,7 +114,7 @@ static Image flattenFull(const Image & image, int cell_h) {
   std::vector<float> glow = glowFloats(cut.glow);
   // The halo is under the core in the window's blend, but screening commutes: the order does not matter.
   screenLayer(base, glow, image.width, image.height, static_cast<float>(kPictureCoreRadius) * h / 2.0f, static_cast<float>(kPictureCoreGain),
-              static_cast<float>(kPictureCoreThreshold), 1.0f);
+              static_cast<float>(kPictureCoreThreshold), static_cast<float>(kPictureCoreStrength));
   screenLayer(base, std::move(glow), image.width, image.height, static_cast<float>(kPictureHaloRadius) * h / 2.0f,
               static_cast<float>(kPictureHaloGain), 0.0f, static_cast<float>(kPictureHaloStrength));
   for (size_t i = 0; i < count; i++) {
