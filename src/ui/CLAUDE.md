@@ -197,9 +197,7 @@ Controller-level and per-widget commands. Not migrated: `StatusLine`,
   names and completion, for the otonal, utonal and diamond scales; a seventh
   chord is named by its root, a mirror seventh's being its top note; the
   diamond's lists are the two scales' own, then the chords that take notes from
-  both; in a set of notes where a key carries two ratios (no scale does; tests
-  build one) it is the one a note's correction is nearer to,
-  `ScaleChords::degreeOf()`) when the deadline passes
+  both) when the deadline passes
   (`tickChordEntry()`, from `render()`) or the last key is released. A held
   key's voice stays on the column it started on, whatever column its note is
   written in; added notes sound on free columns (`freeVoiceColumn()`),

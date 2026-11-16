@@ -469,62 +469,30 @@ optional<string> triadName(Ratio second, Ratio third) {
 }
 
 ScaleChords::ScaleChords(Scale scale, Tuning tuning, int key) : scale_(scale), tuning_(tuning) {
-  auto just = justScale(scale);
-  if (chords::hasChords(scale) && just) *this = ScaleChords(scale, *just, tuning, key);
-}
-
-ScaleChords::ScaleChords(Scale lists, const JustScale & scale, Tuning tuning, int key) : scale_(lists), tuning_(tuning) {
   int edo = edoStepsFor(tuning);
-  const JustScale * just = &scale;
-  if (!chords::hasChords(lists) || edo <= 0) return;
+  auto just = justScale(scale);
+  if (!chords::hasChords(scale) || edo <= 0 || !just) return;
   edo_ = edo;
   key_ = ((max(key, 0) % edo) + edo) % edo;
-  held_.assign(static_cast<size_t>(edo), {});
-  // A step is held by the scale note nearest it, in each group of the scale
-  // (the extended diamond holds one of each side, so a step may have two).
-  for (auto group : just->groups()) {
-    vector<int> held(static_cast<size_t>(edo), -1);
-    vector<double> error(static_cast<size_t>(edo), 0.0);
-    for (size_t i = 0; i < just->gamut.size(); i++) {
-      auto & note = just->gamut[i];
-      if (!just->inGroup(note, group)) continue;
-      int steps = note.ratio.steps(edo);
-      auto step = static_cast<size_t>(((steps % edo) + edo) % edo);
-      double off = fabs(note.ratio.cents() - steps * 1200.0 / edo);
-      if (held[step] >= 0 && off >= error[step] - 1e-9) continue;
-      held[step] = static_cast<int>(i);
-      error[step] = off;
-    }
-    for (size_t step = 0; step < held.size(); step++) {
-      if (held[step] < 0) continue;
-      auto & here = held_[step];
-      if (find(here.begin(), here.end(), held[step]) == here.end()) here.push_back(held[step]);
-    }
+  held_.assign(static_cast<size_t>(edo), -1);
+  vector<double> error(static_cast<size_t>(edo), 0.0);
+  for (size_t i = 0; i < just->gamut.size(); i++) {
+    auto & note = just->gamut[i];
+    if (!just->contains(note)) continue;
+    int steps = note.ratio.steps(edo);
+    auto step = static_cast<size_t>(((steps % edo) + edo) % edo);
+    double off = fabs(note.ratio.cents() - steps * 1200.0 / edo);
+    if (held_[step] >= 0 && off >= error[step] - 1e-9) continue;
+    held_[step] = static_cast<int>(i);
+    error[step] = off;
   }
 }
 
-optional<size_t> ScaleChords::degreeOf(int note_value, double correction_cents) const {
+optional<size_t> ScaleChords::degreeOf(int note_value) const {
   if (edo_ <= 0 || note_value < 0) return nullopt;
   auto step = static_cast<size_t>((((note_value - key_) % edo_) + edo_) % edo_);
-  auto & here = held_[step];
-  if (here.empty()) return nullopt;
-  // The ratio the note's correction brings it nearer to.
-  size_t best = static_cast<size_t>(here[0]);
-  double best_error = 1e9;
-  for (auto candidate : here) {
-    auto & ratio = ratioOf(static_cast<size_t>(candidate));
-    double error = fabs((ratio.cents() - ratio.steps(edo_) * 1200.0 / edo_) - correction_cents);
-    if (error < best_error - 1e-9) {
-      best = static_cast<size_t>(candidate);
-      best_error = error;
-    }
-  }
-  return best;
-}
-
-bool ScaleChords::isHeld(size_t gamut_index) const {
-  auto & here = held_[static_cast<size_t>(stepOf(gamut_index))];
-  return find(here.begin(), here.end(), static_cast<int>(gamut_index)) != here.end();
+  if (held_[step] < 0) return nullopt;
+  return static_cast<size_t>(held_[step]);
 }
 
 int ScaleChords::stepOf(size_t gamut_index) const {
@@ -537,7 +505,7 @@ vector<const Entry *> ScaleChords::chordsOf(size_t gamut_index, int size) const 
   if (edo_ <= 0) return out;
   for (auto & entry : degreeChords(scale_, gamut_index, size)) {
     bool held = true;
-    for (auto note : entry.notes) held = held && isHeld(note);
+    for (auto note : entry.notes) held = held && held_[static_cast<size_t>(stepOf(note))] == static_cast<int>(note);
     if (held) out.push_back(&entry);
   }
   return out;

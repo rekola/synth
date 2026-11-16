@@ -287,7 +287,7 @@ need none outside the 13: G♭↓ A C E (E mirror seventh) and A♭ C E♭ F♯�
 harmonic seventh).
 
 **A key with two ratios.** In 53-EDO four keys of the gamut carry one ratio
-of each scale:
+of each scale. The scale decides which one a song has, and no scale holds both:
 
 | Key | Name | Otonal ratio | Utonal ratio |
 |---|---|---|---|
@@ -295,15 +295,6 @@ of each scale:
 | 5 | D♭↓ | 15/14 | 16/15 |
 | 48 | B | 15/8 | 28/15 |
 | 51 | B♯ | 49/25 | 96/49 |
-
-No scale of the application holds both, so no song has a key with two ratios.
-The program still handles it, for a set of notes that does (the tests build
-one): there the tuning correction written on a note says which ratio it is,
-with no new note name or accidental. A note on such a key stands for the ratio its
-correction brings it nearer to, in chord entry, the chord palette and
-`apply-just-intonation-region` (which keeps that ratio and gives it the exact
-value); a note with no correction stands for the ratio nearer the key's own
-pitch: 49/48, 16/15, 15/8 and 96/49.
 
 ## The gamut
 

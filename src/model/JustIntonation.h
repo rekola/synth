@@ -35,41 +35,26 @@ struct ScaleCorrections {
   // The gamut note's ratio for each step, within the step's own octave above
   // the key (a ratio whose nearest step is a whole octave counts as below it).
   std::array<Ratio, kMaxSteps> ratios{};
-  // A key can carry a second ratio, when the scale holds one of each side of the
-  // gamut there (the extended diamond: 49/48 and 50/49 on key 2 of 53-EDO).
-  // `present` and `cents` above are the first; these are the other.
-  std::array<double, kMaxSteps> second_cents{};
-  std::array<bool, kMaxSteps> second_present{};
-  std::array<Ratio, kMaxSteps> second_ratios{};
 
   bool empty() const { return edo == 0; }
   // The exact correction (cents, not yet rounded to what a note's fx can hold,
   // see Note::tuningCorrectionFx()) for an absolute note value, if its key has
-  // a gamut note. Where the key carries two ratios, the one `current` (the
-  // note's own correction, 0 for none) is nearer to: with none, the one nearer
-  // the key's own pitch.
-  std::optional<double> forNote(int note_value, double current = 0.0) const;
+  // a gamut note.
+  std::optional<double> forNote(int note_value) const;
   // A note's just ratio to the key in the octave at or below it, `ratio`
-  // times 2^`octaves`, if its key has a gamut note (the nearer of two, as above).
+  // times 2^`octaves`, if its key has a gamut note.
   struct NoteRatio {
     Ratio ratio;
     int octaves = 0;
   };
-  std::optional<NoteRatio> ratioForNote(int note_value, double current = 0.0) const;
+  std::optional<NoteRatio> ratioForNote(int note_value) const;
   bool operator==(const ScaleCorrections & o) const {
-    return edo == o.edo && key == o.key && cents == o.cents && present == o.present && ratios == o.ratios && second_cents == o.second_cents &&
-           second_present == o.second_present && second_ratios == o.second_ratios;
+    return edo == o.edo && key == o.key && cents == o.cents && present == o.present && ratios == o.ratios;
   }
-
- private:
-  // Which of a step's ratios `current` is nearer to: false the first, true the second.
-  bool nearerSecond(size_t step, double current) const;
 };
 
 // `key` is a full note value of which only the pitch class counts (-1 reads as C).
 ScaleCorrections scaleCorrectionsFor(Tuning tuning, Scale scale, int key);
-// The same for any set of gamut notes, such as a scale built for a test.
-ScaleCorrections scaleCorrectionsFor(Tuning tuning, const JustScale & just, int key);
 }
 
 #endif

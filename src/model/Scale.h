@@ -261,26 +261,10 @@ struct JustScale {
   // When not empty, exactly these ratios are the scale (side unused);
   // allInGamut() checks them against the gamut.
   std::span<const Ratio> only = {};
+
   bool contains(const GamutNote & note) const {
     if (!only.empty()) return std::find(only.begin(), only.end(), note.ratio) != only.end();
     return !side || note.side == GamutSide::BOTH || note.side == *side;
-  }
-
-  // Whether a key holds the nearest note of each side of the gamut separately, so
-  // that it can carry two ratios: a scale of the whole gamut. No scale is one, and
-  // it is how a key with two ratios stays supported; tests build such a scale.
-  bool holdsBothSides() const { return gamut.data() == gamut::kExtendedDiamond.data() && only.empty() && !side; }
-
-  // The groups of notes a key holds the nearest of: one per side for a scale of
-  // the whole gamut, else one.
-  std::vector<std::optional<GamutSide>> groups() const {
-    if (holdsBothSides()) return {GamutSide::OTONAL, GamutSide::UTONAL};
-    return {std::nullopt};
-  }
-  // Whether `note` is in a group (nullopt: any note the scale contains).
-  bool inGroup(const GamutNote & note, std::optional<GamutSide> group) const {
-    if (!contains(note)) return false;
-    return !group || note.side == GamutSide::BOTH || note.side == *group;
   }
 };
 
