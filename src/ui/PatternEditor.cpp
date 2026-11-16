@@ -1330,7 +1330,14 @@ PatternEditor::render(const StyleProvider & styles, bool refresh, bool focused) 
   // silently failing to grow that track's note-column width this frame.
   // A moved cursor (the playhead, while playing in arrangement mode)
   // reattaches a view the mouse wheel detached (see view_block_).
-  if (view_detached_ && (score_pattern != current_score_pattern || score_playing_row != current_score_playing_row)) {
+  // A playhead moving on its own doesn't: a wheel-scrolled view stays where it
+  // was put while playing, until the cursor is moved by hand or playback
+  // starts or stops.
+  bool playhead_moved = info.isPlaying() && was_playing_ && (source_->cursorFollowsTransport() || source_->cursorLocked());
+  bool cursor_moved_by_hand = new_cursor.track != current_cursor.track || new_cursor.col != current_cursor.col ||
+                              new_cursor.scope != current_cursor.scope || info.isPlaying() != was_playing_;
+  bool reattach = playhead_moved ? cursor_moved_by_hand : (score_pattern != current_score_pattern || score_playing_row != current_score_playing_row);
+  if (view_detached_ && reattach) {
     view_detached_ = false;
     force_full_redraw_ = true;
   }
@@ -1370,6 +1377,21 @@ PatternEditor::render(const StyleProvider & styles, bool refresh, bool focused) 
     }
     view_block_ = top.block;
     new_row = top.row;
+  } else if (info.isPlaying() && (source_->cursorFollowsTransport() || source_->cursorLocked())) {
+    // The wheel can't take the playhead's row off the screen: the view stops
+    // at the edge and the playhead carries it along from there.
+    auto visible = std::max(rows - heading_height, 1);
+    RowAddress top{view_block_, current_scroll_.row};
+    auto line = source_->rowsBetween(top, point);
+    if (line < 0)
+      top = point;
+    else if (line > visible - 1)
+      top = source_->advance(point, -(visible - 1));
+    if (!isLiveMode() && top.row < 0) top = {0, 0};
+    if (top.block != view_block_ || top.row != current_scroll_.row) {
+      view_block_ = top.block;
+      new_row = top.row;
+    }
   }
 
   auto track_info = getTrackInformation(song, new_row);
