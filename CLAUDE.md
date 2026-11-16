@@ -64,9 +64,9 @@ Optional, auto-detected, and cmake says when each isn't used:
   server's own inputs/outputs for the device pickers; without it the lists
   fall back to ALSA sound cards.
 - `libgtk-4-dev` (`SYNTH_ENABLE_GTK`, GTK 4.10+, Linux only) — the window
-  backend (`src/gtk/` in cellui) and `--ui raster`. `cellui_gtk_tests`
-  needs a display, so ctest runs it under `xvfb-run` (plus `xdotool`) and
-  skips it where neither is there.
+  backend (`src/gtk/` in cellui) and `--ui raster`. With
+  `CELLUI_BUILD_TESTS=ON`, `cellui_gtk_tests` needs a display, so ctest runs
+  it under `xvfb-run` (plus `xdotool`) and skips it where neither is there.
 - `libmysofa-dev` (`SYNTH_ENABLE_BINAURAL`) — binaural ambisonic decoding;
   without it the cardioid stereo decoder is used.
 
@@ -128,9 +128,9 @@ ctest --test-dir build --output-on-failure
   checks run in `UIFixture::inModal()`.
 - A test fails for a command without a description: add a line to
   `ui/CommandDescriptions.cpp` with every new command.
-- cellui's own tests run in its repository (and with ours: they register in
-  this ctest); its gallery is a golden file in `tests/golden/` there
-  (`CELLUI_UPDATE_GOLDEN=1`).
+- cellui's own tests, gallery and tools are not built here (cellui builds
+  them only standalone, `CELLUI_BUILD_TESTS`); they run in cellui's CI.
+  Configure with `-DCELLUI_BUILD_TESTS=ON` to have them in this ctest.
 - e2e: `tools/e2e/*.py` (see that directory's `README.md`) drive the terminal
   UI on a pty and simulated Launchpads. Wait with `Screen.wait()`, never
   `time.sleep()` — an unread pty blocks the UI thread.
