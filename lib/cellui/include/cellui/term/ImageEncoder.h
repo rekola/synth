@@ -45,6 +45,8 @@ struct Dither {
   bool mix = false;
   // EXPERIMENT: the Sixel passes of a band overpaint each other (see encodeSixelWith()): same picture, fewer bytes.
   bool overpaint = false;
+  // EXPERIMENT (with `mix`): a pixel's 16 candidates are cut to the best pair of registers and share (see mixPick()).
+  bool top2 = false;
 };
 
 namespace detail {
@@ -55,10 +57,10 @@ struct GridMixTile {
   std::vector<int> regs;          // each pixel's register as drawn (-1 where left out)
   std::vector<int> candidates;    // 16 per pixel: the registers the Bayer matrix picks between, by brightness
 };
-GridMixTile gridMixTile(const Image & image, int registers, int origin_x, int origin_y);
+GridMixTile gridMixTile(const Image & image, int registers, int origin_x, int origin_y, bool top2 = false);
 // Each pixel's register of the terminal's default palette (the fixed palette's mapping).
 // The tile as Sixel in the terminal's default palette (what the blur ships with).
-std::string fixedTileSixel(const Image & image, int origin_x, int origin_y);
+std::string fixedTileSixel(const Image & image, int origin_x, int origin_y, bool overpaint = false);
 std::vector<int> fixedTileRegisters(const Image & image, int origin_x, int origin_y);
 }  // namespace detail
 
