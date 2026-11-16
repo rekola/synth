@@ -70,8 +70,8 @@ TEST(phrygian_tonos_degrees_are_steps_and_ratios_above_the_key) {
       CHECK(correction.has_value());
       if (!correction) continue;
       CHECK(std::fabs(step * 1200.0 / 53 + *correction - ratio.cents()) <= 0.5);
-      // Every ratio is within 0.5 cent of its step, so 53-EDO needs no correction.
-      CHECK(*correction == 0);
+      // Every ratio is within 0.5 cent of its step (the fine correction is far smaller still).
+      CHECK(std::fabs(*correction) < 0.5);
     }
   }
 }
@@ -97,7 +97,7 @@ TEST(the_athenaeus_paean_plays_only_scale_notes_tuned_to_their_ratios) {
     CHECK(correction.has_value());
     if (!correction) return;
     CHECK(std::fabs(step * 1200.0 / 53 + *correction - degree->second.cents()) <= 0.5);
-    CHECK(note.getTuningCorrectionCents() == *correction);
+    CHECK(std::fabs(note.getTuningCorrectionCents() - *correction) <= 1.0 / 32);
   };
 
   int pitched = 0;

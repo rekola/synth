@@ -212,7 +212,9 @@ TEST(render_note_fx_azimuth_places_the_note) {
   CHECK(rms(to_right, 1) > 4.0f * rms(to_right, 0));
 }
 
-// A note's +hh / -hh fx is a pitch correction in cents: 255 cents is 2^(255/1200).
+// A note's >hh / <hh fx is a coarse pitch correction in whole cents: 255 cents is 2^(255/1200).
+// (The fixtures held +FF / -FF, which now mean 15.9375 cents; the fine one is
+// measured in TuningCorrectionPitchTests.)
 TEST(render_note_fx_tuning_correction_shifts_the_pitch_in_cents) {
   ChannelConfiguration config(44100, 1);
   auto plain = loadFixture("tuning_correction_plain.xml");

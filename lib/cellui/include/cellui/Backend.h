@@ -49,6 +49,11 @@ class Backend {
   // they are used.
   virtual void present(const CellBuffer & frame, const CursorRequest & cursor = {},
                        const std::vector<ImagePlacement> & images = {}, const FrameInfo * info = nullptr) = 0;
+  // As present(), but the backend may take what `info` holds instead of copying it (a
+  // screen of scrolled planes has a whole frame of cells for each).
+  virtual void presentTaking(const CellBuffer & frame, const CursorRequest & cursor, const std::vector<ImagePlacement> & images, FrameInfo && info) {
+    present(frame, cursor, images, &info);
+  }
   virtual bool wantsFrameInfo() const { return false; }
   // The next frame is drawn in full.
   virtual void redraw() = 0;

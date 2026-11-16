@@ -35,7 +35,7 @@ uint64_t fnv(const std::string & s, uint64_t h = 1469598103934665603ull) {
   return h;
 }
 
-struct Picture {
+struct SixelPicture {
   const char * name;
   Image image;
 };
@@ -57,9 +57,9 @@ int main(int argc, char ** argv) {
       return std::chrono::duration<double, std::micro>(std::chrono::steady_clock::now() - t0).count() / rounds;
     };
     std::printf("draw: spectrum 328x80 %.0f us, heatmap 232x80 %.0f us\n", time_us([&] { line_image::render(levels, 328, 80, styles); }),
-                time_us([&] { heatmap_image::render(bright, sat, cols, rows, {}, 232, 80, styles); }));
+                time_us([&] { heatmap_image::render(bright, sat, cols, rows, {}, {}, 232, 80, styles, 0.0f); }));
   }
-  std::vector<Picture> pictures;
+  std::vector<SixelPicture> pictures;
   {
     std::vector<float> levels(328);
     for (size_t i = 0; i < levels.size(); i++) levels[i] = 0.35f + 0.3f * std::sin(static_cast<float>(i) * 0.07f) + 0.1f * std::sin(static_cast<float>(i) * 0.4f);
@@ -72,7 +72,7 @@ int main(int argc, char ** argv) {
       bright[i] = 0.5f + 0.5f * std::sin(static_cast<float>(i) * 0.37f);
       sat[i] = 0.3f + 0.7f * std::fabs(std::sin(static_cast<float>(i) * 0.11f));
     }
-    pictures.push_back({"heatmap 232x80", fromPixels(heatmap_image::render(bright, sat, cols, rows, {}, 232, 80, styles), 232, 80)});
+    pictures.push_back({"heatmap 232x80", fromPixels(heatmap_image::render(bright, sat, cols, rows, {}, {}, 232, 80, styles, 0.0f), 232, 80)});
   }
   {
     // A blurred backdrop: smooth, dark, bluish, stretched over its cells.
@@ -114,7 +114,7 @@ int main(int argc, char ** argv) {
   auto stages_before = StageStats::totals();
   std::printf("%-26s %-14s %9s %10s  %s\n", "picture", "mode", "bytes", "us/encode", "hash");
   for (const Mode & mode : modes) {
-    for (const Picture & pic : pictures) {
+    for (const SixelPicture & pic : pictures) {
       ImageEncoder::Profile prof;
       prof.protocol = mode.protocol;
       prof.cell_px_height = 6;

@@ -1,6 +1,7 @@
 #include "../playback/KeyboardNotes.h"
 #include "PatternEditor.h"
 #include "LevelMeter.h"
+#include "TrackNameEdit.h"
 
 #include "../playback/InputEvent.h"
 #include "../state/SongState.h"
@@ -527,6 +528,7 @@ PatternEditor::PatternEditor(Plane & parent)
     // COMMAND/LOCATOR/EVERYTHING: no notes to tune, same as transpose.
     auto text = "Tuned " + std::to_string(summary.notes) + (summary.notes == 1 ? " note" : " notes");
     if (summary.replaced > 0) text += ", replaced the fx of " + std::to_string(summary.replaced);
+    if (summary.untuned > 0) text += ", left " + std::to_string(summary.untuned) + (summary.untuned == 1 ? " note" : " notes") + " untuned (correction over 255 cents)";
     getController().log(text);
   });
 
@@ -1017,6 +1019,7 @@ PatternEditor::startLocatorEdit() {
   field.width = width;
   auto & song = getController().getSong();
   field.initial_text = song.getLocator(*locator_row);
+  renaming_track_id_.reset();
   inline_editor_.open(field, [this, locator_row](std::string text) {
     auto & target = getController().getSong();
     Song::Edit edit(target, "set locator");
@@ -1087,27 +1090,12 @@ PatternEditor::startTrackNameEdit() {
   auto col = track_name_screen_col_;
   auto width = track_name_screen_width_;
 
-  // The leading "T<N> " is renderHeading()'s own structural label (N =
-  // color_ordinal_), not part of the track's own editable name - left
-  // for renderHeading() itself to draw below, in its own normal color,
-  // while only the name past it opens for editing.
+  // The field covers the name in the heading's label, after the "T<N> "
+  // prefix, which renderHeading() keeps drawing (the number alone while the
+  // name is edited).
   auto track_info = getTrackInfoFor(song, track_id);
-  auto prefix_width = std::min(static_cast<int>(("T" + std::to_string(track_info.color_ordinal_) + " ").size()), width);
-  auto edit_col = col + prefix_width;
-  auto edit_width = std::max(width - prefix_width, 1);
-
-  // The editable span only (not the "T<N> " prefix) gets a barely
-  // darkened track color as its backdrop, so it reads as "this track, now
-  // being edited". White text, since the reader's default pink reads
-  // poorly against it.
-  InlineEditor::Field field;
-  field.row = row;
-  field.col = edit_col;
-  field.width = edit_width;
-  field.initial_text = track->getName();
-  field.text_color = last_styles_->track_chips ? last_styles_->window_accent_fg_color : last_styles_->clip_text_color;
-  field.backdrop = last_styles_->track_chips ? last_styles_->heading_bg_color
-                                             : track_info.getColor(synthStyles().tracks).blend(0.05f, Color(0, 0, 0));
+  auto field = track_name_edit::field(*last_styles_, track_info, track->getName(), row, col, width);
+  renaming_track_id_ = track_id;
   inline_editor_.open(field, [this, track_id](std::string text) {
     auto & target_song = getController().getSong();
     if (target_song.getMasterTrack().getChildByInternalId(track_id)) {
@@ -1342,7 +1330,14 @@ PatternEditor::render(const StyleProvider & styles, bool refresh, bool focused) 
   // silently failing to grow that track's note-column width this frame.
   // A moved cursor (the playhead, while playing in arrangement mode)
   // reattaches a view the mouse wheel detached (see view_block_).
-  if (view_detached_ && (score_pattern != current_score_pattern || score_playing_row != current_score_playing_row)) {
+  // A playhead moving on its own doesn't: a wheel-scrolled view stays where it
+  // was put while playing, until the cursor is moved by hand or playback
+  // starts or stops.
+  bool playhead_moved = info.isPlaying() && was_playing_ && (source_->cursorFollowsTransport() || source_->cursorLocked());
+  bool cursor_moved_by_hand = new_cursor.track != current_cursor.track || new_cursor.col != current_cursor.col ||
+                              new_cursor.scope != current_cursor.scope || info.isPlaying() != was_playing_;
+  bool reattach = playhead_moved ? cursor_moved_by_hand : (score_pattern != current_score_pattern || score_playing_row != current_score_playing_row);
+  if (view_detached_ && reattach) {
     view_detached_ = false;
     force_full_redraw_ = true;
   }
@@ -1382,6 +1377,21 @@ PatternEditor::render(const StyleProvider & styles, bool refresh, bool focused) 
     }
     view_block_ = top.block;
     new_row = top.row;
+  } else if (info.isPlaying() && (source_->cursorFollowsTransport() || source_->cursorLocked())) {
+    // The wheel can't take the playhead's row off the screen: the view stops
+    // at the edge and the playhead carries it along from there.
+    auto visible = std::max(rows - heading_height, 1);
+    RowAddress top{view_block_, current_scroll_.row};
+    auto line = source_->rowsBetween(top, point);
+    if (line < 0)
+      top = point;
+    else if (line > visible - 1)
+      top = source_->advance(point, -(visible - 1));
+    if (!isLiveMode() && top.row < 0) top = {0, 0};
+    if (top.block != view_block_ || top.row != current_scroll_.row) {
+      view_block_ = top.block;
+      new_row = top.row;
+    }
   }
 
   auto track_info = getTrackInformation(song, new_row);
@@ -1735,6 +1745,9 @@ bool PatternEditor::updateMeters(const PlaybackInfo & info, const std::vector<in
     auto steps = smoothing.held.update(fraction, levels);
     if (steps != smoothing.steps) changed = true;
     smoothing.steps = steps;
+    bool lit = smoothing.clip_hold.update(info.getTrackInfo(track_id).isClipping(), dt);
+    if (lit != smoothing.clip_lit) changed = true;
+    smoothing.clip_lit = lit;
   }
   return changed;
 }
@@ -2640,8 +2653,11 @@ bool PatternEditor::keyDown(const cellui::KeyDown & e) {
           } else if (is_lost) {
             edit_target.pattern->setNote(edit_target.effective_row, note_column, Note::lost());
           } else if (is_off) {
-            edit_target.pattern->setNote(edit_target.effective_row, note_column, Note::off(constants::NEUTRAL_VELOCITY, current_delay));
-            event_queue.push(make_unique<PlaybackControlEvent>(PlaybackControlEvent::STOP_NOTE, getController().getActiveBufferName(), track_id, note_column));
+            // Every column under the cursor, in its first row only.
+            for (int c = note_column; c < note_column + cursor_width_; c++) {
+              edit_target.pattern->setNote(edit_target.effective_row, c, Note::off(constants::NEUTRAL_VELOCITY, current_delay));
+              event_queue.push(make_unique<PlaybackControlEvent>(PlaybackControlEvent::STOP_NOTE, getController().getActiveBufferName(), track_id, c));
+            }
           } else {
             Note note(midi_note, constants::DEFAULT_NOTE_ON_VELOCITY, current_delay);
             tuneNewNote(song, track_id, note);
@@ -3297,9 +3313,8 @@ PatternEditor::renderHeadingOnPlane(const StyleProvider & styles, const std::vec
 	    // noise more often than it reads as useful; a hand-authored,
 	    // genuinely meaningful id is the rare exception, not the case to
 	    // design this fallback around.
-	    auto prefix = !is_color_eligible ? string() : "T" + std::to_string(vis_info->color_ordinal_);
-	    auto friendly_name = !is_color_eligible || track->getName().empty() ? string() : " " + track->getName();
-            auto name = prefix + friendly_name;
+            auto name = !is_color_eligible ? string()
+                                           : track_name_edit::label(vis_info->color_ordinal_, track->getName(), renaming_track_id_ == track->getInternalId() && inline_editor_.isOpen());
             if (has_collapse_toggle) {
 	      // White, matching the heading text - a heading control, not a
 	      // status indicator (contrast the faint Mute/Solo OFF glyphs
@@ -3383,9 +3398,9 @@ PatternEditor::renderHeadingOnPlane(const StyleProvider & styles, const std::vec
 
 	    if (meter_width > 0) {
 	      auto & track_info = info.getTrackInfo(track->getInternalId());
-	      draw_vu_meter(heading_height - 2 - level + 1, current_pos + chip_width + instrument_name_width, meter_fraction(track->getInternalId(), track_info), track_info.isClipping(),
-			    chip ? segment_color(track) : styles.window_bg_color, track->getInternalId());
-	    }
+              draw_vu_meter(heading_height - 2 - level + 1, current_pos + chip_width + instrument_name_width, meter_fraction(track->getInternalId(), track_info), meter_smoothing_[track->getInternalId()].clip_lit,
+                            chip ? segment_color(track) : styles.window_bg_color, track->getInternalId());
+            }
 	    // The divider on the instrument line too, so the line is closed.
             setLift(0);
             if (chip) draw_divider(heading_height - 2 - level + 1, current_pos + actual_width - 1, track, i);
@@ -3615,7 +3630,8 @@ PatternEditor::renderRow(const StyleProvider & styles, int heading_height, const
       extra = stopped_seconds_;
     }
     if (row_seconds <= 0.0) return 0.0f;
-    return StyleProvider::noteFlash(rows_since * row_seconds + extra, styles.reduced_motion);
+    // A dimmed pass (a loop's previous one, fading out) takes the flash down with it, not at once.
+    return StyleProvider::noteFlash(rows_since * row_seconds + extra, styles.reduced_motion) * (1.0f - track_dim);
   };
 
   // One pattern row's slice of a sample clip's waveform, drawn by the
@@ -4096,11 +4112,11 @@ PatternEditor::renderRow(const StyleProvider & styles, int heading_height, const
 	  // against the normal dark row background, not the bright
 	  // effective-region highlight. Either way, tintForPlayhead() layers
 	  // the playhead row's own translucent tint on top when not selected.
-	  cell_fg = command.isDefined() && !column_selected ? tintForPlayhead(dim_fixed_color(styles.command_column_color)) : (cell_is_selected ? cur_fg : tintForPlayhead(fg));
-	  cell_bg = cell_is_selected ? cur_bg : tintForPlayhead(bg);
+          cell_fg = command.isDefined() && !column_selected ? tintForPlayhead(dim_fixed_color(command.isValid() ? styles.command_column_color : styles.invalid_command_color)) : (cell_is_selected ? cur_fg : tintForPlayhead(fg));
+          cell_bg = cell_is_selected ? cur_bg : tintForPlayhead(bg);
           // A command lights with a note or aftertouch on its row, at that one's velocity; a free one doesn't.
           float flash = 0.0f;
-          if (command.isDefined() && !cell_is_selected && track_dim <= 0.0f) {
+          if (command.isDefined() && !cell_is_selected) {
             int velocity = 0;
             for (auto & n : notes) {
               if (n.hasVelocityAndDelay() && !n.isOff()) velocity = std::max<int>(velocity, n.getVelocity());
@@ -4132,7 +4148,7 @@ PatternEditor::renderRow(const StyleProvider & styles, int heading_height, const
 	  cell_bg = cell_is_selected ? cur_bg : tintForPlayhead(bg);
           float flash = 0.0f;
           if (!note.hasFx()) cell_fg = cell_fg.blend(0.5f, cell_bg);
-          else if (!cell_is_selected && track_dim <= 0.0f)
+          else if (!cell_is_selected)
             flash = noteFlashOf(track_id, note.getDelay()) * StyleProvider::velocityFlash(note.isOff() ? 0 : note.getVelocity());
           cell_fg = StyleProvider::lit(cell_fg, flash);
           setFgColor(cell_fg);
@@ -4153,7 +4169,7 @@ PatternEditor::renderRow(const StyleProvider & styles, int heading_height, const
 	  cell_bg = cell_is_selected ? cur_bg : tintForPlayhead(bg);
 	  if (!note.isDefined()) cell_fg = cell_fg.blend(0.5f, cell_bg);
           // A note that has just started is lit past white.
-          float note_flash = !cell_is_selected && track_dim <= 0.0f && note.isDefined() ? noteFlashOf(track_id, note.getDelay()) * StyleProvider::velocityFlash(note.isOff() ? 0 : note.getVelocity()) : 0.0f;
+          float note_flash = !cell_is_selected && note.isDefined() ? noteFlashOf(track_id, note.getDelay()) * StyleProvider::velocityFlash(note.isOff() ? 0 : note.getVelocity()) : 0.0f;
           cell_fg = StyleProvider::lit(cell_fg, note_flash);
           setFgColor(cell_fg);
 	  setBgColor(cell_bg);
@@ -4212,7 +4228,7 @@ PatternEditor::renderRow(const StyleProvider & styles, int heading_height, const
           if (!note.hasVelocityAndDelay()) cell_fg = cell_fg.blend(0.5f, cell_bg);
           // Lit with its note, when it has a value to show.
           float flash = 0.0f;
-          if (!cell_is_selected && track_dim <= 0.0f && note.hasVelocityAndDelay()) flash = noteFlashOf(track_id, note.getDelay()) * StyleProvider::velocityFlash(note.isOff() ? 0 : note.getVelocity());
+          if (!cell_is_selected && note.hasVelocityAndDelay()) flash = noteFlashOf(track_id, note.getDelay()) * StyleProvider::velocityFlash(note.isOff() ? 0 : note.getVelocity());
           cell_fg = StyleProvider::lit(cell_fg, flash);
           setFgColor(cell_fg);
 	  setBgColor(cell_bg);

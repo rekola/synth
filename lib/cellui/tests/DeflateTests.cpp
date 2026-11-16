@@ -59,8 +59,9 @@ std::vector<uint8_t> text(size_t n) {
 }
 
 #ifdef _WIN32
-// The window's renderer needs a desktop, which a test run may not have: stand-in pictures of the
-// same kind (a curve on a flat ground, a smooth gradient), drawn here.
+// The window's renderer needs a desktop, which a test run may not have: a stand-in for the spectrum, a
+// curve on a flat ground, drawn here. The heatmap is drawn by the library without it (its grid is
+// enlarged by nearest neighbour, and with no labels there is no text), so it is the real picture.
 std::vector<uint8_t> spectrumPicture(unsigned w, unsigned h) {
   std::vector<uint8_t> out(static_cast<size_t>(w) * h * 3, 20);
   for (unsigned x = 0; x < w; x++) {
@@ -76,19 +77,6 @@ std::vector<uint8_t> spectrumPicture(unsigned w, unsigned h) {
   return out;
 }
 
-std::vector<uint8_t> heatmapPicture(unsigned w, unsigned h) {
-  std::vector<uint8_t> out(static_cast<size_t>(w) * h * 3);
-  for (unsigned y = 0; y < h; y++) {
-    for (unsigned x = 0; x < w; x++) {
-      float d = std::hypot(static_cast<float>(x) / 20.5f - 9.0f, static_cast<float>(y) / 10.0f - 3.0f);
-      uint8_t * p = &out[(static_cast<size_t>(y) * w + x) * 3];
-      p[0] = static_cast<uint8_t>(255 * std::max(0.0f, 1.0f - d / 6.0f));
-      p[1] = static_cast<uint8_t>(60 + 120 * std::min(1.0f, d / 8.0f));
-      p[2] = static_cast<uint8_t>(90 + 40 * std::sin(d));
-    }
-  }
-  return out;
-}
 #else
 // The charts as the application draws them, from fixed data.
 std::vector<uint8_t> spectrumPicture(unsigned w, unsigned h) {
@@ -101,6 +89,9 @@ std::vector<uint8_t> spectrumPicture(unsigned w, unsigned h) {
   return rgb(line_image::render(levels, w, h, styles));
 }
 
+#endif
+
+// The heatmap as the application draws it, from fixed data: blocks of one colour.
 std::vector<uint8_t> heatmapPicture(unsigned w, unsigned h) {
   StyleProvider styles;
   int cols = 16, rows = 8;
@@ -112,9 +103,8 @@ std::vector<uint8_t> heatmapPicture(unsigned w, unsigned h) {
       saturation[static_cast<size_t>(y * cols + x)] = 0.4f + 0.6f * std::min(1.0f, d / 8.0f);
     }
   }
-  return rgb(heatmap_image::render(brightness, saturation, cols, rows, {}, w, h, styles));
+  return rgb(heatmap_image::render(brightness, saturation, cols, rows, {}, {}, w, h, styles, 0.0f));
 }
-#endif
 
 bool roundTrips(const std::vector<uint8_t> & input, int level) {
   auto z = zlibCompress(input, level);
@@ -202,10 +192,35 @@ TEST(deflate_compresses_what_is_compressible_and_does_not_grow_what_is_not) {
 }
 
 TEST(deflate_higher_levels_never_make_it_bigger_on_the_charts) {
-  for (auto & picture : {spectrumPicture(232, 80), heatmapPicture(328, 80)}) {
-    size_t l1 = zlibCompress(picture, 1).size(), l2 = zlibCompress(picture, 2).size(), l3 = zlibCompress(picture, 3).size();
+  struct Case {
+    std::vector<uint8_t> picture;
+    size_t row_bytes;
+  };
+  // As the application sends them: with the row size.
+  for (auto & c : {Case{spectrumPicture(232, 80), 232 * 3}, Case{heatmapPicture(328, 80), 328 * 3}}) {
+    size_t l1 = zlibCompress(c.picture, 1, c.row_bytes).size(), l2 = zlibCompress(c.picture, 2, c.row_bytes).size(), l3 = zlibCompress(c.picture, 3, c.row_bytes).size();
     CHECK(l2 <= l1);
     CHECK(l3 <= l2 + l2 / 50);  // within 2%: a longer search does not always win by much
+  }
+}
+
+// Rows that repeat the row above (a flat area, a chart's lines) are found at one distance: told the row
+// size, even the fast search finds them, and every level makes less of the heatmap's blocks of one colour.
+TEST(deflate_with_the_row_size_finds_the_row_above) {
+  auto heatmap = heatmapPicture(328, 80);
+  const size_t row = 328 * 3;
+  for (int level : {1, 2, 3}) {
+    auto plain = zlibCompress(heatmap, level), hinted = zlibCompress(heatmap, level, row);
+    CHECK(hinted.size() <= plain.size());
+    auto back = inflate_test::zlibDecode(hinted);
+    CHECK(back && *back == heatmap);
+  }
+  CHECK(zlibCompress(heatmap, 1, row).size() * 2 < zlibCompress(heatmap, 1).size());
+  // A row size that fits nothing is only a candidate that loses, and one beyond the window is left out.
+  for (size_t wrong : {size_t{7}, size_t{100000}}) {
+    auto z = zlibCompress(heatmap, 2, wrong);
+    auto back = inflate_test::zlibDecode(z);
+    CHECK(back && *back == heatmap);
   }
 }
 
@@ -262,10 +277,11 @@ TEST(deflate_stays_within_three_percent_of_zlib_level_six_on_the_charts) {
   }
   // The figures are for the pictures Cairo draws; another backend draws other pixels.
 #if !defined(__APPLE__) && !defined(_WIN32)
-  constexpr size_t kSpectrumZlib6 = 3906, kHeatmapZlib6 = 3258;
-  CHECK(zlibCompress(spectrum, 2).size() * 100 <= kSpectrumZlib6 * 103);
-  // The synthetic smooth gradient is the worst case seen (real pictures stay within about 1%).
-  CHECK(zlibCompress(heatmap, 2).size() * 100 <= kHeatmapZlib6 * 108);
+  constexpr size_t kSpectrumZlib6 = 4150, kHeatmapZlib6 = 675;
+  CHECK(zlibCompress(spectrum, 2, 232 * 3).size() * 100 <= kSpectrumZlib6 * 103);
+  // The synthetic smooth gradient was the worst case seen (real pictures stay within about 1%); the heatmap's
+  // figure was 3258 when Cairo smoothed it.
+  CHECK(zlibCompress(heatmap, 2, 328 * 3).size() * 100 <= kHeatmapZlib6 * 108);
 #endif
 }
 

@@ -1,3 +1,5 @@
+#include <cellui/HdrBloom.h>
+#include <cellui/HdrSplit.h>
 #include <cellui/gtk/Window.h>
 
 #include <cellui/CellRasterizer.h>
@@ -13,6 +15,7 @@
 #include <algorithm>
 #include <chrono>
 #include <cmath>
+#include <cstdlib>
 #include <deque>
 #include <map>
 #include <set>
@@ -131,15 +134,17 @@ struct Window::Impl {
   bool presented_in_tick = false;
   guint tick_id = 0;
   static gboolean onTick(GtkWidget *, GdkFrameClock * clock, gpointer data);
-  void noteTick(gint64 frame_time_us, bool continuing);
-  // The link: ticks that follow a tick whose handler asked for another one are the window running
-  // flat out, and the intervals between them are what it can do. Ticks after an idle gap say nothing.
+  void noteTick(GdkFrameClock * clock, bool drew);
+  // The link: the frame rate the window keeps up with, against the rate its display refreshes at.
+  // A window that draws nothing reads nothing, and its class holds.
   LinkMonitor link;
-  bool tick_continuing = false;
+  FrameRateMeter frame_rate;
+  bool last_tick_drew = false;
   gint64 last_tick_us = 0;
-  std::deque<double> tick_intervals;  // seconds
   std::chrono::steady_clock::time_point link_last_update{};
-  std::string vsyncText() const;
+  // The monitor's refresh rate in Hz, 0 when it is not known.
+  double monitorHz() const;
+  static std::string vsyncText(double hz);
   GtkWidget * window = nullptr;
   GtkWidget * view = nullptr;
   std::unique_ptr<CellRasterizer> rasterizer;
@@ -232,7 +237,15 @@ struct Window::Impl {
     std::shared_ptr<const Image> image;
     uint64_t version = 0;
     GdkTexture * texture = nullptr;
+    // For a float picture, the light past white (HdrLayers::glow), to be blurred over the texture;
+    // null when there is none.
+    GdkTexture * glow = nullptr;
     bool used = false;
+    void release() {
+      if (texture) g_object_unref(texture);
+      if (glow) g_object_unref(glow);
+      texture = glow = nullptr;
+    }
   };
   std::map<const Image *, ImageTexture> image_textures;
   std::vector<Painted> painted;
@@ -300,9 +313,7 @@ struct Window::Impl {
   void appendShadows(GtkSnapshot * snap, GskRenderNode * top, GskRenderNode * below, const std::vector<GskRenderNode *> & stacks);
   void forgetTextures() {
     for (Painted & p : painted) release(p);
-    for (auto & [key, entry] : image_textures) {
-      if (entry.texture) g_object_unref(entry.texture);
-    }
+    for (auto & [key, entry] : image_textures) entry.release();
     image_textures.clear();
   }
   void allocated(int width, int height);
@@ -375,41 +386,48 @@ static void cellui_view_init(CelluiView * self) {
 
 namespace cellui::gtk {
 
-std::string Window::Impl::vsyncText() const {
+double Window::Impl::monitorHz() const {
   GdkMonitor * monitor = nullptr;
   if (window) {
     if (GdkSurface * surface = gtk_native_get_surface(GTK_NATIVE(window))) monitor = gdk_display_get_monitor_at_surface(gtk_widget_get_display(window), surface);
   }
   int milli_hz = monitor ? gdk_monitor_get_refresh_rate(monitor) : 0;
-  if (milli_hz <= 0) return "vsync unknown";
-  double hz = milli_hz / 1000.0;
+  return milli_hz > 0 ? milli_hz / 1000.0 : 0.0;
+}
+
+std::string Window::Impl::vsyncText(double hz) {
+  if (hz <= 0) return "vsync unknown";
   char buf[32];
   if (std::fabs(hz - std::round(hz)) < 0.05) std::snprintf(buf, sizeof buf, "%d Hz vsync", static_cast<int>(std::lround(hz)));
   else std::snprintf(buf, sizeof buf, "%.2f Hz vsync", hz);
   return buf;
 }
 
-void Window::Impl::noteTick(gint64 frame_time_us, bool continuing) {
-  double since_last = last_tick_us > 0 ? static_cast<double>(frame_time_us - last_tick_us) / 1e6 : 0.0;
-  // A gap is a restart, not a slow frame.
-  if (tick_continuing && last_tick_us > 0 && since_last < 0.2) {
-    double interval = since_last;
-    if (interval > 0.025) stats.late_ticks++;
-    tick_intervals.push_back(interval);
-    while (tick_intervals.size() > 60) tick_intervals.pop_front();
-  } else {
-    tick_intervals.clear();
-  }
-  tick_continuing = continuing;
-  last_tick_us = frame_time_us;
+void Window::Impl::noteTick(GdkFrameClock * clock, bool drew) {
+  gint64 time = gdk_frame_clock_get_frame_time(clock);
+  gint64 since_last = time - last_tick_us;
+  if (last_tick_drew && last_tick_us > 0 && since_last > 25000 && since_last < 200000) stats.late_ticks++;
+  last_tick_drew = drew;
+  last_tick_us = time;
+  frame_rate.tick(time, drew);
   auto now = std::chrono::steady_clock::now();
-  if (tick_intervals.size() < 8 || now - link_last_update < std::chrono::seconds(1)) return;
+  if (now - link_last_update < std::chrono::seconds(1)) return;
   link_last_update = now;
-  double sum = 0;
-  for (double v : tick_intervals) sum += v;
-  double fps = sum > 0 ? static_cast<double>(tick_intervals.size()) / sum : 0;
-  link.setDescription(vsyncText() + ", " + std::to_string(static_cast<int>(fps + 0.5)) + " fps");
-  link.update(now, linkClassForFps(fps), linkClassForFps(fps, link.classifierConfig().up_margin));
+  auto fps = frame_rate.rate(time);
+  if (!fps) {
+    updateWindowLink(link, now, fps, 0);
+    return;
+  }
+  // The rate the display refreshes at: the monitor's, else the one the frame clock paces to.
+  double hz = monitorHz();
+  if (hz <= 0) {
+    gint64 refresh_us = 0;
+    gdk_frame_clock_get_refresh_info(clock, time, &refresh_us, nullptr);
+    if (refresh_us > 0) hz = 1e6 / static_cast<double>(refresh_us);
+  }
+  stats.link_readings++;
+  link.setDescription(vsyncText(hz) + ", " + std::to_string(static_cast<int>(*fps + 0.5)) + " fps");
+  updateWindowLink(link, now, fps, hz);
 }
 
 gboolean Window::Impl::onTick(GtkWidget *, GdkFrameClock * clock, gpointer data) {
@@ -426,7 +444,7 @@ gboolean Window::Impl::onTick(GtkWidget *, GdkFrameClock * clock, gpointer data)
   self->in_tick = false;
   bool keep = wanted || self->frame_dirty || ++self->idle_ticks <= kLingerTicks;
   if (wanted || self->frame_dirty) self->idle_ticks = 0;
-  self->noteTick(gdk_frame_clock_get_frame_time(clock), wanted);
+  self->noteTick(clock, self->presented_in_tick);
   // Only a frame the handler presented is drawn; a tick that found nothing
   // new draws nothing.
   if (self->presented_in_tick) gtk_widget_queue_draw(self->view);
@@ -501,6 +519,7 @@ void Window::Impl::measure(const WindowOptions & options) {
   display_info.default_fg = fg;
   display_info.default_bg = bg;
   display_info.display_scale = 1.0;
+  display_info.hdr_pictures = true;
   display_info.smooth_scroll = true;
   display_info.proportional_text = true;
   display_info.keymap_profile = KeymapProfile::DESKTOP;
@@ -1015,17 +1034,29 @@ GskRenderNode * Window::Impl::textNode(const CellBuffer & cells, int r0, int r1)
   return node;
 }
 
-// The texture of a picture, uploaded when it is new or has changed.
+// The texture of a picture, uploaded when it is new or has changed. A float picture is cut into
+// what the display shows of it and the light past white (HdrLayers), once, here: the first is the
+// texture, the second the entry's glow.
 GdkTexture * Window::Impl::imageTexture(const ImagePlacement & placement) {
   if (!placement.image || placement.image->width <= 0 || placement.image->height <= 0) return nullptr;
   ImageTexture & entry = image_textures[placement.image.get()];
   entry.used = true;
   if (!entry.texture || entry.version != placement.image->version || entry.image != placement.image) {
-    if (entry.texture) g_object_unref(entry.texture);
+    entry.release();
     const Image & image = *placement.image;
-    GBytes * bytes = g_bytes_new(image.pixels.data(), image.pixels.size() * sizeof(uint32_t));
-    entry.texture = gdk_memory_texture_new(image.width, image.height, GDK_MEMORY_R8G8B8A8, bytes, static_cast<gsize>(image.width) * 4);
-    g_bytes_unref(bytes);
+    auto upload = [&](const std::vector<uint32_t> & pixels) {
+      GBytes * bytes = g_bytes_new(pixels.data(), pixels.size() * sizeof(uint32_t));
+      GdkTexture * texture = gdk_memory_texture_new(image.width, image.height, GDK_MEMORY_R8G8B8A8, bytes, static_cast<gsize>(image.width) * 4);
+      g_bytes_unref(bytes);
+      return texture;
+    };
+    if (image.isHdr()) {
+      HdrLayers cut = splitHdr(image.hdr, image.width, image.height);
+      if (!cut.base.empty()) entry.texture = upload(cut.base);
+      if (!cut.glow.empty()) entry.glow = upload(cut.glow);
+    } else {
+      entry.texture = upload(image.pixels);
+    }
     entry.image = placement.image;
     entry.version = image.version;
   }
@@ -1070,6 +1101,7 @@ void Window::Impl::appendImages(GtkSnapshot * snap, const CellBuffer & cells) {
     const ImagePlacement & placement = images[static_cast<size_t>(index - 1)];
     GdkTexture * texture = imageTexture(placement);
     if (!texture) continue;
+    GdkTexture * glow = image_textures[placement.image.get()].glow;
     const Image & image = *placement.image;
     // A picture stretched over cells shows its middle, the edge there only to
     // scale with.
@@ -1089,9 +1121,52 @@ void Window::Impl::appendImages(GtkSnapshot * snap, const CellBuffer & cells) {
     for (const MarkedRun & run : list) {
       graphene_rect_t clip = GRAPHENE_RECT_INIT(static_cast<float>(run.col * cell_w), static_cast<float>(run.row * cell_h),
                                                 static_cast<float>(run.cols * cell_w), static_cast<float>(run.rows * cell_h));
-      gtk_snapshot_push_clip(snap, &clip);
-      gtk_snapshot_append_scaled_texture(snap, texture, filter, &bounds);
-      gtk_snapshot_pop(snap);
+      if (!glow) {
+        gtk_snapshot_push_clip(snap, &clip);
+        gtk_snapshot_append_scaled_texture(snap, texture, filter, &bounds);
+        gtk_snapshot_pop(snap);
+      } else {
+        // The picture with its light past white spread around it, in the colour of that light, added to it by
+        // screening: a halo, the glow blurred wide, and a core, blurred a little, which thickens what is
+        // brightest. A bright line is wider than it is drawn because its glow, added to its neighbours,
+        // takes them past white too, and the brighter the light, the further out. In both the glow's alpha (how
+        // much light) is multiplied after the blur - a thin line's light is thin once blurred, and would not
+        // show - and the colour is left as it is. What is taken off the core's alpha keeps a weak glow from
+        // making a core at all.
+        auto layer = [&](double radius, double gain, double threshold, double strength) {
+          float v[16] = {};
+          v[0] = v[5] = v[10] = 1.0f;  // the colour as it is
+          v[15] = static_cast<float>(gain);
+          graphene_matrix_t matrix;
+          graphene_matrix_init_from_float(&matrix, v);
+          graphene_vec4_t offset;
+          graphene_vec4_init(&offset, 0.0f, 0.0f, 0.0f, -static_cast<float>(threshold));
+          gtk_snapshot_push_opacity(snap, strength);
+          gtk_snapshot_push_color_matrix(snap, &matrix, &offset);
+          gtk_snapshot_push_blur(snap, radius);
+          gtk_snapshot_append_scaled_texture(snap, glow, filter, &bounds);
+          gtk_snapshot_pop(snap);
+          gtk_snapshot_pop(snap);
+          gtk_snapshot_pop(snap);
+        };
+        // The picture stays in the cells it shows, but its light is not part of it: it spills past the edge
+        // (a lamp at the top of a picture glows above it), so the glow has a clip of its own, wider.
+        const float reach = static_cast<float>(kPictureHaloRadius * cell_h * 2.5);
+        graphene_rect_t wide = GRAPHENE_RECT_INIT(clip.origin.x - reach, clip.origin.y - reach, clip.size.width + 2.0f * reach, clip.size.height + 2.0f * reach);
+        gtk_snapshot_push_blend(snap, GSK_BLEND_MODE_SCREEN);
+        gtk_snapshot_push_clip(snap, &clip);
+        gtk_snapshot_append_scaled_texture(snap, texture, filter, &bounds);
+        gtk_snapshot_pop(snap);
+        gtk_snapshot_pop(snap);  // the picture, the bottom of the blend
+        gtk_snapshot_push_clip(snap, &wide);
+        gtk_snapshot_push_blend(snap, GSK_BLEND_MODE_SCREEN);
+        layer(kPictureCoreRadius * cell_h, kPictureCoreGain, kPictureCoreThreshold, 1.0);
+        gtk_snapshot_pop(snap);
+        layer(kPictureHaloRadius * cell_h, kPictureHaloGain, 0.0, kPictureHaloStrength);
+        gtk_snapshot_pop(snap);  // the halo and the core
+        gtk_snapshot_pop(snap);  // the wide clip
+        gtk_snapshot_pop(snap);  // those and the picture
+      }
     }
   }
 }
@@ -1540,7 +1615,7 @@ void Window::Impl::snapshot(GtkSnapshot * snap) {
         ++it;
         continue;
       }
-      if (it->second.texture) g_object_unref(it->second.texture);
+      it->second.release();
       it = image_textures.erase(it);
     }
   }
@@ -1808,18 +1883,27 @@ std::vector<BackendEvent> Window::poll() {
 }
 
 void Window::present(const CellBuffer & frame, const CursorRequest & cursor, const std::vector<ImagePlacement> & images, const FrameInfo * info) {
+  if (info) {
+    presentTaking(frame, cursor, images, FrameInfo(*info));
+    return;
+  }
+  // A frame without its info keeps the pointer shapes it had.
+  FrameInfo none;
+  none.mouse_cursors = std::move(impl_->mouse_cursors);
+  presentTaking(frame, cursor, images, std::move(none));
+}
+
+void Window::presentTaking(const CellBuffer & frame, const CursorRequest & cursor, const std::vector<ImagePlacement> & images, FrameInfo && info) {
   impl_->frame = frame;
   impl_->cursor = cursor;
   impl_->images = images;
-  impl_->layers = info ? info->backdrops : std::vector<BackdropLayer>();
-  impl_->elevations = info ? info->elevations : std::vector<ElevatedArea>();
-  impl_->text_runs = info ? info->text_runs : std::vector<TextRun>();
+  impl_->layers = std::move(info.backdrops);
+  impl_->elevations = std::move(info.elevations);
+  impl_->text_runs = std::move(info.text_runs);
   std::stable_sort(impl_->elevations.begin(), impl_->elevations.end(),
                    [](const ElevatedArea & a, const ElevatedArea & b) { return a.elevation < b.elevation; });
-  if (info) {
-    impl_->mouse_cursors = info->mouse_cursors;
-    impl_->updateMouseCursor();
-  }
+  impl_->mouse_cursors = std::move(info.mouse_cursors);
+  impl_->updateMouseCursor();
   // Inside a tick the tick draws; anywhere else the draw is asked for here
   // (GTK folds the requests of one frame into one).
   if (impl_->in_tick) impl_->presented_in_tick = true;
@@ -1838,7 +1922,7 @@ LinkStatus Window::linkStatus() const {
   LinkStatus status = impl_->link.status();
   if (status.description.empty()) {
     // The monitor's rate is known at once; the frame rate follows when the window has run flat out.
-    status.description = impl_->vsyncText();
+    status.description = Impl::vsyncText(impl_->monitorHz());
     status.available = status.description != "vsync unknown";
   }
   return status;

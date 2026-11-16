@@ -117,8 +117,8 @@ paths:
   `mix()`/`assign()`: an aux channel present on one side only is ignored.
 - A track *sends* A and B (`sendA`/`sendB`, any instrument type); what
   arrives on the bus is carried in `AuxA`/`AuxB`. A `SoundFontVoice` adds its
-  SF2 region's reverb/chorus send generators (15/16) additive-then-clamped,
-  SF2's own merge convention. A voice with Send Main = 0 skips Main entirely
+  SF2 region's reverb send generator (16) as a multiplier on the track's Send A
+  (1x-2x, clamped; a zero send stays off). A voice with Send Main = 0 skips Main entirely
   (`encodePosition()` checks `sends.main > 0`, as the aux presence checks do).
 - An accumulator's shape is decided by rendering every child first and
   checking the real results' channels, never by a separate prediction.

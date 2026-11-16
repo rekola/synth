@@ -1,4 +1,5 @@
 #include "TestFramework.h"
+#include "TuningTestSupport.h"
 
 #include "../src/model/Gamut.h"
 #include "../src/model/JustIntonation.h"
@@ -14,30 +15,39 @@ using namespace just_intonation;
 
 using namespace ratio_literals;
 
-TEST(a_note_carries_a_tuning_correction_as_a_signed_hex_fx) {
+TEST(a_note_carries_a_fine_tuning_correction_in_sixteenths_of_a_cent) {
   Note note(60, 100);
   CHECK(!note.hasFx());
   CHECK(note.getFx() == "...");
   CHECK(!note.hasTuningCorrection());
   CHECK(note.getTuningCorrectionCents() == 0);
 
-  note.setTuningCorrection(-14);
-  CHECK(note.getFx() == "-0E");
+  CHECK(note.setTuningCorrection(-14));
+  CHECK(note.getFx() == "-E0");
   CHECK(note.hasTuningCorrection());
-  CHECK(note.getTuningCorrectionCents() == -14);
+  CHECK(!note.hasCoarseTuningCorrection());
+  CHECK(note.getTuningCorrectionCents() == -14.0);
 
-  note.setTuningCorrection(0);
+  // The first digit is whole cents, the second sixteenths.
+  CHECK(note.setFx("+10"));
+  CHECK(note.getTuningCorrectionCents() == 1.0);
+  CHECK(note.setFx("+A8"));
+  CHECK(note.getTuningCorrectionCents() == 10.5);
+  CHECK(note.setFx("+01"));
+  CHECK(note.getTuningCorrectionCents() == 0.0625);
+  CHECK(note.setFx("-FF"));
+  CHECK(note.getTuningCorrectionCents() == -15.9375);
+  CHECK(note.setFx("+FF"));
+  CHECK(note.getTuningCorrectionCents() == 15.9375);
+
+  CHECK(note.setTuningCorrection(0));
   CHECK(note.getFx() == "+00"); // tuned, nothing to correct
   CHECK(note.hasTuningCorrection());
-
-  note.setTuningCorrection(1000);
-  CHECK(note.getTuningCorrectionCents() == Note::kMaxTuningCorrectionCents);
-  note.setTuningCorrection(-1000);
-  CHECK(note.getTuningCorrectionCents() == -Note::kMaxTuningCorrectionCents);
+  CHECK(note.getTuningCorrectionCents() == 0);
 
   // Typed by hand, a letter is accepted as a hex digit; half a value is not a correction yet.
   CHECK(note.setFx("+1a"));
-  CHECK(note.getTuningCorrectionCents() == 26);
+  CHECK(note.getTuningCorrectionCents() == 26.0 / 16);
   CHECK(note.setFx("+1."));
   CHECK(!note.hasTuningCorrection());
   CHECK(!note.setFx("+1G"));
@@ -45,6 +55,84 @@ TEST(a_note_carries_a_tuning_correction_as_a_signed_hex_fx) {
   note.clearFx();
   CHECK(!note.hasFx());
   CHECK(note.getFx() == "...");
+}
+
+TEST(a_coarse_tuning_correction_counts_whole_cents) {
+  Note note(60, 100);
+  CHECK(note.setFx(">10"));
+  CHECK(note.hasTuningCorrection());
+  CHECK(note.hasCoarseTuningCorrection());
+  CHECK(note.getTuningCorrectionCents() == 16.0);
+  CHECK(note.setFx("<FF"));
+  CHECK(note.hasCoarseTuningCorrection());
+  CHECK(note.getTuningCorrectionCents() == -255.0);
+  CHECK(note.setFx("<1f"));
+  CHECK(note.getTuningCorrectionCents() == -31.0);
+  CHECK(note.setFx(">0."));
+  CHECK(!note.hasTuningCorrection());
+  // '>' and '<' are accepted where the mnemonic or sign goes, and nowhere else.
+  CHECK(Note::fxCharFor(0, '>') == '>' && Note::fxCharFor(0, '<') == '<');
+  CHECK(Note::fxCharFor(1, '>') == 0 && Note::fxCharFor(2, '<') == 0);
+}
+
+TEST(a_correction_is_written_fine_where_it_fits_else_coarse_and_never_clamped) {
+  Note note(60, 100);
+  // Rounded to the nearest sixteenth of a cent.
+  CHECK(note.setTuningCorrection(1.4077));
+  CHECK(note.getFx() == "+17"); // 22.5 sixteenths round up to 23
+  CHECK(note.setTuningCorrection(-4.759));
+  CHECK(note.getFx() == "-4C");
+  CHECK(note.setTuningCorrection(0.03));
+  CHECK(note.getFx() == "+00"); // under half a sixteenth
+  CHECK(note.setTuningCorrection(-0.03));
+  CHECK(note.getFx() == "+00"); // no negative zero
+  CHECK(note.setTuningCorrection(0.0625));
+  CHECK(note.getFx() == "+01");
+  // The fine range ends at FF; past half a sixteenth beyond it the coarse one takes over.
+  CHECK(note.setTuningCorrection(15.9375));
+  CHECK(note.getFx() == "+FF");
+  CHECK(note.setTuningCorrection(-15.96));
+  CHECK(note.getFx() == "-FF");
+  CHECK(note.setTuningCorrection(15.97));
+  CHECK(note.getFx() == ">10");
+  CHECK(note.setTuningCorrection(-16.0));
+  CHECK(note.getFx() == "<10");
+  // Whole cents, to the nearest.
+  CHECK(note.setTuningCorrection(-31.174));
+  CHECK(note.getFx() == "<1F");
+  CHECK(note.setTuningCorrection(20.5));
+  CHECK(note.getFx() == ">15");
+  CHECK(note.setTuningCorrection(255.4));
+  CHECK(note.getFx() == ">FF");
+  CHECK(note.setTuningCorrection(-255.0));
+  CHECK(note.getFx() == "<FF");
+  // Beyond that there is no correction: nothing is written, nothing clamped.
+  CHECK(note.setFx("PFF"));
+  CHECK(!note.setTuningCorrection(255.6));
+  CHECK(!note.setTuningCorrection(-1000));
+  CHECK(note.getFx() == "PFF");
+  CHECK(!Note::tuningCorrectionFx(256.0).has_value());
+  CHECK(Note::quantizeTuningCorrection(1.4077) == std::optional<double>(23.0 / 16));
+  CHECK(Note::quantizeTuningCorrection(-31.174) == std::optional<double>(-31.0));
+  CHECK(!Note::quantizeTuningCorrection(300.0).has_value());
+}
+
+TEST(every_fine_and_coarse_value_reads_back_what_was_written) {
+  for (int units = 0; units <= 255; units++) {
+    for (int sign : {1, -1}) {
+      Note fine(60, 100), coarse(60, 100);
+      double fine_cents = sign * units / 16.0;
+      CHECK(fine.setTuningCorrection(fine_cents));
+      CHECK(fine.getTuningCorrectionCents() == fine_cents);
+      CHECK(!fine.hasCoarseTuningCorrection());
+      // Beyond the fine range a whole-cent value is coarse.
+      if (units > 15) {
+        CHECK(coarse.setTuningCorrection(sign * units));
+        CHECK(coarse.getTuningCorrectionCents() == sign * units);
+        CHECK(coarse.hasCoarseTuningCorrection() == (units > 15));
+      }
+    }
+  }
 }
 
 namespace {
@@ -81,7 +169,7 @@ TEST(scale_corrections_give_each_degree_its_exact_ratio_in_every_tuning) {
       auto steps = degreeSteps(row.tuning, scale);
       for (size_t i = 0; i < steps.size(); i++) {
         auto cents = corrections.forNote(steps[i]);
-        CHECK(cents && *cents == expected[i]);
+        CHECK(wholeCents(cents) == std::optional<int>(expected[i]));
       }
     }
   }
@@ -99,10 +187,10 @@ TEST(otonal_and_utonal_are_tuned_together) {
   }
   // An otonal song's utonal notes carry the utonal ratios.
   auto otonal = scaleCorrectionsFor(Tuning::EDO31, Scale::OTONAL, 0);
-  CHECK(otonal.forNote(6) == std::optional<int>(-1)); // 8/7
-  CHECK(otonal.forNote(8) == std::optional<int>(6));  // 6/5
-  CHECK(otonal.forNote(21) == std::optional<int>(1)); // 8/5
-  CHECK(otonal.forNote(24) == std::optional<int>(4)); // 12/7
+  CHECK(wholeCents(otonal.forNote(6)) == std::optional<int>(-1)); // 8/7
+  CHECK(wholeCents(otonal.forNote(8)) == std::optional<int>(6));  // 6/5
+  CHECK(wholeCents(otonal.forNote(21)) == std::optional<int>(1)); // 8/5
+  CHECK(wholeCents(otonal.forNote(24)) == std::optional<int>(4)); // 12/7
 }
 
 namespace {
@@ -174,7 +262,7 @@ TEST(b_d_flat_d_and_b_flat_are_15_8_16_15_9_8_and_9_5_in_all_four_tunings) {
       auto corrections = scaleCorrectionsFor(tuning, scale, 0);
       for (auto ratio : {15 / 8_r, 16 / 15_r, 9 / 8_r, 9 / 5_r}) {
         auto cents = corrections.forNote(keyOf(ratio, edo));
-        CHECK(cents && *cents == std::lround(ratio.cents() - keyOf(ratio, edo) * 1200.0 / edo));
+        CHECK(cents && std::fabs(*cents - (ratio.cents() - keyOf(ratio, edo) * 1200.0 / edo)) < 1e-9);
       }
     }
   }
@@ -183,8 +271,8 @@ TEST(b_d_flat_d_and_b_flat_are_15_8_16_15_9_8_and_9_5_in_all_four_tunings) {
 TEST(scale_corrections_follow_the_key_and_ignore_octaves) {
   int key = 31 * 4 + 13; // F
   auto corrections = scaleCorrectionsFor(Tuning::EDO31, Scale::OTONAL, key);
-  CHECK(corrections.forNote(key + 25) == std::optional<int>(1)); // 7/4 above F
-  CHECK(corrections.forNote(key + 25 - 31 * 2) == std::optional<int>(1));
+  CHECK(wholeCents(corrections.forNote(key + 25)) == std::optional<int>(1)); // 7/4 above F
+  CHECK(wholeCents(corrections.forNote(key + 25 - 31 * 2)) == std::optional<int>(1));
   CHECK(!corrections.forNote(key + 2)); // no gamut note has this key
   // No key reads as C.
   CHECK(scaleCorrectionsFor(Tuning::EDO31, Scale::OTONAL, -1) == scaleCorrectionsFor(Tuning::EDO31, Scale::OTONAL, 0));
@@ -203,15 +291,15 @@ TEST(a_scale_without_a_gamut_applies_no_correction) {
 
 TEST(a_shared_key_goes_to_the_scales_note_else_the_closer) {
   // 31-EDO key 3: 16/15 (utonal) and 15/14 (otonal).
-  CHECK(scaleCorrectionsFor(Tuning::EDO31, Scale::OTONAL, 0).forNote(3) == std::optional<int>(3));
-  CHECK(scaleCorrectionsFor(Tuning::EDO31, Scale::UTONAL, 0).forNote(3) == std::optional<int>(-4));
+  CHECK(wholeCents(scaleCorrectionsFor(Tuning::EDO31, Scale::OTONAL, 0).forNote(3)) == std::optional<int>(3));
+  CHECK(wholeCents(scaleCorrectionsFor(Tuning::EDO31, Scale::UTONAL, 0).forNote(3)) == std::optional<int>(-4));
   // 12-EDO key 3: 7/6 (otonal) and 6/5 (utonal).
-  CHECK(scaleCorrectionsFor(Tuning::EDO12, Scale::OTONAL, 0).forNote(3) == std::optional<int>(-33));
-  CHECK(scaleCorrectionsFor(Tuning::EDO12, Scale::UTONAL, 0).forNote(3) == std::optional<int>(16));
+  CHECK(wholeCents(scaleCorrectionsFor(Tuning::EDO12, Scale::OTONAL, 0).forNote(3)) == std::optional<int>(-33));
+  CHECK(wholeCents(scaleCorrectionsFor(Tuning::EDO12, Scale::UTONAL, 0).forNote(3)) == std::optional<int>(16));
   // A key of neither scale's note in a major song: the closer. 12-EDO key 1
   // holds 16/15 (+12) and 15/14 (+19); major has 16/15.
-  CHECK(scaleCorrectionsFor(Tuning::EDO12, Scale::MAJOR, 0).forNote(1) == std::optional<int>(12));
-  CHECK(scaleCorrectionsFor(Tuning::EDO12, Scale::MAJOR, 0).forNote(2) == std::optional<int>(4));
+  CHECK(wholeCents(scaleCorrectionsFor(Tuning::EDO12, Scale::MAJOR, 0).forNote(1)) == std::optional<int>(12));
+  CHECK(wholeCents(scaleCorrectionsFor(Tuning::EDO12, Scale::MAJOR, 0).forNote(2)) == std::optional<int>(4));
 }
 
 TEST(every_correction_is_a_gamut_ratios_cents_minus_its_steps) {
@@ -222,10 +310,10 @@ TEST(every_correction_is_a_gamut_ratios_cents_minus_its_steps) {
       for (int step = 0; step < edo; step++) {
         auto cents = corrections.forNote(step);
         if (!cents) continue;
-        const int value = *cents;
+        const double value = *cents;
         bool matches = false;
         for (auto & note : scaleGamut(scale)) {
-          matches = matches || (keyOf(note.ratio, edo) == step && value == std::lround(note.ratio.cents() - step * 1200.0 / edo));
+          matches = matches || (keyOf(note.ratio, edo) == step && std::fabs(value - (note.ratio.cents() - step * 1200.0 / edo)) < 1e-9);
         }
         CHECK(matches);
       }

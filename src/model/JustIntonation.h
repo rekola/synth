@@ -20,8 +20,7 @@
 // in cents; where none does, the key stays tempered. There is no search for
 // simple ratios and no chord context, so some triads are a comma off: in C
 // major the D-A fifth is 40/27. A fixed note set cannot have every fifth and
-// third pure; adaptive tuning, which shifts the whole scale by a comma on a
-// switch, is a different thing and is not done here.
+// third pure.
 namespace just_intonation {
 
 // The correction of every gamut note, by its nearest step above the key: the
@@ -31,14 +30,26 @@ struct ScaleCorrections {
   static constexpr int kMaxSteps = 53;
   int edo = 0; // 0: no gamut
   int key = 0; // the key's pitch class
-  std::array<int16_t, kMaxSteps> cents{};
+  std::array<double, kMaxSteps> cents{};
   std::array<bool, kMaxSteps> present{};
+  // The gamut note's ratio for each step, within the step's own octave above
+  // the key (a ratio whose nearest step is a whole octave counts as below it).
+  std::array<Ratio, kMaxSteps> ratios{};
 
   bool empty() const { return edo == 0; }
-  // The correction for an absolute note value, if its key has a gamut note.
-  std::optional<int> forNote(int note_value) const;
+  // The exact correction (cents, not yet rounded to what a note's fx can hold,
+  // see Note::tuningCorrectionFx()) for an absolute note value, if its key has
+  // a gamut note.
+  std::optional<double> forNote(int note_value) const;
+  // A note's just ratio to the key in the octave at or below it, `ratio`
+  // times 2^`octaves`, if its key has a gamut note.
+  struct NoteRatio {
+    Ratio ratio;
+    int octaves = 0;
+  };
+  std::optional<NoteRatio> ratioForNote(int note_value) const;
   bool operator==(const ScaleCorrections & o) const {
-    return edo == o.edo && key == o.key && cents == o.cents && present == o.present;
+    return edo == o.edo && key == o.key && cents == o.cents && present == o.present && ratios == o.ratios;
   }
 };
 

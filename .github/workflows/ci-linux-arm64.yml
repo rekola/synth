@@ -36,10 +36,11 @@ jobs:
             xvfb \
             xdotool \
             pkg-config \
-            fluid-soundfont-gm
+            fluid-soundfont-gm \
+            libmysofa-dev
 
       - name: Configure
-        run: cmake -B build
+        run: cmake -B build -DSYNTH_ENABLE_BINAURAL=ON
 
       # A bare -j is unlimited under make: hundreds of heavy C++ compiles at
       # once exhaust the runner's memory and the runner is killed mid-build

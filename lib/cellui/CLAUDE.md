@@ -17,9 +17,13 @@ carries the app's object as an opaque `getAppContext()`.
   above 1 is HDR. Built from `#rgb`/`#rrggbb`, `oklch()`,
   `color(srgb|srgb-linear|display-p3|rec2020 ...)`, HSL or linear values; an
   sRGB-only backend takes `toSrgb8()` (gamut-mapped; light past white is scaled to
-  fit and washes toward white the more there is, `ToneMap.h`'s `neutralToneMap()`:
-  Khronos PBR Neutral's compression and desaturation, started at 1 so display
-  white stays white). `mix()`
+  fit and washes toward white the more there is). A colour inside sRGB and at or
+  under white is encoded through the tables here; anything else is canvas'
+  `linearRec2020ToSrgb()` (chroma reduced at constant OKLab lightness and hue, then
+  Khronos PBR Neutral's compression and desaturation started at 1 so display white
+  stays white), the mapping an 8-bit canvas surface applies to a colour given in
+  linear Rec.2020 (`setInputColorSpace`), so cells and pictures agree. `ToneMap.h`'s
+  `neutralToneMap()` is the general form of that tone map. `mix()`
   is in linear light (the compositor, `bg_blend`, backdrops); `blend()` is a
   widget's tween in encoded sRGB, where the theme was tuned.
 - `NumberParse.h`: `parseFloat()` is `std::from_chars` on every platform,
@@ -137,7 +141,7 @@ carries the app's object as an opaque `getAppContext()`.
   (`render` runs only for a key no plane has made; a new cell size or display
   scale, or `invalidateSharedImages()` for a theme, empties it), and the kitty
   encoder uploads one once however many places show it (a placement id each),
-  keeps it past its last place up to 8 MB and frees the oldest unplaced.
+  frees it when its last place goes (kitty drops a picture no placement shows, and a placement of it then answers ENOENT, which sends it again).
   Statistics are by the kind (`dial`), or the size for pictures with no key.
 - `Plane::drawImageAt()`: a plane holds one image per cell position, covering
   only the cells it reaches; the same picture (by id or pixel hash) drawn
@@ -152,7 +156,11 @@ carries the app's object as an opaque `getAppContext()`.
 - Backdrops are the backend's to apply: `refresh()` sets what is composed
   below each one aside as a `BackdropLayer` (cells, blur, dim, tint,
   rectangle; `FrameInfo::backdrops`, bottom first) and leaves the frame with
-  only what is above, so no backend's work shows in `BufferPlane`.
+  only what is above, so no backend's work shows in `BufferPlane`. Each
+  layer holds a whole frame of cells (a screen of scrolled planes has one per
+  plane), so they are moved, never copied: set aside by a swap, and handed to
+  a backend with `Backend::presentTaking()`, which takes the `FrameInfo` (the
+  GTK window keeps its contents; the default copies through `present()`).
 
 ## Text, pictures and the pointer
 
@@ -188,11 +196,26 @@ carries the app's object as an opaque `getAppContext()`.
   glyph tables in `term/SubcellGlyphs.h`, `GlyphMeter.h`) are drawn by hand,
   never through canvas, and nothing outside `cellui/term/` knows those
   glyphs. Pixel versions are images drawn with canvas (`LineImage.h`,
-  `HeatmapImage.h`, `SparklineImage.h`; `src/PixelCharts.cpp` in the app).
+  `SparklineImage.h`; `src/PixelCharts.cpp` in the app); the heatmap's grid is enlarged by
+  `scaleImageNearest()` (`ImageScale.h`: each cell a block of one colour, no canvas; the terminal's stretched
+  pictures use `scaleImage()`, bilinear, from the same header).
   canvas (`rekola/canvas`: Cairo, Quartz 2D on macOS, GDI+ on Windows) is
   fetched at a pinned commit by `lib/cellui/CMakeLists.txt` with none of our
   warning flags and SYSTEM includes; `cellui::nativeContext()`
-  (`src/NativeContext.h`) is the one place that names a canvas backend. An
+  (`src/NativeContext.h`) is the one place that names a canvas backend.
+  `nativeLinearContext()` is what a painter draws on: a context of exact pixels whose colours
+  are linear Rec.2020 (`setInputColorSpace`), a float surface when asked for and the backend has
+  one (`LinearContext::is_float`), else an 8-bit one where canvas maps each colour to sRGB, so
+  a painter draws the same colours either way and `readPicture()` gives back a `Picture`
+  (`Picture.h`: 8-bit `pixels` or float `hdr`). A painter that supports it (`line_image::
+  renderPicture()` so far) asks `Plane::hdrPictures()` (`DisplayInfo::hdr_pictures`, the root's
+  for the tree) and shows the result with `drawPicture()`: `Plane::drawHdrImage()` for floats
+  (`Image::hdr`, linear Rec.2020 RGBA, the display maps and blooms it itself) or `drawImage()`.
+  The heatmap's float picture needs no float canvas: its grid is enlarged by nearest neighbour into floats
+  directly (hot cells lit past white, `heatmap_image::litCellColor()`), and only the labels' text is canvas.
+  The GTK window and a terminal with a picture protocol set `hdr_pictures`; Win32 does not and gets 8-bit pictures. A terminal has no GPU, so `TerminalSession` flattens each float picture on the CPU (`flattenHdr()`, `HdrBloom.h`): the same tone map, a core blur that thickens and a halo, screened over it, once per version and not per frame, with the glow kept inside the picture (a terminal's pixels cannot spill past its cells). With a `HdrFlattenState` (kept per placement key) only the rectangle of floats that changed, grown by the blur's reach (`hdrBloomReach()`), is recomputed, so the result is equal outside the damage. Sixel sends only the cells that differ, and kitty (where `Capabilities::kitty_graphics_animation`, `Profile::kitty_frame_edit`) replaces just the changed rectangle of the uploaded picture in place (`a=f,r=1,X=1`, `editKitty()`; full quality and unstretched only, a rectangle over 60 % of the picture goes up whole, and a refused edit turns edits off for good); iTerm2 has no partial update and sends the whole picture. Dials
+  stay 8-bit on purpose: they are shared pictures (`drawSharedImageAt()`, one per value, placed wherever it
+  shows), and a control has no use for light past white. An
   `ImageData` handed to canvas is RGB straight-alpha unless tagged
   (`setFormat(ChannelOrder::BGR, true)` for premultiplied B,G,R,A as we build
   them); renderers return RGBA.
@@ -232,7 +255,7 @@ timing (and missed-vsync counts) at exit.
   for its first `kBoldHold` seconds lit (a latch per cell, on a clock a test can set): a terminal's
   way of brighter, so an app never asks a weight for a flash and the bold shows on every lit
   cell for the same short time, whatever the colour does after), `ImageEncoder` (kitty graphics, iTerm2 inline
-  images, Sixel; a Sixel image gets its own palette, the picture's exact colours when they fit the registers or their median cut (colours first put on the 101 levels a Sixel colour definition has, so two the terminal cannot tell apart are one register), one Sixel per visible rectangle, and only the changed rows of cells when that is smaller; a picture stretched over its cells (a blurred backdrop) at full quality is instead drawn in the terminal's default 256-colour palette (registers for entries 16-255, ordered dither) where the terminal has 240 registers: about half the bytes and time of a palette made from the picture, in duller colours; `PictureQuality` follows the link class (`pictureQualityFor()`): FULL to 30 Hz, REDUCED (64 colours) at 15 Hz, LOW (16) below, as a palette PNG for kitty and iTerm2 (quantised RGB where a terminal refuses the PNG) and fewer Sixel registers, undithered unless the picture is stretched over its cells (a blurred backdrop); kitty uploads and PNGs deflated by the in-tree
+  images, Sixel; a Sixel image gets its own palette, the picture's exact colours when they fit the registers or their median cut (colours first put on the 101 levels a Sixel colour definition has, so two the terminal cannot tell apart are one register), one Sixel per visible rectangle, and only the changed rows of cells when that is smaller; a picture stretched over its cells (a blurred backdrop) at full quality is instead drawn in the terminal's default 256-colour palette (registers for entries 16-255, ordered dither) where the terminal has 240 registers: about half the bytes and time of a palette made from the picture, in duller colours; `PictureQuality` follows the link class (`pictureQualityFor()`): FULL to 30 Hz, REDUCED (64 colours) at 15 Hz, LOW (16) below, as a palette PNG for kitty and iTerm2 (quantised RGB where a terminal refuses the PNG) and fewer Sixel registers, undithered unless the picture is stretched over its cells (a blurred backdrop); kitty uploads, edits and PNGs deflated by the in-tree
   `term/Deflate.h`, raw fallback when it saves under 10 % or the terminal
   refuses), `TerminalSession` (tty, modes, signals, restoration). `TermEvent`s
   stay inside `term/`; `Capabilities` (image protocol, kitty keyboard, query
@@ -270,7 +293,13 @@ timing (and missed-vsync counts) at exit.
   floor rate whatever the link could take), since otherwise the estimate only
   says what the app sent; with the link not limiting the description is a
   rough `~rate` and the round trip, or just `not limiting` when the estimate is
-  near the floor rate of the last frame (`PacerStats::floor_rate`); a window reports its monitor's vsync rate and achieved fps.
+  near the floor rate of the last frame (`PacerStats::floor_rate`). A window
+  classifies on the frame rate it keeps up with (`FrameRateMeter`: each frame
+  drawn lasts until the frame clock's next tick, drawn or not, so an app capping
+  its own rate is still measured) as a share of its refresh rate capped at 60 Hz
+  (`linkClassForFrameRate()`: a 30 Hz monitor at 30 fps is FULL); FULL needs no
+  up margin, and with too little drawn there is no reading and the class holds
+  (`LinkClassifier::hold()`). Its description is `60 Hz vsync, 58 fps`.
   `InfoLine` shows `Link: ...` (`n/a` until available). `plans/link-degradation.md`
   plans what an app does at each class. `tools/pacing/run_assertions.py`
   (ctest `cellui_pacing_harness`) runs `cellui_pacing_probe` on a shaped pty.
@@ -319,7 +348,18 @@ of its piece (`zoomRun()`: the cells joined to each other), so its characters ke
 in it. The zoom is the writer's, not tied to the light. A background never glows. A band with no such
 glyph keeps no glow node, and the glow's cache print holds the strengths, since
 the cells' own prints are of the colours scaled to white. An app only says how
-bright; this window decides that bright means light around it. Not done yet:
+bright; this window decides that bright means light around it. A float picture
+(`Image::hdr`) is cut once per version on the CPU by `splitHdr()` (`HdrSplit.h`, a pass with no
+blur): the picture as `Color::toSrgb8()` maps it, and the light past white as a second texture whose colour
+is the hue of that light (each channel's excess, scaled so the strongest is full) and whose alpha is how
+much of it there is. The bloom is on the GPU and in the light's own colour: the glow blurred wide as a halo
+and blurred a little as a core, each with its alpha multiplied after the blur (a thin line's light is thin
+once blurred; a colour-matrix node that leaves the colour alone), the core with a threshold taken off so a
+weak glow makes none, screened over the picture (`GSK_BLEND_MODE_SCREEN`). The core thickens what is
+brightest: what is near a bright line reaches full strength, so the line looks wider the more light it
+carries, as an overexposed filament does. The glow has a clip of its own, wider than the picture's cells: a
+lamp at the picture's edge glows past it. A frame without light past white costs only the first texture.
+Not done yet:
 per-plane render nodes, input methods, HiDPI, native dialogs and menus.
 
 ## Win32 window backend (`cellui/win32/`)

@@ -49,7 +49,8 @@ bool untuneNote(Note & note) {
 
 // Writes the gamut corrections onto the pitched notes of `pattern_rows` in note
 // columns [note_lo, note_hi]; with `only_tuned`, only onto notes that already
-// carry one. A key with no gamut note gets +00, which marks it as tuned. A
+// carry one. A key with no gamut note gets +00, which marks it as tuned; a note
+// whose correction needs more than 255 cents is left untuned and counted. A
 // scale with no gamut tunes nothing: an apply writes nothing, and a retune
 // (`only_tuned`) removes the corrections it finds.
 void writeCorrections(PatternView pattern, const set<int> & pattern_rows, const IntonationContext & context,
@@ -71,8 +72,17 @@ void writeCorrections(PatternView pattern, const set<int> & pattern_rows, const 
         }
         continue;
       }
+      auto cents = context.scale.forNote(note.getValue()).value_or(0.0);
+      auto fx = Note::tuningCorrectionFx(cents);
+      if (!fx) {
+        // Beyond even the coarse correction: never clamped, so the note is left
+        // without one (an earlier correction goes, it no longer fits).
+        summary.untuned++;
+        if (untuneNote(note)) changed = true;
+        continue;
+      }
       if (note.hasFx() && !note.hasTuningCorrection()) summary.replaced++;
-      note.setTuningCorrection(context.scale.forNote(note.getValue()).value_or(0));
+      note.setTuningCorrection(cents);
       summary.notes++;
       changed = true;
     }
@@ -368,6 +378,7 @@ applyJustIntonationBlock(PatternGrid & grid, int row_lo, int row_hi,
     auto part = applyJustIntonationBlockNotes(grid, row_lo, row_hi, track_id, 0, numeric_limits<int>::max(), context, false);
     summary.notes += part.notes;
     summary.replaced += part.replaced;
+    summary.untuned += part.untuned;
   }
   return summary;
 }
@@ -473,7 +484,7 @@ Note convertNoteTuning(const Note note, Tuning from, Tuning to, int from_anchor,
   auto value = std::max(to_anchor + steps, 0);
   Note moved(value, note.getVelocity(), note.getDelay());
   moved.setFx(note.getFx());
-  if (note.hasTuningCorrection()) moved.setTuningCorrection(static_cast<int>(std::lround(interval - steps * 1200.0 / to_edo)));
+  if (note.hasTuningCorrection() && !moved.setTuningCorrection(interval - steps * 1200.0 / to_edo)) moved.clearFx();
   return moved;
 }
 
@@ -640,6 +651,7 @@ intonationContextOf(const Song & song) {
 void tuneNewNote(const Song & song, int track_id, Note & note) {
   if (!isPitched(note) || isPercussionTrack(song, track_id)) return;
   auto scale = just_intonation::scaleCorrectionsFor(song.getTuning(), song.getScale(), song.getKey());
+  // A correction beyond the coarse range leaves the note untuned.
   if (auto cents = scale.forNote(note.getValue())) note.setTuningCorrection(*cents);
 }
 

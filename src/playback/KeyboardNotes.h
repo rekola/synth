@@ -50,13 +50,14 @@ inline const std::string_view keyToMidiNote(int key, Tuning tuning, Scale scale)
       case '5':
         return "RD"; // 51 Ride Cymbal 1
     }
-  } else if (isBabylonianMode(scale)) {
-    // The scale's degrees on z x c v b n m, then the tonic and second
-    // an octave up (Phrygian tonos: its ten degrees fill the row, with
-    // none left over); the spellings are the gamut's own.
+  } else if (isBabylonianMode(scale) || scale == Scale::RAST) {
+    // The scale's degrees on q w e r t y u i o p in ascending order, then the
+    // tonic and second an octave up on the keys left over (Phrygian tonos has
+    // ten degrees and none left); the spellings are the gamut's own (Rāst: its
+    // quarter-tone ones).
     static const std::map<Scale, std::vector<std::string>> table = [] {
       std::map<Scale, std::vector<std::string>> out;
-      for (auto mode : {Scale::NIS_TUHRIM, Scale::ISARTUM, Scale::EMBUBUM, Scale::NID_QABLIM, Scale::QABLITUM, Scale::KITMUM, Scale::PITUM, Scale::PHRYGIAN_TONOS}) {
+      for (auto mode : {Scale::NIS_TUHRIM, Scale::ISARTUM, Scale::EMBUBUM, Scale::NID_QABLIM, Scale::QABLITUM, Scale::KITMUM, Scale::PITUM, Scale::PHRYGIAN_TONOS, Scale::RAST}) {
         auto & keys = out[mode];
         for (auto name : scaleDegreeNames(mode)) keys.emplace_back(name);
         if (keys.size() < 10) {
@@ -66,85 +67,64 @@ inline const std::string_view keyToMidiNote(int key, Tuning tuning, Scale scale)
       }
       return out;
     }();
-    static constexpr std::string_view kKeys = "zxcvbnm,./";
+    static constexpr std::string_view kKeys = "qwertyuiop";
     auto at = key >= 0 && key < 128 ? kKeys.find(static_cast<char>(key)) : std::string_view::npos;
     if (at != std::string_view::npos && at < table.at(scale).size()) return table.at(scale)[at];
-  } else if (scale == Scale::RAST) {
-    switch (key) {
-      case 'z':
-        return "C";
-      case 'x':
-        return "D";
-      case 'c':
-        return "E𝄳";
-      case 'v':
-        return "F";
-      case 'b':
-        return "G";
-      case 'n':
-        return "A";
-      case 'm':
-        return "B𝄳";
-      case ',':
-        return "C'";
-      case '.':
-        return "D'";
-    }
   } else if (scale == Scale::OTONAL || scale == Scale::UTONAL) {
-    // The scale's eighteen notes. The lower row z x c v b n m has the seven of
-    // the core and the home row, staggered between them, the notes that lie
-    // between neighbouring core notes: s D (D↓), d D𝄪, f F♭ (F𝄫), g the tritone,
-    // h G𝄪 (G♯), j A♭↑ (utonal), k B♭ (B♭↓). The upper row has the notes
-    // clustered around the tonic and the tritone: q D𝄫, w D♭↓, y F𝄪 (t G𝄫),
-    // and o B and p B♯. The two layouts mirror each other; the tonic and two
-    // more notes an octave up are on , . and -.
+    // The scale's eighteen notes. The row q w e r t y u has the seven of the
+    // core, then the tonic and two more notes an octave up on i o p. The number
+    // row, staggered above, has the notes that lie between neighbouring core
+    // notes: 2 D (D↓), 3 D𝄪, 4 F♭ (F𝄫), 5 the tritone, 6 G𝄪 (G♯), 7 A♭↑ (utonal),
+    // 8 B♭ (B♭↓). The notes clustered around the tonic and the tritone are on
+    // 1 (D𝄫), the home row below (s D♭↓; f G𝄫 (utonal); g F𝄪 (otonal)) and, by
+    // the octave, k B and l B♯. The two layouts mirror each other.
     const bool otonal = scale == Scale::OTONAL;
     switch (key) {
-      case 'z':
-        return "C";
       case 'q':
+        return "C";
+      case '1':
         return "D𝄫";
-      case 'w':
-        return "D♭↓";
       case 's':
+        return "D♭↓";
+      case '2':
         return otonal ? "D" : "D↓";
-      case 'x':
+      case 'w':
         return otonal ? "D♯" : "E𝄫";
-      case 'd':
+      case '3':
         return otonal ? "D𝄪" : "";
-      case 'c':
+      case 'e':
         return otonal ? "E" : "E♭";
-      case 'f':
+      case '4':
         return otonal ? "F♭" : "F𝄫";
-      case 'v':
+      case 'r':
         return "F";
-      case 't':
+      case 'f':
         return otonal ? "" : "G𝄫";
-      case 'g':
+      case '5':
         return otonal ? "F♯↑" : "G♭↓";
-      case 'y':
+      case 'g':
         return otonal ? "F𝄪" : "";
-      case 'b':
+      case 't':
         return "G";
-      case 'h':
+      case '6':
         return otonal ? "G𝄪" : "G♯";
-      case 'n':
+      case 'y':
         return otonal ? "A" : "A♭";
-      case 'j':
+      case '7':
         return otonal ? "" : "A♭↑";
-      case 'm':
+      case 'u':
         return otonal ? "A♯↑" : "B𝄫";
-      case 'k':
+      case '8':
         return otonal ? "B♭" : "B♭↓";
-      case 'o':
+      case 'k':
         return "B";
-      case 'p':
+      case 'l':
         return "B♯";
-      case ',':
+      case 'i':
         return "C'";
-      case '.':
+      case 'o':
         return otonal ? "D♯'" : "E𝄫'";
-      case '-':
+      case 'p':
         return otonal ? "E'" : "E♭'";
     }
   } else {

@@ -260,6 +260,8 @@ class ClipGrid : public UIElement {
   struct MeterDisplay {
     level_meter::Ballistics ballistics;
     level_meter::PeakHold peak_hold;
+    level_meter::ClipHold clip_hold; // the lamp stays lit for a while after a clip
+    bool clip_lit = false;
     float fraction = 0.0f;
     float peak_fraction = 0.0f;
     level_meter::StepHold level_steps, peak_steps; // what is drawn, with a dead band
@@ -344,7 +346,7 @@ class ClipGrid : public UIElement {
   void startTrackDrag(const DragCandidate & candidate, const cellui::MouseMove & e);
   bool trackDragOver(const cellui::DragOver & e);
   bool trackDrop(const cellui::Drop & e);
-  std::string trackLabel(int track_id) const;
+  std::string trackLabel(int track_id, bool editing = false) const;
   std::optional<int> track_drag_source_, track_drop_target_;
   static void putClipSlot(cellui::Plane & plane, int y, int x, const std::string & text, const std::string & label, int label_cols,
                           bool looping, bool edited, Color fg, Color bg);

@@ -4,14 +4,16 @@ A pattern row's effect column holds a 4-character command: a 2-character
 mnemonic followed by a 2-digit hex argument (or two separate hex nibbles,
 where noted) - e.g. `ZB00`. Character validation in the editor is
 permissive (any letter, not just the mnemonics below), but only the
-commands in the per-note and "Other implemented" tables below actually do anything during playback;
-everything else is accepted and stored but currently a no-op (see
-`SongState.h`'s own command-handling loop).
+commands in the per-note and "Other implemented" tables below actually do anything during playback.
+Anything else is accepted and stored but is *invalid* (`Command::isValid()`):
+the pattern editor shows it in red and playback skips it. Invalid are an
+unknown mnemonic, a planned one, a device digit other than `-`/`0` on a
+device command, an argument with a `-` left in it, and `ZTxx` below `20`.
 
 The effect column follows the tracker tradition described in the README. The
 mnemonic's first character is either `Z` (a global command, not
 scoped to any one track - `ZBxx`/`ZTxx` below), `Y` (this engine's own
-reserved namespace - see below), or a device index: how far up *this*
+reserved namespace - see below), or a device index (a digit `0`-`9`, then a letter `A`-`X` once the digits run out): how far up *this*
 track's own ancestor chain the command actually targets (Group/Effect
 tracks, not a flat per-track device list - the equivalent traversal this
 engine's own track hierarchy actually offers). `-` (stored internally as
@@ -64,8 +66,8 @@ alone. Any other command typed in the fx column is stored but does nothing.
 A cell can carry fx with no note: it starts and stops nothing and the fx acts on
 its column, which a note-less cell has to be able to do for a command that
 carries on from an earlier row. `Gxx`/`G00` there sets or repeats that column's
-glide rate, and `Rxy` retriggers the column's last note; the others (`P`, `W`,
-a tuning correction) need a note to belong to and do nothing. Such a cell is
+glide rate, `Hxx`/`H00` its overtone glide rate, and `Rxy` retriggers the column's last note; the others (`P`, `W`,
+a tuning correction, fine or coarse) need a note to belong to and do nothing. Such a cell is
 saved as a `<note>` with an `fx` attribute and no text.
 
 | Command | Description | Source |
@@ -73,7 +75,8 @@ saved as a `<note>` with an `fx` attribute and no text.
 | `-Pxx` | Set azimuth to an absolute position (as a note's fx: that note's azimuth alone) - `xx` maps linearly from -90 degrees at `00` through +90 at `FF`. | Renoise (adapted) - matches Renoise's own `Pxx` "Track Pan" exactly, `xx` meaning included (`00`/`80`/`FF` = left/center/right), but that's a real, inherited limitation: it only reaches half this engine's own 360-degree azimuth range (the front hemisphere), since Renoise's own panning has no "behind" to reach in the first place. |
 | `-Rxy` | Retrigger - re-fire every note still playing on the track (as a note's fx: only that note) every `y` ticks (12 ticks/row; `y=0`, or an interval reaching the next row, adds nothing) with volume factor `x` applied to each retrigger: `0`/`8` no change; `1`-`5` lower the original volume by 3/6/12/25/50%; `6`/`7` cumulatively lower by 33/50%; `9`-`D` raise it by 3/6/12/25/50%; `E`/`F` cumulatively raise by 50/100%. | Renoise (`Rxy`) |
 | `-Wxx` | Set ambisonic extent - the source's physical half-width in meters (`SphericalPosition::extent`, 0 = a point source). `xx` maps linearly from 0 m at `00` up to 8 m (`Command::kMaxExtentMeters`) at `FF`. As a row command it sets the track's extent for the notes that start after it (voices already sounding keep theirs); as a note's fx, that note's extent alone. Extent is also how far a track's notes are spread around its position (`docs/spatial.md`). | Renoise (adapted) |
-| `+hh` / `-hh` | Tuning correction - add (`+`) or take away (`-`) `hh` cents (two hex digits, 1 cent each, up to 255) to that note's pitch. Only a note's fx can carry it: it is a property of one note, and the sign takes the place of the mnemonic. Written by `apply-just-intonation-region` (below), which gives every pitched note the correction that brings it to its gamut note's just ratio (the song's scale names the gamut; live and recorded notes get it too; nothing in a scale without one); `+00` marks a note as tuned that needs none. Transposing a tuned note gives it the correction for its new pitch; `clear-tuning-correction-region` removes them. | Tracker finetune (ProTracker `E5x`, Impulse Tracker `S2x`), adapted: a byte in cents instead of a nibble in 1/8 semitone, which is too coarse for microtonal tuning |
+| `+hh` / `-hh` | Fine tuning correction - add (`+`) or take away (`-`) `hh` to that note's pitch, in sixteenths of a cent: two hex digits, the first whole cents and the second sixteenths, so `+10` is 1 cent, `+A8` 10.5 cents and `+01` 1/16 cent. The range is 0 to 15 15/16 cents (`FF`) either way; `+00` marks a note as tuned that needs no correction. Only a note's fx can carry it: it is a property of one note, and the sign takes the place of the mnemonic. Written by `apply-just-intonation-region` (below), which gives every pitched note the correction that brings it to its gamut note's just ratio, rounded to the nearest sixteenth of a cent (the song's scale names the gamut; live and recorded notes get it too; nothing in a scale without one). Transposing a tuned note gives it the correction for its new pitch; `clear-tuning-correction-region` removes them. | Tracker finetune (ProTracker `E5x`, Impulse Tracker `S2x`), adapted: a byte in sixteenths of a cent instead of a nibble in 1/8 semitone, which is too coarse for microtonal tuning |
+| `>hh` / `<hh` | Coarse tuning correction - raise (`>`) or lower (`<`) that note's pitch by `hh` whole cents (two hex digits, up to 255). Like the fine correction only a note's fx can carry it and the symbol takes the place of the mnemonic; a note has one fx, so it carries a fine correction or a coarse one, never both. `apply-just-intonation-region` writes it only where the fine correction does not reach (12-, 19- and 24-EDO, where some ratios lie 20 to 35 cents from their key), rounded to the nearest cent; a correction over 255 cents is never clamped, the note is left untuned and the command says how many. The other tuning commands (`clear-tuning-correction-region`, transposing, `-Gxx`) treat both kinds alike. | The fine correction (`+hh` / `-hh`) under another symbol and in whole cents |
 
 ## Other implemented commands
 
@@ -91,8 +94,69 @@ saved as a `<note>` with an `fx` attribute and no text.
 | `YUxx` | Slide the song's pitch up - as `-Uxx` (same unit, same per-row ramp, `00` repeating the last amount, `U` and `D` sharing it), but for every track at once: it moves the song's pitch offset, which is applied after every per-track pitch effect, so notes started later sound at it too and nothing on a track resets it. The memory is the song's, separate from every track's `-U`/`-D`. Rows of several tracks on the same row add up. The offset is counted in sixteenths of a step and is not limited (only a voice's own frequency is, 20 octaves either way); when the tuning changes, the count stays and its size follows the new tuning. It is 0 at the start of the song; a seek recomputes it from the arrangement up to that row (a pattern break or a loop keeps it). The info line shows it, in steps, with the standard pitch it makes. A sample track's audio follows it too, pitch-shifted (its length kept) from the standard pitch it was recorded at to the song's at each trigger: a lap already sounding keeps its pitch. | Own, after `-Uxx` |
 | `YDxx` | Slide the song's pitch down - as `YUxx`, lowering it. | Own, after `-Dxx` |
 | `-Gxx` | Glide to note - on a row that has a note, the note already sounding in that column glides to it instead of the note being retriggered (with nothing sounding, it plays as usual). The glide lands on the target note's pitch, its tuning correction included. `xx` (hex) is the rate in 1/16ths of one scale step of the song's tuning per row (`10` = a step a row, so a semitone a row in 12-EDO); `FF` is instant (and `G00` after it repeats that). The pitch moves linearly, interpolated per sample, and stops at the target. Each note column glides on its own: as a note's fx (`G04`) it is that column's rate, as a row command it sets the rate of every column. It moves only on rows that carry the command, so a long glide takes the rate on the first row (with the note) and `G00` in the effect column on the rows after, which carries each column on at the rate it last had (the row command's, for a column with none of its own) toward the same target; `G00` with no rate issued yet, or after a stop or seek, does nothing. The glide offset adds to a slide's. | Renoise (`Gxx`), generalised to the tuning |
+| `-Hxx` | Overtone glide - the counterpart of `-Gxx` for the overtone profile: on a row that has a note, the note already sounding in that column keeps its pitch and is not retriggered, and its profile glides toward one in which every overtone it shares with the row's note is raised by 12 dB (with nothing sounding, the note plays as usual). `xx` (hex) is how much of the whole change happens in one row, in sixteenths: `H10` completes it in a row, `H08` in two, `H01` in sixteen; `HFF` is instant. Timed like `-Gxx`: as a note's fx (`H08`) it is that column's rate, as a row command every column's; it moves only on rows that carry it, linearly across the row and per sample, and stops at the target; `H00` carries a column on at the rate it last had toward the same target, also in the fx of a cell with no note, and does nothing with no rate issued yet or after a stop or seek (after `HFF` it repeats the instant change). A note whose fx is `Hxx` is an overtone target whatever the row's command is (one whose fx is `Gxx` glides its pitch), and with neither as its fx the row's `-Hxx` goes before its `-Gxx`. Details, and how each instrument does it, below. | Own, after `-Gxx` |
 | `YLxx` | Slide azimuth left - decrease the track's azimuth by `xx` degrees per tick (12 ticks/row) for the duration of this row, moving both the track's own position and every currently-sounding voice. `L` for **L**eft. | Own |
 | `YRxx` | Slide azimuth right - same as `YLxx` but increasing azimuth (this engine's convention: positive azimuth = right). `R` for **R**ight. | Own |
+
+## Overtone glide (`-Hxx`)
+
+A sounding note has two independent things. Its **pitch** is where its
+fundamental lies; every overtone moves with it. Its **overtone profile** is
+how loud each overtone is, counted by number (1st, 2nd, 3rd, ...), whatever
+the pitch. `-Gxx`, `-Uxx` and `-Dxx` change only the pitch; `-Hxx` changes
+only the profile. A note whose profile has changed and is then glided or
+slid keeps the same overtone numbers raised, sounding at their new pitches.
+
+**Which overtones are shared.** An overtone of the sounding note is shared
+when it is exactly an overtone of the target too. That is found from the
+notes' just ratios, not from the frequencies they sound at, so the match is
+exact. Where the song's scale has a gamut, each note's ratio is the one its
+key carries in that scale, as `apply-just-intonation-region` uses it, with
+its octave. The target's ratio divided by the sounding note's, in lowest
+terms, is p/q; the shared overtones are the sounding note's p-th, 2p-th,
+3p-th and so on. Tuning corrections on either note change nothing: the
+command raises the sounding note's own overtones by number. With p = 1 (the
+target at the note's own pitch or any octave below it) every overtone is
+shared, which is the plain profile. Where a note has no gamut ratio (a scale
+with no gamut, or a key the gamut leaves out), only whole octaves match: an
+octave up gives p = 2, two octaves up p = 4, and any other target shares no
+overtone and leaves the profile plain.
+
+Over a sounding C4:
+
+| Target | Overtones of C4 that are raised |
+|---|---|
+| C5 | 2, 4, 6, 8 … |
+| G4 or G5 | 3, 6, 9, 12 … |
+| E4 (5/4) | 5, 10, 15 … |
+| A♯↑4 (7/4) | 7, 14 … |
+| C4 itself, or any C below | none: the plain profile |
+
+**Amount and time.** A raised overtone is 12 dB above its normal level
+(`OvertoneProfile::kRaiseDb`). The profile moves linearly in dB, per sample,
+only on rows that carry the command, and stops when it reaches the target.
+A later `-Hxx` with a note names a new target: the overtones raised for the
+old one fall back at the same rate as the new ones rise, and an overtone
+both raise stays up. A note has one target at a time. A note triggered
+normally starts with the plain profile; a stop or a seek ends a glide in
+progress where it is, as it does a pitch glide.
+
+**Instruments.** Each pitched instrument does it in the way that suits how
+it makes its sound:
+
+- `<additive>` sets each string partial's level by its overtone number (body
+  modes are not overtones of the note and stay as they are).
+- `<padsynth>` builds its sound ahead of time, so it adds to the plain table
+  a table holding only the shared partials, with the same phases and scale,
+  times the raise less one: exactly those partials change.
+- `<oscillator>`, `<fm>` and SoundFont instruments have no level per
+  partial, so the voice's output goes through a comb: the average of `p`
+  copies of the signal spaced 1/(p·f) apart, f being the note's pitch as it
+  moves, which keeps every p-th harmonic and cancels every other one exactly.
+  Adding it, scaled, raises only the shared overtones; its peaks sit on them
+  and follow the pitch.
+- `<noise>` has no overtones, so the command leaves it as it is; on a
+  percussion track the row's note plays as usual.
 
 ## Planned
 

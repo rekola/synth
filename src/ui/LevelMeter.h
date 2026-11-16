@@ -88,4 +88,24 @@ class PeakHold {
   float hold_left_ = 0.0f;
 };
 
+// A clip lamp: the audio says whether a block clipped, which is gone by the next one, so the lamp
+// stays lit for kHoldSeconds after the last block that did.
+class ClipHold {
+ public:
+  static constexpr float kHoldSeconds = 2.0f;
+
+  // Whether the lamp is lit, after `dt_seconds` more.
+  bool update(bool clipping, float dt_seconds) {
+    if (clipping)
+      left_ = kHoldSeconds;
+    else
+      left_ = std::max(0.0f, left_ - dt_seconds);
+    return left_ > 0.0f;
+  }
+  bool lit() const { return left_ > 0.0f; }
+
+ private:
+  float left_ = 0.0f;
+};
+
 } // namespace level_meter

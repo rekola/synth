@@ -148,10 +148,10 @@ class SongState : public TrackState {
   // `edo_steps` is the song tuning's steps per octave, the unit of 0Uxx/0Dxx.
   void applyRowCommands(const Pattern & pattern, int pattern_row, int track_id, int frame_offset, bool breaks_only = false, int edo_steps = 0) {
     for (auto & command : pattern.getCommandsAt(pattern_row)) {
-	if (!command.isDefined()) continue;
-	if (breaks_only && !command.isPatternBreak()) continue;
-        if (command.isTempoSet()) {
-          continue; // applied before the row's other commands (rowTempo())
+      if (!command.isDefined() || !command.isValid()) continue;
+      if (breaks_only && !command.isPatternBreak()) continue;
+      if (command.isTempoSet()) {
+        continue; // applied before the row's other commands (rowTempo())
         } else if (command.isPatternBreak()) {
           pending_break_ = true;
           pending_break_row_ = command.getBreakRow();
@@ -189,6 +189,22 @@ class SongState : public TrackState {
               if (code <= 0) continue;
               float cents_per_row = static_cast<float>(code) / 16.0f * 1200.0f / static_cast<float>(edo_steps);
               render_context_.addPendingPitchGlide(track_id, frame_offset, column, cents_per_row / static_cast<float>(row_samples), row_samples, code == 0xFF);
+            }
+          }
+        } else if (command.isOvertoneGlide()) {
+          // As 0Gxx: the notes carry the targets (NoteOverride::
+          // has_overtone_glide); a rate sets every column's, H00 repeats each
+          // column's own (the track's when it had none).
+          int row_samples = getChannelConfiguration().getSampleInterval(tempo_);
+          auto & memory = last_overtone_codes_[track_id];
+          if (command.getOvertoneGlideCode() > 0) {
+            for (auto & entry : memory) entry.second = command.getOvertoneGlideCode();
+            memory[-1] = command.getOvertoneGlideCode();
+          }
+          if (row_samples > 0) {
+            for (auto & [column, code] : memory) {
+              if (code <= 0) continue;
+              render_context_.addPendingOvertoneGlide(track_id, frame_offset, column, overtoneSharePerFrame(code, row_samples), row_samples, code == 0xFF);
             }
           }
         } else if (command.isAzimuthSlide()) {
@@ -309,6 +325,7 @@ class SongState : public TrackState {
     // track whose state doesn't exist yet at that lookup point would
     // otherwise silently skip the stop entirely.
     render_context_.setGlobalPitchTuning(content.scalars.standard_pitch, edoStepsFor(content.scalars.tuning));
+    render_context_.setScaleCorrections(content.scalars.scale_corrections);
     if (arrangement_rescan_) {
       arrangement_rescan_ = false;
       rescanGlobalPitch(content);
@@ -624,16 +641,20 @@ class SongState : public TrackState {
 
             // The row's own 0Gxx in the effect column (-1: none): a clip's own
             // wins over the track's background, as with every command.
-            int row_glide_raw = -1;
+            // The same for its 0Hxx.
+            int row_glide_raw = -1, row_overtone_raw = -1;
             {
-              auto find_glide = [](const Pattern & pattern, int pattern_row) {
+              auto find_code = [](const Pattern & pattern, int pattern_row, bool overtone) {
                 for (auto & command : pattern.getCommandsAt(pattern_row))
-                  if (command.isDefined() && command.isPitchGlide()) return command.getPitchGlideCode();
+                  if (command.isDefined() && (overtone ? command.isOvertoneGlide() : command.isPitchGlide())) return command.getPitchGlideCode();
                 return -1;
               };
               auto glide_background = arrangement.getPatternsByTrack().find(track_id);
-              if (from_clip) row_glide_raw = find_glide(*active_pattern, effective_row);
-              if (row_glide_raw < 0 && !taken_over && glide_background != arrangement.getPatternsByTrack().end()) row_glide_raw = find_glide(glide_background->second, glide_background->second.getEffectiveRow(row_idx, 0));
+              for (bool overtone : {false, true}) {
+                int & raw = overtone ? row_overtone_raw : row_glide_raw;
+                if (from_clip) raw = find_code(*active_pattern, effective_row, overtone);
+                if (raw < 0 && !taken_over && glide_background != arrangement.getPatternsByTrack().end()) raw = find_code(glide_background->second, glide_background->second.getEffectiveRow(row_idx, 0), overtone);
+              }
             }
 
             for (size_t j = 0; j < notes.size(); j++) {
@@ -649,23 +670,38 @@ class SongState : public TrackState {
 		NoteOverride note_override;
 		if (note.hasTuningCorrection()) {
 		  note_override.has_detune = true;
-		  note_override.detune_cents = static_cast<float>(note.getTuningCorrectionCents());
-		} else if (note.hasFx()) {
-		  // An unset character reads as the command's own "-" placeholder.
-		  std::string text = std::string("0") + std::string(note.getFx());
+                  note_override.detune_cents = static_cast<float>(note.getTuningCorrectionCents()); // fine: hh/16, coarse: hh
+                } else if (note.hasFx()) {
+                  // An unset character reads as the command's own "-" placeholder.
+                  std::string text = std::string("0") + std::string(note.getFx());
 		  std::replace(text.begin(), text.end(), Note::kFxEmpty, '-');
 		  if (fx.setData(text)) {
 		    if (fx.isAzimuthSet()) { note_override.has_azimuth = true; note_override.azimuth = fx.getAzimuthSetDegrees(); }
 		    else if (fx.isExtentSet()) { note_override.has_extent = true; note_override.extent = fx.getExtentSetMeters(); }
 		  }
-		}
+                }
                 auto event_override = note_override;
                 // A note column glides by its own fx (G04) or else the row's
-                // 0Gxx; G00 repeats what the column last had.
+                // 0Gxx; G00 repeats what the column last had. 0Hxx works the
+                // same way. A note has one fx, which decides between the two;
+                // with neither as its fx the row's 0Hxx goes before its 0Gxx.
                 int own_glide = fx.isPitchGlide() ? fx.getPitchGlideCode() : -1;
-                if (note.isNoteOn() && (own_glide >= 0 || row_glide_raw >= 0)) {
+                int own_overtone = fx.isOvertoneGlide() ? fx.getOvertoneGlideCode() : -1;
+                const bool overtone_target = own_overtone >= 0 || (own_glide < 0 && row_overtone_raw >= 0);
+                if (note.isNoteOn() && overtone_target) {
+                  int raw = own_overtone >= 0 ? own_overtone : row_overtone_raw;
+                  int code = raw > 0 ? raw : rememberedCode(last_overtone_codes_, track_id, int(j));
+                  if (own_overtone > 0) last_overtone_codes_[track_id][int(j)] = own_overtone;
+                  int row_samples = getChannelConfiguration().getSampleInterval(tempo_);
+                  if (code > 0 && row_samples > 0) {
+                    event_override.has_overtone_glide = true;
+                    event_override.overtone_per_frame = overtoneSharePerFrame(code, row_samples);
+                    event_override.overtone_frames = std::max(1, row_samples - std::max(0, delay_samples));
+                    event_override.overtone_instant = code == 0xFF;
+                  }
+                } else if (note.isNoteOn() && (own_glide >= 0 || row_glide_raw >= 0)) {
                   int raw = own_glide >= 0 ? own_glide : row_glide_raw;
-                  int code = raw > 0 ? raw : rememberedGlideCode(track_id, int(j));
+                  int code = raw > 0 ? raw : rememberedCode(last_glide_codes_, track_id, int(j));
                   if (own_glide > 0) last_glide_codes_[track_id][int(j)] = own_glide;
                   int glide_edo = edoStepsFor(content.scalars.tuning);
                   int row_samples = getChannelConfiguration().getSampleInterval(tempo_);
@@ -701,12 +737,16 @@ class SongState : public TrackState {
                   int row_samples = getChannelConfiguration().getSampleInterval(tempo_);
                   int glide_edo = edoStepsFor(content.scalars.tuning);
                   if (fx.isPitchGlide()) {
-                    int code = fx.getPitchGlideCode() > 0 ? fx.getPitchGlideCode() : rememberedGlideCode(track_id, int(j));
+                    int code = fx.getPitchGlideCode() > 0 ? fx.getPitchGlideCode() : rememberedCode(last_glide_codes_, track_id, int(j));
                     if (fx.getPitchGlideCode() > 0) last_glide_codes_[track_id][int(j)] = code;
                     if (code > 0 && glide_edo > 0 && row_samples > 0) {
                       float cents_per_row = static_cast<float>(code) / 16.0f * 1200.0f / static_cast<float>(glide_edo);
                       render_context_.addPendingPitchGlide(track_id, i, int(j), cents_per_row / static_cast<float>(row_samples), row_samples, code == 0xFF);
                     }
+                  } else if (fx.isOvertoneGlide()) {
+                    int code = fx.getOvertoneGlideCode() > 0 ? fx.getOvertoneGlideCode() : rememberedCode(last_overtone_codes_, track_id, int(j));
+                    if (fx.getOvertoneGlideCode() > 0) last_overtone_codes_[track_id][int(j)] = code;
+                    if (code > 0 && row_samples > 0) render_context_.addPendingOvertoneGlide(track_id, i, int(j), overtoneSharePerFrame(code, row_samples), row_samples, code == 0xFF);
                   } else if (fx.isRetrigger()) {
                     auto remembered = last_notes_[track_id].find(int(j));
                     if (remembered != last_notes_[track_id].end()) scheduleNoteRetrigger(track_id, i, remembered->second, fx.getRetriggerIntervalTicks(), fx.getRetriggerVolumeCode());
@@ -884,6 +924,7 @@ class SongState : public TrackState {
   void setIsPlaying(bool b) {
     if (is_playing_ && !b) render_context_.noteTransportJump();
     last_glide_codes_.clear();
+    last_overtone_codes_.clear();
     last_slide_codes_.clear();
     is_playing_ = b;
   }
@@ -955,6 +996,7 @@ class SongState : public TrackState {
   void setPosition(int absolute_row) {
     render_context_.noteTransportJump();
     last_glide_codes_.clear();
+    last_overtone_codes_.clear();
     last_slide_codes_.clear();
     arrangement_rescan_ = true;
     sample_pos_ = 0;
@@ -974,6 +1016,7 @@ class SongState : public TrackState {
   void setPositionWithEditSeq(int absolute_row, int edit_seq) {
     render_context_.noteTransportJump();
     last_glide_codes_.clear();
+    last_overtone_codes_.clear();
     last_slide_codes_.clear();
     arrangement_rescan_ = true;
     sample_pos_ = 0;
@@ -1357,6 +1400,8 @@ private:
   // (from the effect column). G00 repeats the column's, else the track's, and
   // does nothing with neither. A stop or seek forgets them.
   std::unordered_map<int, std::map<int, int>> last_glide_codes_;
+  // 0Hxx's, the same way.
+  std::unordered_map<int, std::map<int, int>> last_overtone_codes_;
   // 0Uxx/0Dxx's memory per track and YUxx/YDxx's for the song: the last
   // nonzero amount, shared by up and down.
   std::unordered_map<int, int> last_slide_codes_;
@@ -1375,9 +1420,16 @@ private:
       code = memory;
     return command.isPitchSlideDown() ? -code : code;
   }
-  int rememberedGlideCode(int track_id, int column) const {
-    auto track = last_glide_codes_.find(track_id);
-    if (track == last_glide_codes_.end()) return 0;
+  // 0Hxx's `code` as a share of the whole change a frame, over a row of
+  // `row_samples`.
+  static float overtoneSharePerFrame(int code, int row_samples) {
+    return static_cast<float>(code) / 16.0f / static_cast<float>(row_samples);
+  }
+  // A column's remembered rate in `codes` (last_glide_codes_ or
+  // last_overtone_codes_), else its track's, else 0.
+  static int rememberedCode(const std::unordered_map<int, std::map<int, int>> & codes, int track_id, int column) {
+    auto track = codes.find(track_id);
+    if (track == codes.end()) return 0;
     auto own = track->second.find(column);
     if (own != track->second.end()) return own->second;
     auto fallback = track->second.find(-1);

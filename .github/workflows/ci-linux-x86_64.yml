@@ -45,10 +45,11 @@ jobs:
             xvfb \
             xdotool \
             pkg-config \
-            fluid-soundfont-gm
+            fluid-soundfont-gm \
+            libmysofa-dev
 
       - name: Configure
-        run: cmake -B build -DSYNTH_MARCH=x86-64-v2
+        run: cmake -B build -DSYNTH_MARCH=x86-64-v2 -DSYNTH_ENABLE_BINAURAL=ON
 
       # A bare -j is unlimited under make and exhausts the runner's memory;
       # cap at one job per core.

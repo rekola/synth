@@ -15,6 +15,7 @@ TEST(command_update_data_accepts_mnemonic_column_charset) {
   CHECK(c.updateData(0, 'Z'));
   CHECK(c.updateData(1, 'b')); // lowercase accepted, normalized on storage
   CHECK(c.updateData(0, '9'));
+  CHECK(c.updateData(0, 'c')); // a letter is a device index past 9
   CHECK(c.updateData(1, '-'));
 }
 
@@ -59,25 +60,26 @@ TEST(command_update_data_rejects_out_of_range_index) {
 // beyond -/0 yet" note) - unlike column 1, no other letter means
 // anything there, so one shouldn't silently parse as a "valid" command
 // either.
-TEST(command_update_data_column_zero_accepts_only_z_y_and_digits) {
+TEST(command_update_data_column_zero_accepts_digits_and_letters) {
   Command c;
   CHECK(c.updateData(0, 'Z'));
   CHECK(c.updateData(0, 'Y'));
   CHECK(c.updateData(0, '0'));
   CHECK(c.updateData(0, '9')); // an unimplemented ancestor level - still syntactically valid
   CHECK(c.updateData(0, '-')); // normalizes to '0', see below
-  CHECK(!c.updateData(0, 'A'));
-  CHECK(!c.updateData(0, 'L')); // a real column-1 mnemonic letter, but meaningless at column 0
+  CHECK(c.updateData(0, 'A')); // letters continue the digits as device indices
+  CHECK(c.updateData(0, 'X'));
+  CHECK(!c.updateData(0, '['));
   CHECK(c.updateData(0, 'z')); // lowercase 'z' normalizes to 'Z' before this check, so it IS accepted
   CHECK(c.updateData(0, 'y')); // lowercase 'y' normalizes to 'Y' before this check, so it IS accepted
 }
 
-// setData() (the fallible sibling), not the asserting string_view
-// constructor - 'L' isn't 'Z' or a digit, so this is deliberately
-// malformed input.
-TEST(command_set_data_rejects_a_command_with_a_meaningless_device_index) {
+// setData() (the fallible sibling): a letter is a device index, so it parses,
+// but nothing but index 0 is implemented, so it is not valid.
+TEST(command_set_data_accepts_a_letter_device_index_that_is_not_valid_yet) {
   Command c;
-  CHECK(!c.setData("L400"));
+  CHECK(c.setData("L400"));
+  CHECK(!c.isValid());
 }
 
 // Column 0 is this engine's own leaf-track chain-position digit - always
@@ -287,4 +289,14 @@ TEST(every_send_position_round_trips_through_a_glide_command) {
   CHECK(sendDbToPosition(-43.4f) == 1);
   CHECK(sendDbToPosition(-43.6f) == 0);
   CHECK(sendDbToPosition(12.0f) == kSendTopPosition);
+}
+
+TEST(a_command_is_valid_only_when_playback_understands_it) {
+  CHECK(Command().isValid());
+  for (const char * ok : {"ZB00", "ZT78", "0U10", "0D10", "0G04", "0H08", "0R24", "0P80", "0W80", "0L80", "YM8F", "YA00", "YB00", "YZ80", "YL10", "YR10", "YU10", "YD10"}) {
+    CHECK(Command(ok).isValid());
+  }
+  for (const char * bad : {"ZT10", "ZX00", "0K05", "1V40", "1U10", "YX00", "0U1-", "0U--", "0A12", "0V12"}) {
+    CHECK(!Command(bad).isValid());
+  }
 }

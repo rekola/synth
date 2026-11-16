@@ -1,6 +1,7 @@
 #pragma once
 
 #include <cellui/Color.h>
+#include <cellui/Picture.h>
 #include <cellui/StyleProvider.h>
 
 #include <cstdint>
@@ -10,7 +11,9 @@
 namespace cellui {
 
 // A sparkline's reading: the level and the held peak as 0..1 fractions of the
-// meter (level_meter::fraction()), and whether the signal clips.
+// meter (level_meter::fraction()), and whether its clip lamp is lit (the owner holds it lit for a while
+// after the signal clipped). A pixel sparkline draws the lamp as a square above the bar, which it lights past
+// white so it glows; a cell sparkline colours the bar with the clip colour.
 struct SparklineReading {
   float fraction = 0.0f;
   float peak = 0.0f;  // 0: no peak marker
@@ -34,6 +37,11 @@ namespace sparkline_image {
 // top, bytes R, G, B, A (all opaque).
 std::vector<uint32_t> render(const std::vector<std::optional<SparklineReading>> & columns, const SparklineLook & look, unsigned width,
                              unsigned height, const StyleProvider & styles, float scale = 1.0f);
+
+// The same as a Picture, drawn on a float canvas when `prefer_float` and the backend has one (the top of
+// the meter's colours is lit past white), else on an 8-bit one that maps each colour to sRGB.
+Picture renderPicture(const std::vector<std::optional<SparklineReading>> & columns, const SparklineLook & look, unsigned width,
+                      unsigned height, const StyleProvider & styles, float scale, bool prefer_float);
 
 }  // namespace sparkline_image
 

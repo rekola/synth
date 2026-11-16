@@ -1,6 +1,7 @@
 #include "ClipGrid.h"
 #include "ClipCard.h"
 #include "LevelMeter.h"
+#include "TrackNameEdit.h"
 #include "ScenePatternSource.h"
 
 #include "../playback/InputEvent.h"
@@ -409,26 +410,12 @@ ClipGrid::startTrackRename(const Song & song, const std::vector<int> & track_ids
   auto col_x = columnX(cursor_track_index_);
   if (col_x < 0) return; // column itself scrolled off
 
-  // The editable span excludes the leading "T<N> " structural label
-  // (N = color_ordinal_) - PatternEditor's own startTrackNameEdit() draws
-  // that same prefix and leaves it out of what's editable too - and the
-  // trailing " ◆IMS" flags, matching render()'s own
-  // header layout exactly so the reader lands right over the name it's
-  // replacing.
+  // The field covers the name in the header's label, after the chip and the
+  // "T<N> " prefix; render() draws the same label.
   SongStructure structure(song);
-  auto prefix = "T" + std::to_string(structure.getBaselineInfo(track_id).color_ordinal_) + " ";
   const int chip_width = synthStyles().track_chips ? 1 : 0;
   auto name_area_width = kColWidth - kHeaderFlagsWidth - chip_width;
-  auto prefix_width = std::min(static_cast<int>(prefix.size()), name_area_width);
-  auto edit_col = col_x + chip_width + prefix_width;
-  auto edit_width = std::max(name_area_width - prefix_width, 1);
-
-  InlineEditor::Field field;
-  field.row = 0;
-  field.col = edit_col;
-  field.width = edit_width;
-  field.initial_text = track->getName();
-  field.backdrop = synthStyles().heading_bg_color; // opaque over the header's own name
+  auto field = track_name_edit::field(synthStyles(), structure.getBaselineInfo(track_id), track->getName(), 0, col_x + chip_width, name_area_width);
   renaming_track_id_ = track_id;
   inline_editor_.open(field, [this, track_id](std::string text) {
     auto & target_song = getController().getSong();
@@ -759,13 +746,11 @@ void ClipGrid::startClipDrag(const cellui::MouseMove & e) {
 }
 
 // The header's text: the track's number and its name, if it has one.
-std::string ClipGrid::trackLabel(int track_id) const {
+std::string ClipGrid::trackLabel(int track_id, bool editing) const {
   auto & song = getController().getSong();
   SongStructure structure(song);
   auto leaf = dynamic_cast<const LeafTrack *>(song.getMasterTrack().getChildByInternalId(track_id));
-  auto label = "T" + std::to_string(structure.getBaselineInfo(track_id).color_ordinal_);
-  if (leaf && !leaf->getName().empty()) label += " " + leaf->getName();
-  return label;
+  return track_name_edit::label(structure.getBaselineInfo(track_id).color_ordinal_, leaf ? leaf->getName() : std::string(), editing);
 }
 
 // A track picked up by its header: a ghost of the header follows the pointer,
@@ -1129,8 +1114,9 @@ ClipGrid::render(const StyleProvider & styles, bool refresh, bool focused) {
     auto & meter = meters_[track_id];
     meter.fraction = level_meter::fraction(meter.ballistics.update(track_info.getMeterValue(), meter_dt));
     meter.peak_fraction = meter.peak_hold.update(meter.fraction, meter_dt);
+    meter.clip_lit = meter.clip_hold.update(track_info.isClipping(), meter_dt);
     auto steps = meter.level_steps.update(meter.fraction, meter_levels);
-    meter_steps.push_back(track_info.isClipping() ? -1 - steps : steps);
+    meter_steps.push_back(meter.clip_lit ? -1 - steps : steps);
     meter_steps.push_back(meter.peak_steps.update(meter.peak_fraction, meter_levels));
   }
   bool meters_changed = meter_steps != current_meter_steps_;
@@ -1199,9 +1185,8 @@ ClipGrid::render(const StyleProvider & styles, bool refresh, bool focused) {
   for (auto vc = 0; vc < drawn_cols; vc++) {
     auto track_index = first_col_ + vc;
     if (track_index == num_tracks) {
-      auto & master_info = playback_info.getTrackInfo(master_id);
       renderMasterColumn(styles, vc * (kColWidth + 1) - col_shift_, drawn_rows, focus_ > 0.0f, num_tracks, sceneState);
-      renderMeter(styles, vc * (kColWidth + 1) - col_shift_, drawn_rows, master_id, master_info.isClipping());
+      renderMeter(styles, vc * (kColWidth + 1) - col_shift_, drawn_rows, master_id, meters_[master_id].clip_lit);
       break;
     }
     if (track_index > num_tracks) break;
@@ -1245,9 +1230,7 @@ ClipGrid::render(const StyleProvider & styles, bool refresh, bool focused) {
     if (drop_here) header_plane.putstr(0, x, string(static_cast<size_t>(kColWidth), ' '));
     if (lifted) header_plane.setFgColor(styles.window_border_color);
     bool renaming = renaming_track_id_ == track_id && inline_editor_.isOpen();
-    auto label = trackLabel(track_id);
-    if (renaming) label.resize(label.find(' ') == std::string::npos ? label.size() : label.find(' '));
-    header_plane.putText(0, x + chip_width, name_width, label, cellui::TextStyle{cellui::TextFont::PROPORTIONAL, cellui::TextOverflow::ELLIPSIS});
+    header_plane.putText(0, x + chip_width, name_width, trackLabel(track_id, renaming), cellui::TextStyle{cellui::TextFont::PROPORTIONAL, cellui::TextOverflow::ELLIPSIS});
     if (drop_here) {
       header_plane.setFgColor(styles.window_fg_color);
       bool before = track_drag_source_ && track_index < *track_drag_source_;
@@ -1461,9 +1444,8 @@ ClipGrid::render(const StyleProvider & styles, bool refresh, bool focused) {
       body_plane.putstr(y, x, text);
     }
 
-    auto & track_info = playback_info.getTrackInfo(track_id);
     if (leaf) renderDials(styles, x, drawn_rows, track_index, track_id, leaf->getSends());
-    renderMeter(styles, x, drawn_rows, track_id, track_info.isClipping());
+    renderMeter(styles, x, drawn_rows, track_id, meters_[track_id].clip_lit);
 
     setFgColor(styles.window_border_color);
     setBgColor(styles.heading_bg_color); // the header row's own backdrop, not the plain window background below it

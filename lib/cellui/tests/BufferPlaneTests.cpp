@@ -1310,3 +1310,77 @@ TEST(bufferplane_a_band_border_leaves_out_a_skipped_span_and_what_is_drawn_over_
   borders = root.takeBorders();
   CHECK(edgesAt(borders, 2, 0) == 0 && edgesAt(borders, 2, 1) == 0 && edgesAt(borders, 2, 2) == EDGE_BOTTOM);
 }
+
+TEST(bufferplane_hdr_picture_is_the_planes_float_image) {
+  StyleProvider styles;
+  CellBuffer b(3, 6);
+  BufferPlane root(b, styles);
+  root.setCellPixelSize(4, 2);
+  CHECK(!root.hdrPictures());
+  auto child = root.createChild();
+  root.setHdrPictures(true);
+  CHECK(root.hdrPictures() && child->hdrPictures());  // the root's, for the whole tree
+
+  std::vector<float> rgba(4 * 4 * 4, 0.5f);
+  for (size_t i = 0; i < rgba.size(); i += 4) rgba[i] = 3.0f;  // a red above white
+  root.drawHdrImage(rgba, 4, 4);
+  root.refresh();
+  CHECK(root.images().size() == 1);
+  const Image & first = *root.images()[0].image;
+  CHECK(first.isHdr() && first.pixels.empty() && first.hdr.size() == rgba.size() && first.hdr[0] == 3.0f);
+  uint64_t version = first.version;
+
+  // The same picture again keeps its version; other numbers are the same image changed.
+  root.drawHdrImage(rgba, 4, 4);
+  root.refresh();
+  CHECK(root.images().size() == 1 && root.images()[0].image->version == version);
+  rgba[0] = 4.0f;
+  root.drawHdrImage(rgba, 4, 4);
+  root.refresh();
+  CHECK(root.images().size() == 1 && root.images()[0].image->version != version && root.images()[0].image->hdr[0] == 4.0f);
+
+  // An 8-bit picture drawn over it is not mistaken for it, though it has the same size.
+  root.drawImage(std::vector<uint32_t>(4 * 4, 0xff0000ffu), 4, 4);
+  root.refresh();
+  CHECK(root.images().size() == 1 && !root.images()[0].image->isHdr() && root.images()[0].image->pixels.size() == 16u);
+}
+
+TEST(bufferplane_hdr_picture_too_small_for_its_size_is_ignored) {
+  StyleProvider styles;
+  CellBuffer b(3, 6);
+  BufferPlane root(b, styles);
+  root.setCellPixelSize(4, 2);
+  root.setHdrPictures(true);
+  root.drawHdrImage(std::vector<float>(10, 1.0f), 4, 4);
+  root.refresh();
+  CHECK(root.images().empty());
+}
+
+TEST(bufferplane_hdr_picture_at_a_cell_covers_only_its_cells) {
+  StyleProvider styles;
+  CellBuffer b(3, 6);
+  BufferPlane root(b, styles);
+  root.setCellPixelSize(4, 2);
+  root.setHdrPictures(true);
+  root.putstr(0, 0, "abcdef");
+  root.putstr(1, 0, "ghijkl");
+  // Two cells wide, one tall, from (1, 2); then redrawn there with other light.
+  std::vector<float> rgba(4 * 4 * 4, 2.0f);
+  root.drawHdrImageAt(1, 2, rgba, 4, 4, 7);
+  uint64_t version = 0;
+  root.refresh();
+  CHECK(root.images().size() == 1 && root.images()[0].image->isHdr());
+  version = root.images()[0].image->version;
+  CHECK(b.at(1, 2).image == 1 && b.at(1, 3).image == 1);
+  CHECK(!b.at(1, 1).image && !b.at(1, 4).image && !b.at(0, 2).image);
+  rgba[0] = 3.0f;
+  root.drawHdrImageAt(1, 2, rgba, 4, 4, 7);
+  root.refresh();
+  CHECK(root.images().size() == 1 && root.images()[0].image->version != version);
+  // The same picture after an erase() is the same image, moved: not sent again.
+  uint64_t key = root.images()[0].key;
+  root.erase();
+  root.drawHdrImageAt(1, 4, rgba, 4, 4, 7);
+  root.refresh();
+  CHECK(root.images().size() == 1 && root.images()[0].key == key && root.images()[0].col == 4);
+}

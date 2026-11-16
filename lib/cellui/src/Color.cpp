@@ -1,7 +1,8 @@
 #include <cellui/Color.h>
 
 #include <cellui/NumberParse.h>
-#include <cellui/ToneMap.h>
+
+#include <canvas/ColorSpace.h>
 
 #include <algorithm>
 #include <cctype>
@@ -176,14 +177,14 @@ void fromOklab(const float lab[3], float rgb[3]) {
 
 constexpr float kGamutSlack = 1e-4f;
 
-// Pulls linear 709 `v` into the gamut `to709` describes (all of the target's
+// Pulls linear 709 `v` into the gamut `target` describes (all of the target's
 // components at least 0): chroma reduced at the colour's own OKLab lightness
-// and hue. `target` is null for 709 itself.
-void reduceChroma(float v[3], const Mat * target) {
+// and hue. (What a display with 709 primaries shows of a colour is canvas'
+// linearRec2020ToSrgb(), which toSrgb8() uses.)
+void reduceChroma(float v[3], const Mat & target) {
   auto minOf = [&](const float c709[3]) {
-    if (!target) return std::min(c709[0], std::min(c709[1], c709[2]));
     float t[3];
-    apply(*target, c709, t);
+    apply(target, c709, t);
     return std::min(t[0], std::min(t[1], t[2]));
   };
   if (minOf(v) >= -kGamutSlack * 0.1f) return;
@@ -227,7 +228,7 @@ Color Color::linear(float r, float g, float b) {
   const Tables & t = tables();
   float v2020[3] = {r, g, b}, v709[3];
   apply(t.m2020to709, v2020, v709);
-  reduceChroma(v709, &t.m709to2020);
+  reduceChroma(v709, t.m709to2020);
   float o[3];
   apply(t.m709to2020, v709, o);
   return Color(std::fmax(0.0f, o[0]), std::fmax(0.0f, o[1]), std::fmax(0.0f, o[2]), 0);
@@ -325,11 +326,17 @@ std::array<uint8_t, 3> Color::toSrgb8() const {
   const Tables & t = tables();
   float c[3] = {r_, g_, b_}, v[3];
   apply(t.m2020to709, c, v);
-  if (std::fmin(v[0], std::fmin(v[1], v[2])) < 0.0f) reduceChroma(v, nullptr);
-  float mx = std::fmax(v[0], std::fmax(v[1], v[2]));
-  // Light past what the display can show washes toward white (a path to white).
-  if (mx > 1.0f) neutralToneMap(v);
-  return {linearToSrgb8(v[0]), linearToSrgb8(v[1]), linearToSrgb8(v[2])};
+  // A colour inside sRGB and at or under white is just encoded (the tables keep this
+  // fast: it is done for every colour a frame shows). The matrix leaves a primary a hair
+  // outside (a component of -1e-9 or 1.0000001, by how a build rounds), which is not a
+  // colour to map: the slack keeps pure colours exact.
+  if (std::fmin(v[0], std::fmin(v[1], v[2])) >= -kGamutSlack * 0.1f && std::fmax(v[0], std::fmax(v[1], v[2])) <= 1.0f + kGamutSlack * 0.1f)
+    return {linearToSrgb8(v[0]), linearToSrgb8(v[1]), linearToSrgb8(v[2])};
+  // Outside the gamut or past white is canvas' to map: the same mapping an 8-bit canvas
+  // surface applies to a colour it is given, so a picture and a cell agree.
+  canvas::Color mapped = canvas::linearRec2020ToSrgb(canvas::Color(finite(r_), finite(g_), finite(b_), 1.0f));
+  auto level = [](float encoded) { return static_cast<uint8_t>(std::lround(std::clamp(encoded, 0.0f, 1.0f) * 255.0f)); };
+  return {level(mapped.red), level(mapped.green), level(mapped.blue)};
 }
 
 std::array<float, 3> Color::linearSrgb() const {

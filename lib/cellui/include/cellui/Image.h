@@ -14,6 +14,10 @@ namespace cellui {
 struct Image {
   int width = 0, height = 0;
   std::vector<uint32_t> pixels;
+  // Instead of `pixels`, for a display that asked for them (DisplayInfo::hdr_pictures): width*height*4
+  // floats, R, G, B, A in linear Rec.2020, 1.0 = SDR white, above it HDR. Straight alpha, which the
+  // pictures drawn so far never use (all opaque). `pixels` is empty then.
+  std::vector<float> hdr;
   uint64_t version = 0;
   // The cells the picture is stretched over (a picture drawn at a lower
   // resolution than the display's, a blurred backdrop); 0 for its natural
@@ -24,6 +28,7 @@ struct Image {
   // (it would blend them with transparency, leaving a seam between tiles).
   int pad = 0;
 
+  bool isHdr() const { return !hdr.empty(); }
   bool stretched() const { return cols > 0 && rows > 0; }
   // The cells it covers at the display's cell size.
   int coveredRows(int cell_h) const { return stretched() ? rows : (height + cell_h - 1) / cell_h; }

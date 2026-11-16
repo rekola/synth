@@ -1,7 +1,9 @@
 #include <cellui/term/TerminalSession.h>
 
+#include <cellui/HdrBloom.h>
 #include <cellui/term/Discovery.h>
 
+#include <algorithm>
 #include <atomic>
 #include <cerrno>
 #include <csignal>
@@ -646,9 +648,33 @@ void TerminalSession::present(const CellBuffer & frame, const CursorRequest & cu
   pacer_.requestFrame();
 }
 
-void TerminalSession::sendFrame(const CellBuffer & frame, const CursorRequest & cursor, const std::vector<ImagePlacement> & images,
+// A terminal has no float surface: a float picture is tone mapped and its light past white bloomed
+// here, once per version, and the placements carry the 8-bit result.
+std::vector<ImagePlacement> TerminalSession::flattenPictures(const std::vector<ImagePlacement> & images) {
+  std::vector<ImagePlacement> out = images;
+  for (auto & entry : flattened_) entry.second.used = false;
+  for (ImagePlacement & placement : out) {
+    if (!placement.image || !placement.image->isHdr()) continue;
+    Flattened & entry = flattened_[placement.key];
+    if (!entry.flat || entry.version != placement.image->version) {
+      entry.flat = std::make_shared<const Image>(flattenHdr(*placement.image, caps_.display.cell_px_height, &entry.state));
+      entry.version = placement.image->version;
+    }
+    entry.used = true;
+    placement.image = entry.flat;
+  }
+  for (auto it = flattened_.begin(); it != flattened_.end();) it = it->second.used ? std::next(it) : flattened_.erase(it);
+  return out;
+}
+
+void TerminalSession::sendFrame(const CellBuffer & frame, const CursorRequest & cursor, const std::vector<ImagePlacement> & raw_images,
                                 const std::vector<BackdropLayer> & layers, const std::vector<CellBorder> & borders) {
   frame_presented_ = true;
+  const bool any_hdr = std::any_of(raw_images.begin(), raw_images.end(), [](const ImagePlacement & p) { return p.image && p.image->isHdr(); });
+  std::vector<ImagePlacement> flat;
+  if (any_hdr) flat = flattenPictures(raw_images);
+  else flattened_.clear();
+  const std::vector<ImagePlacement> & images = any_hdr ? flat : raw_images;
   // What the link is worth decides how many colours a picture keeps.
   images_.setPictureQuality(pictureQualityFor(link_.status().cls));
   std::string body;

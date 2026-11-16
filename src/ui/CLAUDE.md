@@ -141,8 +141,10 @@ Controller-level and per-widget commands. Not migrated: `StatusLine`,
   clip, or the background), stopping where other content takes over
   (`PatternSource::sourceRows()`). A yank writes into whatever the cursor is
   on and stops where that ends.
-- Tuning corrections: a note's local fx can be `+hh`/`-hh` cents
-  (`Note::setTuningCorrection()`, played as `NoteOverride::detune_cents`); the
+- Tuning corrections: a note's local fx can be `+hh`/`-hh` (sixteenths of
+  a cent) or `>hh`/`<hh` (whole cents, for what the fine one does not reach;
+  `Note::setTuningCorrection(double cents)` picks, never clamps and returns false
+  past 255; played as `NoteOverride::detune_cents`, a float); the
   empty fx character is `.` (shown `·`) since `-` is a sign.
   `apply-just-intonation-region` tunes each pitched note to the gamut note
   of its key (`model/JustIntonation.h`): the scale names its gamut
@@ -163,7 +165,7 @@ Controller-level and per-widget commands. Not migrated: `StatusLine`,
 
 ## Chord cursor and chord entry
 
-- The cursor has a width of 1 to `kMaxCursorWidth` note columns
+- The cursor has a width of 1 to `kMaxCursorWidth` (`chords::kMaxSize`, 5) note columns
   (`widen-cursor`/`narrow-cursor`), drawn across them and clipped where the
   track ends; with no mark the region is that span. The width is not the
   selection. Widening past the last note column raises the track's
@@ -312,7 +314,10 @@ Controller-level and per-widget commands. Not migrated: `StatusLine`,
   calls `Dial::startEdit()` on Enter. A dial has four looks (normal, pressed, selected from half the cursor's ease-in, and hover, set from the grid's pointer motion), so a position has four pictures. Every column has a vertical level meter
   beside its Main and Direction rows (`LevelMeter.h`: one dB mapping,
   `Ballistics` smoothing block RMS in the power domain, bars shaded green →
-  orange → clip red via `StyleProvider::levelColor()`, a `PeakHold` marker);
+  orange → clip red via `StyleProvider::levelColor()`, a `PeakHold` marker, and a clip lamp above the bar:
+  a pixel meter's square at the top of its picture, dim until the track clips and then lit past white so the
+  window blooms it, held lit for `ClipHold::kHoldSeconds` after the last clip by whoever owns the meter's
+  state; the bar itself does not change when it clips);
   the pattern editor's track meters and the scope row's `ChannelMeter`
   (`getChannelLoudness()`, per-channel RMS) share it, and the master's reads
   the master track's `TrackInfo`.

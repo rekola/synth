@@ -77,8 +77,20 @@ PadSynthTable::getTable(float f0) const {
   return inserted->second;
 }
 
+const std::vector<float> &
+PadSynthTable::getOvertoneTable(float f0, int step) const {
+  int j = nearestSampleIndex(f0);
+  const int64_t key = (static_cast<int64_t>(step) << 32) | static_cast<uint32_t>(j);
+  auto it = overtone_tables_.find(key);
+  if (it != overtone_tables_.end()) return it->second;
+  getTable(f0); // its scale is the overtone table's too
+  auto [inserted, ok] = overtone_tables_.emplace(key, renderSample(j, step));
+  (void)ok;
+  return inserted->second;
+}
+
 std::vector<float>
-PadSynthTable::renderSample(int j) const {
+PadSynthTable::renderSample(int j, int step) const {
   float f_j = sampleFrequency(j);
   const std::vector<float> & prototype = oscillatorMagnitudes();
 
@@ -142,6 +154,7 @@ PadSynthTable::renderSample(int j) const {
     float phi_h = g_h * f_j;
     if (phi_h > partial_limit || phi_h < 20.0f) break; // stop entirely
     if (shaped[static_cast<size_t>(h)] < 1e-4f) continue; // skip
+    if (h % step != 0) continue;
 
     placePartial(amplitude_spectrum, shaped[static_cast<size_t>(h)], phi_h, params_.bandwidth_cents, alpha, profile, SR);
   }
@@ -159,13 +172,21 @@ PadSynthTable::renderSample(int j) const {
   }
 
   auto table = fft.inverse(spectrum);
+  if (step > 1) {
+    bool placed = std::any_of(amplitude_spectrum.begin(), amplitude_spectrum.end(), [](float a) { return a > 0.0f; });
+    if (!placed) return {};
+    auto scale = scales_.find(j);
+    float factor = scale != scales_.end() ? scale->second : 1.0f;
+    std::vector<float> result(table.begin(), table.end());
+    for (float & s : result) s *= factor;
+    return result;
+  }
   double sum_sq = 0.0;
   for (float s : table) sum_sq += static_cast<double>(s) * static_cast<double>(s);
   float rms = static_cast<float>(std::sqrt(sum_sq / static_cast<double>(table.size())));
   std::vector<float> result(table.begin(), table.end());
-  if (rms > 0.0f) {
-    float scale = kTargetRMS / rms;
-    for (float & s : result) s *= scale;
-  }
+  float scale = rms > 0.0f ? kTargetRMS / rms : 1.0f;
+  for (float & s : result) s *= scale;
+  scales_[j] = scale;
   return result;
 }

@@ -31,46 +31,46 @@ class OscillatorVoice : public InstrumentVoice {
 public:
   // `detune` is the frequency ratio applied to every member (the played
   // note's own detune and harmonic).
-  OscillatorVoice(const ChannelConfiguration & config, const SphericalPosition & position, float detune, WaveformType type, float level, float pulse_width, const SendLevels & sends = {}, const NoteCoordinate & note_coord = {}, const OscillatorArray & array = {})
-    : InstrumentVoice(config, position, 1.0f, sends, note_coord), type_(type), pulse_width_(pulse_width) {
-    const int n = std::clamp(array.voices, 1, OscillatorArray::kMaxVoices);
-    // atan2 rather than atan handles distance <= 0 (an untouched/diffuse
-    // position, where the azimuth is ignored anyway) without dividing by 0.
-    const float radius_deg = n > 1 ? atan2f(array.spread * position.extent, position.distance) * 180.0f / static_cast<float>(M_PI) : 0.0f;
+ OscillatorVoice(const ChannelConfiguration & config, const SphericalPosition & position, float detune, WaveformType type, float level, float pulse_width, const SendLevels & sends = {}, const NoteCoordinate & note_coord = {}, const OscillatorArray & array = {})
+     : InstrumentVoice(config, position, 1.0f, sends, note_coord), type_(type), pulse_width_(pulse_width), detune_(detune) {
+   const int n = std::clamp(array.voices, 1, OscillatorArray::kMaxVoices);
+   // atan2 rather than atan handles distance <= 0 (an untouched/diffuse
+   // position, where the azimuth is ignored anyway) without dividing by 0.
+   const float radius_deg = n > 1 ? atan2f(array.spread * position.extent, position.distance) * 180.0f / static_cast<float>(M_PI) : 0.0f;
 
-    const int count = bucketCountFor(config.getAmbisonicOrder(), radius_deg, n, position.distance > 0.0f);
-    buckets_.resize(static_cast<size_t>(count));
-    const std::vector<int> rings = ringCounts(count);
-    const int64_t scatter_coord = note_coord.toHashCoord();
-    for (int b = 0; b < count; b++) {
-      Bucket & bucket = buckets_[static_cast<size_t>(b)];
-      bucket.direction = cloudPoint(position, radius_deg, b, rings, &scatter_coord);
-      bucket.gains = computeAmbisonicGains(bucket.direction);
-    }
+   const int count = bucketCountFor(config.getAmbisonicOrder(), radius_deg, n, position.distance > 0.0f);
+   buckets_.resize(static_cast<size_t>(count));
+   const std::vector<int> rings = ringCounts(count);
+   const int64_t scatter_coord = note_coord.toHashCoord();
+   for (int b = 0; b < count; b++) {
+     Bucket & bucket = buckets_[static_cast<size_t>(b)];
+     bucket.direction = cloudPoint(position, radius_deg, b, rings, &scatter_coord);
+     bucket.gains = computeAmbisonicGains(bucket.direction);
+   }
 
-    for (int k = 0; k < n; k++) {
-      // Where the member sits across the detune range: -1 .. +1, or 0 for one.
-      const float place = n > 1 ? 2.0f * static_cast<float>(k) / static_cast<float>(n - 1) - 1.0f : 0.0f;
+   for (int k = 0; k < n; k++) {
+     // Where the member sits across the detune range: -1 .. +1, or 0 for one.
+     const float place = n > 1 ? 2.0f * static_cast<float>(k) / static_cast<float>(n - 1) - 1.0f : 0.0f;
 
-      Member member;
-      member.level = level * powf(array.falloff, static_cast<float>(k));
-      member.ratio = detune * powf(array.ratio, static_cast<float>(k)) * powf(2.0f, place * array.detune_cents / 2400.0f);
-      // The same derivation as InstrumentVoice's own start phase, so a
-      // lone member starts where this voice always has; array members
-      // are decorrelated by their index.
-      NoteCoordinate coord = n > 1 ? note_coord.withInstance(k) : note_coord;
-      member.phase = static_cast<double>(HashField(kNotePhaseSalt).unit(coord.toHashCoord(), paramId("note_phase")));
-      if (n > 1 && array.detune_cents > 0.0f && array.drift_period > 0.0f) {
-        const double period = std::max(array.drift_period, kMinDriftPeriod) * static_cast<double>(config.getAudioOutSampleRate());
-        member.drift = PitchDriftMember(coord.toHashCoord(), 0.5f * array.detune_cents);
-        drift_clock_ = PitchDriftClock(period);
-      }
+     Member member;
+     member.level = level * powf(array.falloff, static_cast<float>(k));
+     member.ratio = detune * powf(array.ratio, static_cast<float>(k)) * powf(2.0f, place * array.detune_cents / 2400.0f);
+     // The same derivation as InstrumentVoice's own start phase, so a
+     // lone member starts where this voice always has; array members
+     // are decorrelated by their index.
+     NoteCoordinate coord = n > 1 ? note_coord.withInstance(k) : note_coord;
+     member.phase = static_cast<double>(HashField(kNotePhaseSalt).unit(coord.toHashCoord(), paramId("note_phase")));
+     if (n > 1 && array.detune_cents > 0.0f && array.drift_period > 0.0f) {
+       const double period = std::max(array.drift_period, kMinDriftPeriod) * static_cast<double>(config.getAudioOutSampleRate());
+       member.drift = PitchDriftMember(coord.toHashCoord(), 0.5f * array.detune_cents);
+       drift_clock_ = PitchDriftClock(period);
+     }
 
-      // Dealt round-robin, so the buckets stay evenly filled and members
-      // neighbouring in pitch land in different places.
-      buckets_[static_cast<size_t>(k % count)].members.push_back(member);
-    }
-  }
+     // Dealt round-robin, so the buckets stay evenly filled and members
+     // neighbouring in pitch land in different places.
+     buckets_[static_cast<size_t>(k % count)].members.push_back(member);
+   }
+ }
 
   // How many buckets an array of `members` needs: as many resolvable cells
   // (diameter `width` - the bus can't tell closer directions apart) as fit in
@@ -217,6 +217,13 @@ public:
 
     age_ += static_cast<uint64_t>(frames);
 
+    // The members have no level per partial, so 0Hxx shapes each bucket's
+    // sum, at the note's pitch (the members carry its detune themselves).
+    if (getOvertoneProfile().engaged()) {
+      combs_.resize(rows);
+      for (size_t b = 0; b < rows; b++) applyOvertoneComb(combs_[b], bucket_sums_.data() + b * padded, frames, detune_);
+    }
+
     if (has_main) {
       targets_.resize(rows);
       for (size_t b = 0; b < rows; b++) {
@@ -261,6 +268,8 @@ private:
 
   WaveformType type_;
   float pulse_width_;
+  float detune_;                                  // the note's own detune, which the members carry
+  std::vector<OvertoneComb> combs_;               // one per bucket, once 0Hxx has aimed the profile
   static constexpr float kMinDriftPeriod = 0.05f; // seconds
 
   std::vector<Bucket> buckets_;

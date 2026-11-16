@@ -6,6 +6,7 @@
 #include <algorithm>
 #include <array>
 #include <cmath>
+#include <cstring>
 #include <map>
 #include <tuple>
 
@@ -271,6 +272,15 @@ void BufferPlane::collect(std::vector<Paint> & paints, int row, int col, int cli
   }
 }
 
+// What is composed so far, taken out of `out` as a layer of its own, leaving
+// `out` blank: moved, not copied, since a screen of scrolled planes sets aside
+// one layer for each.
+static CellBuffer setAside(CellBuffer & out) {
+  CellBuffer below(out.rows(), out.cols());
+  std::swap(below, out);
+  return below;
+}
+
 void BufferPlane::compose(CellBuffer & out, int row, int col, int clip_row, int clip_col, int clip_rows, int clip_cols, float height) const {
   if (!visible_) return;
   const BufferPlane & top = root();
@@ -350,8 +360,7 @@ void BufferPlane::compose(CellBuffer & out, int row, int col, int clip_row, int 
     content.blend = blend_;
     content.blend_alpha = blend_alpha_;
     top.collectLifts(out, top.layers_.size());
-    top.layers_.push_back(BackdropLayer{ out, Backdrop{}, row, col, plane_rows, plane_cols, std::move(content) });
-    out.clear(0, 0, out.rows(), out.cols());
+    top.layers_.push_back(BackdropLayer{ setAside(out), Backdrop{}, row, col, plane_rows, plane_cols, std::move(content) });
     return;
   }
   // A backdrop is the display's to apply: what is composed below it is set
@@ -371,8 +380,7 @@ void BufferPlane::compose(CellBuffer & out, int row, int col, int clip_row, int 
     }
     if (found) {
       top.collectLifts(out, top.layers_.size());
-      top.layers_.push_back(BackdropLayer{ out, *found, r_min, c_min, r_max - r_min, c_max - c_min, std::nullopt });
-      out.clear(0, 0, out.rows(), out.cols());
+      top.layers_.push_back(BackdropLayer{ setAside(out), *found, r_min, c_min, r_max - r_min, c_max - c_min, std::nullopt });
     }
   }
   std::vector<int> run_map;
@@ -552,32 +560,10 @@ void BufferPlane::drawImage(const std::vector<uint32_t> & pixels, int width, int
   drawImageAt(0, 0, pixels, width, height, id);
 }
 
-void BufferPlane::drawImageAt(int row, int col, const std::vector<uint32_t> & pixels, int width, int height, uint64_t id, int clip_top,
-                              int clip_bottom) {
-  if (width <= 0 || height <= 0 || pixels.size() < static_cast<size_t>(width) * static_cast<size_t>(height)) return;
-  size_t count = static_cast<size_t>(width) * static_cast<size_t>(height);
-  bool explicit_id = id != 0;
-  uint64_t identity = id;
-  if (!explicit_id) {
-    // FNV-1a over the size and the pixels.
-    identity = 14695981039346656037ull;
-    auto mix = [&](uint64_t v) { identity = (identity ^ v) * 1099511628211ull; };
-    mix(static_cast<uint64_t>(width));
-    mix(static_cast<uint64_t>(height));
-    for (size_t i = 0; i < count; i++) mix(pixels[i]);
-  }
-  auto equal = [&](const PlacedImage & placed) {
-    return placed.image->width == width && placed.image->height == height &&
-           std::equal(placed.image->pixels.begin(), placed.image->pixels.end(), pixels.begin());
-  };
-  auto fresh = [&]() {
-    auto image = std::make_shared<Image>();
-    image->width = width;
-    image->height = height;
-    image->pixels.assign(pixels.begin(), pixels.begin() + static_cast<long>(count));
-    image->version = nextImageVersion();
-    return image;
-  };
+// Puts the image `fresh` makes at (row, col): the same picture again at the same place keeps its version
+// and key (`equal` says so), a picture the plane showed before its last erase() is the same image moved.
+void BufferPlane::placeImage(int row, int col, uint64_t identity, bool explicit_id, int clip_top, int clip_bottom,
+                             const std::function<bool(const PlacedImage &)> & equal, const std::function<std::shared_ptr<Image>()> & fresh) {
   // The same picture again at the same place keeps its version and key, so
   // it is not sent again; other pixels there are the slot's image changed.
   for (PlacedImage & placed : images_) {
@@ -604,6 +590,73 @@ void BufferPlane::drawImageAt(int row, int col, const std::vector<uint32_t> & pi
     return;
   }
   images_.push_back(PlacedImage{row, col, fresh(), nextKey(), identity, explicit_id, clip_top, clip_bottom});
+}
+
+void BufferPlane::drawImageAt(int row, int col, const std::vector<uint32_t> & pixels, int width, int height, uint64_t id, int clip_top,
+                              int clip_bottom) {
+  if (width <= 0 || height <= 0 || pixels.size() < static_cast<size_t>(width) * static_cast<size_t>(height)) return;
+  size_t count = static_cast<size_t>(width) * static_cast<size_t>(height);
+  bool explicit_id = id != 0;
+  uint64_t identity = id;
+  if (!explicit_id) {
+    // FNV-1a over the size and the pixels.
+    identity = 14695981039346656037ull;
+    auto mix = [&](uint64_t v) { identity = (identity ^ v) * 1099511628211ull; };
+    mix(static_cast<uint64_t>(width));
+    mix(static_cast<uint64_t>(height));
+    for (size_t i = 0; i < count; i++) mix(pixels[i]);
+  }
+  auto equal = [&](const PlacedImage & placed) {
+    return placed.image->width == width && placed.image->height == height && !placed.image->isHdr() &&
+           std::equal(placed.image->pixels.begin(), placed.image->pixels.end(), pixels.begin());
+  };
+  auto fresh = [&]() {
+    auto image = std::make_shared<Image>();
+    image->width = width;
+    image->height = height;
+    image->pixels.assign(pixels.begin(), pixels.begin() + static_cast<long>(count));
+    image->version = nextImageVersion();
+    return image;
+  };
+  placeImage(row, col, identity, explicit_id, clip_top, clip_bottom, equal, fresh);
+}
+
+void BufferPlane::drawHdrImage(const std::vector<float> & rgba, int width, int height, uint64_t id) {
+  // A whole-plane image replaces any others, as drawImage() does.
+  images_.erase(std::remove_if(images_.begin(), images_.end(), [](const PlacedImage & p) { return p.row != 0 || p.col != 0; }), images_.end());
+  drawHdrImageAt(0, 0, rgba, width, height, id);
+}
+
+void BufferPlane::drawHdrImageAt(int row, int col, const std::vector<float> & rgba, int width, int height, uint64_t id, int clip_top,
+                                 int clip_bottom) {
+  size_t count = static_cast<size_t>(std::max(width, 0)) * static_cast<size_t>(std::max(height, 0)) * 4;
+  if (width <= 0 || height <= 0 || rgba.size() < count) return;
+  bool explicit_id = id != 0;
+  uint64_t identity = id;
+  if (!explicit_id) {
+    identity = 14695981039346656037ull;
+    auto mix = [&](uint64_t v) { identity = (identity ^ v) * 1099511628211ull; };
+    mix(static_cast<uint64_t>(width));
+    mix(static_cast<uint64_t>(height));
+    for (size_t i = 0; i < count; i++) {
+      uint32_t bits;
+      std::memcpy(&bits, &rgba[i], sizeof bits);
+      mix(bits);
+    }
+  }
+  auto equal = [&](const PlacedImage & placed) {
+    return placed.image->width == width && placed.image->height == height && placed.image->isHdr() &&
+           std::memcmp(placed.image->hdr.data(), rgba.data(), count * sizeof(float)) == 0;
+  };
+  auto fresh = [&]() {
+    auto image = std::make_shared<Image>();
+    image->width = width;
+    image->height = height;
+    image->hdr.assign(rgba.begin(), rgba.begin() + static_cast<long>(count));
+    image->version = nextImageVersion();
+    return image;
+  };
+  placeImage(row, col, identity, explicit_id, clip_top, clip_bottom, equal, fresh);
 }
 
 void BufferPlane::drawSharedImageAt(int row, int col, ImageKey key, int width, int height, const std::function<std::vector<uint32_t>()> & render,

@@ -4,23 +4,15 @@ Terms with a specific meaning in this project.
 
 **Adaptive just intonation**
 Just intonation that follows the music instead of holding every note at one
-ratio to the key; also called adaptive tuning. It tunes each note against
-what is sounding, or has only just sounded, so a melody over a bass line is
-pure against that bass line, and an arpeggio hangs together although its
-notes never sound at once. It is meant for music where no single pitch per
-note suits every chord: in a major scale the D wants to differ between a G
-major chord and a D minor chord (see just intonation). The application does
-not have it. Its just intonation gives every note one fixed ratio to the
-tonic, and the otonal and utonal scales are built so that this is enough.
-
-The price of adaptive tuning is *drift*. A pure interval is exact only
-against its own reference, and the reference may itself have been tuned
-against an earlier note, so errors accumulate along a progression. Four pure
-fifths stacked from C reach an E about 21.5 cents above the pure major third
-over C, and a song that keeps every chord pure can end up noticeably higher
-or lower than where it began. This is not a defect: pure fifths, pure thirds
-and a closed circle of keys cannot all be had at once. Tuning every note
-against the key, as the application does, never drifts.
+ratio to the key: each note is tuned against what is sounding, so a melody
+over a bass line is pure against that bass line. The application does not do
+this and does not plan to: its just intonation gives every note one fixed
+ratio to the tonic (see just intonation), and the otonal and utonal scales are
+built so that this is enough. Adaptive tuning drifts: a pure interval is exact
+only against its own reference, which may itself have been tuned against an
+earlier note, so errors accumulate along a progression (four pure fifths
+stacked from C reach an E about 21.5 cents above the pure major third over
+C). Tuning every note against the key never drifts.
 
 **Aftersound**
 The slow tail after a piano note's fast first decay, from the strings'
@@ -55,7 +47,7 @@ value as the edit step. Its first row is the cursor's position.
 >>>>>>> origin/main
 
 **Cursor width**
-How many note columns of its row the pattern editor's cursor covers, 1 to 4;
+How many note columns of its row the pattern editor's cursor covers, 1 to 5;
 the size of the chord an entry is completed to. Not the region, which the
 mark makes.
 
@@ -133,7 +125,7 @@ pure: for sounds whose partials are whole-number multiples of the fundamental,
 as most pitched instruments' nearly are, the partials two notes share coincide
 and do not beat. Every EDO approximates these ratios (only its octaves are
 exact), so a song's notes stay on its EDO grid and each one carries a
-small tuning correction, in cents, that nudges it toward the pure ratio; see
+small tuning correction, a fraction of a cent to a few tens of cents, that nudges it toward the pure ratio; see
 user-interface.md.
 
 The application gives every key one fixed ratio to the key of the song, taken
@@ -254,6 +246,16 @@ Otonalities and Utonalities are chords, not scales; these scales and
 their chords are the author’s own. Their chords are tabled in
 extended-diamond.md.
 
+**Overtone profile and shared overtones**
+A sounding note's overtone profile is how loud each of its overtones
+is, counted by number (the fundamental is the 1st), independent of its
+pitch: a pitch glide or slide moves every overtone and leaves the
+profile as it is. An overtone of one note is shared with another note
+when it is exactly an overtone of that note too; with the other note at
+p/q times the first in lowest terms, the shared ones are the first
+note's p-th, 2p-th, 3p-th and so on. The overtone glide (`-Hxx`,
+commands.md) raises them.
+
 **Performance effect**
 An effect held on a track from the Launchpad's Custom grid (stutter,
 shuffle, erode, shatter, gate, crush, duck, a send throw, orbit): it
@@ -370,7 +372,8 @@ live recording writes them when a launched scene has either. See
 time_signatures.md.
 
 **Tuning correction**
-A note's pitch offset in cents, stored in its fx as `+hh` or `-hh`
+A note's pitch offset, stored in its fx as a fine `+hh`/`-hh` (sixteenths of
+a cent, up to 15 15/16) or a coarse `>hh`/`<hh` (whole cents, up to 255)
 (commands.md). Not the song's tuning, which always means the EDO
 (12/19/24/31/53 steps per octave).
 

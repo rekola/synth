@@ -494,6 +494,7 @@ InteractiveUI::initialize(std::shared_ptr<Controller> & controller) {
   root_plane_ = root_plane.get();
   if (display.default_fg && display.default_bg) root_plane_->setDefaultColors(*display.default_fg, *display.default_bg);
   root_plane_->setDisplayScale(display.display_scale);
+  root_plane_->setHdrPictures(display.hdr_pictures);
   root_plane_->setSmoothScroll(display.smooth_scroll);
   root_plane_->setCellBorders(display.cell_borders);
   root_plane_->setProportionalText(display.proportional_text);
@@ -522,10 +523,14 @@ InteractiveUI::initialize(std::shared_ptr<Controller> & controller) {
   volume_meter_ = std::make_shared<ChannelMeter>(getPlane(), *charts_);
   heatmap_ = charts_->heatmap(getPlane(), DiracAnalyzer::kAzimuthBins, DiracAnalyzer::kElevationBins);
 
-  // No footer legend on either scope: the heatmap's axis extremes are
-  // drawn directly in the grid area instead (axisLabels(), above), and the
-  // FFT chart's "Spectrum: 0-{nyquist}Hz" label was removed the same way,
-  // reclaiming the row a legend would have used.
+  // The heatmap's axis extremes, written over the grid: elevation at the top
+  // and bottom edges, azimuth at the left and right edges.
+  heatmap_->setLabels({
+      {0.5f, 1.0f, "+90", 0.5f, 1.0f},
+      {0.5f, 0.0f, "-90", 0.5f, 0.0f},
+      {0.0f, 0.5f, "-180", 0.0f, 0.5f},
+      {1.0f, 0.5f, "+180", 1.0f, 0.5f},
+  });
 
   initializeWidgets();
 
@@ -567,7 +572,7 @@ InteractiveUI::render() {
     info.planes = root_plane_->describe();
     info.focus = focusName();
   }
-  backend_.present(screen_, cursor, root_plane_->images(), &info);
+  backend_.presentTaking(screen_, cursor, root_plane_->images(), std::move(info));
 }
 
 void InteractiveUI::setLinkPin(std::optional<cellui::LinkClass> pin) {

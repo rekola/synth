@@ -2,10 +2,12 @@
 #define _SCENEPATTERNSOURCE_H_
 
 #include "PatternSource.h"
+#include "../model/Version.h"
 
 #include <chrono>
 #include <string>
 #include <unordered_map>
+#include <vector>
 
 class Controller;
 class Song;
@@ -165,6 +167,16 @@ class ScenePatternSource : public PatternSource {
   std::unordered_map<int, Playhead> playheads_;
   // Each track's line (offset()), per buffer name.
   mutable std::unordered_map<std::string, std::unordered_map<int, int>> offsets_;
+  // The scene count and lengths, read from the song again only when it is
+  // edited: a frame asks for them for every row of every column.
+  struct SceneCache {
+    const Song * song = nullptr;
+    Version version{0, 0};
+    int count = 0;
+    std::vector<int> lengths; // -1 until asked for
+  };
+  mutable SceneCache scene_cache_;
+  SceneCache & sceneCache() const;
 };
 
 #endif

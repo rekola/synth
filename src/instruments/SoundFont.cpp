@@ -894,20 +894,13 @@ adjustPositionForPan(const SphericalPosition & position, const tsf_region * regi
   return adjusted;
 }
 
-// Combines the track's own user-configured SendA knob with this region's
-// SF2 reverbEffectsSend generator data (parsed in tenths of a percent,
-// 0-1000) - additive-then-clamped, mirroring SF2's own existing
-// generator-merge convention (region + preset offsets, summed then
-// clamped) rather than inventing a new combination rule. SendA still
-// means exactly what it always has (the shared reverb bus), so this
-// combination is unaffected by anything below. Named for the region side
-// of the merge specifically (not just "adjustSendA") so it can't be
-// confused with - or shadow via unqualified lookup in this constructor's
-// own initializer list - VoiceState::adjustSendA()/InstrumentVoice::
-// adjustSendA(), the unrelated live-voice Send A push (VoiceState.h).
+// Scales the track's SendA knob by this region's SF2 reverbEffectsSend
+// (tenths of a percent, 0-1000): 1x at none, 2x at full, clamped to 1. The
+// track's send stays the master control - zero is off. Named for the region
+// side so it can't shadow VoiceState::adjustSendA() in the initializer list.
 static float
 combineRegionSendA(float send_a, const tsf_region * region) {
-  return std::min(1.0f, send_a + (region ? region->reverbEffectsSend / 1000.0f : 0.0f));
+  return std::min(1.0f, send_a * (1.0f + (region ? region->reverbEffectsSend / 1000.0f : 0.0f)));
 }
 
 // Deliberately NOT combined with the track's own SendB knob (unlike
@@ -945,6 +938,9 @@ class SoundFontVoice : public InstrumentVoice {
   // Defaulted empty, so this is a pure addition to the parameter list; every
   // existing call site keeps compiling unchanged. See
   // effectiveInitialFilterFc() for the one generator actually consulted.
+  // A live Send A change keeps the region's scaling, like note-on.
+  void adjustSendA(float s) override { InstrumentVoice::adjustSendA(combineRegionSendA(s, voiceRegion_)); }
+
   SoundFontVoice(const ChannelConfiguration & channel_config, const SphericalPosition & position, float detune, std::shared_ptr<SoundFontFile> sf, size_t preset, size_t region_idx, const SendLevels & sends = {}, const NoteCoordinate & note_coord = {}, std::unordered_map<SF2Generator, float> generator_overrides = {})
       : InstrumentVoice(channel_config,
                         adjustPositionForPan(position, regionFor(sf.get(), preset, region_idx)),
@@ -1026,7 +1022,10 @@ class SoundFontVoice : public InstrumentVoice {
 
     bool first_play = apparentPlayingKey_ == 0.0;
 
-    apparentPlayingKey_ = log2(frequency * getDetune() / kNominalStandardPitchHz) * 12 + 69;
+    // In double: the float log2 resolves only 0.0008 cent at A4, a visible share of a
+    // sixteenth-of-a-cent correction.
+    apparentPlayingKey_ = std::log2(static_cast<double>(frequency) * static_cast<double>(getDetune()) / static_cast<double>(kNominalStandardPitchHz)) * 12.0 + 69.0;
+    note_hz_ = static_cast<double>(frequency) * static_cast<double>(getDetune());
 
     if (first_play) {
       // use correctly rounded midiKey for envelopes (should we use detune?)
@@ -1240,6 +1239,8 @@ protected:
   double apparentPlayingKey_ = 0;
   struct tsf_region * voiceRegion_ = nullptr;
   double pitchInputTimecents_ = 0, pitchOutputFactor_ = 0;
+  double note_hz_ = 0.0; // the note's own pitch, detune included (0Hxx's comb follows it)
+  OvertoneComb overtone_comb_;
   unsigned int loopStart_ = 0, loopEnd_ = 0;
 
   bool hasChannelPressureCutoffMod_ = false, hasChannelPressurePitchMod_ = false;
@@ -1530,6 +1531,10 @@ SoundFontVoice::render(int numSamples) {
       break;
     }
   }
+
+  // A sample has no level per partial, so 0Hxx shapes the output, at the
+  // note's pitch with its slide and glide.
+  applyOvertoneComb(overtone_comb_, dry_.data(), totalSamples, note_hz_ * getSlideRatioStart(), note_hz_ * getSlideRatioEnd());
 
   return encodeWithChorus(totalSamples);
 }

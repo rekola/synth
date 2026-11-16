@@ -14,10 +14,10 @@ cellui::Input key(int id) {
 }  // namespace
 
 TEST(keyboard_notes_31edo_utonal) {
-  CHECK(keyToMidiNote(key('z'), Tuning::EDO31, Scale::UTONAL) == "C");
-  CHECK(keyToMidiNote(key('w'), Tuning::EDO31, Scale::UTONAL) == "D♭↓");
-  CHECK(keyToMidiNote(key('s'), Tuning::EDO31, Scale::UTONAL) == "D↓");
-  CHECK(keyToMidiNote(key('c'), Tuning::EDO31, Scale::UTONAL) == "E♭");
+  CHECK(keyToMidiNote(key('q'), Tuning::EDO31, Scale::UTONAL) == "C");
+  CHECK(keyToMidiNote(key('s'), Tuning::EDO31, Scale::UTONAL) == "D♭↓");
+  CHECK(keyToMidiNote(key('2'), Tuning::EDO31, Scale::UTONAL) == "D↓");
+  CHECK(keyToMidiNote(key('e'), Tuning::EDO31, Scale::UTONAL) == "E♭");
 }
 
 // All eighteen notes of otonal and utonal are on keys, and every key plays a note of
@@ -36,8 +36,8 @@ TEST(keyboard_notes_otonal_and_utonal_have_a_key_for_each_note) {
     CHECK(played.size() == 18);
     CHECK(played == std::set<std::string>(names.begin(), names.end()));
   }
-  CHECK(keyToMidiNote(key('g'), Tuning::EDO53, Scale::OTONAL) == "F♯↑");
-  CHECK(keyToMidiNote(key('g'), Tuning::EDO53, Scale::UTONAL) == "G♭↓");
+  CHECK(keyToMidiNote(key('5'), Tuning::EDO53, Scale::OTONAL) == "F♯↑");
+  CHECK(keyToMidiNote(key('5'), Tuning::EDO53, Scale::UTONAL) == "G♭↓");
   // Every note is a different key of 53-EDO, and the keys are the scale's.
   for (auto scale : {Scale::OTONAL, Scale::UTONAL}) {
     std::set<int> keys;
@@ -51,11 +51,11 @@ TEST(keyboard_notes_otonal_and_utonal_have_a_key_for_each_note) {
 }
 
 TEST(keyboard_notes_scale_with_the_edo_per_octave) {
-  Note edo_31_a(keyToMidiNote(key('z'), Tuning::EDO31, Scale::OTONAL), Tuning::EDO31);
-  Note edo_31_b(keyToMidiNote(key(','), Tuning::EDO31, Scale::OTONAL), Tuning::EDO31);
+  Note edo_31_a(keyToMidiNote(key('q'), Tuning::EDO31, Scale::OTONAL), Tuning::EDO31);
+  Note edo_31_b(keyToMidiNote(key('i'), Tuning::EDO31, Scale::OTONAL), Tuning::EDO31);
 
-  Note edo_53_a(keyToMidiNote(key('z'), Tuning::EDO53, Scale::OTONAL), Tuning::EDO53);
-  Note edo_53_b(keyToMidiNote(key(','), Tuning::EDO53, Scale::OTONAL), Tuning::EDO53);
+  Note edo_53_a(keyToMidiNote(key('q'), Tuning::EDO53, Scale::OTONAL), Tuning::EDO53);
+  Note edo_53_b(keyToMidiNote(key('i'), Tuning::EDO53, Scale::OTONAL), Tuning::EDO53);
 
   CHECK(edo_31_b.getValue() - edo_31_a.getValue() == 31);
   CHECK(edo_53_b.getValue() - edo_53_a.getValue() == 53);
@@ -82,16 +82,31 @@ TEST(keyboard_notes_unmapped_key_is_empty) {
   CHECK(keyToMidiNote(key('+'), Tuning::PERCUSSION, Scale::NONE) == "");
 }
 
-// Phrygian tonos has ten degrees, so its row runs to '/', where B↑ is; the
-// seven-degree modes keep the tonic and second an octave up and nothing on '/'.
-TEST(keyboard_phrygian_tonos_has_a_key_for_each_of_its_ten_degrees) {
+// The Pythagorean scales run in ascending order on q..p; Phrygian tonos has ten
+// degrees, so B↑ is on p, and the seven-degree modes continue with the tonic and
+// second an octave up.
+TEST(keyboard_pythagorean_scales_are_on_the_q_row) {
   auto names = scaleDegreeNames(Scale::PHRYGIAN_TONOS);
   CHECK(names.size() == 10);
-  std::string row = "zxcvbnm,./";
+  std::string row = "qwertyuiop";
   for (size_t i = 0; i < row.size() && i < names.size(); i++) {
     CHECK(std::string(keyToMidiNote(key(row[i]), Tuning::EDO53, Scale::PHRYGIAN_TONOS)) == std::string(names[i]));
   }
-  CHECK(std::string(keyToMidiNote(key('/'), Tuning::EDO53, Scale::PHRYGIAN_TONOS)) == "B↑");
-  CHECK(std::string(keyToMidiNote(key('/'), Tuning::EDO53, Scale::KITMUM)).empty());
-  CHECK(std::string(keyToMidiNote(key('.'), Tuning::EDO53, Scale::KITMUM)) == "D'");
+  CHECK(std::string(keyToMidiNote(key('p'), Tuning::EDO53, Scale::PHRYGIAN_TONOS)) == "B↑");
+  CHECK(std::string(keyToMidiNote(key('z'), Tuning::EDO53, Scale::PHRYGIAN_TONOS)).empty());
+  CHECK(std::string(keyToMidiNote(key('u'), Tuning::EDO53, Scale::KITMUM)) == "B♭↓");
+  CHECK(std::string(keyToMidiNote(key('i'), Tuning::EDO53, Scale::KITMUM)) == "C'");
+  CHECK(std::string(keyToMidiNote(key('o'), Tuning::EDO53, Scale::KITMUM)) == "D'");
+  CHECK(std::string(keyToMidiNote(key('p'), Tuning::EDO53, Scale::KITMUM)).empty());
+}
+
+// Rāst's seven degrees, with the tonic and second an octave up, are on q..o.
+TEST(keyboard_rast_is_on_the_q_row) {
+  const char * expected[] = {"C", "D", "E𝄳", "F", "G", "A", "B𝄳", "C'", "D'"};
+  std::string row = "qwertyuio";
+  for (size_t i = 0; i < row.size(); i++) {
+    CHECK(std::string(keyToMidiNote(key(row[i]), Tuning::EDO24, Scale::RAST)) == expected[i]);
+  }
+  CHECK(std::string(keyToMidiNote(key('z'), Tuning::EDO24, Scale::RAST)).empty());
+  CHECK(std::string(keyToMidiNote(key('p'), Tuning::EDO24, Scale::RAST)).empty());
 }

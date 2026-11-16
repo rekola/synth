@@ -1,3 +1,4 @@
+#include <cellui/ImageScale.h>
 #include <cellui/StageStats.h>
 #include <cellui/term/ImageEncoder.h>
 
@@ -58,39 +59,6 @@ Image withoutPad(const Image & src) {
       int sx = std::min(x + src.pad, src.width - 1), sy = std::min(y + src.pad, src.height - 1);
       out.pixels[static_cast<size_t>(y) * static_cast<size_t>(out.width) + static_cast<size_t>(x)] =
         src.pixels[static_cast<size_t>(sy) * static_cast<size_t>(src.width) + static_cast<size_t>(sx)];
-    }
-  }
-  return out;
-}
-
-// The picture resampled to width x height (bilinear).
-Image stretch(const Image & src, int width, int height) {
-  Image out;
-  out.width = std::max(1, width);
-  out.height = std::max(1, height);
-  out.version = src.version;
-  out.pixels.resize(static_cast<size_t>(out.width) * static_cast<size_t>(out.height));
-  auto at = [&](int x, int y) {
-    x = std::clamp(x, 0, src.width - 1);
-    y = std::clamp(y, 0, src.height - 1);
-    return src.pixels[static_cast<size_t>(y) * static_cast<size_t>(src.width) + static_cast<size_t>(x)];
-  };
-  for (int y = 0; y < out.height; y++) {
-    float fy = (static_cast<float>(y) + 0.5f) * static_cast<float>(src.height) / static_cast<float>(out.height) - 0.5f;
-    int y0 = static_cast<int>(std::floor(fy));
-    float ty = fy - static_cast<float>(y0);
-    for (int x = 0; x < out.width; x++) {
-      float fx = (static_cast<float>(x) + 0.5f) * static_cast<float>(src.width) / static_cast<float>(out.width) - 0.5f;
-      int x0 = static_cast<int>(std::floor(fx));
-      float tx = fx - static_cast<float>(x0);
-      uint32_t a = at(x0, y0), b = at(x0 + 1, y0), c = at(x0, y0 + 1), d = at(x0 + 1, y0 + 1);
-      auto mix = [&](uint8_t (*channel)(uint32_t)) {
-        float top = static_cast<float>(channel(a)) * (1 - tx) + static_cast<float>(channel(b)) * tx;
-        float bottom = static_cast<float>(channel(c)) * (1 - tx) + static_cast<float>(channel(d)) * tx;
-        return static_cast<uint8_t>(top * (1 - ty) + bottom * ty + 0.5f);
-      };
-      out.pixels[static_cast<size_t>(y) * static_cast<size_t>(out.width) + static_cast<size_t>(x)] =
-        Image::pack(mix(Image::red), mix(Image::green), mix(Image::blue), mix(Image::alpha));
     }
   }
   return out;
@@ -252,6 +220,10 @@ ImageEncoder::Profile ImageEncoder::Profile::from(const Capabilities & caps) {
   p.cell_px_height = caps.display.cell_px_height;
   p.cell_px_width = caps.display.cell_px_width;
   p.sixel_setup = caps.sixel_setup;
+  // Off unless asked for (CELLUI_KITTY_FRAME_EDIT=1): on a real kitty, hundreds of small edits a second made
+  // the scopes stutter and left parts of old pictures showing, where whole uploads did neither.
+  const char * edit = std::getenv("CELLUI_KITTY_FRAME_EDIT");
+  p.kitty_frame_edit = caps.kitty_graphics_animation && edit && edit[0] == '1';
   if (caps.sixel_registers > 0) p.sixel_registers = std::min(caps.sixel_registers, 128);
   p.sixel_registers_total = caps.sixel_registers;
   return p;
@@ -272,7 +244,7 @@ std::vector<uint8_t> encodePng(const Image & image, int x0, int y0, int width, i
       raw.push_back(Image::alpha(p));
     }
   }
-  std::vector<uint8_t> z = zlibCompress(raw);
+  std::vector<uint8_t> z = zlibCompress(raw, 2, static_cast<size_t>(width) * 4 + 1);
 
   std::vector<uint8_t> png = {0x89, 'P', 'N', 'G', '\r', '\n', 0x1a, '\n'};
   std::vector<uint8_t> ihdr;
@@ -576,7 +548,7 @@ SixelPalette xtermPalette() {
 // A register's working value is its grid level * 255 / 100, as a float; the dither measures against those.
 constexpr int kMixCandidates = 16;
 // The registers of the blur's custom palette unless CELLUI_BLUR_REGISTERS says otherwise.
-constexpr int kBlurRegisters = 16;
+constexpr int kBlurRegisters = 64;
 // The most the carried error may reach in a channel, in 8-bit levels: a colour the palette cannot get near
 // must not make it grow without bound.
 constexpr float kMixErrorLimit = 64.0f;
@@ -734,8 +706,9 @@ MixPick mixPick(const SixelPalette & palette, int r, int g, int b, uint32_t key)
     const size_t u = static_cast<size_t>(reg);
     return 0.299f * palette.fred[u] + 0.587f * palette.fgreen[u] + 0.114f * palette.fblue[u];
   };
-  // EXPERIMENT (off with CELLUI_BLUR_NOTOP2): only the two registers most often chosen, in their ratio.
-  static const bool top2 = std::getenv("CELLUI_BLUR_NOTOP2") == nullptr;
+  // EXPERIMENT (on with CELLUI_BLUR_TOP2): only the two registers most often chosen, in their ratio. Smaller, but lossy:
+  // the dropped registers' share of the colour goes to the other two.
+  static const bool top2 = std::getenv("CELLUI_BLUR_TOP2") != nullptr;
   if (top2) {
     int first = chosen[0], second = -1, first_n = 0, second_n = 0;
     int count[256] = {0};
@@ -1126,7 +1099,7 @@ std::vector<uint8_t> encodePalettePng(const Image & image, int x0, int y0, int w
     plte.push_back(static_cast<uint8_t>(c & 0xff));
   }
   chunk(png, "PLTE", plte);
-  chunk(png, "IDAT", zlibCompress(raw));
+  chunk(png, "IDAT", zlibCompress(raw, 2, row_bytes + 1));
   chunk(png, "IEND", {});
   return png;
 }
@@ -1208,7 +1181,7 @@ void ImageEncoder::uploadKitty(const Image & img, uint32_t id, std::string & out
   // Compressed when that saves enough to be worth the terminal inflating it.
   auto deflate = [&](Upload & u) {
     if (!compress_ || u.png) return;
-    std::vector<uint8_t> z = zlibCompress(u.bytes);
+    std::vector<uint8_t> z = zlibCompress(u.bytes, 2, static_cast<size_t>(img.width) * 3);
     if (z.size() * 10 < u.bytes.size() * 9) {
       u.bytes = std::move(z);
       u.deflated = true;
@@ -1244,6 +1217,47 @@ void ImageEncoder::uploadKitty(const Image & img, uint32_t id, std::string & out
     out += "\x1b_G";
     if (i == 0 && as_png) out += "a=t,f=100,i=" + std::to_string(id) + ",";
     else if (i == 0) out += std::string(deflated ? "o=z," : "") + "a=t,f=24,s=" + std::to_string(img.width) + ",v=" + std::to_string(img.height) + ",i=" + std::to_string(id) + ",";
+    out += "q=1,m=" + std::string(more ? "1" : "0") + ";";
+    out += data.substr(i, kKittyChunk);
+    out += "\x1b\\";
+    sizes_.upload += out.size() - chunk_start;
+    if (data.empty()) break;
+  }
+}
+
+void ImageEncoder::editKitty(const Image & img, uint32_t id, int x, int y, int w, int h, std::string & out) {
+  std::vector<uint8_t> rgb;
+  rgb.reserve(static_cast<size_t>(w) * static_cast<size_t>(h) * 3);
+  for (int row = y; row < y + h; row++) {
+    for (int col = x; col < x + w; col++) {
+      uint32_t px = img.pixels[static_cast<size_t>(row) * static_cast<size_t>(img.width) + static_cast<size_t>(col)];
+      rgb.push_back(Image::red(px));
+      rgb.push_back(Image::green(px));
+      rgb.push_back(Image::blue(px));
+    }
+  }
+  bool deflated = false;
+  if (compress_) {
+    std::vector<uint8_t> z = zlibCompress(rgb, 2, static_cast<size_t>(w) * 3);
+    if (z.size() * 10 < rgb.size() * 9) {
+      rgb = std::move(z);
+      deflated = true;
+    }
+  }
+  edit_ids_.insert(id);
+  std::string data = base64(rgb);
+  for (size_t i = 0; i < data.size() || i == 0; i += kKittyChunk) {
+    bool more = i + kKittyChunk < data.size();
+    size_t chunk_start = out.size();
+    out += "\x1b_G";
+    // Frame 1 is the picture itself; X=1 overwrites the rectangle instead of blending it.
+    if (i == 0) {
+      out += std::string(deflated ? "o=z," : "") + "a=f,r=1,X=1,f=24,i=" + std::to_string(id) + ",x=" + std::to_string(x) + ",y=" + std::to_string(y) +
+             ",s=" + std::to_string(w) + ",v=" + std::to_string(h) + ",";
+    }
+    // Frame data's later chunks name the action too (a chunk with only m and q is image data, which would
+    // replace the whole picture with this rectangle).
+    else out += "a=f,";
     out += "q=1,m=" + std::string(more ? "1" : "0") + ";";
     out += data.substr(i, kKittyChunk);
     out += "\x1b\\";
@@ -1362,12 +1376,47 @@ std::string ImageEncoder::kitty(const CellBuffer & frame, const ImagePlacement &
   uint32_t old_id = shown.id;
   bool changed = fresh || shown.version != img.version;
   size_t upload_before = sizes_.upload;
+  // Only part of the picture changed: that rectangle replaces its place in the picture the terminal holds
+  // (full quality only, since a palette or compressed upload is not what the unchanged part is made of).
+  const bool editable = profile_.kitty_frame_edit && frame_edit_ && pictureColours(quality_) == 0 && !img.stretched();
+  if (changed && !fresh && editable && old_id && shown.sent.width == img.width && shown.sent.height == img.height && !img.pixels.empty() &&
+      shown.sent.pixels.size() == img.pixels.size()) {
+    const size_t w = static_cast<size_t>(img.width);
+    int x0 = img.width, y0 = img.height, x1 = -1, y1 = -1;
+    for (int y = 0; y < img.height; y++) {
+      auto a = img.pixels.begin() + static_cast<std::ptrdiff_t>(static_cast<size_t>(y) * w);
+      auto b = shown.sent.pixels.begin() + static_cast<std::ptrdiff_t>(static_cast<size_t>(y) * w);
+      if (std::equal(a, a + static_cast<std::ptrdiff_t>(w), b)) continue;
+      auto first = std::mismatch(a, a + static_cast<std::ptrdiff_t>(w), b);
+      x0 = std::min(x0, static_cast<int>(first.first - a));
+      auto ra = std::make_reverse_iterator(a + static_cast<std::ptrdiff_t>(w));
+      auto rb = std::make_reverse_iterator(b + static_cast<std::ptrdiff_t>(w));
+      auto last = std::mismatch(ra, std::make_reverse_iterator(a), rb);
+      x1 = std::max(x1, static_cast<int>(w) - 1 - static_cast<int>(last.first - ra));
+      y0 = std::min(y0, y);
+      y1 = std::max(y1, y);
+    }
+    const bool nothing = x1 < 0;
+    const int ew = x1 - x0 + 1, eh = y1 - y0 + 1;
+    // A rectangle that is most of the picture is not worth an edit's own overhead.
+    if (nothing || static_cast<int64_t>(ew) * eh * 100 <= static_cast<int64_t>(img.width) * img.height * 60) {
+      if (!nothing) {
+        editKitty(img, old_id, x0, y0, ew, eh, out);
+        picture_stats_[statLabel(p)].uploads++;
+        picture_stats_[statLabel(p)].bytes += sizes_.upload - upload_before;
+        shown.sent = img;
+      }
+      shown.version = img.version;
+      changed = false;
+    }
+  }
   if (changed) {
     // A new picture goes up under a new id; the old one stays on screen
     // until the new one is placed.
     shown.id = registry_->allocate();
     shown.version = img.version;
     uploadKitty(img, shown.id, out);
+    shown.sent = editable ? img : Image{};
     picture_stats_[statLabel(p)].uploads++;
     picture_stats_[statLabel(p)].bytes += sizes_.upload - upload_before;
   }
@@ -1402,6 +1451,7 @@ std::string ImageEncoder::kitty(const CellBuffer & frame, const ImagePlacement &
     shown.col = p.col;
   }
   if (changed && old_id) {
+    edit_ids_.erase(old_id);
     deflated_ids_.erase(old_id);
     png_ids_.erase(old_id);
     std::string del = freeImage(old_id);
@@ -1440,7 +1490,7 @@ std::string ImageEncoder::sixel(const CellBuffer & frame, const ImagePlacement &
   int ch = profile_.cell_px_height, cw = profile_.cell_px_width;
   // Sixel draws a pixel to a pixel, so a stretched picture is scaled here.
   Image natural;
-  if (p.image->stretched()) natural = stretch(withoutPad(*p.image), p.image->cols * cw, p.image->rows * ch);
+  if (p.image->stretched()) natural = scaleImage(withoutPad(*p.image), p.image->cols * cw, p.image->rows * ch);
   const Image & img = p.image->stretched() ? natural : *p.image;
   size_t upload_before = sizes_.upload;
   bool diff = same_place && shown.sent.width == img.width && shown.sent.height == img.height && shown.sent.pixels.size() == img.pixels.size();
@@ -1778,6 +1828,18 @@ std::string ImageEncoder::kittyBorders(const std::vector<CellBorder> & borders, 
     out += place;
     border_placed_[key] = next_border_place_;
   }
+  // A colour nothing shows loses its pictures: the terminal would drop them itself, and a placement of
+  // a dropped one is refused.
+  std::set<uint32_t> in_use;
+  for (const BorderKey & key : wanted) in_use.insert(key[3]);
+  for (auto it = border_images_.begin(); it != border_images_.end();) {
+    if (in_use.count(it->first)) {
+      ++it;
+      continue;
+    }
+    for (uint32_t id : it->second) out += freeImage(id);
+    it = border_images_.erase(it);
+  }
   return out;
 }
 
@@ -1790,6 +1852,28 @@ std::string ImageEncoder::handleKittyReply(const std::string & body) {
   uint32_t id = 0;
   size_t at = keys.find("i=");
   if (at != std::string::npos) id = static_cast<uint32_t>(std::strtoul(keys.c_str() + at + 2, nullptr, 10));
+  // The terminal no longer holds the picture (it frees one no placement shows): forget it, so the next
+  // frame that shows it sends it again, and leave the compression and edit settings alone.
+  if (id && message.rfind("ENOENT", 0) == 0) {
+    bool border = false;
+    for (const auto & [colour, ids] : border_images_) border |= std::find(ids.begin(), ids.end(), id) != ids.end();
+    if (!border) {
+      for (auto it = shared_uploads_.begin(); it != shared_uploads_.end();) {
+        if (it->second.id == id) it = shared_uploads_.erase(it);
+        else ++it;
+      }
+      for (auto & [key, shown] : shown_) {
+        if (shown.id != id) continue;
+        shown.version = ~uint64_t{0};
+        shown.sent = Image{};
+      }
+      edit_ids_.erase(id);
+      deflated_ids_.erase(id);
+      png_ids_.erase(id);
+      registry_->forget(id);
+      return "kitty graphics (id " + std::to_string(id) + "): " + message;
+    }
+  }
   // An error on a border picture: the terminal and this encoder may no longer agree on what is placed, so
   // every placement of that colour's pictures and the pictures themselves are freed (by id alone, whatever
   // placement ids the terminal holds), and the next frame that shows the colour sends them and places them anew.
@@ -1811,7 +1895,16 @@ std::string ImageEncoder::handleKittyReply(const std::string & body) {
       else ++it;
     }
   };
-  if (id && png_ids_.erase(id) && palette_png_) {
+  if (id && edit_ids_.erase(id) && frame_edit_) {
+    // The terminal refused to edit a picture in place: whole pictures from now on, and the refused one again.
+    frame_edit_ = false;
+    for (auto & [key, shown] : shown_) {
+      if (shown.id == id) {
+        shown.version = ~uint64_t{0};
+        shown.sent = Image{};
+      }
+    }
+  } else if (id && png_ids_.erase(id) && palette_png_) {
     forgetShared();
     // The terminal refused a palette PNG: quantised RGB from now on, and the refused picture again.
     palette_png_ = false;

@@ -73,7 +73,7 @@ using V = std::vector<int>;
 
 } // namespace
 
-TEST(chord_cursor_widens_to_four_columns_and_the_track_follows) {
+TEST(chord_cursor_widens_to_five_columns_and_the_track_follows) {
   ChordFixture f;
   CHECK(f.columns() == 1);
   f.widen(2);
@@ -81,13 +81,16 @@ TEST(chord_cursor_widens_to_four_columns_and_the_track_follows) {
   CHECK(f.columns() == 3);
   f.widen(1);
   CHECK(f.columns() == 4);
-  f.widen(1); // no wider than four
+  f.widen(1);
+  CHECK(f.shows("Cursor width: 5"));
+  CHECK(f.columns() == 5);
+  f.widen(1); // no wider than five
   CHECK(f.shows("at its widest"));
-  CHECK(f.columns() == 4);
+  CHECK(f.columns() == 5);
   // Narrowing removes no column.
-  for (int i = 0; i < 3; i++) f.execute("narrow-cursor");
+  for (int i = 0; i < 4; i++) f.execute("narrow-cursor");
   CHECK(f.shows("Cursor width: 1"));
-  CHECK(f.columns() == 4);
+  CHECK(f.columns() == 5);
   f.execute("narrow-cursor");
   CHECK(f.shows("one column wide"));
   // The empty columns go when the cursor leaves the track.
@@ -98,11 +101,11 @@ TEST(chord_cursor_widens_to_four_columns_and_the_track_follows) {
 TEST(chord_cursor_leaves_the_columns_in_use_when_it_leaves_the_track) {
   ChordFixture f;
   f.widen(3);
-  f.down('z');
-  f.down('x');
+  f.down('q');
+  f.down('w');
   f.wait();
-  f.up('z');
-  f.up('x');
+  f.up('q');
+  f.up('w');
   CHECK(f.row(0) == (V{C, Ds, F, A}));
   f.widen(0);
   f.controller->ensureNoteColumns(f.track_id, 6);
@@ -113,17 +116,17 @@ TEST(chord_cursor_leaves_the_columns_in_use_when_it_leaves_the_track) {
 TEST(chord_entry_completes_one_key_to_a_chord_as_wide_as_the_cursor) {
   ChordFixture f;
   f.widen(3);
-  f.down('z');
+  f.down('q');
   // Not at the key press: more keys may follow.
   CHECK(f.row(0) == (V{C}));
   f.wait();
   CHECK(f.row(0) == (V{C, E, G, Asu}));
   CHECK(f.shows("C harmonic seventh"));
-  f.up('z');
+  f.up('q');
   // The cursor has stepped on and kept its width.
-  f.down('v');
+  f.down('r');
   f.wait();
-  f.up('v');
+  f.up('r');
   CHECK(f.row(0) == (V{C, E, G, Asu}));
   CHECK(f.row(1) == (V{F, A, 53 + C, 53 + Ds}));
   // One undo removes one chord.
@@ -138,12 +141,12 @@ TEST(chord_entry_at_three_columns_names_the_triad) {
   ChordFixture f;
   f.widen(2);
   // A quick tap, released before the interval ends, still writes the chord.
-  f.down('z');
-  f.up('z');
+  f.down('q');
+  f.up('q');
   CHECK(f.row(0) == (V{C, E, G}));
   CHECK(f.shows("C major"));
-  f.down('n');
-  f.up('n');
+  f.down('y');
+  f.up('y');
   CHECK(f.row(1) == (V{A, 53 + C, 53 + Ds}));
 }
 
@@ -151,30 +154,30 @@ TEST(chord_entry_completes_several_keys_from_the_chords_that_contain_them) {
   {
     ChordFixture f;
     f.widen(3);
-    f.down('z');
-    f.down('x');
+    f.down('q');
+    f.down('w');
     CHECK(f.row(0) == (V{C, Ds})); // no other chord on the way
     f.wait();
     CHECK(f.row(0) == (V{C, Ds, F, A}));
-    f.up('x');
-    f.up('z');
+    f.up('w');
+    f.up('q');
     CHECK(f.row(0) == (V{C, Ds, F, A}));
   }
   {
     ChordFixture f;
     f.widen(2);
-    f.down('z');
-    f.down('m');
+    f.down('q');
+    f.down('u');
     f.wait();
     CHECK(f.row(0) == (V{C, E, Asu}));
   }
   {
     ChordFixture f;
     f.widen(3);
-    f.down('m');
-    f.down('c');
-    f.up('m');
-    f.up('c');
+    f.down('u');
+    f.down('e');
+    f.up('u');
+    f.up('e');
     CHECK(f.row(0) == (V{E, G, Asu, 53 + C}));
     CHECK(f.shows("C harmonic seventh / E"));
   }
@@ -183,15 +186,15 @@ TEST(chord_entry_completes_several_keys_from_the_chords_that_contain_them) {
 TEST(chord_entry_works_the_chord_out_again_when_a_key_joins_the_held_ones) {
   ChordFixture f;
   f.widen(3);
-  f.down('z');
+  f.down('q');
   f.wait();
   CHECK(f.row(0) == (V{C, E, G, Asu}));
-  f.down('x');
+  f.down('w');
   CHECK(f.row(0) == (V{C, Ds})); // what the first completion added is gone
   f.wait();
   CHECK(f.row(0) == (V{C, Ds, F, A}));
-  f.up('z');
-  f.up('x');
+  f.up('q');
+  f.up('w');
   f.execute("undo");
   CHECK(f.row(0).empty());
 }
@@ -201,20 +204,20 @@ TEST(chord_entry_adds_nothing_without_a_chord_to_add) {
     // As many keys as the cursor is wide, or more: all are written and the width stays.
     ChordFixture f;
     f.widen(1);
-    for (char key : std::string("zcb")) f.down(key);
+    for (char key : std::string("qet")) f.down(key);
     f.wait();
-    for (char key : std::string("zcb")) f.up(key);
+    for (char key : std::string("qet")) f.up(key);
     CHECK(f.row(0) == (V{C, E, G}));
     CHECK(f.columns() >= 3);
-    f.down('z');
-    f.up('z');
+    f.down('q');
+    f.up('q');
     CHECK(f.row(1) == (V{C, E}));
   }
   {
     // No chord holds C, G and A.
     ChordFixture f;
     f.widen(3);
-    for (char key : std::string("zbn")) f.down(key);
+    for (char key : std::string("qty")) f.down(key);
     f.wait();
     CHECK(f.row(0) == (V{C, G, A}));
     CHECK(f.shows("No chord of the scale contains these notes"));
@@ -222,9 +225,9 @@ TEST(chord_entry_adds_nothing_without_a_chord_to_add) {
   {
     // A cursor of one column.
     ChordFixture f;
-    f.down('z');
+    f.down('q');
     f.wait();
-    f.up('z');
+    f.up('q');
     CHECK(f.row(0) == (V{C}));
   }
   {
@@ -232,9 +235,9 @@ TEST(chord_entry_adds_nothing_without_a_chord_to_add) {
     ChordFixture f;
     f.controller->getSong().setKey(9);
     f.widen(3);
-    f.down('z');
+    f.down('q');
     f.wait();
-    f.up('z');
+    f.up('q');
     CHECK(f.row(0) == (V{C}));
   }
   {
@@ -255,14 +258,14 @@ TEST(chord_entry_leaves_an_active_selection_alone) {
   f.widen(2);
   f.execute("set-mark");
   f.press(cellui::Key::Down);
-  f.down('z');
-  f.up('z');
+  f.down('q');
+  f.up('q');
   CHECK(f.row(1) == (V{C, E, G}));
   // The mark is still there to exchange with.
   f.execute("exchange-point-and-mark");
   CHECK(!f.shows("No mark"));
-  f.down('v');
-  f.up('v');
+  f.down('r');
+  f.up('r');
   CHECK(f.row(0) == (V{F, A, 53 + C}));
 }
 
@@ -271,12 +274,12 @@ TEST(chord_entry_leaves_an_active_selection_alone) {
 TEST(chord_entry_without_key_releases_completes_when_the_interval_closes) {
   ChordFixture f;
   f.widen(3);
-  f.type("z");
-  f.type("x");
+  f.type("q");
+  f.type("w");
   CHECK(f.row(0) == (V{C, Ds}));
   f.wait();
   CHECK(f.row(0) == (V{C, Ds, F, A}));
-  f.type("z");
+  f.type("q");
   f.wait();
   CHECK(f.row(1) == (V{C, E, G, Asu}));
   f.execute("undo");
@@ -302,8 +305,8 @@ TEST(saving_removes_the_empty_note_columns_from_the_file_only) {
 TEST(chord_palette_steps_through_the_chords_of_the_entry_just_made) {
   ChordFixture f;
   f.widen(2);
-  f.down('z');
-  f.up('z');
+  f.down('q');
+  f.up('q');
   CHECK(f.row(0) == (V{C, E, G}));
   f.meta('/');
   CHECK(f.shows("Chord: 3 notes"));
@@ -335,10 +338,10 @@ TEST(chord_palette_steps_through_the_chords_of_the_entry_just_made) {
 
 TEST(chord_palette_completes_notes_played_with_a_cursor_of_one_column) {
   ChordFixture f;
-  f.down('z');
-  f.down('x');
-  f.up('z');
-  f.up('x');
+  f.down('q');
+  f.down('w');
+  f.up('q');
+  f.up('w');
   CHECK(f.row(0) == (V{C, Ds}));
   // Four notes the first time; the notes played are the given ones, and
   // with no chord there yet the first is written.
@@ -358,8 +361,8 @@ TEST(chord_palette_completes_notes_played_with_a_cursor_of_one_column) {
 
 TEST(chord_palette_size_changes_without_the_cursor) {
   ChordFixture f;
-  f.down('z');
-  f.up('z');
+  f.down('q');
+  f.up('q');
   f.meta('/');
   CHECK(f.row(0) == (V{C, E, G, Asu}));
   f.press(cellui::Key::Left, kModCtrl | cellui::kModShift);
@@ -373,8 +376,8 @@ TEST(chord_palette_size_changes_without_the_cursor) {
   CHECK(f.row(0) == (V{C, E, G}));
   f.press(cellui::Key::Enter);
   // The cursor is still one column wide, and the size is remembered.
-  f.down('v');
-  f.up('v');
+  f.down('r');
+  f.up('r');
   CHECK(f.row(1) == (V{F}));
   f.meta('/');
   CHECK(f.shows("Chord: 3 notes"));
@@ -384,8 +387,8 @@ TEST(chord_palette_size_changes_without_the_cursor) {
 TEST(chord_palette_writes_a_short_chord_and_empties_the_rest) {
   ChordFixture f;
   f.widen(3);
-  f.down('n');
-  f.up('n');
+  f.down('y');
+  f.up('y');
   CHECK(f.row(0) == (V{A, 53 + C, 53 + Ds, 53 + F}));
   f.meta('/');
   f.press(cellui::Key::Down);
@@ -399,10 +402,10 @@ TEST(chord_palette_writes_a_short_chord_and_empties_the_rest) {
 TEST(chord_palette_opens_on_a_chord_entered_earlier) {
   ChordFixture f;
   f.widen(2);
-  f.down('z');
-  f.up('z');
-  f.down('v');
-  f.up('v');
+  f.down('q');
+  f.up('q');
+  f.down('r');
+  f.up('r');
   f.press(cellui::Key::Up);
   f.press(cellui::Key::Up);
   CHECK(f.row(0) == (V{C, E, G}));
@@ -436,8 +439,8 @@ TEST(chord_palette_says_why_it_does_not_open) {
   {
     ChordFixture f;
     f.controller->getSong().setKey(9);
-    f.down('z');
-    f.up('z');
+    f.down('q');
+    f.up('q');
     f.execute("chord-palette");
     CHECK(f.shows("is not a note of the song's scale"));
     CHECK(f.row(0) == (V{C}));
@@ -448,13 +451,13 @@ TEST(chord_palette_says_why_it_does_not_open) {
 TEST(chord_palette_is_accepted_by_the_next_note) {
   ChordFixture f;
   f.widen(2);
-  f.down('z');
-  f.up('z');
+  f.down('q');
+  f.up('q');
   f.meta('/');
   f.press(cellui::Key::Up);
   CHECK(f.row(0) == (V{C, Ds, E}));
-  f.down('v');
-  f.up('v');
+  f.down('r');
+  f.up('r');
   CHECK(!f.shows("Chord: 3 notes"));
   CHECK(f.row(0) == (V{C, Ds, E}));
   CHECK(f.row(1) == (V{F, A, 53 + C}));
@@ -471,8 +474,8 @@ TEST(chord_palette_on_the_desktop_keymap) {
   f.press(cellui::Key::Right, kModCtrl | cellui::kModShift);
   f.press(cellui::Key::Right, kModCtrl | cellui::kModShift);
   CHECK(f.shows("Cursor width: 3"));
-  f.down('z');
-  f.up('z');
+  f.down('q');
+  f.up('q');
   CHECK(f.row(0) == (V{C, E, G}));
   f.press(' ', kModCtrl);
   CHECK(f.shows("Chord: 3 notes"));
@@ -534,12 +537,12 @@ TEST(cursor_height_is_the_edit_step_from_one_row_to_a_bar) {
 TEST(cursor_moves_down_by_its_height_after_an_entry_that_writes_its_first_row) {
   HeightFixture f;
   f.execute("set-edit-step-4");
-  f.down('z');
-  f.up('z');
+  f.down('q');
+  f.up('q');
   CHECK(f.row(0) == (V{C}));
   CHECK(f.cursorRow() == 4);
-  f.down('c');
-  f.up('c');
+  f.down('e');
+  f.up('e');
   for (int r : {1, 2, 3, 5}) CHECK(f.row(r).empty());
   CHECK(f.row(4) == (V{E}));
   CHECK(f.cursorRow() == 8);
@@ -562,4 +565,133 @@ TEST(delete_and_backspace_empty_every_cell_under_the_cursor) {
   for (int r : {4, 5}) CHECK(f.row(r) == (V{0, 1, 2, 3}));
   for (int r : {6, 7}) CHECK(f.row(r) == (V{-1, -1, -1, 3}));
   CHECK(f.cursorRow() == 4);
+}
+
+TEST(the_fx_column_accepts_the_coarse_correction_symbols_when_typed) {
+  for (auto [text, cents] : {std::pair{std::string(">1F"), 31.0}, std::pair{std::string("<10"), -16.0}}) {
+    HeightFixture f;
+    f.fill(2, 1);
+    for (int i = 0; i < 3; i++) f.press(cellui::Key::Right); // note, velocity, delay, then fx
+    f.type(text);
+    auto target = resolveEditTarget(f.controller->getSong(), f.track_id, 0);
+    auto note = target.pattern->getNotes(target.effective_row)[0];
+    CHECK(std::string(note.getFx()) == text);
+    CHECK(note.hasCoarseTuningCorrection());
+    CHECK(note.getTuningCorrectionCents() == cents);
+    CHECK(f.shows(text.c_str()));
+  }
+}
+
+TEST(chord_entry_at_five_columns_writes_five_note_chords) {
+  {
+    ChordFixture f;
+    f.widen(4);
+    f.down('r');
+    f.wait();
+    f.up('r');
+    CHECK(f.row(0) == (V{F, G, A, 53 + C, 53 + Ds}));
+    CHECK(f.shows("F harmonic ninth"));
+    // The palette then offers the F major ninth.
+    f.meta('/');
+    CHECK(f.shows("Chord: 5 notes"));
+    f.press(cellui::Key::Down);
+    CHECK(f.row(0) == (V{F, G, A, 53 + C, 53 + E}));
+    CHECK(f.shows("F major ninth"));
+  }
+  {
+    ChordFixture f;
+    f.widen(4);
+    f.down('q');
+    f.wait();
+    f.up('q');
+    CHECK(f.row(0) == (V{C, Ds, F, G, A}));
+    CHECK(f.shows("F harmonic ninth / C"));
+  }
+  {
+    // Read from F♯↑: its only five-note chord.
+    ChordFixture f;
+    f.widen(4);
+    f.down('5');
+    f.wait();
+    f.up('5');
+    CHECK(f.row(0) == (V{Fsu, G, Asu, 53 + C, 53 + Ds}));
+  }
+  {
+    // D𝄫 has no five-note chord: four notes, and the fifth column is emptied.
+    ChordFixture f;
+    f.widen(4);
+    f.down('1');
+    f.wait();
+    f.up('1');
+    auto row = f.row(0);
+    CHECK(row.size() >= 4);
+    CHECK(row[0] == 2);
+    for (std::size_t i = 1; i < 4; i++) CHECK(row[i] > 2);
+    CHECK(row.size() == 4 || row[4] == -1);
+  }
+  {
+    // C and B together.
+    ChordFixture f;
+    f.widen(4);
+    f.down('q');
+    f.down('k');
+    f.wait();
+    f.up('q');
+    f.up('k');
+    auto row = f.row(0);
+    CHECK(row.size() == 5);
+    CHECK(row[0] == C);
+    CHECK(f.shows("C major ninth"));
+  }
+  {
+    // At four columns no five-note chord is offered.
+    ChordFixture f;
+    f.widen(3);
+    f.down('r');
+    f.wait();
+    f.up('r');
+    CHECK(f.row(0) == (V{F, A, 53 + C, 53 + Ds}));
+    CHECK(!f.shows("ninth"));
+  }
+}
+
+TEST(chord_palette_is_five_notes_at_most) {
+  ChordFixture f;
+  f.down('r');
+  f.up('r');
+  f.meta('/');
+  CHECK(f.shows("Chord: 4 notes"));
+  f.execute("widen-cursor");
+  CHECK(f.shows("Chord: 5 notes"));
+  CHECK(f.row(0) == (V{F, G, A, 53 + C, 53 + Ds}));
+  f.execute("widen-cursor"); // no larger than five
+  CHECK(f.shows("2 to 5 notes"));
+  CHECK(f.shows("Chord: 5 notes"));
+}
+
+TEST(off_key_releases_every_column_under_the_cursor) {
+  for (auto scale : {Scale::OTONAL, Scale::MAJOR}) {
+    ChordFixture f(scale);
+    // Notes in the first two rows, then OFF over three columns of the first.
+    for (int r = 0; r < 2; r++) {
+      f.down('z');
+      f.up('z');
+    }
+    f.press(cellui::Key::Up);
+    f.press(cellui::Key::Up);
+    f.widen(2);
+    f.controller->getSong().breakTypingRun();
+    f.down('a');
+    f.up('a');
+    auto offs = [&](int r) {
+      auto target = resolveEditTarget(f.controller->getSong(), f.track_id, r);
+      int n = 0;
+      for (auto & note : target.pattern->getNotes(target.effective_row)) n += note.isOff() ? 1 : 0;
+      return n;
+    };
+    CHECK(offs(0) == 3);
+    CHECK(offs(1) == 0);
+    f.execute("undo");
+    CHECK(offs(0) == 0);
+  }
 }
