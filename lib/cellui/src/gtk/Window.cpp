@@ -294,7 +294,7 @@ struct Window::Impl {
   // A layer: backgrounds, then the pictures its cells show (`cells`, null for
   // none), then the text; at cell (row, col) of the screen.
   void appendPainted(GtkSnapshot * snapshot, const Painted & painted, const CellBuffer * cells, int row = 0, int col = 0);
-  void appendImages(GtkSnapshot * snapshot, const CellBuffer & cells);
+  void appendImages(GtkSnapshot * snapshot, const CellBuffer & cells, const Painted & layer_bands);
   void appendTextRuns(GtkSnapshot * snapshot, const CellBuffer & cells);
   GdkTexture * imageTexture(const ImagePlacement & placement);
   static void release(Painted & p) {
@@ -1016,7 +1016,7 @@ std::map<int, std::vector<MarkedRun>> markedRuns(const CellBuffer & cells, Mark 
 
 // The pictures the cells show, each over the cells marked with it: the whole
 // texture at its place, cut to those cells.
-void Window::Impl::appendImages(GtkSnapshot * snap, const CellBuffer & cells) {
+void Window::Impl::appendImages(GtkSnapshot * snap, const CellBuffer & cells, const Painted & layer_bands) {
   auto runs = markedRuns(cells, [](const CellBuffer::Cell & cell) { return cell.image; });
   for (const auto & [index, list] : runs) {
     if (static_cast<size_t>(index) > images.size()) continue;
@@ -1074,7 +1074,14 @@ void Window::Impl::appendImages(GtkSnapshot * snap, const CellBuffer & cells) {
       graphene_rect_union(&wide, &r, &wide);
     }
     wide = GRAPHENE_RECT_INIT(wide.origin.x - reach, wide.origin.y - reach, wide.size.width + 2.0f * reach, wide.size.height + 2.0f * reach);
+    // The bottom of the blend is drawn on its own, so it holds the backgrounds under the picture too: a
+    // picture with transparent pixels would otherwise leave the light to be laid over the cells, not added.
     gtk_snapshot_push_blend(snap, GSK_BLEND_MODE_SCREEN);
+    gtk_snapshot_push_clip(snap, &wide);
+    for (const Painted::Band & band : layer_bands.bands) {
+      if (band.bg) gtk_snapshot_append_node(snap, band.bg);
+    }
+    gtk_snapshot_pop(snap);
     for (const MarkedRun & run : list) {
       graphene_rect_t clip = cutTo(run);
       gtk_snapshot_push_clip(snap, &clip);
@@ -1149,7 +1156,7 @@ void Window::Impl::appendPainted(GtkSnapshot * snap, const Painted & p, const Ce
   for (const Painted::Band & band : p.bands) {
     if (band.bg) gtk_snapshot_append_node(snap, band.bg);
   }
-  if (cells) appendImages(snap, *cells);
+  if (cells) appendImages(snap, *cells, p);
   // The glow lies over the backgrounds and under the text: for each run of lit glyphs, the layers of a bloom
   // (glowNode()), kept per band and redone only when the band's lit cells change.
   for (size_t i = 0; i < p.bands.size(); i++) {
