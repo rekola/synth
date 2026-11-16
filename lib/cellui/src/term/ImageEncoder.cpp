@@ -218,8 +218,10 @@ ImageEncoder::Profile ImageEncoder::Profile::from(const Capabilities & caps) {
   p.cell_px_height = caps.display.cell_px_height;
   p.cell_px_width = caps.display.cell_px_width;
   p.sixel_setup = caps.sixel_setup;
-  p.kitty_frame_edit = caps.kitty_graphics_animation;
-  if (const char * v = std::getenv("CELLUI_KITTY_FRAME_EDIT"); v && v[0] == '0') p.kitty_frame_edit = false;
+  // Off unless asked for (CELLUI_KITTY_FRAME_EDIT=1): on a real kitty, hundreds of small edits a second made
+  // the scopes stutter and left parts of old pictures showing, where whole uploads did neither.
+  const char * edit = std::getenv("CELLUI_KITTY_FRAME_EDIT");
+  p.kitty_frame_edit = caps.kitty_graphics_animation && edit && edit[0] == '1';
   if (caps.sixel_registers > 0) p.sixel_registers = std::min(caps.sixel_registers, 128);
   p.sixel_registers_total = caps.sixel_registers;
   return p;
