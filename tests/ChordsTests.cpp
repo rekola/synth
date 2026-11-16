@@ -114,21 +114,19 @@ TEST(chords_every_degree_of_both_scales_has_its_list) {
   CHECK(degreeChords(Scale::MAJOR, 0).empty());
 }
 
-TEST(chords_are_named_after_the_lowest_note_of_their_form) {
+TEST(chords_are_named_after_their_root) {
+  // A harmonic seventh by its lowest note, a mirror seventh by its top note.
   using V = std::vector<std::string>;
-  CHECK(namesOf(Scale::OTONAL, "C") == (V{"C harmonic seventh", "F harmonic seventh / C", "C mirror seventh", "F major seventh / C",
-                                          "C major seventh", "C 7♯9"}));
-  CHECK(namesOf(Scale::OTONAL, "D♯") == (V{"F harmonic seventh / D♯", "C mirror seventh / D♯", "D♯ harmonic seventh", "C 7♯9 / D♯"}));
+  CHECK(namesOf(Scale::OTONAL, "C") == (V{"C harmonic seventh", "F harmonic seventh / C", "A♯↑ mirror seventh / C", "F major seventh / C", "C major seventh", "C 7♯9"}));
+  CHECK(namesOf(Scale::OTONAL, "D♯") == (V{"F harmonic seventh / D♯", "A♯↑ mirror seventh / D♯", "D♯ harmonic seventh", "C 7♯9 / D♯"}));
   CHECK(namesOf(Scale::OTONAL, "A") == (V{"F harmonic seventh / A", "A minor", "F major seventh / A"}));
-  CHECK(namesOf(Scale::OTONAL, "D𝄪") == (V{"F♯↑ mirror seventh / D𝄪", "F♯↑ 7♯9 / D𝄪"}));
-  CHECK(namesOf(Scale::OTONAL, "D♭↓") == (V{"D♭↓ mirror seventh"}));
-  CHECK(namesOf(Scale::OTONAL, "B") == (V{"D♭↓ mirror seventh / B", "C major seventh / B"}));
-  CHECK(namesOf(Scale::UTONAL, "C") == (V{"E𝄫 mirror seventh / C", "B𝄫 mirror seventh / C", "E𝄫 harmonic seventh / C",
-                                          "A♭ major seventh / C", "D♭↓ major seventh / C", "E𝄫 7♯9 / C"}));
-  CHECK(namesOf(Scale::UTONAL, "A♭") == (V{"E𝄫 mirror seventh / A♭", "D♭↓ harmonic seventh / A♭", "A♭ major", "A♭ major seventh",
-                                           "D♭↓ major seventh / A♭", "G𝄫 7♯9 / A♭"}));
+  CHECK(namesOf(Scale::OTONAL, "D𝄪") == (V{"D𝄪 mirror seventh", "F♯↑ 7♯9 / D𝄪"}));
+  CHECK(namesOf(Scale::OTONAL, "D♭↓") == (V{"B mirror seventh / D♭↓"}));
+  CHECK(namesOf(Scale::OTONAL, "B") == (V{"B mirror seventh", "C major seventh / B"}));
+  CHECK(namesOf(Scale::UTONAL, "C") == (V{"C mirror seventh", "G mirror seventh / C", "E𝄫 harmonic seventh / C", "A♭ major seventh / C", "D♭↓ major seventh / C", "E𝄫 7♯9 / C"}));
+  CHECK(namesOf(Scale::UTONAL, "A♭") == (V{"C mirror seventh / A♭", "D♭↓ harmonic seventh / A♭", "A♭ major", "A♭ major seventh", "D♭↓ major seventh / A♭", "G𝄫 7♯9 / A♭"}));
   CHECK(namesOf(Scale::UTONAL, "D♭↓") == (V{"D♭↓ harmonic seventh", "D♭↓ major seventh"}));
-  CHECK(namesOf(Scale::UTONAL, "B♯") == (V{"B♯ mirror seventh", "B♯ 7♯9"}));
+  CHECK(namesOf(Scale::UTONAL, "B♯") == (V{"B𝄫 mirror seventh / B♯", "B♯ 7♯9"}));
   CHECK(namesOf(Scale::UTONAL, "B") == (V{"D♭↓ harmonic seventh / B"}));
 }
 
@@ -166,7 +164,7 @@ TEST(chords_one_note_is_completed_to_the_first_notes_of_its_first_chord) {
 
   auto utonal = completeIn(Scale::UTONAL, {C}, 4);
   CHECK(utonal.chords[0].notes == notes({C, Ebb, F, Ab}));
-  CHECK(utonal.chords[0].name == "E𝄫 mirror seventh / C");
+  CHECK(utonal.chords[0].name == "C mirror seventh");
   CHECK(completeIn(Scale::UTONAL, {C}, 3).chords[0].name == "C narrow minor");
   CHECK(completeIn(Scale::UTONAL, {Ab}, 3).chords[2].name == "A♭ major");
 }
@@ -327,4 +325,20 @@ TEST(chords_utonal_five_note_chords_complete_from_a_degree) {
   CHECK(c.chords[0].notes == notes({C, Eb, F, G, Bbb}));
   CHECK(c.chords[0].name == "F mirror harmonic ninth / C");
   CHECK(c.chords[1].name == "F mirror major ninth / C");
+}
+
+// A given note whose ratio the caller knows is that ratio, whatever its key holds; the
+// completion says each note's ratio.
+TEST(complete_takes_the_ratio_of_a_given_note_when_it_is_known) {
+  ScaleChords scale(Scale::OTONAL, Tuning::EDO53, 39); // A otonal
+  auto tonic = gamutNote(Scale::OTONAL, "C");
+  // The note value of A is the tonic whatever its name; no ratio needs working out from it.
+  auto result = complete(scale, {kC + 39}, 4, {{kC + 39, tonic}});
+  CHECK(result.status == Status::OK);
+  CHECK(result.chords[0].notes == (std::vector<int>{kC + 39, kC + 39 + E, kC + 39 + G, kC + 39 + Asu}));
+  CHECK(result.chords[0].ratios.size() == 4);
+  CHECK(result.chords[0].ratios[0] == tonic);
+  CHECK(result.chords[0].ratios[1] == gamutNote(Scale::OTONAL, "E"));
+  // Without it, the key's own note is used: the same chord.
+  CHECK(complete(scale, {kC + 39}, 4).chords[0].notes == result.chords[0].notes);
 }

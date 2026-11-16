@@ -24,6 +24,8 @@ enum class Scale {
   MINOR,
   OTONAL,
   UTONAL,
+  // The 7-limit tonality diamond: 13 notes of the otonal and utonal scales together.
+  DIAMOND,
   // The seven Babylonian modes of the Pythagorean gamut, each a rotation of
   // the one seven-note pattern, named after the tuning text (descending
   // reading; docs/glossary.md). The church-mode name is the rotation.
@@ -58,6 +60,8 @@ static inline std::string to_string(Scale scale) {
   case Scale::OTONAL: return "otonal";
   case Scale::UTONAL:
     return "utonal";
+  case Scale::DIAMOND:
+    return "diamond";
   case Scale::NIS_TUHRIM:
     return "nistuhrim";
   case Scale::ISARTUM:
@@ -107,6 +111,8 @@ static inline std::string scaleLabel(Scale scale) {
       return "Otonal";
     case Scale::UTONAL:
       return "Utonal";
+    case Scale::DIAMOND:
+      return "Diamond";
     case Scale::NIS_TUHRIM:
       return "Nīš tuḫrim";
     case Scale::ISARTUM:
@@ -148,6 +154,7 @@ static inline Scale scaleFromString(const std::string & text) {
   if (text == "minor") return Scale::MINOR;
   if (text == "otonal") return Scale::OTONAL;
   if (text == "utonal") return Scale::UTONAL;
+  if (text == "diamond") return Scale::DIAMOND;
   if (text == "nistuhrim") return Scale::NIS_TUHRIM;
   if (text == "isartum") return Scale::ISARTUM;
   if (text == "embubum") return Scale::EMBUBUM;
@@ -175,8 +182,8 @@ static inline Scale scaleFromString(const std::string & text) {
 // both), eighteen of them:
 // 1/1 49/48 15/14 9/8 7/6 49/40 5/4 9/7 4/3 7/5 35/24 3/2 49/30 5/3 7/4 9/5 15/8 49/25
 // (C D𝄫 D♭↓ D D♯ D𝄪 E F♭ F F♯↑ F𝄪 G G𝄪 A A♯↑ B♭ B B♯); utonal is its mirror
-// image, 1/1 50/49 16/15 10/9 8/7 6/5 60/49 4/3 48/35 10/7 3/2 14/9 8/5 80/49 12/7
-// 16/9 28/15 96/49 (C D𝄫 D♭↓ D↓ E𝄫 E♭ F𝄫 F G𝄫 G♭↓ G G♯ A♭ A♭↑ B𝄫 B♭↓ B B♯).
+// image, 1/1 50/49 16/15 10/9 8/7 6/5 60/49 4/3 48/35 10/7 3/2 14/9 8/5 80/49
+// 12/7 16/9 28/15 96/49 (C D𝄫 D♭↓ D↓ E𝄫 E♭ F𝄫 F G𝄫 G♭↓ G G♯ A♭ A♭↑ B𝄫 B♭↓ B B♯).
 // The terms are Partch's, though his otonalities
 // are chords, not these scales. Each Babylonian mode is seven notes of the
 // Pythagorean gamut, 3-limit and meant for 53-EDO only (scaleSupportsTuning());
@@ -220,6 +227,12 @@ inline constexpr std::array<Ratio, 7> kMajorRatios = {Ratio{1, 1}, Ratio{9, 8}, 
 // C D E♭ F G A♭ B♭
 inline constexpr std::array<Ratio, 7> kMinorRatios = {Ratio{1, 1}, Ratio{9, 8}, Ratio{6, 5}, Ratio{4, 3}, Ratio{3, 2}, Ratio{8, 5}, Ratio{9, 5}};
 
+// The 7-limit tonality diamond: every ratio between two of 1, 3, 5 and 7, by
+// ascending ratio. The two seven-note cores (otonal's 1/1 7/6 5/4 4/3 3/2 5/3
+// 7/4 and utonal's mirror) and the two tritones.
+inline constexpr std::array<Ratio, 13> kDiamondRatios = {Ratio{1, 1}, Ratio{8, 7}, Ratio{7, 6}, Ratio{6, 5}, Ratio{5, 4}, Ratio{4, 3}, Ratio{7, 5},
+                                                         Ratio{10, 7}, Ratio{3, 2}, Ratio{8, 5}, Ratio{5, 3}, Ratio{12, 7}, Ratio{7, 4}};
+
 // Every ratio of `only` must be a note of the gamut it selects from: a typo
 // would otherwise just drop that note from the scale.
 constexpr bool allInGamut(std::span<const Ratio> only, std::span<const GamutNote> table) {
@@ -233,6 +246,7 @@ constexpr bool allInGamut(std::span<const Ratio> only, std::span<const GamutNote
 static_assert(allInGamut(kNisTuhrimRatios, gamut::kPythagorean));
 static_assert(allInGamut(kIsartumRatios, gamut::kPythagorean));
 static_assert(allInGamut(kEmbubumRatios, gamut::kPythagorean));
+static_assert(allInGamut(kDiamondRatios, gamut::kExtendedDiamond));
 static_assert(allInGamut(kNidQablimRatios, gamut::kPythagorean));
 static_assert(allInGamut(kQablitumRatios, gamut::kPythagorean));
 static_assert(allInGamut(kKitmumRatios, gamut::kPythagorean));
@@ -250,7 +264,7 @@ struct JustScale {
 
   bool contains(const GamutNote & note) const {
     if (!only.empty()) return std::find(only.begin(), only.end(), note.ratio) != only.end();
-    return (!side || note.side == GamutSide::BOTH || note.side == *side);
+    return !side || note.side == GamutSide::BOTH || note.side == *side;
   }
 };
 
@@ -287,6 +301,8 @@ static inline std::optional<JustScale> justScale(Scale scale) {
       return JustScale{gamut::kExtendedDiamond, GamutSide::OTONAL};
     case Scale::UTONAL:
       return JustScale{gamut::kExtendedDiamond, GamutSide::UTONAL};
+    case Scale::DIAMOND:
+      return JustScale{gamut::kExtendedDiamond, std::nullopt, kDiamondRatios};
     case Scale::NIS_TUHRIM:
       return JustScale{gamut::kPythagorean, std::nullopt, kNisTuhrimRatios};
     case Scale::ISARTUM:
@@ -349,6 +365,7 @@ static inline std::vector<std::string_view> scaleDegreeNames(Scale scale) {
   case Scale::MINOR: return { "C", "D", "E♭", "F", "G", "A♭", "B♭" };
   case Scale::OTONAL:
   case Scale::UTONAL:
+  case Scale::DIAMOND:
   case Scale::NIS_TUHRIM:
   case Scale::ISARTUM:
   case Scale::EMBUBUM:

@@ -5,13 +5,14 @@
 #include "Tuning.h"
 
 #include <cstddef>
+#include <map>
 #include <optional>
 #include <string>
 #include <vector>
 
-// The chords of the otonal and utonal scales: each degree's ordered list, the
-// names, and the completion of played notes to a chord. No other scale has
-// chords. Notes are identified by their ratio (an index into the extended
+// The chords of the otonal, utonal and diamond scales: each degree's ordered
+// list, the names, and the completion of played notes to a chord. No other scale
+// has chords. Notes are identified by their ratio (an index into the extended
 // diamond, gamut::kExtendedDiamond), never by name: four spellings name a
 // different ratio in each scale.
 namespace chords {
@@ -38,9 +39,14 @@ struct Entry {
   std::size_t root = 0; // the gamut note the chord is named after
 };
 
-inline bool hasChords(Scale scale) { return scale == Scale::OTONAL || scale == Scale::UTONAL; }
+inline bool hasChords(Scale scale) {
+  return scale == Scale::OTONAL || scale == Scale::UTONAL || scale == Scale::DIAMOND;
+}
 
 // A degree's chords, in order; empty for a note that is no degree of the scale.
+// In the two diamond scales a note has the chords of its own side first (a note
+// of both, the otonal ones before the utonal ones), then the chords that take
+// notes from both.
 // `size` 4 (or less) is the list of chords of two to four notes, 5 the
 // five-note chords.
 const std::vector<Entry> & degreeChords(Scale scale, std::size_t gamut_index, int size = 4);
@@ -81,6 +87,7 @@ class ScaleChords {
 
 struct Completion {
   std::vector<int> notes; // note values, rising
+  std::vector<std::size_t> ratios; // each note's gamut index, as `notes`
   std::string name;
 };
 
@@ -105,7 +112,10 @@ struct Result {
 // within the octave above the lowest given note, until there are `size`
 // notes. A chord with fewer notes is not padded. Chords of `size` notes come
 // first (five at most), then each smaller list down to the four-note one.
-Result complete(const ScaleChords & scale, std::vector<int> given, int size);
+// `known` gives the ratio (gamut index) of a given note value that the caller
+// knows, such as the key that played it; any other given note is the scale
+// note its key holds.
+Result complete(const ScaleChords & scale, std::vector<int> given, int size, const std::map<int, std::size_t> & known = {});
 
 } // namespace chords
 

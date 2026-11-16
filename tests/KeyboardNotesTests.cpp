@@ -2,6 +2,7 @@
 
 #include "../src/playback/KeyboardNotes.h"
 #include "../src/model/Note.h"
+#include "../src/model/JustIntonation.h"
 
 #include <algorithm>
 #include <set>
@@ -109,4 +110,112 @@ TEST(keyboard_rast_is_on_the_q_row) {
   }
   CHECK(std::string(keyToMidiNote(key('z'), Tuning::EDO24, Scale::RAST)).empty());
   CHECK(std::string(keyToMidiNote(key('p'), Tuning::EDO24, Scale::RAST)).empty());
+}
+
+namespace {
+// A key's note, in a song of the given key (53-EDO pitch class), at an octave.
+KeyboardNote noteAt(int id, Scale scale, int song_key, int octave = 4, Tuning tuning = Tuning::EDO53) {
+  auto note = keyToNote(id, tuning, scale, song_key, octave);
+  CHECK(note.has_value());
+  return note.value_or(KeyboardNote{});
+}
+constexpr int kA = 39; // A in 53-EDO, steps above C
+} // namespace
+
+// In the key of C every key gives the note its name says in 53-EDO, and the
+// correction the tuner gave it. In the other tunings a key is the nearest step of
+// its ratio; that is the name's step except for four keys whose name is a step
+// off (12-EDO G𝄪 and F𝄫, 19-EDO D𝄪, 31-EDO A♭↑: the name's arrow is ignored there).
+TEST(keyboard_notes_ratios_in_c_are_the_notes_of_the_layout) {
+  int off_name = 0;
+  for (auto tuning : {Tuning::EDO12, Tuning::EDO19, Tuning::EDO31, Tuning::EDO53}) {
+    for (auto scale : {Scale::OTONAL, Scale::UTONAL}) {
+      auto corrections = just_intonation::scaleCorrectionsFor(tuning, scale, 0);
+      for (int id = 32; id < 127; id++) {
+        auto name = keyToMidiNote(key(id), tuning, scale);
+        auto note = keyToNote(id, tuning, scale, 0, 4);
+        CHECK(note.has_value() == !name.empty());
+        if (!note) continue;
+        int named = Note(name, tuning, 0x28, 0, 4).getValue();
+        if (tuning == Tuning::EDO53) {
+          CHECK(note->value == named);
+          // Where the tuner holds this key for the same note, its correction is the key's.
+          auto held = corrections.forNote(note->value);
+          if (held) CHECK_NEAR(*held, note->correction_cents, 1e-9);
+        } else if (note->value != named) {
+          off_name++;
+          CHECK(std::abs(note->value - named) == 1);
+        }
+      }
+    }
+  }
+  CHECK(off_name == 4);
+}
+
+// Q is the tonic whatever the key; each key lies its ratio above it.
+TEST(keyboard_notes_give_ratios_above_the_tonic_in_any_key) {
+  const int c = 5 * 53;
+  for (int song_key : {0, kA, 9, 48}) {
+    for (auto scale : {Scale::OTONAL, Scale::UTONAL}) {
+      auto tonic = noteAt('q', scale, song_key);
+      CHECK(tonic.value == c + song_key);
+      CHECK_NEAR(tonic.correction_cents, 0.0, 1e-9);
+      for (int id = 32; id < 127; id++) {
+        auto in_c = keyToNote(id, Tuning::EDO53, scale, 0, 4);
+        if (!in_c) continue;
+        auto here = noteAt(id, scale, song_key);
+        CHECK(here.value - tonic.value == in_c->value - c);
+        CHECK_NEAR(here.correction_cents, in_c->correction_cents, 1e-9);
+        CHECK(here.gamut_index == in_c->gamut_index);
+      }
+    }
+  }
+}
+
+TEST(keyboard_notes_in_a_otonal_spell_the_ratios_above_a) {
+  // 5/4 above A is C♯; 3/2 is E; 7/4 is G♯↑ (A + 43 steps).
+  CHECK(Note::keyToString(Tuning::EDO53, noteAt('e', Scale::OTONAL, kA).value % 53) == "C♯");
+  CHECK(Note::keyToString(Tuning::EDO53, noteAt('t', Scale::OTONAL, kA).value % 53) == "E");
+  CHECK(Note::keyToString(Tuning::EDO53, noteAt('q', Scale::OTONAL, kA).value % 53) == "A");
+  // The correction is the one of the ratio: 5/4 is 13.7 cents below its step.
+  const double five_four = Ratio(5, 4).cents() - 17 * 1200.0 / 53;
+  CHECK_NEAR(noteAt('e', Scale::OTONAL, kA).correction_cents, five_four, 1e-9);
+  // The same key in utonal: 6/5 above A is C.
+  CHECK(Note::keyToString(Tuning::EDO53, noteAt('e', Scale::UTONAL, kA).value % 53) == "C");
+}
+
+// A key sounds the exact ratio: the tuner's correction at the key's note, which
+// is what a played note is given, equals the key's own.
+TEST(keyboard_notes_sound_the_exact_ratio_in_any_key) {
+  for (int song_key : {0, kA, 9, 48}) {
+    for (auto scale : {Scale::OTONAL, Scale::UTONAL}) {
+      auto corrections = just_intonation::scaleCorrectionsFor(Tuning::EDO53, scale, song_key);
+      for (int id = 32; id < 127; id++) {
+        auto note = keyToNote(id, Tuning::EDO53, scale, song_key, 4);
+        if (!note) continue;
+        auto held = corrections.forNote(note->value);
+        CHECK(held.has_value());
+        if (held) CHECK_NEAR(*held, note->correction_cents, 1e-9);
+      }
+    }
+  }
+}
+
+// The octave is counted from the tonic: Q is the tonic in the current octave, the
+// keys above it rise from there, and the octave keys are the tonic an octave up.
+TEST(keyboard_notes_count_the_octave_from_the_tonic) {
+  for (int octave : {3, 4, 6}) {
+    auto q = noteAt('q', Scale::OTONAL, kA, octave);
+    CHECK(q.value == (octave + 1) * 53 + kA);
+    CHECK(noteAt('t', Scale::OTONAL, kA, octave).value - q.value == 31);
+    CHECK(noteAt('i', Scale::OTONAL, kA, octave).value - q.value == 53);
+    CHECK(noteAt('p', Scale::OTONAL, kA, octave).value - q.value == 53 + 17);
+  }
+}
+
+// A layout that is fixed notes gives no ratio.
+TEST(keyboard_notes_other_layouts_give_no_ratio) {
+  CHECK(!keyToNote('z', Tuning::EDO53, Scale::MAJOR, kA, 4).has_value());
+  CHECK(!keyToNote('q', Tuning::EDO53, Scale::ISARTUM, kA, 4).has_value());
+  CHECK(!keyToNote('x', Tuning::PERCUSSION, Scale::NONE, 0, 4).has_value());
 }

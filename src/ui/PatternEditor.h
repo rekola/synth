@@ -6,6 +6,7 @@
 #include "../model/Song.h"
 #include "../state/PlaybackInfo.h"
 #include <chrono>
+#include <map>
 #include <optional>
 #include "../model/PatternBlockOps.h"
 #include "ClipboardEntry.h"
@@ -441,6 +442,7 @@ private:
     int written = 0; // note columns written, from `column`
     int next_order = 0;
     std::vector<int> given;        // the notes played, in the order played
+    std::map<int, std::size_t> ratios; // the gamut note a played key gave, by note value
     std::vector<int> voices;       // columns sounding with no release to end them
     std::vector<int> added_voices; // columns where added notes sound with the held keys
     std::chrono::steady_clock::time_point deadline;
@@ -471,7 +473,7 @@ private:
   };
   Arpeggio arpeggio_;
   void playArpeggio(std::chrono::steady_clock::time_point now);
-  bool enterChordKey(const cellui::KeyDown & e, int track_id, int midi_note, int note_column, RowAddress point, int delay, bool transport_owns_row);
+  bool enterChordKey(const cellui::KeyDown & e, int track_id, int midi_note, std::optional<std::size_t> ratio, int note_column, RowAddress point, int delay, bool transport_owns_row);
   // Writes the completion of the entry's notes, if there is one. `released`:
   // no key is held, so the chord is played for a moment.
   void applyChordCompletion(bool released);
@@ -492,12 +494,13 @@ private:
     RowAddress row;
     int column = 0;
     std::vector<int> given;
+    std::map<int, std::size_t> ratios; // the gamut note of a given note, where known
     Version version;
     RowAddress cursor;
     int cursor_track = 0, cursor_col = 0;
   };
   LastEntry last_entry_;
-  void recordEntryNote(int track_id, RowAddress row, int column, int value);
+  void recordEntryNote(int track_id, RowAddress row, int column, int value, std::optional<std::size_t> ratio = std::nullopt);
   // Notes where the song and the cursor are once the entry's step is made.
   void settleLastEntry();
 
@@ -509,6 +512,7 @@ private:
     RowAddress row;
     int column = 0;
     std::vector<int> given;
+    std::map<int, std::size_t> ratios; // the gamut note of a given note, where known
     int size = 4;
     int span = 0; // note columns the session rewrites, from `column`
     std::vector<Note> original;
@@ -530,7 +534,8 @@ private:
   bool chordPaletteKey(const cellui::KeyDown & e);
   void renderChordPalette();
   // The pitched notes side by side from a note column, at most kPaletteColumns.
-  std::vector<int> chordAt(int track_id, RowAddress row, int column);
+  // The notes of the chord at the cursor; with `ratios`, the gamut note each one stands for (by its correction).
+  std::vector<int> chordAt(int track_id, RowAddress row, int column, std::map<int, std::size_t> * ratios = nullptr);
 
   // Rows the cursor still owes the notes entered while keys were held: a
   // chord's keys all land on one row, and the cursor steps once the last

@@ -270,7 +270,7 @@ const char * kindName(Kind kind) {
   return "";
 }
 
-Ratio ratioOf(size_t index) { return gamut::kExtendedDiamond[index].ratio; }
+const Ratio & ratioOf(size_t index) { return gamut::kExtendedDiamond[index].ratio; }
 
 // The notes' ratios above `root`, within the octave and ascending, without the root.
 vector<Ratio> aboveRoot(const vector<size_t> & notes, size_t root) {
@@ -288,6 +288,22 @@ optional<size_t> gamutIndex(string_view spelling, GamutSide side) {
     if (note.spelling == spelling && (note.side == GamutSide::BOTH || note.side == side)) return i;
   }
   return nullopt;
+}
+
+// The note a chord is named after: the lowest of its form, except a mirror
+// seventh, which is named by its top note.
+size_t rootOf(Kind kind, const vector<size_t> & notes, size_t lowest) {
+  if (kind != Kind::MIRROR_SEVENTH) return lowest;
+  size_t top = lowest;
+  Ratio highest{1, 1};
+  for (auto note : notes) {
+    auto above = (ratioOf(note) / ratioOf(lowest)).reduced();
+    if (above > highest) {
+      highest = above;
+      top = note;
+    }
+  }
+  return top;
 }
 
 using ChordTable = map<size_t, vector<Entry>>;
@@ -311,11 +327,91 @@ ChordTable buildTable(const array<const char *, N> & chords, GamutSide side) {
       for (auto & form : forms()) {
         if (form.above != above) continue;
         entry.kind = form.kind;
-        entry.root = root;
+        entry.root = rootOf(form.kind, entry.notes, root);
         named = true;
       }
     }
     if (named) table[entry.notes[0]].push_back(std::move(entry));
+  }
+  return table;
+}
+
+bool hasSide(const vector<size_t> & notes, GamutSide side) {
+  return any_of(notes.begin(), notes.end(), [&](size_t i) { return gamut::kExtendedDiamond[i].side == side; });
+}
+
+// The kinds of chord, in the order the lists offer them (seventh chords, triads,
+// then the major sevenths and the 7♯9 chords; the five-note kinds as the enum has them).
+vector<Kind> kindOrder(bool five) {
+  vector<Kind> order;
+  if (five) {
+    for (auto & form : forms()) {
+      if (form.above.size() == 4) order.push_back(form.kind);
+    }
+  } else {
+    order = {Kind::HARMONIC_SEVENTH, Kind::MIRROR_SEVENTH, Kind::MAJOR, Kind::MINOR, Kind::MAJOR_SEVENTH, Kind::SEVEN_SHARP_NINE};
+  }
+  return order;
+}
+
+// Calls `use` with each chord of every form (by kind, then by ascending lowest
+// note) whose notes are all ratios of the gamut: the notes by gamut index, the
+// lowest of the form first, and the chord's root.
+template <class Use>
+void forEachChord(bool five, Use use) {
+  for (auto kind : kindOrder(five)) {
+    const Form * form = nullptr;
+    for (auto & candidate : forms()) {
+      if (candidate.kind == kind) form = &candidate;
+    }
+    for (size_t lowest = 0; lowest < gamut::kExtendedDiamond.size(); lowest++) {
+      vector<size_t> notes = {lowest};
+      for (auto & above : form->above) {
+        auto ratio = (ratioOf(lowest) * above).reduced();
+        for (size_t i = 0; i < gamut::kExtendedDiamond.size(); i++) {
+          if (ratioOf(i) == ratio) {
+            notes.push_back(i);
+            break;
+          }
+        }
+      }
+      if (notes.size() == form->above.size() + 1) use(kind, notes, rootOf(kind, notes, lowest));
+    }
+  }
+}
+
+// The chord read upward from one of its notes.
+Entry readFrom(Kind kind, size_t root, const vector<size_t> & notes, size_t degree) {
+  Entry entry;
+  entry.kind = kind;
+  entry.root = root;
+  entry.notes = {degree};
+  vector<pair<Ratio, size_t>> upward;
+  for (auto note : notes) {
+    if (note != degree) upward.emplace_back((ratioOf(note) / ratioOf(degree)).reduced(), note);
+  }
+  sort(upward.begin(), upward.end());
+  for (auto & [ratio, note] : upward) entry.notes.push_back(note);
+  return entry;
+}
+
+// Every chord of every form that has notes of both scales, each read upward from
+// each of its notes, by kind and by ascending lowest note within a kind.
+ChordTable buildCrossTable(bool five) {
+  ChordTable table;
+  forEachChord(five, [&](Kind kind, const vector<size_t> & notes, size_t root) {
+    if (!hasSide(notes, GamutSide::OTONAL) || !hasSide(notes, GamutSide::UTONAL)) return;
+    for (auto degree : notes) table[degree].push_back(readFrom(kind, root, notes, degree));
+  });
+  return table;
+}
+
+// The diamond scales' lists: each degree's otonal chords, then its utonal ones,
+// then the chords that take notes from both.
+ChordTable joinTables(const ChordTable & otonal, const ChordTable & utonal, const ChordTable & cross) {
+  ChordTable table;
+  for (auto * part : {&otonal, &utonal, &cross}) {
+    for (auto & [degree, entries] : *part) table[degree].insert(table[degree].end(), entries.begin(), entries.end());
   }
   return table;
 }
@@ -326,10 +422,22 @@ const ChordTable & tableFor(Scale scale, int size) {
   static const ChordTable utonal = buildTable(kUtonalChords, GamutSide::UTONAL);
   static const ChordTable otonal5 = buildTable(kOtonalNinths, GamutSide::OTONAL);
   static const ChordTable utonal5 = buildTable(kUtonalNinths, GamutSide::UTONAL);
+  static const ChordTable cross = buildCrossTable(false);
+  static const ChordTable cross5 = buildCrossTable(true);
+  static const ChordTable diamond = joinTables(otonal, utonal, cross);
+  static const ChordTable diamond5 = joinTables(otonal5, utonal5, cross5);
   static const ChordTable none;
   bool five = size >= 5;
-  return scale == Scale::OTONAL ? (five ? otonal5 : otonal) : scale == Scale::UTONAL ? (five ? utonal5 : utonal)
-                                                                                     : none;
+  switch (scale) {
+    case Scale::OTONAL:
+      return five ? otonal5 : otonal;
+    case Scale::UTONAL:
+      return five ? utonal5 : utonal;
+    case Scale::DIAMOND:
+      return five ? diamond5 : diamond;
+    default:
+      return none;
+  }
 }
 
 } // namespace
@@ -414,14 +522,18 @@ string ScaleChords::chordName(const Entry & entry) const {
   return name;
 }
 
-Result complete(const ScaleChords & scale, vector<int> given, int size) {
+Result complete(const ScaleChords & scale, vector<int> given, int size, const map<int, size_t> & known) {
   Result result;
   if (!scale.hasChords()) return result;
   sort(given.begin(), given.end());
   given.erase(unique(given.begin(), given.end()), given.end());
   result.status = Status::NOT_A_DEGREE;
   if (given.empty()) return result;
-  auto degree = scale.degreeOf(given[0]);
+  auto ratio_of = [&](int value) -> optional<size_t> {
+    if (auto it = known.find(value); it != known.end()) return it->second;
+    return scale.degreeOf(value);
+  };
+  auto degree = ratio_of(given[0]);
   if (!degree) return result;
   result.status = Status::NOTHING_TO_ADD;
   if (static_cast<int>(given.size()) >= size) return result;
@@ -429,7 +541,7 @@ Result complete(const ScaleChords & scale, vector<int> given, int size) {
 
   vector<size_t> given_notes; // distinct, the degree first
   for (auto value : given) {
-    auto note = scale.degreeOf(value);
+    auto note = ratio_of(value);
     if (!note) return result;
     if (find(given_notes.begin(), given_notes.end(), *note) == given_notes.end()) given_notes.push_back(*note);
   }
@@ -439,17 +551,22 @@ Result complete(const ScaleChords & scale, vector<int> given, int size) {
     if (!all_of(given_notes.begin(), given_notes.end(), in_entry)) return;
 
     Completion chord;
-    chord.notes = given;
+    vector<pair<int, size_t>> placed; // value and ratio
+    for (auto value : given) placed.emplace_back(value, *ratio_of(value));
     auto written = given_notes;
     for (auto note : entry->notes) {
-      if (static_cast<int>(chord.notes.size()) >= size) break;
+      if (static_cast<int>(placed.size()) >= size) break;
       if (find(written.begin(), written.end(), note) != written.end()) continue;
       int above = (((scale.stepOf(note) - scale.stepOf(*degree)) % scale.edo()) + scale.edo()) % scale.edo();
-      chord.notes.push_back(given[0] + above);
+      placed.emplace_back(given[0] + above, note);
       written.push_back(note);
     }
-    sort(chord.notes.begin(), chord.notes.end());
-    bool repeat = any_of(result.chords.begin(), result.chords.end(), [&](const Completion & c) { return c.notes == chord.notes; });
+    sort(placed.begin(), placed.end());
+    for (auto & [value, note] : placed) {
+      chord.notes.push_back(value);
+      chord.ratios.push_back(note);
+    }
+    bool repeat = any_of(result.chords.begin(), result.chords.end(), [&](const Completion & c) { return c.notes == chord.notes && c.ratios == chord.ratios; });
     if (repeat) return;
 
     chord.name = scale.chordName(*entry);

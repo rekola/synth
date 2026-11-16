@@ -25,6 +25,7 @@ add_executable(synth_tests
 	JustIntonationTests.cpp
 	ChordsTests.cpp
 	GamutTests.cpp
+	DiamondScaleTests.cpp
 	SeikilosTests.cpp
 	ArrangementChangesTests.cpp
 	MesomedesTests.cpp

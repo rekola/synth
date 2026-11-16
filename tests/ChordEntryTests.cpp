@@ -231,16 +231,6 @@ TEST(chord_entry_adds_nothing_without_a_chord_to_add) {
     CHECK(f.row(0) == (V{C}));
   }
   {
-    // A note that is no degree of the scale: C in D otonal.
-    ChordFixture f;
-    f.controller->getSong().setKey(9);
-    f.widen(3);
-    f.down('q');
-    f.wait();
-    f.up('q');
-    CHECK(f.row(0) == (V{C}));
-  }
-  {
     // A scale without chords.
     ChordFixture f(Scale::MAJOR);
     f.widen(3);
@@ -437,10 +427,17 @@ TEST(chord_palette_says_why_it_does_not_open) {
     CHECK(f.shows("No note under the cursor"));
   }
   {
+    // C in D otonal: no key gives it, so it is written by hand.
     ChordFixture f;
-    f.controller->getSong().setKey(9);
-    f.down('q');
-    f.up('q');
+    auto & song = f.controller->getSong();
+    song.setKey(9);
+    {
+      Song::Edit edit(song, "note");
+      auto target = resolveEditTarget(song, f.track_id, 0);
+      target.pattern->setNote(target.effective_row, 0, Note(kC, 0x40, 0));
+    }
+    f.controller->ensureNoteColumns(f.track_id, 1);
+    f.ui->step();
     f.execute("chord-palette");
     CHECK(f.shows("is not a note of the song's scale"));
     CHECK(f.row(0) == (V{C}));
@@ -694,4 +691,48 @@ TEST(off_key_releases_every_column_under_the_cursor) {
     f.execute("undo");
     CHECK(offs(0) == 0);
   }
+}
+
+// The keys give ratios of the gamut above the tonic, so chord entry in a key other
+// than C gives the chords of C moved to that key (the keyboard's tonic is the song's).
+TEST(chord_entry_in_another_key_gives_the_chords_of_c_moved) {
+  ChordFixture f;
+  f.controller->getSong().setKey(A);
+  f.widen(3);
+  f.down('q');
+  f.wait();
+  f.up('q');
+  CHECK(f.row(0) == (V{A, A + E, A + G, A + Asu}));
+  CHECK(f.shows("A harmonic seventh"));
+  f.down('r'); // 4/3
+  f.wait();
+  f.up('r');
+  CHECK(f.row(1) == (V{A + F, A + F + E, A + F + G, A + F + Asu}));
+}
+
+// Q is the tonic and the keys rise from it: the octave is counted from the tonic.
+TEST(chord_entry_in_another_key_follows_the_octave_from_the_tonic) {
+  ChordFixture f;
+  f.controller->getSong().setKey(A);
+  f.controller->setGlobalOctave(5);
+  f.widen(3);
+  f.down('q');
+  f.wait();
+  f.up('q');
+  CHECK(f.row(0) == (V{53 + A, 53 + A + E, 53 + A + G, 53 + A + Asu}));
+}
+
+TEST(chord_entry_in_a_diamond_song_uses_the_diamond_keys) {
+  ChordFixture f(Scale::DIAMOND);
+  f.widen(3);
+  f.down('7'); // A♭
+  f.wait();
+  f.up('7');
+  // The utonal chord A♭ C E𝄫 F first; the keys are the diamond's, so every note is one of the 13.
+  CHECK(f.row(0) == (V{36, 53, 53 + 10, 53 + 22}));
+  // A key of no diamond note writes nothing.
+  ChordFixture g(Scale::DIAMOND);
+  g.down('4');
+  g.up('4');
+  CHECK(g.row(0) == (V{-1}) || g.row(0).empty());
 }

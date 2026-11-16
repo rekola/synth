@@ -261,6 +261,41 @@ Utonal, on C:
 | B♭↓ | B♭↓ harmonic ninth, B♭↓ mirror harmonic ninth, B♭↓ mirror major ninth |
 | B | D♭↓ harmonic ninth / B |
 
+## Names
+
+A harmonic seventh (4:5:6:7) is named by its root, the lowest note; a mirror
+seventh (1/7:1/6:1/5:1/4) is named by its top note, its root too. The status
+line and the chord palette use it: C E G A♯↑ is "C harmonic seventh", and C D♯
+F♯↑ A♯↑ is "A♯↑ mirror seventh" ("A♯↑ mirror seventh / C" read upward from C).
+
+## The diamond scale
+
+**Diamond** is the 7-limit tonality diamond itself, every ratio between two of
+1, 3, 5 and 7: the two 7-note cores and the two tritones, 13 notes.
+
+| Note | C | E𝄫 | D♯ | E♭ | E | F | F♯↑ | G♭↓ | G | A♭ | A | B𝄫 | A♯↑ |
+|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
+| Ratio | 1/1 | 8/7 | 7/6 | 6/5 | 5/4 | 4/3 | 7/5 | 10/7 | 3/2 | 8/5 | 5/3 | 12/7 | 7/4 |
+
+Each note has a key of its own in 53-EDO and in 31-EDO, and the Launchpad's
+step view steps through its 13 keys. A note's chords are those of otonal, then
+those of utonal, then the chords that take notes from both, and a chord is
+offered only if all its notes are notes of the diamond, so it has eight seventh
+chords: C E G A♯↑, F A C D♯ and C D♯ F♯↑ A♯↑ from otonal, E𝄫 F A♭ C, B𝄫 C E♭
+G and E𝄫 G♭↓ B𝄫 C from utonal, and two that take notes from both scales and
+need none outside the 13: G♭↓ A C E (E mirror seventh) and A♭ C E♭ F♯↑ (A♭
+harmonic seventh).
+
+**A key with two ratios.** In 53-EDO four keys of the gamut carry one ratio
+of each scale. The scale decides which one a song has, and no scale holds both:
+
+| Key | Name | Otonal ratio | Utonal ratio |
+|---|---|---|---|
+| 2 | D𝄫 | 49/48 | 50/49 |
+| 5 | D♭↓ | 15/14 | 16/15 |
+| 48 | B | 15/8 | 28/15 |
+| 51 | B♯ | 49/25 | 96/49 |
+
 ## The gamut
 
 The gamut has 33 ratios: the tonic, F and G, which both scales share, and
