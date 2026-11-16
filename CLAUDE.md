@@ -1,7 +1,7 @@
 # synth — microtonal tracker / synthesizer
 
 Tracker-style music production system with microtonal notes (12/19/31/53-EDO).
-Terminal UI on cellui's own terminal backend (`lib/cellui`), an optional GTK
+Terminal UI on cellui's own terminal backend (`rekola/cellui`), an optional GTK
 window, ALSA/PipeWire audio output, songs stored as XML. Formerly the `syna/`
 subdirectory of the private `personal` repo; full history was preserved when
 it was extracted.
@@ -20,7 +20,7 @@ choice, not an accident.
 This file holds only what every session needs. Detail loads when you touch
 the relevant files:
 
-- `lib/cellui/CLAUDE.md` — the UI toolkit's internals (planes, widgets,
+- cellui's `CLAUDE.md` (`rekola/cellui`, fetched into `build/_deps/cellui-src`) — the UI toolkit's internals (planes, widgets,
   input dispatch, the terminal/GTK/Win32 backends, charts, images).
 - `src/ui/CLAUDE.md` — the interactive UI: pattern editor, selection model,
   keymaps, command palette, views, clip grid, arrangement grid.
@@ -52,8 +52,11 @@ escape sequences itself. `libsoundtouch-dev` is not optional (pitch-preserving
 time-stretch of sample clips; a resample fallback would shift pitch, a
 correctness defect this codebase won't ship). FFT is vendored PocketFFT
 (`third_party/pocketfft/`). canvas (`rekola/canvas`, 2D drawing for the
-pixel scopes) is fetched at configure time at a pinned commit
-(`lib/cellui/CMakeLists.txt`); bump the pin when canvas changes.
+pixel scopes) is fetched by cellui at configure time at a pinned commit
+(cellui's `CMakeLists.txt`); bump the pin there when canvas changes, then
+bump cellui's pin here. cellui (`rekola/cellui`, the UI toolkit) is fetched
+the same way (`CMakeLists.txt`); to edit both at once configure with
+`-DFETCHCONTENT_SOURCE_DIR_CELLUI=/path/to/cellui`.
 
 Optional, auto-detected, and cmake says when each isn't used:
 
@@ -61,7 +64,7 @@ Optional, auto-detected, and cmake says when each isn't used:
   server's own inputs/outputs for the device pickers; without it the lists
   fall back to ALSA sound cards.
 - `libgtk-4-dev` (`SYNTH_ENABLE_GTK`, GTK 4.10+, Linux only) — the window
-  backend (`lib/cellui/src/gtk/`) and `--ui raster`. `cellui_gtk_tests`
+  backend (`src/gtk/` in cellui) and `--ui raster`. `cellui_gtk_tests`
   needs a display, so ctest runs it under `xvfb-run` (plus `xdotool`) and
   skips it where neither is there.
 - `libmysofa-dev` (`SYNTH_ENABLE_BINAURAL`) — binaural ambisonic decoding;
@@ -125,8 +128,9 @@ ctest --test-dir build --output-on-failure
   checks run in `UIFixture::inModal()`.
 - A test fails for a command without a description: add a line to
   `ui/CommandDescriptions.cpp` with every new command.
-- cellui's own tests: `cmake -S lib/cellui -B build-cellui`; its gallery is a
-  golden file in `lib/cellui/tests/golden/` (`CELLUI_UPDATE_GOLDEN=1`).
+- cellui's own tests run in its repository (and with ours: they register in
+  this ctest); its gallery is a golden file in `tests/golden/` there
+  (`CELLUI_UPDATE_GOLDEN=1`).
 - e2e: `tools/e2e/*.py` (see that directory's `README.md`) drive the terminal
   UI on a pty and simulated Launchpads. Wait with `Screen.wait()`, never
   `time.sleep()` — an unread pty blocks the UI thread.
@@ -162,14 +166,14 @@ ctest --test-dir build --output-on-failure
 - `src/launchpad/` — Launchpad hardware I/O and layout.
 - `src/cli/` — options shared by `main.cpp` and `main_render.cpp`.
 - `src/util/` — small, dependency-free helpers used from everywhere.
-- `lib/cellui/` — the UI toolkit, its own CMake project; nothing in it
-  includes `src/` (a ctest enforces this). Headers `cellui/X.h`, namespace
-  `cellui`.
+- cellui — the UI toolkit, its own repository (`rekola/cellui`) fetched at
+  configure time; it knows nothing of `src/`. Headers `cellui/X.h`,
+  namespace `cellui`.
 - `tests/`, `songs/` (example songs, hand-editable XML), `docs/`, `tools/`
   (helper scripts, `e2e/`, `pacing/`, `windows/`), `plans/` (design notes,
   deleted once done).
 - `third_party/` — vendored code, one subdirectory per library with its own
-  licence/provenance (tinyxml2, pocketfft, fast_float). **Never reformat or
+  licence/provenance (tinyxml2, pocketfft). **Never reformat or
   refactor a vendored file.** `THIRD_PARTY_LICENSES.md` is the canonical
   licence list; `--licenses` prints it from a header generated at build
   time — update the `.md`, not the header.

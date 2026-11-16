@@ -103,13 +103,13 @@ used in any research or commercial application.
 ```
 
 
-### fast_float (`third_party/fast_float/`)
+### fast_float (vendored in cellui)
 
 Apache-2.0 OR MIT OR BSL-1.0; used under the MIT licence. Vendored from
 https://github.com/fastfloat/fast_float, release `v8.0.2` (the single-header
 `fast_float.h`). It is `cellui`'s floating-point number parser on platforms
 whose standard library lacks a usable `std::from_chars` for floats
-(`lib/cellui/src/NumberParse.cpp`).
+(`src/NumberParse.cpp` in cellui).
 
 ```
 MIT License

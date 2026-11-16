@@ -1,7 +1,7 @@
 # src/ui — the interactive UI
 
 Toolkit-agnostic plumbing plus the one concrete backend, `InteractiveUI`.
-Widgets are built on cellui (`lib/cellui/CLAUDE.md`); what stays here is what
+Widgets are built on cellui (cellui's CLAUDE.md); what stays here is what
 knows the song or the controller: `PatternEditor`, `ClipGrid`,
 `ArrangementGrid`, `OutlineView`, `InfoLine`, `StatusLine`, `PatternScroll`,
 `TerminalMenu` on `MenuBar`, the pixel charts. Many `ui/*.h` are forwarding

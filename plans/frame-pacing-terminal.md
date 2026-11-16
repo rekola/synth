@@ -290,7 +290,7 @@ Final defaults (`PacerConfig`): `min_frame_interval` 16 ms, `in_flight_bdp` 1.5,
 `stall` 1.5 s, `stalls_before_giving_up` 3, `fallback_fps` 4,
 `min_bandwidth` 1000 B/s.
 
-Harness (`lib/cellui/tools/pacing/run_assertions.py`, run by ctest as
+Harness (`tools/pacing/run_assertions.py` in cellui, run by ctest as
 `cellui_pacing_harness`), two consecutive runs:
 
 | # | Check | Result |

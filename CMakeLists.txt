@@ -11,7 +11,7 @@ include(GNUInstallDirs)
 
 # The full `synth` (--ui headless, the Launchpad, live MIDI and audio) builds
 # everywhere; OFF gives the engine, the tests and a render-only `synth`
-# (src/main_render.cpp). The terminal backend of lib/cellui is POSIX only;
+# (src/main_render.cpp). The terminal backend of cellui is POSIX only;
 # on Windows the same UI (InteractiveUI) runs in cellui's Win32 window.
 option(SYNTH_BUILD_INTERACTIVE "Build the full synth (headless mode, Launchpad, live audio/MIDI)" ON)
 option(SYNTH_BUILD_TERMINAL_UI "Build the interactive UI (InteractiveUI: in the terminal, or on Windows in the window)" ON)
@@ -196,8 +196,11 @@ endif()
 
 target_include_directories(synth_engine PRIVATE ${CMAKE_CURRENT_BINARY_DIR})
 
-# Cell UI (lib/cellui): the UI library, which also owns the libunistring
-# dependency (grapheme-aware text width). Built with these same flags.
+# Cell UI (github.com/rekola/cellui): the UI library, which also owns the
+# libunistring dependency (grapheme-aware text width). Fetched at a pinned
+# commit (bump it when cellui changes); to work on both at once, configure
+# with -DFETCHCONTENT_SOURCE_DIR_CELLUI=/path/to/cellui. Built with these
+# same flags.
 enable_testing()  # before the subdirectory, so its tests register here too
 # It also brings canvas (2D drawing for the scopes' pixel versions), built
 # without our warning flags.
@@ -223,7 +226,11 @@ if(NOT SYNTH_ENABLE_GTK)
   message(STATUS "Window UI: not built (GTK 4.10 or later not enabled or not found; --ui window unavailable)")
 endif()
 set(CELLUI_ENABLE_GTK ${SYNTH_ENABLE_GTK})
-add_subdirectory(lib/cellui)
+include(FetchContent)
+FetchContent_Declare(cellui
+  GIT_REPOSITORY https://github.com/rekola/cellui
+  GIT_TAG 39eec261d735a97a3157d9040d24ea45f6af129c)
+FetchContent_MakeAvailable(cellui)
 target_link_libraries(synth_engine PUBLIC cellui)
 
 # SoundTouch (pitch-preserving time-stretch, src/audio/TimeStretcher.cpp -
