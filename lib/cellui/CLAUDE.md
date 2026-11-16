@@ -141,7 +141,7 @@ carries the app's object as an opaque `getAppContext()`.
   (`render` runs only for a key no plane has made; a new cell size or display
   scale, or `invalidateSharedImages()` for a theme, empties it), and the kitty
   encoder uploads one once however many places show it (a placement id each),
-  keeps it past its last place up to 8 MB and frees the oldest unplaced.
+  frees it when its last place goes (kitty drops a picture no placement shows, and a placement of it then answers ENOENT, which sends it again).
   Statistics are by the kind (`dial`), or the size for pictures with no key.
 - `Plane::drawImageAt()`: a plane holds one image per cell position, covering
   only the cells it reaches; the same picture (by id or pixel hash) drawn

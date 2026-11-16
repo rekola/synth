@@ -129,7 +129,9 @@ class ImageEncoder {
   // upload) turns it off for good, and quantised raw RGB, deflated, goes up in its place.
   bool palettePng() const { return palette_png_; }
   // The most the terminal is asked to keep of shared pictures no placement shows, in bytes.
-  static constexpr size_t kSharedBudget = 8u << 20;
+  // None: kitty drops a picture no placement shows when other pictures arrive (a placement of it then
+  // answers ENOENT and shows nothing), so a shared picture is freed as soon as its last place goes.
+  static constexpr size_t kSharedBudget = 0;
   void setSharedBudget(size_t bytes) { shared_budget_ = bytes; }
   // Removes every image (kitty graphics; Sixel images go with the text).
   std::string clear();

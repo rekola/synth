@@ -856,7 +856,7 @@ TEST(kitty_uploads_a_shared_picture_once_and_places_it_wherever_it_shows) {
   CHECK(rendered == 4);
 }
 
-TEST(a_shared_picture_stays_in_the_terminal_after_its_last_placement_goes) {
+TEST(a_shared_picture_is_freed_when_its_last_placement_goes) {
   StyleProvider styles;
   CellBuffer b(4, 8);
   BufferPlane root(b, styles);
@@ -875,15 +875,16 @@ TEST(a_shared_picture_stays_in_the_terminal_after_its_last_placement_goes) {
   root.refresh();
   std::string one = enc.encode(b, root.images(), false);
   CHECK(count(one, "a=d,d=i,i=1,p=") == 1 && count(one, "d=I") == 0 && count(one, "a=t,") == 0);
-  // The last goes: the data stays, and the picture shown again is placed, not sent.
+  // The last goes: the picture goes with it (the terminal drops one nothing shows, and a placement of
+  // it is then refused), and shown again it is sent anew.
   plane->erase();
   root.refresh();
   std::string none = enc.encode(b, root.images(), false);
-  CHECK(count(none, "a=d,d=i,i=1,p=") == 1 && count(none, "d=I") == 0);
+  CHECK(count(none, "a=d,d=i,i=1,p=") == 1 && count(none, "d=I,i=1") == 1);
   plane->drawSharedImageAt(0, 4, {"icon", 1}, 4, 12, render);
   root.refresh();
   std::string again = enc.encode(b, root.images(), false);
-  CHECK(count(again, "a=t,") == 0 && count(again, "a=p,i=1,") == 1);
+  CHECK(count(again, "a=t,") == 1 && count(again, "a=p,") == 1);
 }
 
 TEST(shared_pictures_nothing_shows_are_freed_oldest_first_past_the_budget) {
@@ -1103,7 +1104,7 @@ TEST(kitty_borders_upload_four_pictures_once_and_place_each_edge) {
   CHECK(enc.encode(b, {}, false, { border(1, 2, 15) }).empty());
 }
 
-TEST(kitty_borders_follow_a_moved_cell_and_keep_the_pictures) {
+TEST(kitty_borders_follow_a_moved_cell_and_keep_the_pictures_while_shown) {
   CellBuffer b(4, 8);
   ImageEncoder enc(profile(PixelProtocol::KITTY));
   enc.encode(b, {}, false, { border(1, 2, 15) });
@@ -1117,11 +1118,12 @@ TEST(kitty_borders_follow_a_moved_cell_and_keep_the_pictures) {
   // Only the edges that differ change.
   std::string fewer = enc.encode(b, {}, false, { border(1, 3, EDGE_TOP | EDGE_LEFT) });
   CHECK(removals(fewer) == 2 && placements(fewer) == 0);
-  // Gone altogether, then back: no upload for the colour it has.
+  // Gone altogether: the colour's pictures go too (the terminal would drop them), and are sent again
+  // when it is back.
   std::string gone = enc.encode(b, {}, false, {});
-  CHECK(removals(gone) == 2 && placements(gone) == 0);
+  CHECK(removals(gone) == 2 && placements(gone) == 0 && count(gone, "a=d,d=I") == 4);
   std::string back = enc.encode(b, {}, false, { border(0, 0, EDGE_RIGHT) });
-  CHECK(uploads(back) == 0 && placements(back) == 1);
+  CHECK(uploads(back) == 4 && placements(back) == 1);
 }
 
 TEST(kitty_borders_make_pictures_for_a_new_colour_and_a_clear_places_them_again) {
@@ -1130,12 +1132,14 @@ TEST(kitty_borders_make_pictures_for_a_new_colour_and_a_clear_places_them_again)
   enc.encode(b, {}, false, { border(0, 0, EDGE_TOP) });
   std::string other = enc.encode(b, {}, false, { border(0, 0, EDGE_TOP, Color(0, 255, 0)) });
   CHECK(uploads(other) == 4 && placements(other) == 1 && removals(other) == 1);
+  // The first colour is no longer shown: its pictures are freed.
+  CHECK(count(other, "a=d,d=I") == 4);
   // The screen was cleared: what was placed is gone and goes up again, from the pictures kept.
   std::string cleared = enc.encode(b, {}, true, { border(0, 0, EDGE_TOP, Color(0, 255, 0)) });
   CHECK(uploads(cleared) == 0 && placements(cleared) == 1 && removals(cleared) == 0);
-  // clear() frees the pictures of both colours, and the next frame sends them anew.
+  // clear() frees the pictures of the colour shown, and the next frame sends them anew.
   std::string freed = enc.clear();
-  CHECK(count(freed, "a=d,d=I") == 8);
+  CHECK(count(freed, "a=d,d=I") == 4);
   CHECK(uploads(enc.encode(b, {}, false, { border(0, 0, EDGE_TOP) })) == 4);
 }
 
@@ -1238,4 +1242,25 @@ TEST(kitty_frame_edit_chunks_all_name_the_frame_action) {
   CHECK(count(next, "a=f,r=1,X=1,f=24,i=1,x=10,y=10,s=50,v=40,q=1,m=1;") == 1);
   CHECK(count(next, "\x1b_Ga=f,q=1,m=") >= 1);
   CHECK(count(next, "\x1b_Gq=1") == 0 && count(next, "\x1b_Gm=") == 0);
+}
+
+// A placement the terminal answers ENOENT (it dropped the picture) makes the picture go up again, without
+// being taken for a refused compression.
+TEST(kitty_a_placement_answered_enoent_sends_the_picture_again) {
+  StyleProvider styles;
+  CellBuffer b(4, 8);
+  BufferPlane root(b, styles);
+  root.setCellPixelSize(6, 2);
+  auto plane = root.createChild();
+  plane->resize(2, 2);
+  auto render = []() { return flat(4, 12, 90); };
+  ImageEncoder enc(profile(PixelProtocol::KITTY));
+  plane->drawSharedImageAt(0, 0, {"icon", 1}, 4, 12, render);
+  root.refresh();
+  CHECK(count(enc.encode(b, root.images(), true), "a=t,") == 1);
+  CHECK(!enc.handleKittyReply("i=1,p=257;ENOENT:Put command refers to non-existent image id").empty());
+  CHECK(enc.compressing());
+  root.refresh();
+  std::string again = enc.encode(b, root.images(), false);
+  CHECK(count(again, "a=t,") == 1 && count(again, "a=p,") == 1);
 }

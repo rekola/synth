@@ -218,7 +218,10 @@ ImageEncoder::Profile ImageEncoder::Profile::from(const Capabilities & caps) {
   p.cell_px_height = caps.display.cell_px_height;
   p.cell_px_width = caps.display.cell_px_width;
   p.sixel_setup = caps.sixel_setup;
-  p.kitty_frame_edit = caps.kitty_graphics_animation;
+  // Off unless asked for (CELLUI_KITTY_FRAME_EDIT=1): on a real kitty, hundreds of small edits a second made
+  // the scopes stutter and left parts of old pictures showing, where whole uploads did neither.
+  const char * edit = std::getenv("CELLUI_KITTY_FRAME_EDIT");
+  p.kitty_frame_edit = caps.kitty_graphics_animation && edit && edit[0] == '1';
   if (caps.sixel_registers > 0) p.sixel_registers = std::min(caps.sixel_registers, 128);
   p.sixel_registers_total = caps.sixel_registers;
   return p;
@@ -1436,6 +1439,18 @@ std::string ImageEncoder::kittyBorders(const std::vector<CellBorder> & borders, 
     out += place;
     border_placed_[key] = next_border_place_;
   }
+  // A colour nothing shows loses its pictures: the terminal would drop them itself, and a placement of
+  // a dropped one is refused.
+  std::set<uint32_t> in_use;
+  for (const BorderKey & key : wanted) in_use.insert(key[3]);
+  for (auto it = border_images_.begin(); it != border_images_.end();) {
+    if (in_use.count(it->first)) {
+      ++it;
+      continue;
+    }
+    for (uint32_t id : it->second) out += freeImage(id);
+    it = border_images_.erase(it);
+  }
   return out;
 }
 
@@ -1448,6 +1463,28 @@ std::string ImageEncoder::handleKittyReply(const std::string & body) {
   uint32_t id = 0;
   size_t at = keys.find("i=");
   if (at != std::string::npos) id = static_cast<uint32_t>(std::strtoul(keys.c_str() + at + 2, nullptr, 10));
+  // The terminal no longer holds the picture (it frees one no placement shows): forget it, so the next
+  // frame that shows it sends it again, and leave the compression and edit settings alone.
+  if (id && message.rfind("ENOENT", 0) == 0) {
+    bool border = false;
+    for (const auto & [colour, ids] : border_images_) border |= std::find(ids.begin(), ids.end(), id) != ids.end();
+    if (!border) {
+      for (auto it = shared_uploads_.begin(); it != shared_uploads_.end();) {
+        if (it->second.id == id) it = shared_uploads_.erase(it);
+        else ++it;
+      }
+      for (auto & [key, shown] : shown_) {
+        if (shown.id != id) continue;
+        shown.version = ~uint64_t{0};
+        shown.sent = Image{};
+      }
+      edit_ids_.erase(id);
+      deflated_ids_.erase(id);
+      png_ids_.erase(id);
+      registry_->forget(id);
+      return "kitty graphics (id " + std::to_string(id) + "): " + message;
+    }
+  }
   // An error on a border picture: the terminal and this encoder may no longer agree on what is placed, so
   // every placement of that colour's pictures and the pictures themselves are freed (by id alone, whatever
   // placement ids the terminal holds), and the next frame that shows the colour sends them and places them anew.
