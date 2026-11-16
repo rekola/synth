@@ -36,8 +36,7 @@ headers for what moved to cellui. The UI sources are the `synth_ui` library.
 
 ## Link profile
 
-`PerformanceProfile.h`: `profileFor(LinkClass)` is what the app draws by link class (`plans/link-degradation.md`
-3.7). `InteractiveUI::applyProfile()` runs when the backend's link handler fires (and once at start, for a pinned
+`PerformanceProfile.h`: `profileFor(LinkClass)` is what the app draws by link class. `InteractiveUI::applyProfile()` runs when the backend's link handler fires (and once at start, for a pinned
 class). It sets: a cap on autonomous redraws (`frameDue()`: a frame an input or an edit asked for is never held
 back, one only the audio blocks want waits for the class's gap); reduced motion from 15 Hz down, added to the
 user's own setting; whether the scopes and the channel meter run (their speed is the frame cap's; switched off, they keep
