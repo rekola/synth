@@ -33,7 +33,7 @@ sequence* (several shortcuts in a row, such as `C-x C-s`).
 **Chord completion**
 What the pattern editor adds to the notes played when its cursor is wider
 than one note column: the other notes of a chord of the song's scale that
-contains them (user-interface.md, Chord entry). Songs in the otonal, utonal, diamond and extended diamond scales only.
+contains them (user-interface.md, Chord entry). Songs in the otonal, utonal and diamond scales only.
 
 **Chord palette**
 The list of a degree's chords the pattern editor offers for the notes of an
@@ -243,11 +243,10 @@ melodic subscale (otonal C D♯ F G A♯↑, utonal C E𝄫 F G B𝄫). Partch�
 Otonalities and Utonalities are chords, not scales; these scales and
 their chords are the author’s own. Their chords are tabled in
 extended-diamond.md.
-Two more scales hold both: the **diamond**, the 13 notes of the 7-limit
-tonality diamond (the two 7-note cores and the two tritones), and the
-**extended diamond**, all 33 ratios. Four keys of 53-EDO carry two ratios
-there, one of each scale, told apart by the correction a note carries
-(extended-diamond.md, The two diamond scales).
+A third scale holds both: the **diamond**, the 13 notes of the 7-limit
+tonality diamond (the two 7-note cores and the two tritones). A harmonic
+seventh is named by its lowest note, a mirror seventh by its top note, its
+*root* (extended-diamond.md, The diamond scale).
 
 **Overtone profile and shared overtones**
 A sounding note's overtone profile is how loud each of its overtones

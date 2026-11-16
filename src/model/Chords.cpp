@@ -290,6 +290,22 @@ optional<size_t> gamutIndex(string_view spelling, GamutSide side) {
   return nullopt;
 }
 
+// The note a chord is named after: the lowest of its form, except a mirror
+// seventh, which is named by its top note.
+size_t rootOf(Kind kind, const vector<size_t> & notes, size_t lowest) {
+  if (kind != Kind::MIRROR_SEVENTH) return lowest;
+  size_t top = lowest;
+  Ratio highest{1, 1};
+  for (auto note : notes) {
+    auto above = (ratioOf(note) / ratioOf(lowest)).reduced();
+    if (above > highest) {
+      highest = above;
+      top = note;
+    }
+  }
+  return top;
+}
+
 using ChordTable = map<size_t, vector<Entry>>;
 
 template <size_t N>
@@ -311,7 +327,7 @@ ChordTable buildTable(const array<const char *, N> & chords, GamutSide side) {
       for (auto & form : forms()) {
         if (form.above != above) continue;
         entry.kind = form.kind;
-        entry.root = root;
+        entry.root = rootOf(form.kind, entry.notes, root);
         named = true;
       }
     }
@@ -324,58 +340,69 @@ bool hasSide(const vector<size_t> & notes, GamutSide side) {
   return any_of(notes.begin(), notes.end(), [&](size_t i) { return gamut::kExtendedDiamond[i].side == side; });
 }
 
-// Every chord of every form whose notes are all ratios of the gamut and that has
-// notes of both scales, each read upward from each of its notes. By kind, in the
-// order the lists offer them (seventh chords, triads, then the major sevenths
-// and the 7♯9 chords; the five-note kinds as the enum has them), and by
-// ascending root within a kind.
-ChordTable buildCrossTable(bool five) {
-  static const array<Kind, 6> four_order = {Kind::HARMONIC_SEVENTH, Kind::MIRROR_SEVENTH, Kind::MAJOR, Kind::MINOR, Kind::MAJOR_SEVENTH, Kind::SEVEN_SHARP_NINE};
+// The kinds of chord, in the order the lists offer them (seventh chords, triads,
+// then the major sevenths and the 7♯9 chords; the five-note kinds as the enum has them).
+vector<Kind> kindOrder(bool five) {
   vector<Kind> order;
   if (five) {
     for (auto & form : forms()) {
       if (form.above.size() == 4) order.push_back(form.kind);
     }
   } else {
-    order.assign(four_order.begin(), four_order.end());
+    order = {Kind::HARMONIC_SEVENTH, Kind::MIRROR_SEVENTH, Kind::MAJOR, Kind::MINOR, Kind::MAJOR_SEVENTH, Kind::SEVEN_SHARP_NINE};
   }
-  ChordTable table;
-  for (auto kind : order) {
+  return order;
+}
+
+// Calls `use` with each chord of every form (by kind, then by ascending lowest
+// note) whose notes are all ratios of the gamut: the notes by gamut index, the
+// lowest of the form first, and the chord's root.
+template <class Use>
+void forEachChord(bool five, Use use) {
+  for (auto kind : kindOrder(five)) {
     const Form * form = nullptr;
     for (auto & candidate : forms()) {
       if (candidate.kind == kind) form = &candidate;
     }
-    for (size_t root = 0; root < gamut::kExtendedDiamond.size(); root++) {
-      vector<size_t> notes = {root};
+    for (size_t lowest = 0; lowest < gamut::kExtendedDiamond.size(); lowest++) {
+      vector<size_t> notes = {lowest};
       for (auto & above : form->above) {
-        auto ratio = (ratioOf(root) * above).reduced();
-        bool found = false;
+        auto ratio = (ratioOf(lowest) * above).reduced();
         for (size_t i = 0; i < gamut::kExtendedDiamond.size(); i++) {
           if (ratioOf(i) == ratio) {
             notes.push_back(i);
-            found = true;
             break;
           }
         }
-        if (!found) break;
       }
-      if (notes.size() != form->above.size() + 1) continue;
-      if (!hasSide(notes, GamutSide::OTONAL) || !hasSide(notes, GamutSide::UTONAL)) continue;
-      for (auto degree : notes) {
-        Entry entry;
-        entry.kind = kind;
-        entry.root = root;
-        entry.notes = {degree};
-        vector<pair<Ratio, size_t>> upward;
-        for (auto note : notes) {
-          if (note != degree) upward.emplace_back((ratioOf(note) / ratioOf(degree)).reduced(), note);
-        }
-        sort(upward.begin(), upward.end());
-        for (auto & [ratio, note] : upward) entry.notes.push_back(note);
-        table[degree].push_back(std::move(entry));
-      }
+      if (notes.size() == form->above.size() + 1) use(kind, notes, rootOf(kind, notes, lowest));
     }
   }
+}
+
+// The chord read upward from one of its notes.
+Entry readFrom(Kind kind, size_t root, const vector<size_t> & notes, size_t degree) {
+  Entry entry;
+  entry.kind = kind;
+  entry.root = root;
+  entry.notes = {degree};
+  vector<pair<Ratio, size_t>> upward;
+  for (auto note : notes) {
+    if (note != degree) upward.emplace_back((ratioOf(note) / ratioOf(degree)).reduced(), note);
+  }
+  sort(upward.begin(), upward.end());
+  for (auto & [ratio, note] : upward) entry.notes.push_back(note);
+  return entry;
+}
+
+// Every chord of every form that has notes of both scales, each read upward from
+// each of its notes, by kind and by ascending lowest note within a kind.
+ChordTable buildCrossTable(bool five) {
+  ChordTable table;
+  forEachChord(five, [&](Kind kind, const vector<size_t> & notes, size_t root) {
+    if (!hasSide(notes, GamutSide::OTONAL) || !hasSide(notes, GamutSide::UTONAL)) return;
+    for (auto degree : notes) table[degree].push_back(readFrom(kind, root, notes, degree));
+  });
   return table;
 }
 
@@ -407,7 +434,6 @@ const ChordTable & tableFor(Scale scale, int size) {
     case Scale::UTONAL:
       return five ? utonal5 : utonal;
     case Scale::DIAMOND:
-    case Scale::EXTENDED_DIAMOND:
       return five ? diamond5 : diamond;
     default:
       return none;
@@ -443,9 +469,14 @@ optional<string> triadName(Ratio second, Ratio third) {
 }
 
 ScaleChords::ScaleChords(Scale scale, Tuning tuning, int key) : scale_(scale), tuning_(tuning) {
-  int edo = edoStepsFor(tuning);
   auto just = justScale(scale);
-  if (!chords::hasChords(scale) || edo <= 0 || !just) return;
+  if (chords::hasChords(scale) && just) *this = ScaleChords(scale, *just, tuning, key);
+}
+
+ScaleChords::ScaleChords(Scale lists, const JustScale & scale, Tuning tuning, int key) : scale_(lists), tuning_(tuning) {
+  int edo = edoStepsFor(tuning);
+  const JustScale * just = &scale;
+  if (!chords::hasChords(lists) || edo <= 0) return;
   edo_ = edo;
   key_ = ((max(key, 0) % edo) + edo) % edo;
   held_.assign(static_cast<size_t>(edo), {});

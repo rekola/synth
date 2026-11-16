@@ -29,10 +29,16 @@ std::optional<ScaleCorrections::NoteRatio> ScaleCorrections::ratioForNote(int no
 }
 
 ScaleCorrections scaleCorrectionsFor(Tuning tuning, Scale scale, int key) {
+  auto just = justScale(scale);
+  if (!just) return {};
+  return scaleCorrectionsFor(tuning, *just, key);
+}
+
+ScaleCorrections scaleCorrectionsFor(Tuning tuning, const JustScale & scale, int key) {
   ScaleCorrections out;
   int edo = edoStepsFor(tuning);
-  auto just = justScale(scale);
-  if (edo <= 0 || edo > ScaleCorrections::kMaxSteps || !just) return out;
+  const JustScale & just = scale;
+  if (edo <= 0 || edo > ScaleCorrections::kMaxSteps) return out;
   out.edo = edo;
   out.key = ((std::max(key, 0) % edo) + edo) % edo;
   const double step_cents = 1200.0 / edo;
@@ -42,16 +48,16 @@ ScaleCorrections scaleCorrectionsFor(Tuning tuning, Scale scale, int key) {
   // extended diamond) that is decided per group, and a key a group holds a
   // different note on than the first carries that note as its second.
   bool first_group = true;
-  for (auto group : just->groups()) {
+  for (auto group : just.groups()) {
     std::array<bool, ScaleCorrections::kMaxSteps> held{};
     std::array<bool, ScaleCorrections::kMaxSteps> in_scale{};
     std::array<double, ScaleCorrections::kMaxSteps> error{};
     std::array<double, ScaleCorrections::kMaxSteps> cents{};
     std::array<Ratio, ScaleCorrections::kMaxSteps> ratios{};
-    for (const auto & note : just->gamut) {
+    for (const auto & note : just.gamut) {
       int step = ((note.ratio.steps(edo) % edo) + edo) % edo;
       auto index = static_cast<size_t>(step);
-      bool member = just->inGroup(note, group);
+      bool member = just.inGroup(note, group);
       double off = std::fabs(note.ratio.cents() - note.ratio.steps(edo) * step_cents);
       if (held[index]) {
         bool better = member != in_scale[index] ? member : off < error[index] - 1e-9;
