@@ -196,13 +196,12 @@ Controller-level and per-widget commands. Not migrated: `StatusLine`,
   within `kCompletionInterval` where no release is reported), writes each
   as it is pressed, and `applyChordCompletion()` rewrites the cursor's columns
   with `chords::complete()`'s first result (`model/Chords.h`: the lists,
-  names and completion, for the otonal, utonal and diamond scales; otonal and
+  names and completion, for the otonal, utonal and diamond scales; a seventh
+  chord is named by its root, a mirror seventh's being its top note; otonal and
   utonal have the three notes they borrow (`model/Division.h`, the one table of
   the division of the seventh chords) and the chords those add, a root's own
   chord first in its list; the diamond's lists are the two scales' own, then
-  the chords that take notes from both; a key two ratios share, in a set of
-  notes that has one, is the one a note's correction is nearer to,
-  `ScaleChords::degreeOf()`) when the deadline passes
+  the chords that take notes from both) when the deadline passes
   (`tickChordEntry()`, from `render()`) or the last key is released. A held
   key's voice stays on the column it started on, whatever column its note is
   written in; added notes sound on free columns (`freeVoiceColumn()`),

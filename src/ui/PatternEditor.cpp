@@ -2691,7 +2691,7 @@ bool PatternEditor::keyDown(const cellui::KeyDown & e) {
             }
 
             if (getController().isMonitoring(track_id)) {
-              event_queue.push(make_unique<PlaybackControlEvent>(PlaybackControlEvent::PLAY_NOTE, getController().getActiveBufferName(), track_id, note_column, note.getValue(), note.getVelocity(), detuneOf(note)));
+              event_queue.push(make_unique<PlaybackControlEvent>(PlaybackControlEvent::PLAY_NOTE, getController().getActiveBufferName(), track_id, note_column, note.getValue(), note.getVelocity()));
             }
             if (has_hold_info) active_keyboard_notes_[e.key] = {note_column, info.getAbsolutePosition(), track_id};
             recordEntryNote(track_id, entry_row, note_column, midi_note, key_note ? std::optional<std::size_t>(key_note->gamut_index) : std::nullopt);
@@ -4540,10 +4540,6 @@ void PatternEditor::syncNoteColumns(const Song & song) {
   columns_track_id_ = track_id;
 }
 
-int PatternEditor::detuneOf(const Note & note) {
-  return note.hasTuningCorrection() ? PlaybackControlEvent::detuneParameter(note.getTuningCorrectionCents()) : 0;
-}
-
 Note PatternEditor::chordNote(const Song & song, int value) const {
   Note note(value, constants::DEFAULT_NOTE_ON_VELOCITY, chord_entry_.delay);
   // A note whose ratio is known is written with that ratio's correction.
@@ -4631,7 +4627,7 @@ bool PatternEditor::enterChordKey(const cellui::KeyDown & e, int track_id, int m
 
   int voice = freeVoiceColumn(track_id, s.column);
   if (controller.isMonitoring(track_id)) {
-    queue.push(make_unique<PlaybackControlEvent>(PlaybackControlEvent::PLAY_NOTE, buffer, track_id, voice, midi_note, constants::DEFAULT_NOTE_ON_VELOCITY, detuneOf(chordNote(song, midi_note))));
+    queue.push(make_unique<PlaybackControlEvent>(PlaybackControlEvent::PLAY_NOTE, buffer, track_id, voice, midi_note, constants::DEFAULT_NOTE_ON_VELOCITY));
   }
   if (s.hold) {
     ActiveKeyboardNote held{voice, controller.getPlaybackInfo().getAbsolutePosition(), track_id};
@@ -4687,10 +4683,7 @@ void PatternEditor::applyChordCompletion(bool released) {
   arpeggio_.from_column = s.column;
   arpeggio_.audition = released;
   for (auto value : chord.notes) {
-    if (std::find(s.given.begin(), s.given.end(), value) == s.given.end()) {
-      arpeggio_.values.push_back(value);
-      arpeggio_.detunes.push_back(detuneOf(chordNote(song, value)));
-    }
+    if (std::find(s.given.begin(), s.given.end(), value) == s.given.end()) arpeggio_.values.push_back(value);
   }
   arpeggio_.interval = kCompletionInterval;
   if (released && s.hold) {
@@ -4714,10 +4707,9 @@ void PatternEditor::playArpeggio(std::chrono::steady_clock::time_point now) {
   while (!arpeggio_.values.empty() && now >= arpeggio_.next) {
     int column = freeVoiceColumn(arpeggio_.track_id, arpeggio_.from_column);
     controller.getPlaybackEventQueue().push(make_unique<PlaybackControlEvent>(PlaybackControlEvent::PLAY_NOTE, controller.getActiveBufferName(), arpeggio_.track_id, column,
-                                                                              arpeggio_.values.front(), constants::DEFAULT_NOTE_ON_VELOCITY, arpeggio_.detunes.front()));
+                                                                              arpeggio_.values.front(), constants::DEFAULT_NOTE_ON_VELOCITY));
     (arpeggio_.audition ? audition_.columns : chord_entry_.added_voices).push_back(column);
     arpeggio_.values.erase(arpeggio_.values.begin());
-    arpeggio_.detunes.erase(arpeggio_.detunes.begin());
     // Each gap is half the one before.
     arpeggio_.interval /= 2;
     arpeggio_.next += arpeggio_.interval;
@@ -4805,9 +4797,8 @@ std::vector<int> PatternEditor::chordAt(int track_id, RowAddress row, int column
     auto note = target.pattern->getNote(target.effective_row, column + i);
     if (!note.isNoteOn()) break;
     values.push_back(note.getValue());
-    // A note stands for the ratio its correction brings it nearer to.
     if (scale) {
-      if (auto degree = scale->degreeOf(note.getValue(), note.getTuningCorrectionCents())) (*ratios)[note.getValue()] = *degree;
+      if (auto degree = scale->degreeOf(note.getValue())) (*ratios)[note.getValue()] = *degree;
     }
   }
   return values;
@@ -4959,9 +4950,8 @@ void PatternEditor::writePaletteChord() {
   audition_.track_id = palette.track_id;
   for (size_t i = 0; i < chord.notes.size(); i++) {
     int column = freeVoiceColumn(palette.track_id, palette.column);
-    auto detune = PlaybackControlEvent::detuneParameter(ratioCorrectionCents(song.getTuning(), song.getScale(), chord.ratios[i]));
     controller.getPlaybackEventQueue().push(make_unique<PlaybackControlEvent>(PlaybackControlEvent::PLAY_NOTE, controller.getActiveBufferName(), palette.track_id, column, chord.notes[i],
-                                                                              constants::DEFAULT_NOTE_ON_VELOCITY, detune));
+                                                                              constants::DEFAULT_NOTE_ON_VELOCITY));
     audition_.columns.push_back(column);
   }
   audition_.until = std::chrono::steady_clock::now() + kAuditionTime;

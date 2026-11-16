@@ -1,7 +1,6 @@
 #ifndef _PLAYBACKCONTROLEVENT_H_
 #define _PLAYBACKCONTROLEVENT_H_
 
-#include <cmath>
 #include <string>
 #include <utility>
 
@@ -154,13 +153,6 @@ class PlaybackControlEvent {
   // release tail survive the rename, same as any other buffer switch.
   PlaybackControlEvent(Type _type, std::string _old_buffer_name, std::string _new_buffer_name)
     : type(_type), buffer_name(std::move(_old_buffer_name)), new_buffer_name(std::move(_new_buffer_name)) { }
-
-  // PLAY_NOTE's parameter5: the tuning correction the note is played with, in
-  // sixteenths of a cent offset by kDetuneBias; 0 (the default) says none is given,
-  // and the song's scale tunes the key.
-  static constexpr int kDetuneBias = 1 << 20;
-  static int detuneParameter(double cents) { return static_cast<int>(std::lround(cents * 16.0)) + kDetuneBias; }
-  static double detuneFromParameter(int parameter) { return (parameter - kDetuneBias) / 16.0; }
 
   Type getType() const { return type; }
   const std::string & getBufferName() const { return buffer_name; }

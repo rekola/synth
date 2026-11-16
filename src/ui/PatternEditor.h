@@ -468,7 +468,6 @@ private:
     int from_column = 0;
     bool audition = false;   // after the keys were released: the audition ends the notes
     std::vector<int> values; // still to sound, rising
-    std::vector<int> detunes; // each one's PLAY_NOTE detune parameter (0: none)
     std::chrono::steady_clock::time_point next;
     std::chrono::steady_clock::duration interval{}; // the gap before the note last played
   };
@@ -537,8 +536,6 @@ private:
   // The pitched notes side by side from a note column, at most kPaletteColumns.
   // The notes of the chord at the cursor; with `ratios`, the gamut note each one stands for (by its correction).
   std::vector<int> chordAt(int track_id, RowAddress row, int column, std::map<int, std::size_t> * ratios = nullptr);
-  // The PLAY_NOTE detune parameter a note is sounded with: its own correction, 0 for none.
-  static int detuneOf(const Note & note);
 
   // Rows the cursor still owes the notes entered while keys were held: a
   // chord's keys all land on one row, and the cursor steps once the last

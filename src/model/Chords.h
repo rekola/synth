@@ -62,15 +62,11 @@ class ScaleChords {
  public:
   // `key` is a note value of which only the pitch class counts (-1 reads as C).
   ScaleChords(Scale scale, Tuning tuning, int key);
-  // The lists of `lists` over the notes of any set of gamut notes (a scale built for a test).
-  ScaleChords(Scale lists, const JustScale & scale, Tuning tuning, int key);
 
   bool hasChords() const { return edo_ > 0; }
   int edo() const { return edo_; }
-  // The scale note a note value is, if any. A key that carries two ratios of
-  // the scale (the extended diamond's keys 2, 5, 48 and 51 in 53-EDO) is the one
-  // `correction_cents` (the note's tuning correction, 0 for none) brings it nearer to.
-  std::optional<std::size_t> degreeOf(int note_value, double correction_cents = 0.0) const;
+  // The scale note a note value is, if any.
+  std::optional<std::size_t> degreeOf(int note_value) const;
   // Steps above the tonic, 0 to edo - 1.
   int stepOf(std::size_t gamut_index) const;
   // The degree's chords whose notes the tuning all holds.
@@ -82,12 +78,11 @@ class ScaleChords {
   std::string chordName(const Entry & entry) const;
 
  private:
-  bool isHeld(std::size_t gamut_index) const;
   Scale scale_;
   Tuning tuning_;
   int edo_ = 0;
   int key_ = 0;
-  std::vector<std::vector<int>> held_; // by step: the gamut indices held there
+  std::vector<int> held_; // by step: gamut index, or -1
 };
 
 struct Completion {

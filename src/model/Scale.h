@@ -274,29 +274,12 @@ struct JustScale {
     return borrows && division::borrows(*side, note.ratio);
   }
 
-  // Whether a key holds the nearest note of each side of the gamut separately, so
-  // that it can carry two ratios: a scale of the whole gamut. No scale is one
-  // (the division gives each side its own notes only), and it is how a key with
-  // two ratios stays supported; tests build such a scale.
-  bool holdsBothSides() const { return gamut.data() == gamut::kExtendedDiamond.data() && only.empty() && !side; }
-
-  // The groups of notes a key holds the nearest of: one per side for a scale of
-  // the whole gamut, else one.
-  std::vector<std::optional<GamutSide>> groups() const {
-    if (holdsBothSides()) return {GamutSide::OTONAL, GamutSide::UTONAL};
-    return {std::nullopt};
-  }
-  // How much the scale has a note: 2 its own, 1 borrowed, 0 not in the scale (or the
-  // group). A key a borrowed note shares with an own note is the own note's.
-  int rank(const GamutNote & note, std::optional<GamutSide> group) const {
-    if (!inGroup(note, group)) return 0;
+  // How much the scale has a note: 2 its own, 1 borrowed, 0 not in the scale. A key a
+  // borrowed note shares with an own note is the own note's.
+  int rank(const GamutNote & note) const {
+    if (!contains(note)) return 0;
     bool borrowed = only.empty() && side && note.side != GamutSide::BOTH && note.side != *side;
     return borrowed ? 1 : 2;
-  }
-  // Whether `note` is in a group (nullopt: any note the scale contains).
-  bool inGroup(const GamutNote & note, std::optional<GamutSide> group) const {
-    if (!contains(note)) return false;
-    return !group || note.side == GamutSide::BOTH || note.side == *group;
   }
 };
 
