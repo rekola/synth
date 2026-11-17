@@ -22,7 +22,7 @@ paths:
   extensions), packages `mingw-w64-ucrt-x86_64-{gcc,cmake,ninja,fmt,libsndfile,
   soundtouch,libunistring,python}`. User-facing instructions: `docs/building.md`.
 - cellui's terminal backend is POSIX only, so on Windows `InteractiveUI` runs
-  on the Win32 window (`--ui raster`, what `auto` picks; see
+  on the Win32 window (`--ui window`, what `auto` picks; see
   cellui's CLAUDE.md). The loop waits on handles (`WaitSet::handles()`,
   `Backend::inputHandles()`, `EventLoop::addHandles()`); stderr reaches the
   status line through `util/StderrCapture.h`, a reader thread on a pipe,

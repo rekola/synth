@@ -16,7 +16,7 @@ configure time at pinned commits, so the first `cmake -B build` needs network ac
 To edit cellui alongside synth, configure with
 `-DFETCHCONTENT_SOURCE_DIR_CELLUI=/path/to/cellui`. `libmysofa-dev` (binaural
 decoding), `libpipewire-0.3-dev` (PipeWire device lists) and `libgtk-4-dev` (GTK 4.10 or later: the window UI,
-`--ui raster`) are optional.
+`--ui window`) are optional.
 
 ## Windows
 

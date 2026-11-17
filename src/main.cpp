@@ -63,7 +63,7 @@ printUsage() {
       "  --null-audio           no sound device; blocks are paced by the clock\n"
       "\n"
       "User interface:\n"
-      "  --ui MODE              auto, terminal, window (also raster) or headless (default auto)\n"
+      "  --ui MODE              auto, terminal, window or headless (default auto)\n"
       "  --view VIEW            live or arrangement: the view to start in (default live)\n"
       "  --keymap KEYMAP        gui or terminal: the key bindings to use instead of the\n"
       "                         display's own (the window uses gui, the terminal terminal)\n"
@@ -409,7 +409,7 @@ int main(int argc, char *argv[]) {
 
 #ifdef SYNTH_GTK_UI
   // SYNTH_WINDOW_STATS=<file>: how long the window's frames took to draw.
-  if (chosen == cellui::BackendKind::RASTER) {
+  if (chosen == cellui::BackendKind::WINDOW) {
     if (const char * stats_path = getenv("SYNTH_WINDOW_STATS")) {
       const auto & stats = static_cast<cellui::gtk::Window &>(*backend).stats();
       if (FILE * f = fopen(stats_path, "a")) {

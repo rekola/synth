@@ -83,7 +83,7 @@ the rules files above.
 ./build/synth --render out.wav songs/demo3.xml   # headless render to WAV
 ```
 
-- `--ui auto|terminal|window|headless` (`raster` is the window's old name). `auto` (default) tries the GTK window
+- `--ui auto|terminal|window|headless`. `auto` (default) tries the GTK window
   when the build has it and a display is there, else the terminal; the
   choice is made once at start (`cellui/BackendChoice.h`). The e2e scripts
   pass `--ui terminal`.
