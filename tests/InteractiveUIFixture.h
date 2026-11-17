@@ -31,17 +31,24 @@ using cellui::kModCtrl;
 struct UIFixture {
   ChannelConfiguration config{44100, 1};
   std::shared_ptr<Controller> controller = std::make_shared<Controller>(config);
-  cellui::test::TestBackend terminal;
+  std::unique_ptr<cellui::Application> app;
+  cellui::test::TestBackend & terminal;
   std::unique_ptr<InteractiveUI> ui;
   std::function<void()> modal_body;
   cellui::Connection modal_turns;
 
+  static std::unique_ptr<cellui::Application> makeApp(cellui::DisplayInfo display) {
+    cellui::ApplicationOptions options;
+    options.styles = std::make_unique<StyleProvider>();
+    return cellui::Application::adopt(std::make_unique<cellui::test::TestBackend>(40, 120, std::move(display)), std::move(options));
+  }
+
   explicit UIFixture(const std::string & song = "", UI::View view = UI::View::LIVE, cellui::DisplayInfo display = {},
                      std::optional<cellui::KeymapProfile> keymap = {})
-      : terminal(40, 120, std::move(display)) {
+      : app(makeApp(std::move(display))), terminal(static_cast<cellui::test::TestBackend &>(app->backend())) {
     if (song.empty()) controller->switchToBuffer(controller->freshBufferName());
     else CHECK(controller->openSong(song));
-    ui = std::make_unique<InteractiveUI>(terminal);
+    ui = std::make_unique<InteractiveUI>(*app);
     ui->setTheme("dark");
     ui->setReducedMotion(true); // states change at once, so a test sees exact frames
     ui->setInitialView(view);

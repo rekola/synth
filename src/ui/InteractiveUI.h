@@ -21,6 +21,7 @@
 #include <string_view>
 #include <vector>
 
+#include <cellui/Application.h>
 #include <cellui/BufferPlane.h>
 #include <cellui/CellBuffer.h>
 
@@ -45,7 +46,7 @@ class InteractiveUI : public UI {
  public:
   // Draws on, and reads from, `backend`: a terminal session, or a
   // TestBackend in a test.
-  explicit InteractiveUI(cellui::Backend & backend);
+  explicit InteractiveUI(cellui::Application & app);
   ~InteractiveUI();
 
   void initialize(std::shared_ptr<Controller> & controller);
@@ -59,7 +60,7 @@ class InteractiveUI : public UI {
   void applyProfile(cellui::LinkClass cls);
   // Uses this keymap instead of the one the display declares (the --keymap
   // option). Takes effect in initialize().
-  void setKeymapProfile(cellui::KeymapProfile profile) { keymap_profile_override_ = profile; }
+  void setKeymapProfile(cellui::KeymapProfile profile) { app_.setKeymapProfile(profile); }
   // The link class is this whatever is measured; empty to measure it (--link-class).
   void setLinkPin(std::optional<cellui::LinkClass> pin);
   void render() override;
@@ -137,26 +138,22 @@ class InteractiveUI : public UI {
   std::vector<std::shared_ptr<cellui::Widget>> focusableElements() const;
 
  private:
+  // The display, its root plane, charts, theme, input dispatcher and key reader are the application's.
+  cellui::Application & app_;
   cellui::Backend & backend_;
-  std::optional<cellui::KeymapProfile> keymap_profile_override_;
   // A handler of something another thread posted wants the screen redrawn.
   bool redraw_requested_ = false;
-  // What the planes compose into, the size of the terminal; the root plane
-  // covers it.
-  cellui::CellBuffer screen_;
-  cellui::BufferPlane * root_plane_ = nullptr;
-  // Sizes the screen and the root plane to the terminal.
-  void resizeScreen();
+  cellui::BufferPlane & root_plane_;
 
   std::shared_ptr<UIMenu> menu_;
   std::shared_ptr<LineChart> chart_;
   std::shared_ptr<ChannelMeter> volume_meter_;
   std::shared_ptr<HeatmapChart> heatmap_;
   // The scopes in the versions this terminal shows.
-  std::unique_ptr<cellui::Charts> charts_;
+  const cellui::Charts & charts_;
   std::shared_ptr<StatusLine> status_line_;
 
-  StyleProvider styles_;
+  StyleProvider & styles_;
 
   // Auto-scaling brightness reference for the DirAC heatmap - see
   // handleVisualizationResultEvent()'s own comment on why this needs to
@@ -257,7 +254,7 @@ class InteractiveUI : public UI {
   // layout()), always-on and click-activatable like pattern_editor_.
   std::shared_ptr<SpinBox> octave_control_;
   // Finds the widget under the pointer from the last frame's hit areas.
-  cellui::InputDispatcher dispatcher_{*this};
+  cellui::InputDispatcher & dispatcher_;
   std::weak_ptr<cellui::Widget> active_element_;
 
   // launchpad_manager_ itself is UI's own now (set once in UI::start(),
@@ -268,13 +265,14 @@ class InteractiveUI : public UI {
   // entry).
 
   // The terminal's inputs as the widgets see them, Escape as Meta included.
-  cellui::KeyReader key_reader_;
+  cellui::KeyReader & key_reader_;
   // Whether "ESC-" is on the status line for the current wait.
   bool escape_indicator_shown_ = false;
   // Declared last so the handlers disconnect before the members they use go.
   std::vector<cellui::Connection> controller_connections_;
   // Gives a widget the keys the dispatcher sends it, as the Input they came from.
   std::vector<cellui::Connection> key_connections_;
+  std::vector<cellui::Connection> display_connections_;
 };
 
 #endif

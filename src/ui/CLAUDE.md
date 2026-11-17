@@ -12,8 +12,12 @@ headers for what moved to cellui. The UI sources are the `synth_ui` library.
 - `UI` owns the app-level lifecycle every backend needs (audio and
   visualization threads, running until quit, status) and nothing
   widget-shaped; a subclass owns its widgets, layout and Launchpad wiring
-  (`UI::wireLaunchpad()`). `InteractiveUI` is the sole screen backend, on any
-  cellui `Backend` (terminal, GTK or Win32 window); `HeadlessUI` is the one
+  (`UI::wireLaunchpad()`). `InteractiveUI` is the sole screen backend, on a
+  `cellui::Application`, which opens the display (terminal, GTK or Win32 window)
+  and owns the root plane, charts, input dispatcher, key reader and theme
+  setup; `InteractiveUI` draws on a plane of its own over the root plane and
+  keeps its own loop, handing each backend event to `Application::handle()`
+  and drawing with `Application::present()`; `HeadlessUI` is the one
   with no screen. `UI::View` (`ARRANGEMENT`/`LIVE`) is UI state independent
   of which buffer is active; a buffer is just a song.
 - Threads: a status message from UI code is `Controller::log()`. The audio
