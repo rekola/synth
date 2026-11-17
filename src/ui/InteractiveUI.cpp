@@ -429,9 +429,14 @@ private:
   string activated_command_;
 };
 
-InteractiveUI::InteractiveUI(cellui::Backend & backend)
-    : backend_(backend), screen_(backend.rows(), backend.cols()) {
-  dispatcher_.setDragDropEnabled(backend.display().drag_drop);
+InteractiveUI::InteractiveUI(cellui::Application & app)
+    : app_(app),
+      backend_(app.backend()),
+      root_plane_(app.root()),
+      charts_(app.charts()),
+      styles_(static_cast<StyleProvider &>(app.styles())),
+      dispatcher_((app.setRootWidget(*this), app.input())),
+      key_reader_(app.keyReader()) {
   // Something that closes on a bare Escape gets it at once, rather than when
   // the next key shows it was no Alt prefix.
   key_reader_.takeEscape = [this](const cellui::Input & escape) {
@@ -488,22 +493,25 @@ InteractiveUI::initialize(std::shared_ptr<Controller> & controller) {
     backend_.requestFrame();
   });
   applyProfile(backend_.linkStatus().cls);
-  const auto & display = backend_.display();
-  bool use_pixel = display.pictures && display.cell_px_height > 0 && display.cell_px_width > 0;
-  auto root_plane = make_unique<cellui::BufferPlane>(screen_, styles_, controller);
-  root_plane_ = root_plane.get();
-  if (display.default_fg && display.default_bg) root_plane_->setDefaultColors(*display.default_fg, *display.default_bg);
-  root_plane_->setDisplayScale(display.display_scale);
-  root_plane_->setHdrPictures(display.hdr_pictures);
-  root_plane_->setSmoothScroll(display.smooth_scroll);
-  root_plane_->setCellBorders(display.cell_borders);
-  root_plane_->setProportionalText(display.proportional_text);
-  root_plane_->setKeymapProfile(keymap_profile_override_.value_or(display.keymap_profile));
-  key_reader_.setEscapeAsMeta(display.escape_as_meta);
-  root_plane_->setFlatChildren(true);
-  root_plane_->setThemedBases(true);
-  if (use_pixel) root_plane_->setCellPixelSize(display.cell_px_height, display.cell_px_width);
-  setPlane(std::move(root_plane));
+  // The root plane is the application's; this widget draws on a plane of its own over all of it.
+  root_plane_.setAppContext(controller);
+  setPlane(root_plane_.createChild());
+  resize(app_.rows(), app_.cols());
+  app_.setInputHook([this](const cellui::Input & input) {
+    offerInput(input);
+    return true;
+  });
+  app_.setQuitOnClose(false);
+  app_.setBeforeRefresh([this] { raiseOverlays(); });
+  app_.setFocusName([this] { return focusName(); });
+  display_connections_.push_back(app_.resized.connect([this](int rows, int cols) {
+    resize(rows, cols);
+    key_reader_.push(cellui::Input(Key::Resize, -1, -1, false, false, false, false));
+  }));
+  // What a colour looks like depends on the display; a cursor shows only while the window has the focus.
+  display_connections_.push_back(app_.display_changed.connect([this] { force_next_render_ = true; }));
+  display_connections_.push_back(app_.focus_changed.connect([this](bool) { force_next_render_ = true; }));
+  display_connections_.push_back(app_.closed.connect([this] { close_ui_ = true; }));
 
   setFgColor(styles_.window_fg_color);
   setBgColor(styles_.window_bg_color);
@@ -518,10 +526,9 @@ InteractiveUI::initialize(std::shared_ptr<Controller> & controller) {
     menu_->applyStyles(styles_);
   }
 
-  charts_ = cellui::chartsFor(display);
-  chart_ = charts_->lineChart(getPlane());
-  volume_meter_ = std::make_shared<ChannelMeter>(getPlane(), *charts_);
-  heatmap_ = charts_->heatmap(getPlane(), DiracAnalyzer::kAzimuthBins, DiracAnalyzer::kElevationBins);
+  chart_ = charts_.lineChart(getPlane());
+  volume_meter_ = std::make_shared<ChannelMeter>(getPlane(), charts_);
+  heatmap_ = charts_.heatmap(getPlane(), DiracAnalyzer::kAzimuthBins, DiracAnalyzer::kElevationBins);
 
   // The heatmap's axis extremes, written over the grid: elevation at the top
   // and bottom edges, azimuth at the left and right edges.
@@ -557,22 +564,7 @@ void InteractiveUI::raiseOverlays() {
 
 void
 InteractiveUI::render() {
-  raiseOverlays();
-  root_plane_->refresh();
-  dispatcher_.setHitAreas(root_plane_->takeHitAreas());
-  cellui::CursorRequest cursor;
-  if (auto at = root_plane_->cursorPosition()) cursor = { true, at->first, at->second };
-  cellui::FrameInfo info;
-  info.backdrops = root_plane_->takeBackdropLayers();
-  info.elevations = root_plane_->takeElevations();
-  info.text_runs = root_plane_->takeTextRuns();
-  info.mouse_cursors = root_plane_->takeMouseCursors();
-  info.borders = root_plane_->takeBorders();
-  if (backend_.wantsFrameInfo()) {
-    info.planes = root_plane_->describe();
-    info.focus = focusName();
-  }
-  backend_.presentTaking(screen_, cursor, root_plane_->images(), std::move(info));
+  app_.present();
 }
 
 void InteractiveUI::setLinkPin(std::optional<cellui::LinkClass> pin) {
@@ -601,13 +593,6 @@ InteractiveUI::focusName() const {
   if (active == outline_view_) return "outline-view";
   if (active == status_line_) return "status-line";
   return "other";
-}
-
-void
-InteractiveUI::resizeScreen() {
-  if (screen_.rows() == backend_.rows() && screen_.cols() == backend_.cols()) return;
-  screen_ = cellui::CellBuffer(backend_.rows(), backend_.cols());
-  root_plane_->resize(backend_.rows(), backend_.cols());
 }
 
 // The command row has no background of its own: the display cannot draw the
@@ -666,37 +651,7 @@ InteractiveUI::refresh() {
 
 bool
 InteractiveUI::readInput() {
-  using cellui::BackendEvent;
-  for (auto & event : backend_.poll()) {
-    switch (event.type) {
-      case BackendEvent::Type::INPUT:
-        key_reader_.push(event.input);
-        break;
-      case BackendEvent::Type::RESIZE:
-        resizeScreen();
-        key_reader_.push(cellui::Input(Key::Resize, -1, -1, false, false, false, false));
-        break;
-      case BackendEvent::Type::PASTE:
-        // Pasted text goes into an open text field; elsewhere it is not
-        // typed as keys, which would play it as notes and commands.
-        root_plane_->insertIntoReader(event.text);
-        break;
-      case BackendEvent::Type::DISPLAY:
-        // What a colour looks like depends on the display.
-        force_next_render_ = true;
-        break;
-      case BackendEvent::Type::FOCUS:
-        // A cursor shows only while the window has the focus.
-        styles_.window_focused = event.focused;
-        force_next_render_ = true;
-        break;
-      case BackendEvent::Type::CLOSE:
-        close_ui_ = true;
-        break;
-      default:
-        break;
-    }
-  }
+  for (auto & event : backend_.poll()) app_.handle(event);
 
   cellui::Input input(0, -1, -1, false, false, false, false);
   while (key_reader_.next(&input)) offerInput(input);
@@ -730,10 +685,10 @@ void
 InteractiveUI::initializeWidgets() {
   // chart and volume are missing
   pattern_editor_ = make_shared<PatternEditor>(getPlane());
-  pattern_editor_->setCharts(charts_.get());
+  pattern_editor_->setCharts(&charts_);
   arrangement_grid_ = make_shared<ArrangementGrid>(getPlane());
   clip_grid_ = make_shared<ClipGrid>(getPlane());
-  clip_grid_->setCharts(charts_.get());
+  clip_grid_->setCharts(&charts_);
   outline_view_ = make_shared<OutlineView>(getPlane());
   outline_view_->setChooser([this](const std::string & title, std::vector<std::pair<std::string, int>> entries, int current, std::function<void(const int &)> on_choose) {
     choose<int>(title, std::move(entries), current, std::move(on_choose));

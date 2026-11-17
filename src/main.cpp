@@ -34,11 +34,7 @@
 #endif
 
 #ifdef SYNTH_TERMINAL_UI
-#ifdef _WIN32
-#include <cellui/win32/Window.h>
-#else
-#include <cellui/term/TerminalSession.h>
-#endif
+#include <cellui/Application.h>
 #ifdef SYNTH_GTK_UI
 #include <cellui/gtk/Window.h>
 #endif
@@ -67,7 +63,7 @@ printUsage() {
       "  --null-audio           no sound device; blocks are paced by the clock\n"
       "\n"
       "User interface:\n"
-      "  --ui MODE              auto, terminal, raster (a window) or headless (default auto)\n"
+      "  --ui MODE              auto, terminal, window or headless (default auto)\n"
       "  --view VIEW            live or arrangement: the view to start in (default live)\n"
       "  --keymap KEYMAP        gui or terminal: the key bindings to use instead of the\n"
       "                         display's own (the window uses gui, the terminal terminal)\n"
@@ -103,7 +99,7 @@ int main(int argc, char *argv[]) {
   bool theme_given = false;
   // --reduced-motion (or SYNTH_REDUCED_MOTION=1): no easing, no pulsing.
   bool reduced_motion = getenv("SYNTH_REDUCED_MOTION") != nullptr && strcmp(getenv("SYNTH_REDUCED_MOTION"), "0") != 0;
-  cellui::BackendKind ui_kind = cellui::BackendKind::AUTO; // --ui auto|terminal|raster|headless: which backend the UI runs on
+  cellui::BackendKind ui_kind = cellui::BackendKind::AUTO; // --ui auto|terminal|window|headless: which backend the UI runs on
   UI::View initial_view = UI::View::LIVE; // --view live|arrangement: which view the UI starts in
   // --keymap gui|terminal: the keymap to use instead of the display's own.
   std::optional<cellui::KeymapProfile> keymap_profile;
@@ -152,7 +148,7 @@ int main(int argc, char *argv[]) {
       if (i + 1 < argc && strcmp(argv[i + 1], "headless") == 0) {
         headless = true;
       } else if (i + 1 >= argc || !cellui::parseBackendKind(argv[i + 1], ui_kind)) {
-        fmt::print(stderr, "--ui requires 'auto', 'terminal', 'raster' or 'headless'\n");
+        fmt::print(stderr, "--ui requires 'auto', 'terminal', 'window' or 'headless'\n");
         exit(1);
       }
       i++;
@@ -372,53 +368,22 @@ int main(int argc, char *argv[]) {
   fmt::print(stderr, "This build has no terminal UI; use --ui headless\n");
   return 1;
 #else
-  std::unique_ptr<cellui::Backend> backend;
+  // The display is cellui's to open: the window or the terminal, as --ui asks, and `auto` picks.
+  cellui::ApplicationOptions app_options;
+  app_options.ui = ui_kind;
+  app_options.dither = dither;
+  app_options.styles = std::make_unique<StyleProvider>();
+  std::string ui_error;
+  auto app = cellui::Application::open(std::move(app_options), &ui_error);
+  if (!app) {
+    fmt::print(stderr, "Cannot start the UI: {}\n", ui_error);
+    return 1;
+  }
+  cellui::Backend * backend = &app->backend();
   // Without --theme, the colours follow the backend's own: light on a
   // light background.
-  bool light = false;
-  cellui::BackendKind chosen = cellui::BackendKind::TERMINAL;
-  // The backend is chosen once, here: a named one that cannot start is an
-  // error, and only `auto` goes on to the next candidate.
-  auto candidates = cellui::backendCandidates(ui_kind, cellui::probeBackendEnvironment());
-  for (size_t i = 0; i < candidates.size() && !backend; i++) {
-    std::string ui_error;
-    chosen = candidates[i];
-    bool last = i + 1 == candidates.size();
-    if (chosen == cellui::BackendKind::RASTER) {
-#if defined(_WIN32)
-      backend = cellui::win32::Window::open({}, &ui_error);
-      if (backend) {
-        if (auto bg = backend->display().default_bg) light = bg->luminance() > 0.2f;
-        break;
-      }
-#elif defined(SYNTH_GTK_UI)
-      backend = cellui::gtk::Window::open({}, &ui_error);
-      if (backend) {
-        if (auto bg = backend->display().default_bg) light = bg->luminance() > 0.2f;
-        break;
-      }
-#else
-      ui_error = "this build has no window UI (it needs GTK 4.10 or later; see SYNTH_ENABLE_GTK)";
-#endif
-    } else {
-#ifdef _WIN32
-      ui_error = "Windows has the window UI only (--ui raster)";
-#else
-      cellui::term::SessionOptions session_options;
-      session_options.dither = dither;
-      auto session = cellui::term::TerminalSession::open(session_options, &ui_error);
-      if (session) {
-        light = session->capabilities().appearance == cellui::term::Appearance::LIGHT;
-        backend = std::move(session);
-        break;
-      }
-#endif
-    }
-    if (last || ui_kind != cellui::BackendKind::AUTO) {
-      fmt::print(stderr, "Cannot start the {} UI: {}\n", cellui::backendName(chosen), ui_error);
-      return 1;
-    }
-  }
+  bool light = app->light();
+  [[maybe_unused]] cellui::BackendKind chosen = app->kind();
 
   // After the backend is up, so these replace its handlers for the
   // termination signals: a SIGTERM/SIGHUP then ends the main loop and
@@ -433,7 +398,7 @@ int main(int argc, char *argv[]) {
                                         : light          ? "light"
                                                          : "dark";
   }
-  InteractiveUI ui(*backend);
+  InteractiveUI ui(*app);
   ui.setInitialView(initial_view);
   if (keymap_profile) ui.setKeymapProfile(*keymap_profile);
   if (link_pin) ui.setLinkPin(link_pin);
@@ -444,7 +409,7 @@ int main(int argc, char *argv[]) {
 
 #ifdef SYNTH_GTK_UI
   // SYNTH_WINDOW_STATS=<file>: how long the window's frames took to draw.
-  if (chosen == cellui::BackendKind::RASTER) {
+  if (chosen == cellui::BackendKind::WINDOW) {
     if (const char * stats_path = getenv("SYNTH_WINDOW_STATS")) {
       const auto & stats = static_cast<cellui::gtk::Window &>(*backend).stats();
       if (FILE * f = fopen(stats_path, "a")) {

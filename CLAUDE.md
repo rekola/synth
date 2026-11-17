@@ -64,7 +64,7 @@ Optional, auto-detected, and cmake says when each isn't used:
   server's own inputs/outputs for the device pickers; without it the lists
   fall back to ALSA sound cards.
 - `libgtk-4-dev` (`SYNTH_ENABLE_GTK`, GTK 4.10+, Linux only) — the window
-  backend (`src/gtk/` in cellui) and `--ui raster`. With
+  backend (`src/gtk/` in cellui) and `--ui window`. With
   `CELLUI_BUILD_TESTS=ON`, `cellui_gtk_tests` needs a display, so ctest runs
   it under `xvfb-run` (plus `xdotool`) and skips it where neither is there.
 - `libmysofa-dev` (`SYNTH_ENABLE_BINAURAL`) — binaural ambisonic decoding;
@@ -83,7 +83,7 @@ the rules files above.
 ./build/synth --render out.wav songs/demo3.xml   # headless render to WAV
 ```
 
-- `--ui auto|terminal|raster|headless`. `auto` (default) tries the GTK window
+- `--ui auto|terminal|window|headless`. `auto` (default) tries the GTK window
   when the build has it and a display is there, else the terminal; the
   choice is made once at start (`cellui/BackendChoice.h`). The e2e scripts
   pass `--ui terminal`.
