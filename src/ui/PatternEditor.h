@@ -443,6 +443,8 @@ private:
     int next_order = 0;
     std::vector<int> given;        // the notes played, in the order played
     std::map<int, std::size_t> ratios; // the gamut note a played key gave, by note value
+    std::map<int, int> voice_of;       // the column a played key's note will sound on, by note value
+    std::vector<int> sounded;          // played notes already sounding (a completion starts the rest)
     std::vector<int> voices;       // columns sounding with no release to end them
     std::vector<int> added_voices; // columns where added notes sound with the held keys
     std::chrono::steady_clock::time_point deadline;

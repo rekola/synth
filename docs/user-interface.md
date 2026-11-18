@@ -301,13 +301,13 @@ mirror diminished triad on the lowest take the triad's name ("C major");
 other chords written short say how many notes they have. One entry is one
 undo step.
 
-A played note is written and sounds as its key goes down. The completion
-comes when no further key has been pressed for about 0.04 s, or when the keys
-are all released, whichever is first. The added notes are written together
-and sound together too, at that moment: with C held, E, G and the fourth note
-all start 0.04 s after the key press. After a quick tap, released before the
-0.04 s have passed, they start at the release, and the chord rings on for a
-moment. Releasing
+A played note is written as its key goes down but does not sound yet. The
+completion comes when no further key has been pressed for about 0.04 s, or
+when the keys are all released, whichever is first. The whole chord, the
+played notes included, then sounds together: with C held, C, E, G and the
+fourth note all start 0.04 s after the key press. After a quick tap,
+released before the 0.04 s have passed, they start at the release, and the
+chord rings on for a moment. Releasing
 the keys ends the chord there. Another key
 pressed while keys are held works the chord out again from the held notes.
 The cursor steps on when the keys are released. On a terminal that reports

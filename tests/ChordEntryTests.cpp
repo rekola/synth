@@ -801,3 +801,42 @@ TEST(the_palette_writes_a_mirror_chord_from_the_played_note) {
   f.press(cellui::Key::Down);
   CHECK(f.row(0) == (V{0, 10, 27, 41})); // E𝄫 harmonic seventh read upward from C, as before
 }
+
+namespace {
+// The notes started since the queue was last read, as their note values.
+std::vector<int> startedNotes(ChordFixture & f) {
+  std::vector<int> out;
+  auto & queue = f.controller->getPlaybackEventQueue();
+  while (queue.hasEvents()) {
+    auto event = queue.pop();
+    if (event && event->getType() == PlaybackControlEvent::PLAY_NOTE) out.push_back(event->getParameter3());
+  }
+  return out;
+}
+} // namespace
+
+// Nothing sounds when a key goes down: the whole chord, the played note included, starts together
+// when the completion comes.
+TEST(a_chord_entry_starts_all_its_notes_together_at_the_completion) {
+  ChordFixture f;
+  f.widen(3);
+  startedNotes(f); // what was queued before
+  f.down('q');
+  CHECK(startedNotes(f).empty());
+  f.wait();
+  auto started = startedNotes(f);
+  std::sort(started.begin(), started.end());
+  CHECK(started == (std::vector<int>{kC + C, kC + E, kC + G, kC + Asu}));
+  f.up('q');
+}
+
+TEST(a_tapped_chord_entry_starts_its_notes_at_the_release) {
+  ChordFixture f;
+  f.widen(3);
+  startedNotes(f);
+  f.down('q');
+  f.up('q'); // released before the completion
+  auto started = startedNotes(f);
+  std::sort(started.begin(), started.end());
+  CHECK(started == (std::vector<int>{kC + C, kC + E, kC + G, kC + Asu}));
+}
