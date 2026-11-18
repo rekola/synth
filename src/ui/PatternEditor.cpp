@@ -1865,7 +1865,6 @@ PatternEditor::handleBufferChanged() {
     getController().setNoteHeld(false);
   }
   audition_ = Audition();
-  arpeggio_ = Arpeggio();
   if (chord_entry_.open) {
     chord_entry_ = ChordEntry();
     getController().setNoteHeld(false);
@@ -4615,7 +4614,6 @@ bool PatternEditor::enterChordKey(const cellui::KeyDown & e, int track_id, int m
     // the held notes, and what the earlier completion added goes.
     for (auto column : s.added_voices) queue.push(make_unique<PlaybackControlEvent>(PlaybackControlEvent::STOP_NOTE, buffer, track_id, column));
     s.added_voices.clear();
-    arpeggio_ = Arpeggio();
     std::vector<std::pair<int, int>> held;
     for (auto & [key, note] : active_keyboard_notes_) {
       if (note.chord) held.emplace_back(note.order, note.value);
@@ -4698,43 +4696,22 @@ void PatternEditor::applyChordCompletion(bool released) {
   row_edited = true;
   if (!controller.isMonitoring(s.track_id)) return;
 
-  // The played notes have sounded; the added ones follow one by one.
+  // The played notes have sounded; the added ones sound together now, after the
+  // small delay the completion waited for.
   auto now = std::chrono::steady_clock::now();
-  arpeggio_ = Arpeggio();
-  arpeggio_.track_id = s.track_id;
-  arpeggio_.from_column = s.column;
-  arpeggio_.audition = released;
-  for (auto value : chord.notes) {
-    if (std::find(s.given.begin(), s.given.end(), value) == s.given.end()) arpeggio_.values.push_back(value);
-  }
-  arpeggio_.interval = kCompletionInterval;
-  if (released && s.hold) {
-    // A tap shorter than the interval sets the pace: as long as the key was down.
-    auto down = now - (s.deadline - kCompletionInterval);
-    arpeggio_.interval = std::clamp<std::chrono::steady_clock::duration>(down, std::chrono::milliseconds(10), kCompletionInterval);
-  }
-  arpeggio_.next = now;
   if (released) {
     audition_.active = true;
     audition_.track_id = s.track_id;
     audition_.columns = s.voices;
-    audition_.until = now + arpeggio_.interval * static_cast<int>(arpeggio_.values.size()) + kAuditionTime;
+    audition_.until = now + kAuditionTime;
     s.voices.clear();
   }
-  playArpeggio(now);
-}
-
-void PatternEditor::playArpeggio(std::chrono::steady_clock::time_point now) {
-  auto & controller = getController();
-  while (!arpeggio_.values.empty() && now >= arpeggio_.next) {
-    int column = freeVoiceColumn(arpeggio_.track_id, arpeggio_.from_column);
-    controller.getPlaybackEventQueue().push(make_unique<PlaybackControlEvent>(PlaybackControlEvent::PLAY_NOTE, controller.getActiveBufferName(), arpeggio_.track_id, column,
-                                                                              arpeggio_.values.front(), constants::DEFAULT_NOTE_ON_VELOCITY));
-    (arpeggio_.audition ? audition_.columns : chord_entry_.added_voices).push_back(column);
-    arpeggio_.values.erase(arpeggio_.values.begin());
-    // Each gap is half the one before.
-    arpeggio_.interval /= 2;
-    arpeggio_.next += arpeggio_.interval;
+  for (auto value : chord.notes) {
+    if (std::find(s.given.begin(), s.given.end(), value) != s.given.end()) continue;
+    int column = freeVoiceColumn(s.track_id, s.column);
+    controller.getPlaybackEventQueue().push(make_unique<PlaybackControlEvent>(PlaybackControlEvent::PLAY_NOTE, controller.getActiveBufferName(), s.track_id, column, value,
+                                                                              constants::DEFAULT_NOTE_ON_VELOCITY));
+    (released ? audition_.columns : s.added_voices).push_back(column);
   }
 }
 
@@ -4745,8 +4722,6 @@ void PatternEditor::finishChordEntry() {
   for (auto column : s.added_voices) {
     controller.getPlaybackEventQueue().push(make_unique<PlaybackControlEvent>(PlaybackControlEvent::STOP_NOTE, controller.getActiveBufferName(), s.track_id, column));
   }
-  // Notes still to sound with the held keys have nothing to join.
-  if (!arpeggio_.audition) arpeggio_ = Arpeggio();
   last_entry_ = LastEntry();
   for (auto value : s.given) {
     auto known = s.ratios.find(value);
@@ -4764,7 +4739,6 @@ void PatternEditor::endAudition() {
     controller.getPlaybackEventQueue().push(make_unique<PlaybackControlEvent>(PlaybackControlEvent::STOP_NOTE, controller.getActiveBufferName(), audition_.track_id, column));
   }
   audition_ = Audition();
-  if (arpeggio_.audition) arpeggio_ = Arpeggio();
 }
 
 void PatternEditor::tickChordEntry() {
@@ -4780,7 +4754,6 @@ void PatternEditor::tickChordEntry() {
       settleLastEntry();
     }
   }
-  playArpeggio(now);
   if (audition_.active && now >= audition_.until) endAudition();
 }
 
