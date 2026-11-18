@@ -305,8 +305,9 @@ TEST(chord_palette_steps_through_the_chords_of_the_entry_just_made) {
   CHECK(f.row(0) == (V{C, Ds, F}));
   CHECK(f.shows("C narrow major"));
   f.press(cellui::Key::Down);
-  CHECK(f.row(0) == (V{C, Ds, Fsu}));
-  CHECK(f.shows("C mirror diminished"));
+  // The mirror seventh A♯↑ hangs from the played C, so it is cut to its top three notes.
+  CHECK(f.row(0) == (V{Fsu - 53, Asu - 53, C}));
+  CHECK(f.shows("A♯↑ mirror seventh / C (3 notes)"));
   f.press(cellui::Key::Down);
   CHECK(f.row(0) == (V{C, E, F}));
   f.press(cellui::Key::Down);
@@ -383,9 +384,9 @@ TEST(chord_palette_writes_a_short_chord_and_empties_the_rest) {
   f.meta('/');
   f.press(cellui::Key::Down);
   CHECK(f.shows("A minor"));
-  CHECK(f.row(0) == (V{A, 53 + C, 53 + E}));
+  CHECK(f.row(0) == (V{C, E, A})); // the minor triad hangs from the played A
   f.press(cellui::Key::Enter);
-  CHECK(f.row(0) == (V{A, 53 + C, 53 + E}));
+  CHECK(f.row(0) == (V{C, E, A}));
 }
 
 // Away from the entry the palette acts at the cursor, on the note in its first column.
@@ -611,7 +612,7 @@ TEST(chord_entry_at_five_columns_writes_five_note_chords) {
     f.down('5');
     f.wait();
     f.up('5');
-    CHECK(f.row(0) == (V{Fsu, G, Asu, 53 + C, 53 + Ds}));
+    CHECK(f.row(0) == (V{G - 53, Asu - 53, C, Ds, Fsu})); // a mirror chord hangs from the played F♯↑
   }
   {
     // D𝄫 has no five-note chord: four notes, and the fifth column is emptied.
@@ -728,11 +729,75 @@ TEST(chord_entry_in_a_diamond_song_uses_the_diamond_keys) {
   f.down('7'); // A♭
   f.wait();
   f.up('7');
-  // The utonal chord A♭ C E𝄫 F first; the keys are the diamond's, so every note is one of the 13.
-  CHECK(f.row(0) == (V{36, 53, 53 + 10, 53 + 22}));
+  // The utonal mirror seventh E𝄫 F A♭ C first, hanging from the played A♭ (C4 E𝄫4 F4 A♭4); the keys are
+  // the diamond's, so every note is one of the 13.
+  CHECK(f.row(0) == (V{0, 10, 22, 36}));
   // A key of no diamond note writes nothing.
   ChordFixture g(Scale::DIAMOND);
   g.down('4');
   g.up('4');
   CHECK(g.row(0) == (V{-1}) || g.row(0).empty());
+}
+
+// A mirror chord is built downward from the played note: nothing is written above it.
+TEST(a_mirror_chord_is_entered_by_its_top_note) {
+  {
+    ChordFixture f(Scale::UTONAL);
+    f.widen(3);
+    f.down('q'); // C
+    f.wait();
+    f.up('q');
+    CHECK(f.row(0) == (V{10 - 53, 22 - 53, 36 - 53, 0})); // E𝄫3 F3 A♭3 C4
+    CHECK(f.shows("C mirror seventh"));
+  }
+  {
+    ChordFixture f(Scale::UTONAL);
+    f.widen(3);
+    f.down('t'); // G
+    f.wait();
+    f.up('t');
+    CHECK(f.row(0) == (V{41 - 53, 0, 14, 31})); // B𝄫3 C4 E♭4 G4
+  }
+  {
+    // Cut to the width from the bottom: the played note and the notes just below it.
+    ChordFixture f(Scale::UTONAL);
+    f.widen(2);
+    f.down('q');
+    f.wait();
+    f.up('q');
+    CHECK(f.row(0) == (V{22 - 53, 36 - 53, 0}));
+  }
+  {
+    ChordFixture f(Scale::UTONAL);
+    f.widen(1);
+    f.down('q');
+    f.wait();
+    f.up('q');
+    CHECK(f.row(0) == (V{36 - 53, 0}));
+  }
+  {
+    // An upward chord is as before.
+    ChordFixture f(Scale::OTONAL);
+    f.widen(3);
+    f.down('q');
+    f.wait();
+    f.up('q');
+    CHECK(f.row(0) == (V{C, E, G, Asu}));
+  }
+}
+
+// The palette lists the same candidates and writes a mirror chord the same way.
+TEST(the_palette_writes_a_mirror_chord_from_the_played_note) {
+  ChordFixture f(Scale::UTONAL);
+  f.widen(3);
+  f.down('q');
+  f.up('q');
+  CHECK(f.row(0) == (V{10 - 53, 22 - 53, 36 - 53, 0}));
+  f.meta('/');
+  CHECK(f.row(0) == (V{10 - 53, 22 - 53, 36 - 53, 0}));
+  f.press(cellui::Key::Down);
+  CHECK(f.shows("G mirror seventh / C"));
+  CHECK(f.row(0) == (V{14 - 53, 31 - 53, 41 - 53, 0})); // E♭3 G3 B𝄫3 C4
+  f.press(cellui::Key::Down);
+  CHECK(f.row(0) == (V{0, 10, 27, 41})); // E𝄫 harmonic seventh read upward from C, as before
 }
