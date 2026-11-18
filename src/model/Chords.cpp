@@ -563,9 +563,14 @@ Result complete(const ScaleChords & scale, vector<int> given, int size, const ma
     for (auto value : given) placed.emplace_back(value, *ratio_of(value));
     auto written = given_notes;
     if (given.size() == 1 && directionOf(entry->kind) == Direction::DOWNWARD) {
-      // A downward chord hangs from the played note: the others are added below it,
-      // the nearest first, so a chord cut to the width keeps the notes just below it.
-      vector<pair<int, size_t>> below; // steps below the played note, note
+      // A downward chord hangs from the played note's octave up: the pitch heard in a
+      // mirror chord follows its lowest note, so the chord's top note is an octave above
+      // the played one and the others are added below it, the nearest first, so a chord
+      // cut to the width keeps the notes just below the top.
+      int top = given[0] + scale.edo();
+      placed.clear();
+      placed.emplace_back(top, *degree);
+      vector<pair<int, size_t>> below; // steps below the top note, note
       for (auto note : entry->notes) {
         if (note == *degree) continue;
         int steps = (((scale.stepOf(*degree) - scale.stepOf(note)) % scale.edo()) + scale.edo()) % scale.edo();
@@ -574,7 +579,7 @@ Result complete(const ScaleChords & scale, vector<int> given, int size, const ma
       sort(below.begin(), below.end());
       for (auto & [steps, note] : below) {
         if (static_cast<int>(placed.size()) >= size) break;
-        placed.emplace_back(given[0] - steps, note);
+        placed.emplace_back(top - steps, note);
         written.push_back(note);
       }
     } else {

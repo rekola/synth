@@ -116,8 +116,8 @@ struct Result {
 };
 
 // Completes the given notes (note values, in any order) to chords of `size`
-// notes. A downward chord is written with a single given note as its top note,
-// the others added below it (the nearest first when cut to `size`). The lowest given note is the degree; every chord of its list that
+// notes. A downward chord is written with a single given note as its top note an
+// octave above it, the others added below that (the nearest first when cut to `size`). The lowest given note is the degree; every chord of its list that
 // contains the others, octaves ignored, gives one result: the given notes at
 // their own octaves, and the chord's other notes, from its lowest upward,
 // within the octave above the lowest given note, until there are `size`
