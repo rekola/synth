@@ -3,167 +3,60 @@ scripts in this directory: forks the compiled `synth` binary under a
 pty and feeds its output through `pyte` so a script can screen-scrape the
 pattern editor exactly as a person would see it, without a real terminal.
 
-The only genuinely fiddly part is `Screen._respond`: the terminal backend
-probes an interactive terminal for its capabilities on startup (cursor
-position, pixel geometry, Kitty keyboard protocol support, etc.) and waits
-up to a second for the replies a plain pty never sends on its own -
-`_respond` answers each of those queries with a plausible canned reply as
-soon as it sees one go out, exactly as a real terminal would, so `synth`
-starts up at once.
+The pty and screen reading, including answering the terminal's start-up
+queries, are cellui's `tools/e2e/ptyscreen.py`; this file adds what is about
+synth (the binary, the song, the app's screens).
 
 Not part of the CMake/ctest build on purpose: these scripts drive real
 ALSA I/O (via the fake_launchpad_*.c simulators, see README.md), which
 `ctest`'s pure-function unit tests deliberately don't touch.
 """
-import fcntl
 import os
-import signal
-import pty
 import re
-import select
-import struct
+import signal
 import sys
-import termios
 import time
-
-import pyte
 
 REPO_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 BINARY = os.path.join(REPO_ROOT, "build", "synth")
 SONG = os.path.join(REPO_ROOT, "songs", "demo3.xml")
 
-ROWS, COLS = 40, 120
-XPIX, YPIX = 960, 1200
+
+def _cellui_dir():
+    """cellui's source: $CELLUI_SRC, the folder cmake was given with
+    -DFETCHCONTENT_SOURCE_DIR_CELLUI, or the copy it fetched."""
+    if os.environ.get("CELLUI_SRC"):
+        return os.environ["CELLUI_SRC"]
+    try:
+        with open(os.path.join(REPO_ROOT, "build", "CMakeCache.txt")) as f:
+            for line in f:
+                if line.startswith("FETCHCONTENT_SOURCE_DIR_CELLUI:PATH=") and line.strip().split("=", 1)[1]:
+                    return line.strip().split("=", 1)[1]
+    except OSError:
+        pass
+    return os.path.join(REPO_ROOT, "build", "_deps", "cellui-src")
 
 
-def set_winsize(fd, rows, cols, xpix, ypix):
-    fcntl.ioctl(fd, termios.TIOCSWINSZ, struct.pack("HHHH", rows, cols, xpix, ypix))
+sys.path.insert(0, os.path.join(_cellui_dir(), "tools", "e2e"))
+import ptyscreen  # noqa: E402  (cellui's pty screen reader; needs pyte)
+from ptyscreen import Screen  # noqa: E402,F401  (scripts use harness.Screen)
+
+ROWS, COLS = ptyscreen.ROWS, ptyscreen.COLS
 
 
 def spawn(song=SONG, view="arrangement"):
     """Starts synth on `song` in a pty. `view` is the --view it starts in:
     Arrangement by default, the view most scripts were written against,
     though the app itself starts in Live View."""
-    pid, master_fd = pty.fork()
-    if pid == 0:
-        os.environ["TERM"] = "xterm-256color"
-        # A fake_launchpad_*.c simulator registers under the exact same
-        # device name a real Launchpad does, so on a machine that also has
-        # one physically connected, synth would otherwise auto-connect to
-        # both at once - see LaunchpadIO.h's own ignore_hardware_ comment.
-        os.environ["SYNTH_LAUNCHPAD_NO_HARDWARE"] = "1"
-        # SYNTH_E2E_NULL_AUDIO=1 runs without a sound device (CI, containers).
-        extra = ["--null-audio"] if os.environ.get("SYNTH_E2E_NULL_AUDIO") else []
-        # --ui terminal: the default (auto) opens a window where there is a display.
-        os.execvp(BINARY, [BINARY, *extra, "--ui", "terminal", "--view", view, song])
-        os._exit(1)
-    set_winsize(master_fd, ROWS, COLS, XPIX, YPIX)
-    os.set_blocking(master_fd, False)
-    return pid, master_fd
-
-
-class Screen:
-    def __init__(self, fd):
-        self.fd = fd
-        self.screen = pyte.Screen(COLS, ROWS)
-        self.stream = pyte.Stream(self.screen)
-        self._respond_buf = b""
-
-    def _respond(self, data):
-        buf = self._respond_buf + data
-        # The frame fences (CSI ? 6 n): one reply each, as a terminal gives.
-        fences = buf.count(b"\x1b[?6n")
-        if fences:
-            os.write(self.fd, f"\x1b[?{ROWS // 2};{COLS // 2}R".encode() * fences)
-            buf = buf.replace(b"\x1b[?6n", b"")
-        if re.search(rb"\x1b\[6n", buf):
-            os.write(self.fd, f"\x1b[{ROWS // 2};{COLS // 2}R".encode())
-            buf = re.sub(rb"\x1b\[6n", b"", buf)
-        if re.search(rb"\x1b\[14t", buf):
-            os.write(self.fd, f"\x1b[4;{YPIX};{XPIX}t".encode())
-            buf = re.sub(rb"\x1b\[14t", b"", buf)
-        if re.search(rb"\x1b\[18t", buf):
-            os.write(self.fd, f"\x1b[8;{ROWS};{COLS}t".encode())
-            buf = re.sub(rb"\x1b\[18t", b"", buf)
-        if re.search(rb"\x1b\[>c", buf):
-            os.write(self.fd, b"\x1b[>1;10;0c")
-            buf = re.sub(rb"\x1b\[>c", b"", buf)
-        if re.search(rb"\x1b\[c", buf):
-            os.write(self.fd, b"\x1b[?62;22c")
-            buf = re.sub(rb"\x1b\[c", b"", buf)
-        if re.search(rb"\x1b\[\?u", buf):
-            os.write(self.fd, b"\x1b[?0u")
-            buf = re.sub(rb"\x1b\[\?u", b"", buf)
-        for mode in (b"2026", b"1016"):
-            pat = rb"\x1b\[\?" + mode + rb"\$p"
-            if re.search(pat, buf):
-                os.write(self.fd, b"\x1b[?" + mode + b";0$y")
-                buf = re.sub(pat, b"", buf)
-        if re.search(rb"\x1bP\+q[0-9a-f;]*\x1b\\", buf):
-            os.write(self.fd, b"\x1bP0+r\x1b\\")
-            buf = re.sub(rb"\x1bP\+q[0-9a-f;]*\x1b\\", b"", buf)
-        buf = re.sub(rb"\x1b\]4;\d+;\?\x1b\\", b"", buf)
-        buf = re.sub(rb"\x1b\]1[01];\?\x1b\\", b"", buf)
-        buf = re.sub(rb"\x1b_Gi=1,a=q;\x1b\\", b"", buf)
-        self._respond_buf = buf
-
-    def pump(self, timeout=0.3, settle=0.08):
-        # `end` is extended by `settle` on every read so a quiet period ends
-        # the pump early - but during active playback the app produces
-        # steady ~20-25ms redraw traffic, which would push `end` forward
-        # forever. Cap the total wall-clock time unconditionally so pump()
-        # always returns within `timeout` regardless of how busy the app is.
-        hard_deadline = time.time() + timeout
-        end = hard_deadline
-        while time.time() < end and time.time() < hard_deadline:
-            r, _, _ = select.select([self.fd], [], [], 0.05)
-            if self.fd in r:
-                try:
-                    data = os.read(self.fd, 65536)
-                except OSError:
-                    break
-                if not data:
-                    break
-                self._respond(data)
-                # pyte has no private form of the status report and fails on it.
-                self.stream.feed(data.replace(b"\x1b[?6n", b"").decode("utf-8", errors="ignore"))
-                end = min(time.time() + settle, hard_deadline)
-
-    def wait_for_exit(self, proc, timeout):
-        """Waits, reading the pty, until `proc` (a simulator) has finished
-        its scripted sequence, or `timeout` seconds - a simulator ends
-        right after its last step, so this is usually far shorter."""
-        deadline = time.time() + timeout
-        while time.time() < deadline and proc.poll() is None:
-            self.pump(0.2)
-
-    def wait_for_log(self, path, text, timeout):
-        """Waits, reading the pty, until the file at `path` (a simulator's
-        log) contains `text`, or `timeout` seconds."""
-        deadline = time.time() + timeout
-        while time.time() < deadline:
-            try:
-                with open(path) as f:
-                    if text in f.read():
-                        return True
-            except OSError:
-                pass
-            self.pump(0.2)
-        return False
-
-    def wait(self, seconds):
-        """Waits a fixed time while still reading the pty - unlike
-        time.sleep(), which lets synth's terminal output fill the pty buffer
-        and block its UI thread (Launchpad I/O included) until the next read."""
-        deadline = time.time() + seconds
-        while time.time() < deadline:
-            self.pump(min(0.5, max(0.0, deadline - time.time())))
-
-    def dump(self):
-        return "\n".join(self.screen.display)
-
-    def send(self, b):
-        os.write(self.fd, b)
+    # A fake_launchpad_*.c simulator registers under the exact same device
+    # name a real Launchpad does, so on a machine that also has one
+    # physically connected, synth would otherwise auto-connect to both at
+    # once - see LaunchpadIO.h's own ignore_hardware_ comment.
+    env = {"SYNTH_LAUNCHPAD_NO_HARDWARE": "1"}
+    # SYNTH_E2E_NULL_AUDIO=1 runs without a sound device (CI, containers).
+    extra = ["--null-audio"] if os.environ.get("SYNTH_E2E_NULL_AUDIO") else []
+    # --ui terminal: the default (auto) opens a window where there is a display.
+    return ptyscreen.spawn([BINARY, *extra, "--ui", "terminal", "--view", view, song], env=env)
 
 
 def fake_env():

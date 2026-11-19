@@ -64,11 +64,11 @@ you're changing.
 
 ## What's here
 
-- **`harness.py`** - shared driver every script below imports: forks
-  `synth` under a pty with a given song and answers the terminal-
-  capability queries the terminal backend sends on startup (cursor
-  position, pixel geometry, Kitty keyboard protocol, etc.) so it doesn't
-  wait for replies a plain pty never sends. Not Launchpad-specific -
+- **`harness.py`** - shared driver every script below imports: starts
+  `synth` with a given song under a pty and reads its screen. The pty,
+  `pyte` screen and the answers to the terminal-capability queries the
+  terminal backend sends on startup are cellui's `tools/e2e/ptyscreen.py`
+  (found in the fetched cellui, or `$CELLUI_SRC`). Not Launchpad-specific -
   reusable for testing any keybinding/UI behavior. `hide_outline()` hides
   Live View's outline panel, for scripts that read the clip grid's
   rows from the start of each line.
