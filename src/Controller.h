@@ -15,7 +15,7 @@
 #include "ambisonic/ChannelConfiguration.h"
 #include "ambisonic/MixerType.h"
 #include "bus/BusEffectRegistry.h"
-#include "ui/CommandRegistry.h"
+#include <cellui/CommandRegistry.h>
 #include "util/constants.h"
 
 #include <cellui/Signal.h>
@@ -199,7 +199,7 @@ class Controller {
   // Lets the UI layer (which Controller, part of the headless-testable
   // synth_engine lib, must not depend on) supply a fallback for command
   // names sendCommand() doesn't recognize itself - e.g. per-widget Emacs
-  // commands like "set-mark" that live in a UIElement's CommandRegistry.
+  // commands like "set-mark" that live in a UIElement's cellui::CommandRegistry.
   void setCommandFallback(std::function<bool(std::string_view)> fn) { command_fallback_ = std::move(fn); }
 
   // Read-only counterpart to sendCommand()'s fallback chain: every known
@@ -1292,7 +1292,7 @@ class Controller {
   // save/loadActiveBufferState(); the *old* key's slot would just be
   // stale dead weight otherwise).
   void dropBufferState(const std::string & name);
-  // Keeps one "switch-to-buffer:<name>" CommandRegistry entry per songs_
+  // Keeps one "switch-to-buffer:<name>" cellui::CommandRegistry entry per songs_
   // key in sync with it - see refreshBufferCommands()'s own comment on
   // Controller.cpp. Called after every songs_ structural change
   // (addBuffer()/renameActiveBuffer()/killActiveBuffer(), and
@@ -1425,7 +1425,7 @@ class Controller {
   // Controller's own named commands ("save-buffer", ...) - sendCommand()
   // tries this first, then command_fallback_; commandCompletions() reads
   // its prefix index the same way.
-  CommandRegistry commands_;
+  cellui::CommandRegistry commands_;
   std::function<bool(std::string_view)> command_fallback_;
   std::function<std::set<std::string>(std::string_view)> command_completer_;
   int pending_command_track_ = -1;

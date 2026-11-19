@@ -1,6 +1,6 @@
 #include "HeadlessUI.h"
 
-#include "Plane.h"
+#include <cellui/Plane.h>
 #include "WaitSources.h"
 
 #include "../launchpad/LaunchpadIO.h"
@@ -33,18 +33,18 @@ namespace {
 
 // Draws nothing and takes no input; exists only because UIElement reaches
 // the Controller through its plane.
-class HeadlessPlane : public Plane {
+class HeadlessPlane : public cellui::Plane {
  public:
-  using Plane::Plane;
+  using cellui::Plane::Plane;
 
-  using Plane::setBgColor;
-  using Plane::setFgColor;
+  using cellui::Plane::setBgColor;
+  using cellui::Plane::setFgColor;
   void setFgColor(const Color &) override {}
   void setBgColor(const Color &) override {}
   void setUnderline(bool) override {}
   void erase() override { }
   void putstr(int, int, const std::string &, const cellui::TextFace &) override {}
-  std::unique_ptr<Plane> createChild() override { return std::make_unique<HeadlessPlane>(getAppContext(), getStyles()); }
+  std::unique_ptr<cellui::Plane> createChild() override { return std::make_unique<HeadlessPlane>(getAppContext(), getStyles()); }
   void drawBorder() override { }
   bool offerKey(const cellui::KeyDown &) override { return false; }
   void showReader(const std::string &, int, int, int, int, const std::string &, std::optional<Color>) override { }

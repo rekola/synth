@@ -1,7 +1,7 @@
 #ifndef _OUTLINEVIEW_H_
 #define _OUTLINEVIEW_H_
 
-#include "InfoDialog.h"
+#include <cellui/InfoDialog.h>
 #include <cellui/Fade.h>
 #include <cellui/InputDispatcher.h>
 #include <cellui/InputEvents.h>
@@ -98,7 +98,7 @@ class OutlineView : public UIElement {
   using Chooser = std::function<void(const std::string &, std::vector<std::pair<std::string, int>>, int, std::function<void(const int &)>)>;
   void setChooser(Chooser choose) { choose_ = std::move(choose); }
 
-  OutlineView(Plane & parent) : UIElement(parent) {
+  OutlineView(cellui::Plane & parent) : UIElement(parent) {
     connections_.push_back(on<cellui::KeyDown>([this](const cellui::KeyDown & e, cellui::EventContext &) { return keyDown(e) ? cellui::Handled::yes : cellui::Handled::no; }));
     connections_.push_back(on<cellui::KeyUp>([this](const cellui::KeyUp & e, cellui::EventContext &) { return keyUp(e) ? cellui::Handled::yes : cellui::Handled::no; }));
     connections_.push_back(on<cellui::MouseDown>([this](const cellui::MouseDown & e, cellui::EventContext &) { return e.button == 1 && mouseDown(e.row, e.col) ? cellui::Handled::yes : cellui::Handled::no; }));
@@ -139,7 +139,7 @@ protected:
   void renderRow(const StyleProvider & styles, int row, bool cursor, bool focused);
   void renderTree(const StyleProvider & styles, bool focused);
   // Draws one data row on `plane` at `display_row`.
-  void drawRow(const StyleProvider & styles, Plane & plane, int display_row, size_t data_row, bool cursor,
+  void drawRow(const StyleProvider & styles, cellui::Plane & plane, int display_row, size_t data_row, bool cursor,
                bool focused);
   // Where the smooth-scrolling display keeps the cursor: a plane of its own
   // over the tree, easing to its row in the view. At an edge of the view the
@@ -195,7 +195,7 @@ protected:
   // Details panel it landed in (see this class's own header comment) and
   // either moves the cursor straight to the clicked row (tree side) or
   // runs whatever DetailsAction that Details line carries, if any (panel
-  // side). Resolved on RELEASE, matching SpinBox's own click
+  // side). Resolved on RELEASE, matching cellui::SpinBox's own click
   // convention - a press, or a drag while held, only shows what is
   // pressed; the release acts on it.
   bool handleClick(int screen_y, int screen_x, bool release);
@@ -299,7 +299,7 @@ protected:
   int current_first_row_ = 0;  // the first data row the tree plane was drawn from
   int current_column_scroll_ = 0;
   double current_column_shown_ = 0;
-  std::unique_ptr<Plane> tree_plane_;
+  std::unique_ptr<cellui::Plane> tree_plane_;
   // The cursor's row in the view, a whole number except while it eases.
   double cursor_y_ = 0;
   // The cursor appears at its row instead of easing there (after a click).
@@ -334,7 +334,7 @@ protected:
   // (applyTargetPickerSelection()). Checked/cleared in render() the same
   // as cursor_changed.
   bool details_dirty_ = false;
-  InfoDialog info_popup_;
+  cellui::InfoDialog info_popup_;
   int screen_rows_ = 24, screen_cols_ = 80;
   std::vector<cellui::Connection> connections_;
   Chooser choose_;

@@ -10,7 +10,7 @@ class TransportButton : public UIElement {
  public:
   static constexpr int kWidth = 3;
 
-  explicit TransportButton(Plane & parent) : UIElement(parent) {
+  explicit TransportButton(cellui::Plane & parent) : UIElement(parent) {
     auto & theme = getPlane().getStyles().theme;
     getPlane().setElevation(theme.elevation.raised);
     getPlane().setCornerRadius(theme.dialog_radius_px);

@@ -23,7 +23,7 @@
 
 #include "StyleProvider.h"
 #include "ArrangementPatternSource.h"
-#include "KeyStroke.h"
+#include <cellui/KeyStroke.h>
 #include "PatternScroll.h"
 
 #include <string>
@@ -47,7 +47,7 @@ static SongScope songScopeOf(SelectionScope scope) {
 // needs the exact same addressable-track list/order to resolve a device's
 // assigned track to a track_id, without PatternEditor being involved.
 
-PatternEditor::PatternEditor(Plane & parent)
+PatternEditor::PatternEditor(cellui::Plane & parent)
     : UIElement(parent),
       arrangement_source_(std::make_unique<ArrangementPatternSource>(getController())),
       scene_source_(std::make_unique<ScenePatternSource>(getController())) {
@@ -567,7 +567,7 @@ PatternEditor::PatternEditor(Plane & parent)
     auto name = "set-edit-step-" + std::to_string(n);
     commands_.define(name, [this, n]() { setEditStep(n); });
     int digit = '0' + n;
-    keymap_.bind(KeyStroke::pack(digit, true, false, false, false), name);
+    keymap_.bind(cellui::KeyStroke::pack(digit, true, false, false, false), name);
   }
 
   commands_.define("move-row-up", [this]() {
@@ -668,37 +668,37 @@ PatternEditor::PatternEditor(Plane & parent)
   // handleCommand handles them directly, synchronously, with the
   // device_id it's already given - see UI::handleLaunchpadButtonEvent.
 
-  keymap_.bind(KeyStroke::pack('+', true, false, false, false), "edit-step-increase");
-  keymap_.bind(KeyStroke::pack('-', true, false, false, false), "edit-step-decrease");
+  keymap_.bind(cellui::KeyStroke::pack('+', true, false, false, false), "edit-step-increase");
+  keymap_.bind(cellui::KeyStroke::pack('-', true, false, false, false), "edit-step-decrease");
   // The desktop keymap selects with Shift+arrows (see keyDown()).
-  keymap_.bind(KeymapProfile::TERMINAL, KeyStroke::pack(' ', true, false, false, false), "set-mark"); // Ctrl-Space
+  keymap_.bind(cellui::KeymapProfile::TERMINAL, cellui::KeyStroke::pack(' ', true, false, false, false), "set-mark"); // Ctrl-Space
   // Cut, copy and paste: the terminal keymap's shortcuts, the usual
   // desktop ones elsewhere.
-  keymap_.bind(KeymapProfile::TERMINAL, KeyStroke::pack('w', true, false, false, false), "kill-region");
-  keymap_.bind(KeymapProfile::TERMINAL, KeyStroke::pack('w', false, true, false, false), "kill-ring-save"); // Alt-W
-  keymap_.bind(KeymapProfile::TERMINAL, KeyStroke::pack('y', true, false, false, false), "yank");
-  keymap_.bind(KeymapProfile::DESKTOP, KeyStroke::pack('x', true, false, false, false), "kill-region");
-  keymap_.bind(KeymapProfile::DESKTOP, KeyStroke::pack('c', true, false, false, false), "kill-ring-save");
-  keymap_.bind(KeymapProfile::DESKTOP, KeyStroke::pack('v', true, false, false, false), "yank");
-  keymap_.bind(KeyStroke::pack('k', true, false, false, false), "kill-row");            // Ctrl-K
-  keymap_.bind(KeyStroke::pack(Key::Insert, false, false, false, false), "insert-row"); // plain Insert (was inline handling)
+  keymap_.bind(cellui::KeymapProfile::TERMINAL, cellui::KeyStroke::pack('w', true, false, false, false), "kill-region");
+  keymap_.bind(cellui::KeymapProfile::TERMINAL, cellui::KeyStroke::pack('w', false, true, false, false), "kill-ring-save"); // Alt-W
+  keymap_.bind(cellui::KeymapProfile::TERMINAL, cellui::KeyStroke::pack('y', true, false, false, false), "yank");
+  keymap_.bind(cellui::KeymapProfile::DESKTOP, cellui::KeyStroke::pack('x', true, false, false, false), "kill-region");
+  keymap_.bind(cellui::KeymapProfile::DESKTOP, cellui::KeyStroke::pack('c', true, false, false, false), "kill-ring-save");
+  keymap_.bind(cellui::KeymapProfile::DESKTOP, cellui::KeyStroke::pack('v', true, false, false, false), "yank");
+  keymap_.bind(cellui::KeyStroke::pack('k', true, false, false, false), "kill-row");            // Ctrl-K
+  keymap_.bind(cellui::KeyStroke::pack(Key::Insert, false, false, false, false), "insert-row"); // plain Insert (was inline handling)
   // Ctrl+G is Group Tracks on the desktop, so cancelling is Escape there.
-  keymap_.bind(KeymapProfile::TERMINAL, KeyStroke::pack('g', true, false, false, false), "keyboard-quit");
-  keymap_.bind(KeymapProfile::DESKTOP, KeyStroke::pack(Key::Escape, false, false, false, false), "keyboard-quit");
-  keymap_.bind(KeyStroke::pack(Key::Up, true, false, true, false), "transpose-region-up");     // Ctrl+Shift+Up
-  keymap_.bind(KeyStroke::pack(Key::Down, true, false, true, false), "transpose-region-down"); // Ctrl+Shift+Down
-  keymap_.bind(KeyStroke::pack('\\', true, false, false, false), "toggle-solo");               // Ctrl-\ (was Ctrl-only inline handling)
-  keymap_.bind(KeyStroke::pack('\\', false, false, false, false), "toggle-mute");              // backslash key
+  keymap_.bind(cellui::KeymapProfile::TERMINAL, cellui::KeyStroke::pack('g', true, false, false, false), "keyboard-quit");
+  keymap_.bind(cellui::KeymapProfile::DESKTOP, cellui::KeyStroke::pack(Key::Escape, false, false, false, false), "keyboard-quit");
+  keymap_.bind(cellui::KeyStroke::pack(Key::Up, true, false, true, false), "transpose-region-up");     // Ctrl+Shift+Up
+  keymap_.bind(cellui::KeyStroke::pack(Key::Down, true, false, true, false), "transpose-region-down"); // Ctrl+Shift+Down
+  keymap_.bind(cellui::KeyStroke::pack('\\', true, false, false, false), "toggle-solo");               // Ctrl-\ (was Ctrl-only inline handling)
+  keymap_.bind(cellui::KeyStroke::pack('\\', false, false, false, false), "toggle-mute");              // backslash key
   // Ctrl+Shift+C is Capture MIDI on the desktop keymap.
-  keymap_.bind(KeymapProfile::TERMINAL, KeyStroke::pack('c', true, false, true, false), "toggle-track-collapse"); // Ctrl+Shift+C ("Collapse")
-  keymap_.bind(KeymapProfile::DESKTOP, KeyStroke::pack('r', true, false, false, false), "rename");
-  keymap_.bind(KeyStroke::pack(Key::Up, false, false, false, false), "move-row-up");        // plain Up (was inline handling)
-  keymap_.bind(KeyStroke::pack(Key::Down, false, false, false, false), "move-row-down");    // plain Down
-  keymap_.bind(KeyStroke::pack(Key::Right, true, false, true, false), "widen-cursor");      // Ctrl+Shift+Right
-  keymap_.bind(KeyStroke::pack(Key::Left, true, false, true, false), "narrow-cursor");      // Ctrl+Shift+Left
+  keymap_.bind(cellui::KeymapProfile::TERMINAL, cellui::KeyStroke::pack('c', true, false, true, false), "toggle-track-collapse"); // Ctrl+Shift+C ("Collapse")
+  keymap_.bind(cellui::KeymapProfile::DESKTOP, cellui::KeyStroke::pack('r', true, false, false, false), "rename");
+  keymap_.bind(cellui::KeyStroke::pack(Key::Up, false, false, false, false), "move-row-up");     // plain Up (was inline handling)
+  keymap_.bind(cellui::KeyStroke::pack(Key::Down, false, false, false, false), "move-row-down"); // plain Down
+  keymap_.bind(cellui::KeyStroke::pack(Key::Right, true, false, true, false), "widen-cursor");   // Ctrl+Shift+Right
+  keymap_.bind(cellui::KeyStroke::pack(Key::Left, true, false, true, false), "narrow-cursor");   // Ctrl+Shift+Left
   // Where each keymap asks for completions: Emacs's dabbrev-expand key, and the desktop's.
-  keymap_.bind(KeymapProfile::TERMINAL, KeyStroke::pack('/', false, true, false, false), "chord-palette"); // M-/
-  keymap_.bind(KeymapProfile::DESKTOP, KeyStroke::pack(' ', true, false, false, false), "chord-palette");  // Ctrl+Space
+  keymap_.bind(cellui::KeymapProfile::TERMINAL, cellui::KeyStroke::pack('/', false, true, false, false), "chord-palette"); // M-/
+  keymap_.bind(cellui::KeymapProfile::DESKTOP, cellui::KeyStroke::pack(' ', true, false, false, false), "chord-palette");  // Ctrl+Space
 
   assertCommandBindingsValid();
 }
@@ -1013,7 +1013,7 @@ PatternEditor::startLocatorEdit() {
   auto col = locator_screen_col_ >= 0 ? locator_screen_col_ : 0;
   auto width = max(cols - col, 1);
 
-  InlineEditor::Field field;
+  cellui::InlineEditor::Field field;
   field.row = row;
   field.col = col;
   field.width = width;
@@ -2242,7 +2242,7 @@ bool PatternEditor::keyDown(const cellui::KeyDown & e) {
 
   // Desktop selection: Shift+arrow sets the mark where the cursor is, then
   // moves like the plain arrow, extending the region.
-  if (keymapProfile() == KeymapProfile::DESKTOP && e.mods.shift && !e.mods.ctrl && !e.mods.alt && !e.mods.meta &&
+  if (keymapProfile() == cellui::KeymapProfile::DESKTOP && e.mods.shift && !e.mods.ctrl && !e.mods.alt && !e.mods.meta &&
       (e.key == Key::Up || e.key == Key::Down || e.key == Key::Left || e.key == Key::Right)) {
     if (!selection_active_) setMarkAtPoint();
     if (e.key == Key::Up) return commands_.execute("move-row-up");
@@ -2756,7 +2756,7 @@ void PatternEditor::updateCursorBands(const StyleProvider & styles, const std::v
   // still while the rows scroll under them.
   int visible = rows - heading_height;
   std::vector<double> shown;
-  auto strip = [&](Plane & plane, double line, double col, double cols, const Color & color, float alpha, cellui::BlendMode blend = cellui::BlendMode::NORMAL, double border_px = 0.0, double skip_col = 0.0, double skip_cols = 0.0, double lines = 1.0) {
+  auto strip = [&](cellui::Plane & plane, double line, double col, double cols, const Color & color, float alpha, cellui::BlendMode blend = cellui::BlendMode::NORMAL, double border_px = 0.0, double skip_col = 0.0, double skip_cols = 0.0, double lines = 1.0) {
     double first = heading_height + line;
     double height = std::min(lines, static_cast<double>(rows) - first);
     if (height <= 0.0 || cols <= 0.0) {
@@ -3679,8 +3679,8 @@ PatternEditor::renderRow(const StyleProvider & styles, int heading_height, const
     }
     struct ColumnPlane {
       PatternEditor & editor;
-      std::unique_ptr<Plane> * plane;
-      ColumnPlane(PatternEditor & e, std::unique_ptr<Plane> * p) : editor(e), plane(p) {
+      std::unique_ptr<cellui::Plane> * plane;
+      ColumnPlane(PatternEditor & e, std::unique_ptr<cellui::Plane> * p) : editor(e), plane(p) {
         if (plane) editor.swapPlane(*plane);
       }
       ~ColumnPlane() {
@@ -5015,7 +5015,7 @@ void PatternEditor::closeChordPalette(bool accept) {
 bool PatternEditor::chordPaletteKey(const cellui::KeyDown & e) {
   // One key each: Up and Down choose, the cursor's width keys size the chords,
   // Enter or the palette's own key accepts, keyboard-quit cancels.
-  if (auto name = keymap_.lookup(KeyStroke::pack(e.key, e.mods.ctrl, e.mods.alt, e.mods.shift, e.mods.meta), keymapProfile())) {
+  if (auto name = keymap_.lookup(cellui::KeyStroke::pack(e.key, e.mods.ctrl, e.mods.alt, e.mods.shift, e.mods.meta), keymapProfile())) {
     if (*name == "chord-palette" || *name == "widen-cursor" || *name == "narrow-cursor") return commands_.execute(*name);
     if (*name == "keyboard-quit") {
       closeChordPalette(false);

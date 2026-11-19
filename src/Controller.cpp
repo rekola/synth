@@ -545,14 +545,14 @@ void Controller::renameActiveBuffer(const string & new_name, Song::SaveMark save
   buffers_changed.emit();
 }
 
-// Keeps one CommandRegistry command per open buffer in sync with songs_'s
+// Keeps one cellui::CommandRegistry command per open buffer in sync with songs_'s
 // own keys - "switch-to-buffer:<name>", each switching straight to that
 // exact (not display-shortened) buffer. This is the one thing a shared/
 // generic command name can't parameterize: a Buffers-menu item's own
 // label is only ever a basename (TerminalMenu::rebuild()), so without a
 // real per-buffer command the menu would have no way to tell two
 // same-basename buffers apart when clicked. Removes the entries for any
-// buffer that closed/renamed since the last call (CommandRegistry::
+// buffer that closed/renamed since the last call (cellui::CommandRegistry::
 // undefine(), or a stale entry would still be both executable and
 // M-x-completable, and worse - since switchToBuffer() creates a buffer it
 // doesn't recognize rather than failing, a stale command would silently

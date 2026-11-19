@@ -28,7 +28,7 @@ headers for what moved to cellui. The UI sources are the `synth_ui` library.
   (`UI::deliver()`). The other way are plain structs on `MessageQueue<T>`:
   `PlaybackControlEvent` to audio, `AudioBlockEvent` to visualization. There
   is no `Event` base class; `InputEvent` is `cellui::Input`.
-- Info dialogs (outline details, About) are Markdown parsed by `ui/Markdown.h`
+- Info dialogs (outline details, About) are Markdown parsed by `cellui/Markdown.h`
   (headings, paragraphs, `*italic*`, `**bold**`, `\` escapes, nothing else) so
   any backend can show them; `UI::showInfoDialog(title, markdown)` is the
   hook, `InfoDialog` the cell rendering. Modal dialogs are made on the stack
@@ -60,7 +60,7 @@ pattern-editor selection/copy-paste (`set-mark`/`kill-region`/
 follows GUI conventions, not Emacs mark-and-kill, so these stay in the
 widgets' own registries (`PatternEditor`, `ClipGrid`) for good.
 
-Dispatch: `KeyStroke.h`/`Keymap.h`/`CommandRegistry.h` map key stroke →
+Dispatch: cellui's `KeyStroke.h`/`Keymap.h`/`CommandRegistry.h` map key stroke →
 command name → callable; widgets fill `keymap_`/`commands_` in their
 constructor and call `dispatchCommand()` early in their key handler, anything
 unbound falling through to manual handling. `Controller::sendCommand()` (what

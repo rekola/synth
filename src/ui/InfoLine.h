@@ -13,7 +13,7 @@ using namespace std;
 
 class InfoLine : public UIElement {
  public:
-  InfoLine(Plane & parent) : UIElement(parent) {
+  InfoLine(cellui::Plane & parent) : UIElement(parent) {
     setBgColor(getPlane().getStyles().info_line_bg_color);
     setFgColor(getPlane().getStyles().info_line_fg_color);
   }

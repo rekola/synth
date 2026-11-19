@@ -21,7 +21,7 @@ paths:
 - Output, input and one MIDI source are chosen at runtime
   (`select-playback-device`/`select-capture-device`/`select-midi-input`, the
   Devices menu; a modal `UI::showChoiceDialog()` over the toolkit-agnostic
-  `ui/ChoiceList.h` — the commands live in `UI`, a backend only supplies the
+  `cellui/ChoiceList.h` — the commands live in `UI`, a backend only supplies the
   dialog) and saved in `~/.config/synth/devices.conf`
   (`audio/DeviceSettings.h`, in `synth_engine`; machine-wide, never in a
   song). `--playback-device`/`--capture-device`/`--midi-input` override one

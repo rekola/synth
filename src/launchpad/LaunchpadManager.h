@@ -393,7 +393,7 @@ class LaunchpadManager {
   // name: Song/Track-mutating commands like "toggle-mute" are defined
   // centrally instead (see PatternEditor's commands_) and reached via
   // UI::handleLaunchpadButtonEvent's generic executeCommand() fallback
-  // once this declines the name - the same CommandRegistry lookup a
+  // once this declines the name - the same cellui::CommandRegistry lookup a
   // keybinding or M-x invocation goes through.
   bool handleCommand(std::string_view name, int device_id, int fallback_track_index, int num_tracks, Controller & controller);
 

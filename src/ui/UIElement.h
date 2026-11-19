@@ -2,12 +2,12 @@
 #define _UIELEMENT_H_
 
 #include "../playback/InputEvent.h"
-#include "Plane.h"
+#include <cellui/Plane.h>
 
 #include "../model/Color.h"
-#include "KeyStroke.h"
-#include "Keymap.h"
-#include "CommandRegistry.h"
+#include <cellui/KeyStroke.h>
+#include <cellui/Keymap.h>
+#include <cellui/CommandRegistry.h>
 
 #include "StyleProvider.h"
 #include <cellui/Widget.h>
@@ -19,7 +19,7 @@ class Controller;
 class UIElement : public cellui::Widget {
  public:
   UIElement() { }
-  explicit UIElement(Plane & parent) : cellui::Widget(parent) {}
+  explicit UIElement(cellui::Plane & parent) : cellui::Widget(parent) {}
 
   // The plane's theme with the tracker's roles; every plane of the app is made
   // with one (InteractiveUI's and HeadlessUI's styles_).

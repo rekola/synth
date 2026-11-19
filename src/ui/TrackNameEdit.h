@@ -4,7 +4,7 @@
 // pattern editor so the two look and behave alike. The header's label is the
 // track's number and its name; the field covers the name only.
 
-#include "InlineEditor.h"
+#include <cellui/InlineEditor.h>
 #include "StyleProvider.h"
 #include "../model/VisibleTrackInfo.h"
 
@@ -24,9 +24,9 @@ inline std::string label(int color_ordinal, const std::string & name, bool editi
 
 // The field over the name part of a label that starts at (row, col) and is
 // `label_cols` wide: the "T<N> " prefix stays.
-inline InlineEditor::Field field(const StyleProvider & styles, const VisibleTrackInfo & info, const std::string & name, int row, int col, int label_cols) {
+inline cellui::InlineEditor::Field field(const StyleProvider & styles, const VisibleTrackInfo & info, const std::string & name, int row, int col, int label_cols) {
   auto prefix_width = std::min(static_cast<int>(label(info.color_ordinal_, "", false).size()) + 1, label_cols);
-  InlineEditor::Field f;
+  cellui::InlineEditor::Field f;
   f.row = row;
   f.col = col + prefix_width;
   f.width = std::max(label_cols - prefix_width, 1);
