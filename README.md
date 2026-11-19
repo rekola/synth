@@ -176,7 +176,7 @@ pixels instead of braille cells, and without pixel support they fall back to
 braille. See [docs/user-interface.md](docs/user-interface.md#terminal) for terminal-specific setup.
 
 Known to work are kitty, xterm, GNOME Terminal and foot. The full table is in
-[docs/user-interface.md](docs/user-interface.md#supported-terminals).
+[cellui's README](https://github.com/rekola/cellui#supported-terminals).
 
 ## Launchpad support
 

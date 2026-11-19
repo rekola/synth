@@ -522,23 +522,10 @@ The terminal interface does everything the program does, with these limits:
 
 ### Supported terminals
 
-Known to work are kitty, xterm, GNOME Terminal and foot; the rest are untested here.
-The Graphics and Mouse columns come from testing another program (nanoclj) in
-these terminals; xterm's lack of true color applies to synth as well.
-
-| Terminal | Status | Graphics | Mouse | Notes |
-| - | - | - | - | - |
-| foot | Works | OK | OK | Wayland only |
-| kitty | Works | OK | ? | True color images |
-| wezterm | Untested | OK | OK | Buggy (as of 20230712) |
-| mlterm | Untested | OK | ? | |
-| Konsole | Untested | OK | ? | True color images, but on HiDPI system images are upscaled |
-| contour | Untested | Inline image layout doesn't work | ? | |
-| xterm | Works | True color where built with it and `directColor` is on (found by asking the terminal); else the 256-color palette | OK | Sixel support must be enabled in `.Xresources` (see [xterm](#xterm) below), and images have maximum size 1000x1000 |
-| Black Box | Untested | Inline image layout doesn't work | ? | On HiDPI system the images are upscaled, and the terminal and the flatpak system use too much CPU time when idling. |
-| Alacritty | Untested | None | ? | |
-| GNOME Terminal | Works | None | ? | Sixel support is not enabled by default |
-| mintty | Untested | ? | ? | Not tested yet. |
+Known to work are kitty, xterm, GNOME Terminal and foot. The table of terminals
+(graphics, mouse, notes) is in
+[cellui's README](https://github.com/rekola/cellui#supported-terminals); xterm's
+settings are under [xterm](#xterm) below.
 
 ### Setup
 
