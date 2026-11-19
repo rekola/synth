@@ -153,7 +153,8 @@ TEST(chords_one_note_is_completed_to_the_first_notes_of_its_first_chord) {
   CHECK(three.chords[2].name == "C narrow major");
   // A mirror seventh hangs from the played note's octave up, so its three notes at a width of
   // three are the top three: F♯↑ A♯↑ C, ending an octave above the played C.
-  CHECK(three.chords[3].notes == notes({Fsu, Asu, 53 + C}));
+  // The played note is in the first column and a mirror chord falls from it.
+  CHECK(three.chords[3].notes == notes({53 + C, Asu, Fsu}));
   CHECK(three.chords[3].name == "A♯↑ mirror seventh / C (3 notes)");
   CHECK(three.chords[4].notes == notes({C, E, F}));
   CHECK(three.chords[4].name == "F major seventh / C (3 notes)");
@@ -163,18 +164,17 @@ TEST(chords_one_note_is_completed_to_the_first_notes_of_its_first_chord) {
   CHECK(two.chords[0].notes == notes({C, E}));
   CHECK(two.chords[0].name == "C harmonic seventh (2 notes)");
   CHECK(two.chords[1].notes == notes({C, Ds}));
-  CHECK(two.chords[2].notes == notes({Asu, 53 + C})); // the mirror seventh, from its top note
+  CHECK(two.chords[2].notes == notes({53 + C, Asu})); // the mirror seventh, from its top note
 
   auto a = completeIn(Scale::OTONAL, {A}, 3);
   CHECK(a.chords[0].notes == notes({A, 53 + C, 53 + Ds}));
   CHECK(a.chords[0].name == "A septimal diminished");
-  // The minor triad hangs from its top note: A C E under an A an octave above the played one.
-  CHECK(a.chords[1].notes == notes({53 + C, 53 + E, 53 + A}));
+  // The minor triad is an upward chord: A C E from A.
+  CHECK(a.chords[1].notes == notes({A, 53 + C, 53 + E}));
   CHECK(a.chords[1].name == "A minor");
-  CHECK(a.chords[2].notes == notes({A, 53 + C, 53 + E})); // the cut of the major seventh F A C E, upward from A
 
   auto utonal = completeIn(Scale::UTONAL, {C}, 4);
-  CHECK(utonal.chords[0].notes == notes({Ebb, F, Ab, 53 + C}));
+  CHECK(utonal.chords[0].notes == notes({53 + C, Ab, F, Ebb}));
   CHECK(utonal.chords[0].name == "C mirror seventh");
   auto utonal_three = completeIn(Scale::UTONAL, {C}, 3);
   CHECK(utonal_three.chords[0].name == "F minor"); // F A♭ C, from its top note C
@@ -191,7 +191,7 @@ TEST(chords_several_given_notes_pick_the_chords_that_contain_them) {
   CHECK(c_ds.chords[1].name == "F harmonic seventh / C");
   // The mirror seventh is found from the highest given note, D♯, and hangs from it: the played
   // notes keep their octaves and nothing is added above D♯.
-  CHECK(c_ds.chords[2].notes == notes({Fsu - 53, Asu - 53, C, Ds}));
+  CHECK(c_ds.chords[2].notes == notes({Ds, C, Asu - 53, Fsu - 53}));
   CHECK(c_ds.chords[2].name == "A♯↑ mirror seventh / D♯");
 
   // A given note is never left out; the rest fill from the chord's lowest.
@@ -214,9 +214,9 @@ TEST(chords_several_given_notes_pick_the_chords_that_contain_them) {
   // A short chord is not padded.
   auto minor = completeIn(Scale::OTONAL, {A, 53 + E}, 4);
   // (The minor triad hangs from the highest played note, E, and follows the upward chord.)
-  CHECK(minor.chords[0].notes == notes({A, 53 + C, 53 + E, 53 + F}));
-  CHECK(minor.chords[1].notes == notes({A, 53 + C, 53 + E}));
-  CHECK(minor.chords[1].name == "A minor");
+  CHECK(minor.chords[0].notes == notes({A, 53 + C, 53 + E}));
+  CHECK(minor.chords[0].name == "A minor");
+  CHECK(minor.chords[1].notes == notes({A, 53 + C, 53 + E, 53 + F}));
 }
 
 TEST(chords_nothing_is_added_without_a_chord) {
@@ -289,26 +289,27 @@ TEST(chords_every_degree_has_its_five_note_chords_in_order) {
 
 TEST(chords_five_notes_are_completed_first_at_a_width_of_five) {
   auto f = completeIn(Scale::OTONAL, {F}, 5);
-  CHECK(f.chords[0].notes == notes({F, G, A, 53 + C, 53 + Ds}));
-  CHECK(f.chords[0].name == "F harmonic ninth");
-  CHECK(f.chords[1].notes == notes({F, G, A, 53 + C, 53 + E}));
-  CHECK(f.chords[1].name == "F major ninth");
-  // The four-note chords follow, as they are found at four.
+  // The run from F comes first: F A C D♯ F, the harmonic seventh with its octave.
+  CHECK(f.chords[0].notes == notes({F, A, 53 + C, 53 + Ds, 53 + F}));
+  CHECK(f.chords[0].name == "F harmonic seventh with octave");
+  CHECK(f.chords[1].notes == notes({F, G, A, 53 + C, 53 + Ds}));
+  CHECK(f.chords[1].name == "F harmonic ninth");
+  CHECK(f.chords[2].notes == notes({F, G, A, 53 + C, 53 + E}));
+  CHECK(f.chords[2].name == "F major ninth");
+  // The four-note chords follow, as they are found at four (the run of four is the first).
   auto four = completeIn(Scale::OTONAL, {F}, 4);
-  CHECK(f.chords.size() == 2 + four.chords.size());
   for (std::size_t i = 0; i < four.chords.size(); i++) {
-    CHECK(f.chords[2 + i].notes == four.chords[i].notes);
-    CHECK(f.chords[2 + i].name == four.chords[i].name);
+    CHECK(std::any_of(f.chords.begin() + 3, f.chords.end(), [&](const Completion & chord) { return chord.notes == four.chords[i].notes && chord.name == four.chords[i].name; }));
   }
 
   auto c = completeIn(Scale::OTONAL, {C}, 5);
-  // The five-note chords C names come first: its 7♯9 with fifth.
-  CHECK(c.chords[0].notes == notes({C, Ds, E, G, Asu}));
-  CHECK(c.chords[0].name == "C 7♯9 with fifth");
-  CHECK(c.chords[1].name == "C harmonic ninth");
+  // The run from C comes first, then the five-note chords C names.
+  CHECK(c.chords[0].notes == notes({C, E, G, Asu, 53 + C}));
+  CHECK(c.chords[0].name == "C harmonic seventh with octave");
+  CHECK(std::any_of(c.chords.begin(), c.chords.end(), [](const Completion & chord) { return chord.name == "C 7♯9 with fifth" && chord.notes == notes({C, Ds, E, G, Asu}); }));
 
   auto fsu = completeIn(Scale::OTONAL, {Fsu}, 5);
-  CHECK(fsu.chords[0].notes == notes({G, Asu, 53 + C, 53 + Ds, 53 + Fsu})); // a mirror chord: hung from an octave above the played F♯↑
+  CHECK(fsu.chords[0].notes == notes({53 + Fsu, 53 + Ds, 53 + C, Asu, G})); // a mirror chord: falling from an octave above the played F♯↑
   CHECK(fsu.chords[0].name == "C mirror 7♯9 with fifth / F♯↑");
 
   CHECK(completeIn(Scale::OTONAL, {C, B}, 5).chords[0].notes == notes({C, 9, E, G, B}));
@@ -331,7 +332,7 @@ TEST(chords_five_note_chords_are_not_offered_at_narrower_widths) {
     for (auto & chord : completeIn(Scale::OTONAL, {F}, size).chords) CHECK(chord.name.find("ninth") == std::string::npos);
   }
   // A width beyond the largest chord is the largest.
-  CHECK(completeIn(Scale::OTONAL, {F}, 7).chords[0].name == "F harmonic ninth");
+  CHECK(completeIn(Scale::OTONAL, {F}, 7).chords[0].name == "F harmonic ninth with octave"); // the run to 9
   // As many given notes as the width: nothing to add.
   CHECK(completeIn(Scale::OTONAL, {C, Ds, F, G, A}, 5).status == Status::NOTHING_TO_ADD);
   // Four given notes of a five-note chord are completed by it.
@@ -343,10 +344,10 @@ TEST(chords_five_note_chords_are_not_offered_at_narrower_widths) {
 TEST(chords_utonal_five_note_chords_complete_from_a_degree) {
   auto c = completeIn(Scale::UTONAL, {C}, 5);
   // The chords C names (as their top note) come first: a mirror chord hung from an octave above the played C.
-  CHECK(c.chords[0].notes == notes({Ebb, F, Ab, Bbb, 53 + C}));
-  CHECK(c.chords[0].name == "E𝄫 mirror 7♯9 with fifth / C");
-  CHECK(c.chords[1].notes == notes({Eb, F, G, Bbb, 53 + C}));
-  CHECK(c.chords[1].name == "F mirror harmonic ninth / C");
+  CHECK(c.chords[0].notes == notes({53 + C, Ab, F, Ebb, C}));
+  CHECK(c.chords[0].name == "C mirror seventh with octave");
+  CHECK(std::any_of(c.chords.begin(), c.chords.end(), [](const Completion & chord) { return chord.name == "E𝄫 mirror 7♯9 with fifth / C" && chord.notes == notes({53 + C, Bbb, Ab, F, Ebb}); }));
+  CHECK(std::any_of(c.chords.begin(), c.chords.end(), [](const Completion & chord) { return chord.name == "F mirror harmonic ninth / C" && chord.notes == notes({53 + C, Bbb, G, F, Eb}); }));
 }
 
 // A given note whose ratio the caller knows is that ratio, whatever its key holds; the
@@ -374,7 +375,7 @@ TEST(every_kind_of_chord_has_a_direction_and_the_mirror_of_an_upward_kind_is_dow
       {Kind::MAJOR_SEVENTH, Direction::UPWARD},
       {Kind::SEVEN_SHARP_NINE, Direction::UPWARD},
       {Kind::MAJOR, Direction::UPWARD},
-      {Kind::MINOR, Direction::DOWNWARD},
+      {Kind::MINOR, Direction::UPWARD},
       {Kind::HARMONIC_NINTH, Direction::UPWARD},
       {Kind::MIRROR_HARMONIC_NINTH, Direction::DOWNWARD},
       {Kind::MAJOR_NINTH, Direction::UPWARD},
@@ -397,11 +398,11 @@ std::vector<int> relative(const Completion & chord) {
 TEST(a_mirror_chord_is_written_downward_from_the_played_note) {
   // utonal C: E𝄫4 F4 A♭4 C5
   auto c = completeIn(Scale::UTONAL, {C}, 4);
-  CHECK(relative(c.chords[0]) == (std::vector<int>{Ebb, F, Ab, 53 + C}));
+  CHECK(relative(c.chords[0]) == (std::vector<int>{53 + C, Ab, F, Ebb}));
   // utonal G: B𝄫4 C5 E♭5 G5
   auto g = completeIn(Scale::UTONAL, {G}, 4);
-  CHECK(relative(g.chords[0]) == (std::vector<int>{Bbb, 53 + C, 53 + Eb, 53 + G}));
-  CHECK(c.chords[0].notes.back() == kC + 53 + C); // nothing above the top note
+  CHECK(relative(g.chords[0]) == (std::vector<int>{53 + G, 53 + Eb, 53 + C, Bbb}));
+  CHECK(c.chords[0].notes.front() == kC + 53 + C); // nothing above the top note, which is in the first column
   // otonal C: unchanged, C4 E4 G4 A♯↑4.
   CHECK(relative(completeIn(Scale::OTONAL, {C}, 4).chords[0]) == (std::vector<int>{C, E, G, Asu}));
   // An upward chord of utonal is as before: E𝄫4 G♭↓4 B𝄫4 C5 is one of E𝄫's candidates.
@@ -415,18 +416,24 @@ TEST(a_mirror_chord_is_written_downward_from_the_played_note) {
 // note and the notes just below it.
 TEST(a_mirror_chord_is_cut_to_the_width_from_the_bottom) {
   auto three = completeIn(Scale::UTONAL, {C}, 3);
-  CHECK(relative(three.chords[0]) == (std::vector<int>{F, Ab, 53 + C}));
+  CHECK(relative(three.chords[0]) == (std::vector<int>{53 + C, Ab, F}));
   auto two = completeIn(Scale::UTONAL, {C}, 2);
-  CHECK(relative(two.chords[0]) == (std::vector<int>{Ab, 53 + C}));
+  CHECK(relative(two.chords[0]) == (std::vector<int>{53 + C, Ab}));
   // An upward chord keeps the played note and the notes just above it, as before.
   CHECK(relative(completeIn(Scale::OTONAL, {C}, 3).chords[0]) == (std::vector<int>{C, E, G}));
 }
 
-// A downward chord in a note's list is read downward from the note, even where the note is not its top note.
+// A downward chord in a note's list is read downward from the note, even where the note is not its top
+// note, and the played note is in the first column.
 TEST(a_downward_chord_in_the_list_is_read_downward_from_the_note) {
-  // The minor triad A C E: under a played A, A is the top.
+  auto c = completeIn(Scale::OTONAL, {C}, 3);
+  CHECK(std::any_of(c.chords.begin(), c.chords.end(), [](const Completion & chord) {
+    return relative(chord) == (std::vector<int>{53 + C, Asu, Fsu}) && chord.name == "A♯↑ mirror seventh / C (3 notes)";
+  }));
+  // The minor triad is upward: A C E from A, and from E it is the run at a width of three.
   auto a = completeIn(Scale::OTONAL, {A}, 3);
-  CHECK(std::any_of(a.chords.begin(), a.chords.end(), [](const Completion & chord) { return relative(chord) == (std::vector<int>{53 + C, 53 + E, 53 + A}) && chord.name == "A minor"; }));
+  CHECK(std::any_of(a.chords.begin(), a.chords.end(), [](const Completion & chord) { return relative(chord) == (std::vector<int>{A, 53 + C, 53 + E}) && chord.name == "A minor"; }));
+  CHECK(relative(completeIn(Scale::OTONAL, {E}, 3).chords[0]) == (std::vector<int>{53 + E, 53 + C, A}));
 }
 
 // ---- Phase 2: several played notes, the order of the lists, the range limit ----
@@ -434,19 +441,19 @@ TEST(a_downward_chord_in_the_list_is_read_downward_from_the_note) {
 // With one played note, the chords the note names come first, in its scale: a mirror chord hangs from an
 // octave above the played note.
 TEST(a_note_gives_the_chord_it_is_heard_as) {
-  // otonal A♯↑ names the mirror seventh C D♯ F♯↑ A♯↑: C5 D♯5 F♯↑5 A♯↑5
-  CHECK(relative(completeIn(Scale::OTONAL, {Asu}, 4).chords[0]) == (std::vector<int>{53 + C, 53 + Ds, 53 + Fsu, 53 + Asu}));
-  // otonal B names D♭↓ E G B: D♭↓5 E5 G5 B5
-  CHECK(relative(completeIn(Scale::OTONAL, {B}, 4).chords[0]) == (std::vector<int>{53 + Dbv, 53 + E, 53 + G, 53 + B}));
-  // otonal D names F♭ G B♭ D: F♭4 G4 B♭4 D5
-  CHECK(relative(completeIn(Scale::OTONAL, {9}, 4).chords[0]) == (std::vector<int>{19, G, 45, 53 + 9}));
-  // otonal E names no chord: its first chord is as it was, C harmonic seventh / E
+  // otonal A♯↑ names the mirror seventh C D♯ F♯↑ A♯↑, the first column holding the top note: A♯↑5 F♯↑5 D♯5 C5
+  CHECK(relative(completeIn(Scale::OTONAL, {Asu}, 4).chords[0]) == (std::vector<int>{53 + Asu, 53 + Fsu, 53 + Ds, 53 + C}));
+  // otonal B names D♭↓ E G B: B5 G5 E5 D♭↓5
+  CHECK(relative(completeIn(Scale::OTONAL, {B}, 4).chords[0]) == (std::vector<int>{53 + B, 53 + G, 53 + E, 53 + Dbv}));
+  // otonal D names F♭ G B♭ D: D5 B♭4 G4 F♭4
+  CHECK(relative(completeIn(Scale::OTONAL, {9}, 4).chords[0]) == (std::vector<int>{53 + 9, 45, G, 19}));
+  // otonal E: its run falls E5 C5 A4 and stops, since G♭↓ is no note of otonal
   auto e = completeIn(Scale::OTONAL, {E}, 4);
-  CHECK(relative(e.chords[0]) == (std::vector<int>{E, G, Asu, 53 + C}));
-  CHECK(e.chords[0].name == "C harmonic seventh / E");
-  // diamond E names the mirror seventh G♭↓ A C E: G♭↓4 A4 C5 E5, and cut to three notes A4 C5 E5
-  CHECK(relative(completeIn(Scale::DIAMOND, {E}, 4).chords[0]) == (std::vector<int>{Gbv, A, 53 + C, 53 + E}));
-  CHECK(relative(completeIn(Scale::DIAMOND, {E}, 3).chords[0]) == (std::vector<int>{A, 53 + C, 53 + E}));
+  CHECK(relative(e.chords[0]) == (std::vector<int>{53 + E, 53 + C, A}));
+  CHECK(e.chords[0].name == "A minor");
+  // diamond E: G♭↓ A C E from the top, E5 C5 A4 G♭↓4, and cut to three notes E5 C5 A4
+  CHECK(relative(completeIn(Scale::DIAMOND, {E}, 4).chords[0]) == (std::vector<int>{53 + E, 53 + C, A, Gbv}));
+  CHECK(relative(completeIn(Scale::DIAMOND, {E}, 3).chords[0]) == (std::vector<int>{53 + E, 53 + C, A}));
 }
 
 // A note that names both an upward and a downward seventh chord gives first the kind the scale is named for.
@@ -471,11 +478,11 @@ TEST(several_played_notes_find_upward_chords_from_the_lowest_and_downward_chords
   // utonal: F and the C above it write E𝄫 F A♭ C with that C on top; F and C keep their octaves.
   auto f_c = completeIn(Scale::UTONAL, {F, 53 + C}, 4);
   CHECK(f_c.status == Status::OK);
-  CHECK(relative(f_c.chords[0]) == (std::vector<int>{Ebb, F, Ab, 53 + C}));
+  CHECK(relative(f_c.chords[0]) == (std::vector<int>{53 + C, Ab, F, Ebb}));
   CHECK(f_c.chords[0].name == "C mirror seventh");
   // Nothing is added above the highest played note.
   for (auto & chord : f_c.chords) {
-    for (auto note : chord.notes) CHECK(note <= kC + 53 + C || chord.notes.back() != kC + 53 + C);
+    for (auto note : chord.notes) CHECK(note <= kC + 53 + C || chord.notes.front() != kC + 53 + C);
   }
   // otonal: C and D♯ give upward chords from C, then the mirror seventh from D♯, in which every note but
   // the played ones is below D♯.
@@ -487,7 +494,7 @@ TEST(several_played_notes_find_upward_chords_from_the_lowest_and_downward_chords
   for (auto & chord : c_ds.chords) {
     if (chord.name == "A♯↑ mirror seventh / D♯") {
       hangs = true;
-      CHECK(relative(chord) == (std::vector<int>{Fsu - 53, Asu - 53, C, Ds})); // D♯ is the top
+      CHECK(relative(chord) == (std::vector<int>{Ds, C, Asu - 53, Fsu - 53})); // D♯ is the top, in the first column
     }
   }
   CHECK(hangs);

@@ -292,36 +292,40 @@ mirror seventh, otonal A♯↑ the mirror seventh C D♯ F♯↑ A♯↑. At fiv
 five-note chords (ninths, below) come first and these four-note chords are the
 fallback.
 
-With one note played, an upward chord is written with the played note as its
-lowest note, the others added above it within the octave. A downward chord is
-written with its top note an octave above the played note (the pitch heard in a
-mirror chord follows its lowest note, so a chord hung from the played note
-itself would sound an octave low) and the others added below that, nothing
-above; utonal C played in octave 4 gives E𝄫4 F4 A♭4 C5, diamond E gives G♭↓4 A4
-C5 E5. A downward chord in the list of a note that is not its top is read
-downward from the note all the same. With several notes played, an upward
-chord is found from the lowest and a downward one from the highest note (those
-of the direction the scale is named for first); it must contain every note
-played, which keep their octaves, and a downward one has nothing added above
-the highest note: in utonal F with the C above it gives E𝄫 F A♭ C. A downward
-chord that would need a note below the lowest the track can hold is not
-offered. The first candidate is written, and a chord of fewer notes than N is
+The played note is the chord's first column. An upward chord rises from it
+left to right, a downward one falls. With one note played, a **run** of
+consecutive ratios is the first chord: the cursor's next column gives the next
+ratio, upward played×5/4, 6/4, 7/4, 8/4, 9/4 (4:5:6:7:8:9) and downward, from the
+top note, ×4/5 ... 4/9 (1/4:1/5:1/6:1/7:1/8:1/9), at widths 3 to 6. Only notes of
+the scale are used; the run stops at the first ratio the scale lacks and the
+remaining columns are empty. A note names an upward run if the scale has 4:5:6
+from it and a downward one if it has 1/4:1/5:1/6; where it names both the longer
+one comes first, and for equal ones the kind the scale is named for (upward in
+otonal and the diamond, downward in utonal). If it names neither, its first chord
+is as before, and the other chords of its list follow the run as alternatives.
+A downward chord hangs from the note an octave above the played one (a chord's
+pitch follows its lowest note, so one hung from the played note itself would
+sound an octave low); that is its first column. The minor triad is upward
+again: A C E from A, and from E it is the downward run E C A.
+Otonal C at width 4 gives C E G A♯↑, utonal C gives C5 A♭4 F4 E𝄫4.
+
+With several notes played, an upward chord is found from the lowest and a
+downward one from the highest note (those of the direction the scale is named
+for first); it must contain every note played, which keep their octaves, and a
+downward one has nothing added above the highest note: in utonal F with the C
+above it gives C A♭ F E𝄫, falling. A downward chord that would need a note below
+the lowest the track can hold is not offered. A chord of fewer notes than N is
 written whole and not padded.
 
-A chord with more notes than N is cut from its far end: an upward chord keeps
-the played note and the notes just above it, a downward chord the top note and
-the notes just below it. Diamond E at three columns gives A4 C5 E5, utonal C
-F4 A♭4 C5.
+A chord with more notes than N is cut from its far end, keeping the first
+column and the notes after it.
 
-**Five-note chords** are offered only at a width, or a palette size, of five;
-they are not cut down for a narrower cursor. At five columns the candidates
-are the five-note chords that contain all the notes played, in list order,
-followed by the four-note candidates as they are found at four: C at five
-columns gives C D♯ E G A♯↑ ("C 7♯9 with fifth"), F gives F G A C D♯ ("F
-harmonic ninth"), C with B gives C D E G B, and D𝄫, which has no five-note
-chord, gives its four-note chord and the fifth column is emptied.
+**Larger chords.** The cursor is at most six columns wide. At five columns the
+candidates are the five-note chords containing all the notes played, as found
+at four, and at four columns the four-note chords; a note whose scale has no
+longer chord gives the shorter one and the extra columns are emptied.
 
-The chord is written in rising order from the cursor's first column, on one
+The chord is written from the cursor's first column, in the order of its columns, on one
 row, the added notes with the velocity and delay of the played ones; every
 column under the cursor is rewritten, and one the chord does not use is
 emptied. The status line shows its name: "C harmonic seventh", or "F harmonic
@@ -331,14 +335,16 @@ mirror diminished triad on the lowest take the triad's name ("C major");
 other chords written short say how many notes they have. One entry is one
 undo step.
 
-A played note is written as its key goes down but does not sound yet. The
-completion comes when no further key has been pressed for about 0.04 s, or
-when the keys are all released, whichever is first. The whole chord, the
-played notes included, then sounds together: with C held, C, E, G and the
-fourth note all start 0.04 s after the key press. After a quick tap,
-released before the 0.04 s have passed, they start at the release, and the
-chord rings on for a moment. Releasing
-the keys ends the chord there. Another key
+A played note is written and sounds as its key goes down. The completion
+comes when no further key has been pressed for about 0.04 s, or when the keys
+are all released, whichever is first. The added notes are written together
+and sound one after another from the lowest, each gap half the one before:
+with C held, E follows 0.04 s after the key press, G 0.02 s after E and the
+fourth note 0.01 s after G. Notes already sounding are not played again; a played pitch the chord does not write (a downward chord at width 3 or 4) is the arpeggio's first note and stops when it ends, and at width 6 the note below the played one sounds first. After a quick tap, released before the 0.04 s
+have passed, the time the key was down takes the place of the 0.04 s, and
+the chord rings on for a moment. The gaps are kept only as finely as the
+display draws frames, so the shortest ones can run together. Keys
+released while notes are still to come end the chord there. Another key
 pressed while keys are held works the chord out again from the held notes.
 The cursor steps on when the keys are released. On a terminal that reports
 no key releases the completion comes when the 0.04 s have passed, and the

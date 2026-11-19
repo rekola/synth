@@ -168,7 +168,7 @@ Controller-level and per-widget commands. Not migrated: `StatusLine`,
 
 ## Chord cursor and chord entry
 
-- The cursor has a width of 1 to `kMaxCursorWidth` (`chords::kMaxSize`, 5) note columns
+- The cursor has a width of 1 to `kMaxCursorWidth` (`chords::kMaxSize`, 6) note columns
   (`widen-cursor`/`narrow-cursor`), drawn across them and clipped where the
   track ends; with no mark the region is that span. The width is not the
   selection. Widening past the last note column raises the track's
@@ -199,16 +199,20 @@ Controller-level and per-widget commands. Not migrated: `StatusLine`,
   with `chords::complete()`'s first result (`model/Chords.h`: the lists, each
   kind of chord upward or downward (`directionOf()`): upward chords are built from
   their lowest note, downward ones from their top note, which for one played note
-  is an octave above it; a list starts with the chords its note names;
+  is an octave above it and is the first column, the column order falling for a
+  downward chord; the first candidates are the runs of consecutive ratios (4:5:6...
+  upward, 1/4:1/5:1/6... downward, `complete()`) the played note names, then
+  its list;
   names and completion, for the otonal, utonal and diamond scales; a seventh
   chord is named by its root, a mirror seventh's being its top note; the
   diamond's lists are the two scales' own, then the chords that take notes from
   both) when the deadline passes
   (`tickChordEntry()`, from `render()`) or the last key is released. A held
-  key's voice is a column reserved at the press (`ChordEntry::voice_of`), whatever
-  column its note is written in; nothing sounds at the press, and the whole chord,
-  the played notes on their reserved columns and the added ones on free columns
-  (`freeVoiceColumn()`), starts together with the completion. The
+  key's voice stays on the column it started on, whatever column its note is
+  written in; added notes sound on free columns (`freeVoiceColumn()`),
+  one after another, always lowest to highest (`Arpeggio`: the first with the completion, each gap
+  after it half the one before, starting from half the interval or half a
+  quick tap's length; played from `render()`, so no finer than a frame; a played pitch the chord does not write is in `release` and stops when the arpeggio ends), though they are written at once. The
   entry holds the note-held undo group open, so it is one step, and breaks
   the typing run on both sides.
 
