@@ -4710,11 +4710,12 @@ void PatternEditor::applyChordCompletion(bool released) {
     if (std::find(s.given.begin(), s.given.end(), value) == s.given.end()) arpeggio_.values.push_back(value);
   }
   std::sort(arpeggio_.values.begin(), arpeggio_.values.end());
-  // A played pitch that is not a note of the chord (a subharmonic chord hangs from the octave above
-  // it) sounds through the arpeggio as its first note and ends with it.
+  // A sounding pitch that is not written (a note in another octave is another note) stops now.
   for (auto value : s.given) {
     auto kept = s.voice_of.find(value);
-    if (std::find(chord.notes.begin(), chord.notes.end(), value) == chord.notes.end() && kept != s.voice_of.end()) arpeggio_.release.push_back(kept->second);
+    if (std::find(chord.notes.begin(), chord.notes.end(), value) == chord.notes.end() && kept != s.voice_of.end()) {
+      controller.getPlaybackEventQueue().push(make_unique<PlaybackControlEvent>(PlaybackControlEvent::STOP_NOTE, controller.getActiveBufferName(), s.track_id, kept->second));
+    }
   }
   arpeggio_.interval = kCompletionInterval;
   if (released && s.hold) {
@@ -4744,13 +4745,6 @@ void PatternEditor::playArpeggio(std::chrono::steady_clock::time_point now) {
     // Each gap is half the one before.
     arpeggio_.interval /= 2;
     arpeggio_.next += arpeggio_.interval;
-  }
-  // The played pitches that are no note of the chord end with the arpeggio.
-  if (arpeggio_.values.empty()) {
-    for (auto column : arpeggio_.release) {
-      controller.getPlaybackEventQueue().push(make_unique<PlaybackControlEvent>(PlaybackControlEvent::STOP_NOTE, controller.getActiveBufferName(), arpeggio_.track_id, column));
-    }
-    arpeggio_.release.clear();
   }
 }
 

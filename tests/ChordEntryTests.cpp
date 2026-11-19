@@ -609,17 +609,20 @@ TEST(chord_entry_at_five_columns_writes_five_note_chords) {
     CHECK(f.row(0) == (V{C, E, G, Asu, 53 + C})); // the run 4:5:6:7:8 from C
   }
   {
-    // Read from F♯↑: its only five-note chord.
+    // F♯↑ has no run: a seventh chord that contains it, with its first note repeated an octave on.
     ChordFixture f;
     f.widen(4);
     f.down('5');
     f.wait();
     f.up('5');
-    // The subharmonic run hangs from the note an octave above the played F♯↑ and falls.
-    CHECK(f.row(0) == (V{53 + 26, 53 + 12, 53, 43, 31}));
+    auto row = f.row(0);
+    CHECK(row.size() == 5);
+    CHECK(row[4] == row[0] + 53);
+    CHECK(f.shows("7♯9"));
+    CHECK(!f.shows("with octave"));
   }
   {
-    // D𝄫 has no five-note chord: four notes, and the fifth column is emptied.
+    // D𝄫 has no five-note chord: its seventh chord with the first note an octave on.
     ChordFixture f;
     f.widen(4);
     f.down('1');
@@ -629,7 +632,7 @@ TEST(chord_entry_at_five_columns_writes_five_note_chords) {
     CHECK(row.size() >= 4);
     CHECK(row[0] == 2);
     for (std::size_t i = 1; i < 4; i++) CHECK(row[i] > 2);
-    CHECK(row.size() == 4 || row[4] == -1);
+    CHECK(row.size() == 5 && row[4] == 2 + 53);
   }
   {
     // C and B together.
@@ -643,7 +646,7 @@ TEST(chord_entry_at_five_columns_writes_five_note_chords) {
     auto row = f.row(0);
     CHECK(row.size() == 5);
     CHECK(row[0] == C);
-    CHECK(f.shows("C major ninth"));
+    CHECK(f.shows("C major seventh"));
   }
   {
     // At four columns no five-note chord is offered.
@@ -869,13 +872,13 @@ TEST(a_key_writes_the_chord_its_note_names) {
     CHECK(f.row(0) == (V{101, 84, 70, 58}));
   }
   {
-    // E names the subharmonic run: E5 C5 A4, the fourth column empty.
+    // E is in no seventh chord it names: C harmonic seventh read from E, as a seventh chord at four columns.
     ChordFixture f(Scale::OTONAL);
     f.widen(3);
     f.down('e');
     f.wait();
     f.up('e');
-    CHECK(f.row(0) == (V{70, 53, 39}));
+    CHECK(f.row(0) == (V{E, G, Asu, 53 + C}));
   }
   {
     // Diamond E (the diamond layout puts 5/4 on e): its mirror seventh G♭↓ A C E.
@@ -897,54 +900,125 @@ TEST(a_key_writes_the_chord_its_note_names) {
 }
 
 namespace {
-// The events of the sound a chord entry makes: PLAY_NOTE as the note value, STOP_NOTE as -1.
-std::vector<int> soundOf(ChordFixture & f, char key, int ticks = 12) {
+struct Sound {
+  bool play;
+  int column;
+  int value; // as steps above C-4; unused for a stop
+};
+
+// The sound of pressing the keys together and holding them until the completion has come.
+std::vector<Sound> soundOf(ChordFixture & f, std::string keys) {
   startedNotes(f); // empty the queue
-  std::vector<int> out;
+  std::vector<Sound> out;
   auto drain = [&] {
     auto & queue = f.controller->getPlaybackEventQueue();
     while (queue.hasEvents()) {
       auto event = queue.pop();
       if (!event) continue;
-      if (event->getType() == PlaybackControlEvent::PLAY_NOTE) out.push_back(event->getParameter3());
-      if (event->getType() == PlaybackControlEvent::STOP_NOTE) out.push_back(-1);
+      if (event->getType() == PlaybackControlEvent::PLAY_NOTE) out.push_back({true, event->getParameter2(), event->getParameter3() - kC});
+      if (event->getType() == PlaybackControlEvent::STOP_NOTE) out.push_back({false, event->getParameter2(), 0});
     }
   };
-  auto tick = [&] {
+  for (char key : keys) f.down(key);
+  drain();
+  for (int i = 0; i < 20; i++) {
     std::this_thread::sleep_for(std::chrono::milliseconds(10));
     f.ui->step();
     drain();
-  };
-  f.down(key);
-  drain();
-  for (int i = 0; i < 14; i++) tick();
-  f.up(key);
-  drain();
-  for (int i = 0; i < ticks * 10; i++) tick();
-  drain();
+  }
   return out;
+}
+
+// The pitches still sounding after the events.
+std::vector<int> soundingAfter(const std::vector<Sound> & events) {
+  std::map<int, int> by_column;
+  for (auto & e : events) {
+    if (e.play)
+      by_column[e.column] = e.value;
+    else
+      by_column.erase(e.column);
+  }
+  std::vector<int> out;
+  for (auto & [column, value] : by_column) out.push_back(value);
+  std::sort(out.begin(), out.end());
+  return out;
+}
+
+std::vector<int> playedValues(const std::vector<Sound> & events) {
+  std::vector<int> out;
+  for (auto & e : events) {
+    if (e.play) out.push_back(e.value);
+  }
+  return out;
+}
+
+std::vector<int> sorted(std::vector<int> v) {
+  std::sort(v.begin(), v.end());
+  return v;
 }
 } // namespace
 
-// The sound of a subharmonic chord: always from the lowest to the highest, a played pitch the chord
-// does not write is released when the arpeggio ends, and one it writes is not played again.
-TEST(chord_preview_sounds_the_written_notes_from_the_lowest) {
-  const std::vector<std::pair<int, std::vector<int>>> expected = {
-      {3, {0, 10, 22, 36, 53, -1}}, // C4 is no written note: it is the first of the arpeggio and ends with it
-      {4, {0, 10, 22, 36, 53}},     // C4 is the lowest note: it keeps sounding
-      {5, {0, -9, 10, 22, 36, 53}}, // the note below C4 sounds first
-  };
-  for (auto & [widen, want] : expected) {
+// The key sounds its own pitch at once; when the completion is ready, what sounds is made to be what is
+// written, by exact pitch: a sounding note that is not written stops, a written one that is not sounding
+// follows from the lowest to the highest, one already sounding carries on.
+TEST(chord_entry_sounds_the_written_notes) {
+  {
+    // F: F4 sounds, then stops; B♭↓4, D♭↓5 and F5 follow.
     ChordFixture f(Scale::UTONAL);
-    f.widen(widen);
-    auto got = soundOf(f, 'q');
-    got.erase(std::remove(got.begin(), got.end(), -1), got.end());
-    std::vector<int> notes;
-    for (int v : got) notes.push_back(v - kC);
-    std::vector<int> wanted;
-    for (int v : want)
-      if (v != -1) wanted.push_back(v);
-    CHECK(notes == wanted);
+    f.widen(2);
+    auto events = soundOf(f, "r");
+    CHECK(events.size() >= 5);
+    CHECK(events[0].play && events[0].value == F);
+    CHECK(f.row(0) == (V{53 + F, 53 + 5, 44}));
+    CHECK(playedValues(events) == (V{F, 44, 53 + 5, 53 + F}));
+    CHECK(soundingAfter(events) == sorted(f.row(0)));
+  }
+  {
+    // C with five columns: C4 carries on as the lowest note, E𝄫4 F4 A♭4 C5 follow.
+    ChordFixture f(Scale::UTONAL);
+    f.widen(4);
+    auto events = soundOf(f, "q");
+    CHECK(playedValues(events) == (V{C, 10, 22, 36, 53}));
+    CHECK(soundingAfter(events) == (V{C, 10, 22, 36, 53}));
+    CHECK(soundingAfter(events) == sorted(f.row(0)));
+  }
+  {
+    // F4 and C5 together: both carry on, E𝄫4 and A♭4 follow.
+    ChordFixture f(Scale::UTONAL);
+    f.widen(3);
+    auto events = soundOf(f, "ri");
+    CHECK(f.row(0) == (V{53, 36, 22, 10}));
+    CHECK(playedValues(events) == (V{22, 53, 10, 36}) || playedValues(events) == (V{53, 22, 10, 36}));
+    CHECK(soundingAfter(events) == (V{10, 22, 36, 53}));
+  }
+  {
+    // Six columns: the note below the played one sounds first among those that follow.
+    ChordFixture f(Scale::UTONAL);
+    f.widen(5);
+    auto events = soundOf(f, "q");
+    CHECK(playedValues(events) == (V{C, -9, 10, 22, 36, 53}));
+    CHECK(soundingAfter(events) == sorted(f.row(0)));
+  }
+  {
+    // With a one-column cursor the note is written and sounded as played.
+    ChordFixture f(Scale::UTONAL);
+    auto events = soundOf(f, "r");
+    CHECK(f.row(0) == (V{F}));
+    CHECK(playedValues(events) == (V{F}));
+    CHECK(soundingAfter(events) == (V{F}));
+  }
+  // After any entry the notes sounding are the notes written.
+  for (auto scale : {Scale::OTONAL, Scale::UTONAL, Scale::DIAMOND}) {
+    for (int widen = 1; widen <= 5; widen++) {
+      for (char key : std::string("qwertyuiop")) {
+        ChordFixture f(scale);
+        f.widen(widen);
+        auto events = soundOf(f, std::string(1, key));
+        auto row = f.row(0);
+        row.erase(std::remove(row.begin(), row.end(), -1), row.end());
+        CHECK(soundingAfter(events) == sorted(row));
+      }
+    }
   }
 }
 
@@ -963,5 +1037,5 @@ TEST(a_chord_is_a_run_of_ratios_from_the_played_note) {
   CHECK(row(Scale::UTONAL, 2, 'q') == (V{53, 36, 22}));
   CHECK(row(Scale::UTONAL, 3, 'q') == (V{53, 36, 22, 10}));
   CHECK(row(Scale::UTONAL, 5, 'q') == (V{53, 36, 22, 10, 0, -9}));
-  CHECK(row(Scale::OTONAL, 3, 'e') == (V{70, 53, 39})); // E names the subharmonic run; the fourth column is empty
+  CHECK(row(Scale::OTONAL, 2, 'e') == (V{70, 53, 39})); // at three columns the run E C A
 }

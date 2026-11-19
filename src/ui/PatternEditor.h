@@ -469,7 +469,6 @@ private:
     int from_column = 0;
     bool audition = false;    // after the keys were released: the audition ends the notes
     std::vector<int> values;  // still to sound, rising
-    std::vector<int> release; // columns of played notes that are no note of the chord: they end with the arpeggio
     std::chrono::steady_clock::time_point next;
     std::chrono::steady_clock::duration interval{}; // the gap before the note last played
   };

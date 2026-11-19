@@ -659,6 +659,19 @@ Result complete(const ScaleChords & scale, vector<int> given, int size, const ma
     sort(placed.begin(), placed.end());
     // A triad is named on its lowest note.
     auto lowest = placed.front().second;
+    // A seventh chord at five or more columns repeats its first note an octave on: higher in an
+    // upward chord, lower in a downward one.
+    if (size >= 5 && placed.size() == 4 && entry->notes.size() == 4) {
+      auto & first = downward ? placed.back() : placed.front();
+      int value = downward ? first.first - scale.edo() : first.first + scale.edo();
+      bool taken = any_of(placed.begin(), placed.end(), [&](const pair<int, size_t> & note) { return note.first == value; });
+      if (value >= 0 && !taken) {
+        if (downward)
+          placed.insert(placed.begin(), {value, first.second});
+        else
+          placed.emplace_back(value, first.second);
+      }
+    }
     // The first column holds the played note: an upward chord rises from it, a downward one falls.
     if (downward) reverse(placed.begin(), placed.end());
     for (auto & [value, note] : placed) {
@@ -736,15 +749,14 @@ Result complete(const ScaleChords & scale, vector<int> given, int size, const ma
       order = {other, preferred};
     else
       order = {preferred, other};
-    for (auto direction : order) {
-      if ((direction == preferred ? preferred_length : other_length) < 3) continue;
+    auto emit_run = [&](Direction direction) {
       auto notes = run(direction, size);
       Completion chord;
       for (auto & [value, note] : notes) {
         chord.notes.push_back(value);
         chord.ratios.push_back(note);
       }
-      if (any_of(result.chords.begin(), result.chords.end(), [&](const Completion & c) { return c.notes == chord.notes && c.ratios == chord.ratios; })) continue;
+      if (any_of(result.chords.begin(), result.chords.end(), [&](const Completion & c) { return c.notes == chord.notes && c.ratios == chord.ratios; })) return;
       const bool up = direction == Direction::UPWARD;
       const string root = scale.noteName(*low_degree);
       const string family = up ? "harmonic" : "mirror";
@@ -763,23 +775,58 @@ Result complete(const ScaleChords & scale, vector<int> given, int size, const ma
           break;
         }
         case 4:
+        case 5:
           chord.name = root + " " + family + " seventh";
           break;
-        case 5:
-          chord.name = root + " " + family + " seventh with octave";
-          break;
         default:
-          chord.name = root + " " + family + (up ? " ninth" : " harmonic ninth") + " with octave";
+          chord.name = root + " " + family + " ninth";
           break;
       }
       result.chords.push_back(std::move(chord));
+    };
+    auto length_of = [&](Direction direction) { return direction == preferred ? preferred_length : other_length; };
+    // The width chooses the class of chord: a triad, a seventh chord (four and five columns) or a
+    // ninth chord. In each class the note's own run comes first if it reaches the class, then the
+    // first chord of the class in the note's list; a ninth class falls back to the seventh class.
+    struct Class {
+      size_t run_length;
+      int list;
+    };
+    vector<Class> classes;
+    if (size >= 6)
+      classes = {{6, 5}, {4, 4}};
+    else if (size >= 4)
+      classes = {{4, 4}};
+    else
+      classes = {{3, 0}};
+    for (auto & klass : classes) {
+      for (auto direction : order) {
+        if (length_of(direction) >= klass.run_length) emit_run(direction);
+      }
+      if (klass.list == 0) continue;
+      for (auto entry : scale.chordsOf(*low_degree, klass.list)) {
+        if (static_cast<int>(entry->notes.size()) == klass.list) {
+          add(entry);
+          break;
+        }
+      }
+    }
+    // The other runs and chords follow as alternatives.
+    for (auto direction : order) {
+      if (length_of(direction) >= 3) emit_run(direction);
     }
   }
-  // The five-note chords come first at a width of five or more, then the four-note ones.
-  if (size >= 5) {
+  // Ninth chords come first at a width of six or more, then the seventh chords; at five columns
+  // the seventh chords are first and the ninth chords follow.
+  if (size >= 6) {
     for (auto entry : candidates(5)) add(entry);
+    for (auto entry : candidates(4)) add(entry);
+  } else {
+    for (auto entry : candidates(4)) add(entry);
+    if (size >= 5) {
+      for (auto entry : candidates(5)) add(entry);
+    }
   }
-  for (auto entry : candidates(4)) add(entry);
   if (!result.chords.empty()) result.status = Status::OK;
   return result;
 }

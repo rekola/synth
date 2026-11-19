@@ -200,9 +200,11 @@ Controller-level and per-widget commands. Not migrated: `StatusLine`,
   kind of chord upward or downward (`directionOf()`): upward chords are built from
   their lowest note, downward ones from their top note, which for one played note
   is an octave above it and is the first column, the column order falling for a
-  downward chord; the first candidates are the runs of consecutive ratios (4:5:6...
-  upward, 1/4:1/5:1/6... downward, `complete()`) the played note names, then
-  its list;
+  downward chord; the first candidate is chosen by the width's class (triad, seventh
+  chord at 4 and 5, ninth at 6; `complete()`): the note's own run of consecutive
+  ratios (4:5:6... upward, 1/4:1/5:1/6... downward) if it reaches the class, else
+  the first chord of the class in its list, else the class below; a four-note
+  chord at five columns repeats its first note an octave on;
   names and completion, for the otonal, utonal and diamond scales; a seventh
   chord is named by its root, a mirror seventh's being its top note; the
   diamond's lists are the two scales' own, then the chords that take notes from
@@ -212,7 +214,7 @@ Controller-level and per-widget commands. Not migrated: `StatusLine`,
   written in; added notes sound on free columns (`freeVoiceColumn()`),
   one after another, always lowest to highest (`Arpeggio`: the first with the completion, each gap
   after it half the one before, starting from half the interval or half a
-  quick tap's length; played from `render()`, so no finer than a frame; a played pitch the chord does not write is in `release` and stops when the arpeggio ends), though they are written at once. The
+  quick tap's length; played from `render()`, so no finer than a frame; a played pitch the chord does not write stops when the completion is applied), though they are written at once. The
   entry holds the note-held undo group open, so it is one step, and breaks
   the typing run on both sides.
 

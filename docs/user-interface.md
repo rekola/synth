@@ -293,21 +293,38 @@ five-note chords (ninths, below) come first and these four-note chords are the
 fallback.
 
 The played note is the chord's first column. An upward chord rises from it
-left to right, a downward one falls. With one note played, a **run** of
-consecutive ratios is the first chord: the cursor's next column gives the next
-ratio, upward played×5/4, 6/4, 7/4, 8/4, 9/4 (4:5:6:7:8:9) and downward, from the
-top note, ×4/5 ... 4/9 (1/4:1/5:1/6:1/7:1/8:1/9), at widths 3 to 6. Only notes of
-the scale are used; the run stops at the first ratio the scale lacks and the
-remaining columns are empty. A note names an upward run if the scale has 4:5:6
-from it and a downward one if it has 1/4:1/5:1/6; where it names both the longer
-one comes first, and for equal ones the kind the scale is named for (upward in
-otonal and the diamond, downward in utonal). If it names neither, its first chord
-is as before, and the other chords of its list follow the run as alternatives.
-A downward chord hangs from the note an octave above the played one (a chord's
+left to right, a downward one falls. With one note played, the cursor's width
+chooses the class of chord: three columns a triad, four and five a seventh
+chord, six a ninth chord. The first candidate is, in this order:
+
+1. The note's own **run** of consecutive ratios, if it reaches the class (to 7
+   for a seventh chord, to 9 for a ninth). Upward the run is the played note
+   ×5/4, 6/4, 7/4, 8/4, 9/4 (4:5:6:7:8:9), downward from the top note
+   ×4/5 ... 4/9 (1/4:1/5:1/6:1/7:1/8:1/9); only notes of the scale are used and
+   a run stops at the first ratio the scale lacks. A note names an upward run if
+   the scale has 4:5:6 from it, and a downward one if it has 1/4:1/5:1/6; where
+   it names both the longer one comes first, and for equal ones the kind the
+   scale is named for (upward in otonal and the diamond, downward in utonal).
+2. Otherwise the first chord of the class in the note's list, that is a chord
+   the note belongs to without naming it, read from the note in the chord's
+   direction.
+3. Otherwise the class below: at six columns a seventh chord, the sixth column
+   empty.
+
+So every key gives a seventh chord at four and five columns; at three a note's
+own triad comes first. The other chords of the list follow in the palette. A
+downward chord hangs from the note an octave above the played one (a chord's
 pitch follows its lowest note, so one hung from the played note itself would
 sound an octave low); that is its first column. The minor triad is upward
-again: A C E from A, and from E it is the downward run E C A.
-Otonal C at width 4 gives C E G A♯↑, utonal C gives C5 A♭4 F4 E𝄫4.
+again: A C E from A, and from E it is the downward run E C A. Otonal C at
+width 4 gives C E G A♯↑, utonal C gives C5 A♭4 F4 E𝄫4.
+
+A seventh chord at five columns repeats its first note an octave on: higher in
+an upward chord, lower in a downward one (for a run this is its 8 or 1/8; for
+a chord read from another of its notes it is the played note's octave). At five
+columns the five-note ninth chords (4:5:6:7:9 and the like) are not first; they
+follow the seventh chords. A chord's name does not depend on its voicing: a run
+to 7 or 8 is a seventh, to 9 a ninth ("C mirror seventh", "C mirror ninth").
 
 With several notes played, an upward chord is found from the lowest and a
 downward one from the highest note (those of the direction the scale is named
@@ -320,10 +337,8 @@ written whole and not padded.
 A chord with more notes than N is cut from its far end, keeping the first
 column and the notes after it.
 
-**Larger chords.** The cursor is at most six columns wide. At five columns the
-candidates are the five-note chords containing all the notes played, as found
-at four, and at four columns the four-note chords; a note whose scale has no
-longer chord gives the shorter one and the extra columns are emptied.
+**Larger chords.** The cursor is at most six columns wide. A note whose
+scale has no longer chord gives the shorter one and the extra columns are emptied.
 
 The chord is written from the cursor's first column, in the order of its columns, on one
 row, the added notes with the velocity and delay of the played ones; every
@@ -340,7 +355,7 @@ comes when no further key has been pressed for about 0.04 s, or when the keys
 are all released, whichever is first. The added notes are written together
 and sound one after another from the lowest, each gap half the one before:
 with C held, E follows 0.04 s after the key press, G 0.02 s after E and the
-fourth note 0.01 s after G. Notes already sounding are not played again; a played pitch the chord does not write (a downward chord at width 3 or 4) is the arpeggio's first note and stops when it ends, and at width 6 the note below the played one sounds first. After a quick tap, released before the 0.04 s
+fourth note 0.01 s after G. A key sounds its own pitch at once; when the completion is ready, what sounds is compared with what is written, by exact pitch (a note in another octave is another note): a sounding note that is not written stops at that moment, a written one that is not sounding follows in the arpeggio, and one already sounding carries on. So the top note of a hanging chord is always played, even though the key sounded it an octave lower, and at width 6 the note below the played one comes first. After a quick tap, released before the 0.04 s
 have passed, the time the key was down takes the place of the 0.04 s, and
 the chord rings on for a moment. The gaps are kept only as finely as the
 display draws frames, so the shortest ones can run together. Keys
