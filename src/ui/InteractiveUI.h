@@ -29,9 +29,9 @@ namespace cellui {
 class Backend;
 }
 
-#include "UIMenu.h"
-#include "LineChart.h"
-#include "HeatmapChart.h"
+#include <cellui/UIMenu.h>
+#include <cellui/LineChart.h>
+#include <cellui/HeatmapChart.h>
 #include "ChannelMeter.h"
 class InfoLine;
 class TransportButton;
@@ -40,7 +40,7 @@ class PatternEditor;
 class ArrangementGrid;
 class ClipGrid;
 class OutlineView;
-#include "SpinBox.h"
+#include <cellui/SpinBox.h>
 
 class InteractiveUI : public UI {
  public:
@@ -145,10 +145,10 @@ class InteractiveUI : public UI {
   bool redraw_requested_ = false;
   cellui::BufferPlane & root_plane_;
 
-  std::shared_ptr<UIMenu> menu_;
-  std::shared_ptr<LineChart> chart_;
+  std::shared_ptr<cellui::UIMenu> menu_;
+  std::shared_ptr<cellui::LineChart> chart_;
   std::shared_ptr<ChannelMeter> volume_meter_;
-  std::shared_ptr<HeatmapChart> heatmap_;
+  std::shared_ptr<cellui::HeatmapChart> heatmap_;
   // The scopes in the versions this terminal shows.
   const cellui::Charts & charts_;
   std::shared_ptr<StatusLine> status_line_;
@@ -252,7 +252,7 @@ class InteractiveUI : public UI {
   // The global octave stepper - see SpinBox.h and Controller::
   // getGlobalOctave(). Lives inline in the info bar's own row (see
   // layout()), always-on and click-activatable like pattern_editor_.
-  std::shared_ptr<SpinBox> octave_control_;
+  std::shared_ptr<cellui::SpinBox> octave_control_;
   // Finds the widget under the pointer from the last frame's hit areas.
   cellui::InputDispatcher & dispatcher_;
   std::weak_ptr<cellui::Widget> active_element_;

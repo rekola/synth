@@ -13,7 +13,7 @@
 #include "../playback/PlaybackControlEvent.h"
 #include "../util/constants.h"
 #include "../util/Utf8.h"
-#include "Markdown.h"
+#include <cellui/Markdown.h>
 #include "StyleProvider.h"
 
 #include <algorithm>
@@ -277,9 +277,9 @@ OutlineView::infoMarkdown(const outline_row_s & row) const {
   case OutlineRowKind::SECTION:
     return "";
   }
-  string text = "# " + markdown::escape(title) + "\n";
-  if (!hint.empty()) text += "\n*" + markdown::escape(hint) + "*\n";
-  if (!description.empty()) text += "\n" + markdown::escape(description) + "\n";
+  string text = "# " + cellui::markdown::escape(title) + "\n";
+  if (!hint.empty()) text += "\n*" + cellui::markdown::escape(hint) + "*\n";
+  if (!description.empty()) text += "\n" + cellui::markdown::escape(description) + "\n";
   return text;
 }
 
@@ -432,7 +432,7 @@ OutlineView::renderRow(const StyleProvider & styles, int display_row, bool curso
   drawRow(styles, *tree_plane_, display_row, static_cast<size_t>(display_row + current_first_row_), cursor, focused);
 }
 
-void OutlineView::drawRow(const StyleProvider & styles, Plane & plane, int display_row, size_t data_row, bool cursor,
+void OutlineView::drawRow(const StyleProvider & styles, cellui::Plane & plane, int display_row, size_t data_row, bool cursor,
                           bool focused) {
   auto tree_width = getDim().second + (viewport_.cols.smooth() ? 1 : 0);
   auto fg = [&](const Color & c) { plane.setFgColor(c); };
@@ -733,7 +733,7 @@ OutlineView::runDetailsAction(DetailsAction action) {
 }
 
 bool OutlineView::handleClick(int screen_y, int screen_x, bool release) {
-  // Resolved on release only, matching SpinBox's own click convention.
+  // Resolved on release only, matching cellui::SpinBox's own click convention.
   // A press - and each drag while held, which arrives as another press -
   // shows what is under the mouse as pressed, and holds off placing a
   // cursor on focus, which the release does instead.

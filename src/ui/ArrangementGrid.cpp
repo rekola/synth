@@ -10,7 +10,7 @@
 #include "../model/Clip.h"
 #include "../model/ArrangementOps.h"
 #include "../model/SongStructure.h"
-#include "KeyStroke.h"
+#include <cellui/KeyStroke.h>
 
 #include <algorithm>
 #include <cellui/Utf8.h>
@@ -40,7 +40,7 @@ ArrangementGrid::moveCursorBar(int delta) {
   cursor_bar_ = clamp(cursor_bar_ + delta, 0, Song::kMaxArrangementRows - 1);
 }
 
-ArrangementGrid::ArrangementGrid(Plane & parent) : UIElement(parent) {
+ArrangementGrid::ArrangementGrid(cellui::Plane & parent) : UIElement(parent) {
   getPlane().setName("arrangement-grid");
   getPlane().setMouseCursor(cellui::MouseCursor::POINTER);
   // Deliberate no-ops, not left undefined: a Launchpad's CC91/92 ("move-
@@ -678,7 +678,7 @@ ArrangementGrid::render(const StyleProvider & styles, bool refresh, bool focused
   current_shown_ = shown_;
   current_drag_version_ = drag_version_;
 
-  Plane & bars_plane = *bars_plane_;
+  cellui::Plane & bars_plane = *bars_plane_;
   setFgColor(styles.window_fg_color);
   setBgColor(styles.window_bg_color);
   erase();

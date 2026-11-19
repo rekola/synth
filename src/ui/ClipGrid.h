@@ -2,7 +2,7 @@
 #define _CLIPGRID_H_
 
 #include "UIElement.h"
-#include "InlineEditor.h"
+#include <cellui/InlineEditor.h>
 #include "ClipLamp.h"
 #include "LevelMeter.h"
 #include "TrackDrag.h"
@@ -80,7 +80,7 @@ class ClipGrid : public UIElement {
     if (body_plane_) body_plane_->setVisible(shown);
     if (header_plane_) header_plane_->setVisible(shown);
   }
-  ClipGrid(Plane & parent);
+  ClipGrid(cellui::Plane & parent);
 
   bool render(const StyleProvider & styles, bool refresh, bool focused);
 
@@ -295,7 +295,7 @@ class ClipGrid : public UIElement {
   int rowAtCell(int cell) const { return row_axis_.smooth() ? row_axis_.indexAt(cell) : scroll_row_ + cell; }
 
   // Clip and track rename share one editor; only one can be open at a time.
-  InlineEditor inline_editor_{getPlane()};
+  cellui::InlineEditor inline_editor_{getPlane()};
   // The track whose name the editor is open on: its header shows the number alone, so the
   // proportional label is not squeezed (and ellipsized) into what the field leaves.
   std::optional<int> renaming_track_id_;

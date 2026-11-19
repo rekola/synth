@@ -15,7 +15,7 @@
 #include "PatternSource.h"
 #include "ChordGrouper.h"
 #include "ScenePatternSource.h"
-#include "InlineEditor.h"
+#include <cellui/InlineEditor.h>
 #include "LevelMeter.h"
 #include "../model/Chords.h"
 #include "../model/Version.h"
@@ -45,7 +45,7 @@ class Controller;
 
 class PatternEditor : public UIElement {
  public:
-  PatternEditor(Plane & parent);
+  PatternEditor(cellui::Plane & parent);
 
   // `focused` (whether this widget is UI::active_element_ - it has no way
   // to know that itself) picks the region's highlight: bright while
@@ -198,7 +198,7 @@ protected:
   // its own for the rows, so the rows can move without the headings. While
   // render() draws, the drawing helpers are on the rows' plane (see
   // renderHeading(), which goes back to the widget's own).
-  std::unique_ptr<Plane> rows_plane_;
+  std::unique_ptr<cellui::Plane> rows_plane_;
   bool drawing_rows_ = false;
   int rows_plane_rows_ = -1, rows_plane_cols_ = -1;
   // Where the display scrolls smoothly, the rows show a view that follows the
@@ -222,7 +222,7 @@ protected:
     double band_phase = 0.0;
   };
   std::unordered_map<int, ColumnScroll> column_scroll_;
-  std::vector<std::unique_ptr<Plane>> column_planes_;
+  std::vector<std::unique_ptr<cellui::Plane>> column_planes_;
   bool columns_shifted_ = false;
   // Whether the columns draw on their planes (Live View, smooth scrolling); else all on the rows' plane.
   bool columns_planes_in_use_ = false;
@@ -241,7 +241,7 @@ protected:
   // effect command) bordered on cursor_border_plane_ (tinted where bands cannot be
   // a border), and the field under it: cursor_plane_ inverts what is under it, the
   // plane above gives the result the highlight's hue.
-  std::unique_ptr<Plane> cursor_border_plane_, cursor_plane_, cursor_hue_plane_;
+  std::unique_ptr<cellui::Plane> cursor_border_plane_, cursor_plane_, cursor_hue_plane_;
   // The cursor's note column (with its velocity and delay) on the screen, -1 if not drawn.
   int cursor_x0_ = -1, cursor_x1_ = -1;
   // The field the cursor is on (note, velocity, delay, local fx or command).
@@ -511,7 +511,7 @@ private:
   static constexpr int kPaletteColumns = kMaxCursorWidth;
   int palette_size_ = 4; // the size last used with a cursor of one column
   bool palette_drawn_ = false;
-  std::unique_ptr<Plane> palette_plane_;
+  std::unique_ptr<cellui::Plane> palette_plane_;
   // Moves the open palette's selection on (1) or back (-1); opens a closed one, `direction` lines from the chord in the pattern.
   void stepChordPalette(int direction);
   void fillChordPalette();
@@ -611,7 +611,7 @@ private:
   int track_name_screen_col_ = -1, track_name_screen_width_ = -1;
 
   // Shared by the locator and track-name editors; only one is ever open.
-  InlineEditor inline_editor_{getPlane()};
+  cellui::InlineEditor inline_editor_{getPlane()};
   // The track whose name the editor is open on (its heading shows the number alone).
   std::optional<int> renaming_track_id_;
 

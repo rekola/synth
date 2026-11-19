@@ -3,9 +3,9 @@
 #include "../playback/InputEvent.h"
 #include "../Controller.h"
 #include "PerformanceProfile.h"
-#include "UIMenu.h"
+#include <cellui/UIMenu.h>
 #include "CommandDescriptions.h"
-#include "HeatmapChart.h"
+#include <cellui/HeatmapChart.h>
 #include "InfoLine.h"
 #include "TransportButton.h"
 #include "StatusLine.h"
@@ -14,9 +14,9 @@
 #include "ClipGrid.h"
 #include "ChannelMeter.h"
 #include "SpectrumCurve.h"
-#include "LineChart.h"
+#include <cellui/LineChart.h>
 #include "OutlineView.h"
-#include "SpinBox.h"
+#include <cellui/SpinBox.h>
 #include "../dsp/DiracAnalyzer.h"
 #include "../audio/AudioAPI.h"
 #include "../launchpad/LaunchpadIO.h"
@@ -31,7 +31,7 @@
 #include <charconv>
 #include "../util/constants.h"
 #include "../model/Color.h"
-#include "KeyStroke.h"
+#include <cellui/KeyStroke.h>
 #include "../playback/Player.h"
 #include "../playback/PlaybackEvent.h"
 #include "../playback/LogEvent.h"
@@ -301,27 +301,27 @@ static vector<MenuSectionSpec> menuSpec(vector<MenuItemSpec> buffer_items) {
 // The menu bar: menuSpec()'s sections on a MenuBar in a plane of its own
 // over the whole screen. A menu item has only display text, so this maps an
 // activated item to its command.
-class TerminalMenu : public UIMenu {
-public:
- TerminalMenu(Plane & parent, vector<string> buffer_names, vector<string> buffer_display_names, string active_buffer_name)
-     : parent_(parent), plane_(parent.createChild()), bar_(*plane_), buffer_names_(std::move(buffer_names)), buffer_display_names_(std::move(buffer_display_names)), active_buffer_name_(std::move(active_buffer_name)) {
-   // The plane spans the tallest section; below the bar and an open
-   // section the screen shows through.
-   plane_->makeTransparent();
-   rebuild();
- }
+class TerminalMenu : public cellui::UIMenu {
+ public:
+  TerminalMenu(cellui::Plane & parent, vector<string> buffer_names, vector<string> buffer_display_names, string active_buffer_name)
+      : parent_(parent), plane_(parent.createChild()), bar_(*plane_), buffer_names_(std::move(buffer_names)), buffer_display_names_(std::move(buffer_display_names)), active_buffer_name_(std::move(active_buffer_name)) {
+    // The plane spans the tallest section; below the bar and an open
+    // section the screen shows through.
+    plane_->makeTransparent();
+    rebuild();
+  }
 
- void applyStyles(const cellui::StyleProvider & styles) override {
-   cellui::MenuBar::Colors colors;
-   colors.header_fg = styles.menu_fg_color;
-   colors.header_bg = styles.menu_bg_color;
-   colors.section_fg = styles.menu_section_fg_color;
-   colors.section_bg = styles.menu_section_bg_color;
-   colors.selected_fg = styles.highlight_fg_color;
-   colors.selected_bg = styles.highlight_bg_color;
-   bar_.setColors(colors);
-   bar_.draw();
- }
+  void applyStyles(const cellui::StyleProvider & styles) override {
+    cellui::MenuBar::Colors colors;
+    colors.header_fg = styles.menu_fg_color;
+    colors.header_bg = styles.menu_bg_color;
+    colors.section_fg = styles.menu_section_fg_color;
+    colors.section_bg = styles.menu_section_bg_color;
+    colors.selected_fg = styles.highlight_fg_color;
+    colors.selected_bg = styles.highlight_bg_color;
+    bar_.setColors(colors);
+    bar_.draw();
+  }
 
   void refreshBuffers(const vector<string> & buffer_names, const vector<string> & buffer_display_names,
 		       const string & active_buffer_name) override {
@@ -418,8 +418,8 @@ private:
     bar_.layout(cols_);
   }
 
-  Plane & parent_;
-  unique_ptr<Plane> plane_;
+  cellui::Plane & parent_;
+  unique_ptr<cellui::Plane> plane_;
   cellui::MenuBar bar_;
   int cols_ = 0;
   vector<string> buffer_names_;
@@ -715,10 +715,7 @@ InteractiveUI::initializeWidgets() {
   });
   // The info bar's own colors - this widget sits inline in that bar (see
   // layout()), and must blend into it.
-  octave_control_ = make_shared<SpinBox>(getPlane(), "Octave:", constants::MIN_OCTAVE, constants::MAX_OCTAVE,
-    [this] { return getController().getGlobalOctave(); },
-    [this](int v) { getController().setGlobalOctave(v); },
-    styles_.info_line_bg_color, styles_.info_line_fg_color);
+  octave_control_ = make_shared<cellui::SpinBox>(getPlane(), "Octave:", constants::MIN_OCTAVE, constants::MAX_OCTAVE, [this] { return getController().getGlobalOctave(); }, [this](int v) { getController().setGlobalOctave(v); }, styles_.info_line_bg_color, styles_.info_line_fg_color);
 
   // Children of this root, so the dispatcher's hit test finds them and
   // events posted to the root reach them.
@@ -1078,84 +1075,84 @@ InteractiveUI::initializeWidgets() {
   // under the name this codebase's M-x already used - see
   // Controller::sendCommand()) rather than
   // one-off single-key shortcuts or made-up names - see
-  // Keymap::bindPrefixed()/UIElement::dispatchCommand() for the two-key
+  // cellui::Keymap::bindPrefixed()/UIElement::dispatchCommand() for the two-key
   // prefix-sequence machinery this needs. No Ctrl-N/"New" binding any
   // more - see select-named-buffer's own comment above for why there's no
   // separate "New" command left to bind.
-  auto ctrl_x = KeyStroke::pack('x', true, false, false, false);
-  keymap_.bindPrefixed(KeymapProfile::TERMINAL, ctrl_x, KeyStroke::pack('c', true, false, false, false), "save-buffers-kill-terminal");
-  keymap_.bindPrefixed(KeymapProfile::TERMINAL, ctrl_x, KeyStroke::pack('s', true, false, false, false), "save-buffer");
-  keymap_.bindPrefixed(KeymapProfile::TERMINAL, ctrl_x, KeyStroke::pack('f', true, false, false, false), "find-file");
-  keymap_.bindPrefixed(KeymapProfile::TERMINAL, ctrl_x, KeyStroke::pack('w', true, false, false, false), "save-buffer-as");
-  keymap_.bindPrefixed(KeymapProfile::TERMINAL, ctrl_x, KeyStroke::pack('x', true, false, false, false), "exchange-point-and-mark");
-  keymap_.bindPrefixed(KeymapProfile::TERMINAL, ctrl_x, KeyStroke::pack('h', false, false, false, false), "mark-whole-buffer");
+  auto ctrl_x = cellui::KeyStroke::pack('x', true, false, false, false);
+  keymap_.bindPrefixed(cellui::KeymapProfile::TERMINAL, ctrl_x, cellui::KeyStroke::pack('c', true, false, false, false), "save-buffers-kill-terminal");
+  keymap_.bindPrefixed(cellui::KeymapProfile::TERMINAL, ctrl_x, cellui::KeyStroke::pack('s', true, false, false, false), "save-buffer");
+  keymap_.bindPrefixed(cellui::KeymapProfile::TERMINAL, ctrl_x, cellui::KeyStroke::pack('f', true, false, false, false), "find-file");
+  keymap_.bindPrefixed(cellui::KeymapProfile::TERMINAL, ctrl_x, cellui::KeyStroke::pack('w', true, false, false, false), "save-buffer-as");
+  keymap_.bindPrefixed(cellui::KeymapProfile::TERMINAL, ctrl_x, cellui::KeyStroke::pack('x', true, false, false, false), "exchange-point-and-mark");
+  keymap_.bindPrefixed(cellui::KeymapProfile::TERMINAL, ctrl_x, cellui::KeyStroke::pack('h', false, false, false, false), "mark-whole-buffer");
   // The buffer commands' own real Emacs bindings, unlike every C-x C-<letter>
   // above, hold Ctrl for the C-x prefix only, not the second key: kill-buffer
   // is C-x k (plain k), next-buffer/previous-buffer are C-x <right>/C-x
   // <left>, and select-named-buffer (switch-to-buffer) is C-x b.
-  keymap_.bindPrefixed(KeymapProfile::TERMINAL, ctrl_x, KeyStroke::pack('k', false, false, false, false), "kill-buffer");
-  keymap_.bindPrefixed(KeymapProfile::TERMINAL, ctrl_x, KeyStroke::pack(Key::Right, false, false, false, false), "next-buffer");
-  keymap_.bindPrefixed(KeymapProfile::TERMINAL, ctrl_x, KeyStroke::pack(Key::Left, false, false, false, false), "previous-buffer");
-  keymap_.bindPrefixed(KeymapProfile::TERMINAL, ctrl_x, KeyStroke::pack('b', false, false, false, false), "select-named-buffer");
-  keymap_.bindPrefixed(KeymapProfile::TERMINAL, ctrl_x, KeyStroke::pack('o', false, false, false, false), "other-window");
-  keymap_.bindPrefixed(KeymapProfile::TERMINAL, ctrl_x, KeyStroke::pack('m', false, false, false, false), "merge-clip-to-background");
-  keymap_.bindPrefixed(KeymapProfile::TERMINAL, ctrl_x, KeyStroke::pack('r', false, false, false, false), "toggle-record-arm");
+  keymap_.bindPrefixed(cellui::KeymapProfile::TERMINAL, ctrl_x, cellui::KeyStroke::pack('k', false, false, false, false), "kill-buffer");
+  keymap_.bindPrefixed(cellui::KeymapProfile::TERMINAL, ctrl_x, cellui::KeyStroke::pack(Key::Right, false, false, false, false), "next-buffer");
+  keymap_.bindPrefixed(cellui::KeymapProfile::TERMINAL, ctrl_x, cellui::KeyStroke::pack(Key::Left, false, false, false, false), "previous-buffer");
+  keymap_.bindPrefixed(cellui::KeymapProfile::TERMINAL, ctrl_x, cellui::KeyStroke::pack('b', false, false, false, false), "select-named-buffer");
+  keymap_.bindPrefixed(cellui::KeymapProfile::TERMINAL, ctrl_x, cellui::KeyStroke::pack('o', false, false, false, false), "other-window");
+  keymap_.bindPrefixed(cellui::KeymapProfile::TERMINAL, ctrl_x, cellui::KeyStroke::pack('m', false, false, false, false), "merge-clip-to-background");
+  keymap_.bindPrefixed(cellui::KeymapProfile::TERMINAL, ctrl_x, cellui::KeyStroke::pack('r', false, false, false, false), "toggle-record-arm");
   // Emacs's own undo bindings: C-x u, plus C-_ and C-/ (a terminal sends the
   // same byte for both). undo-redo (Emacs 28) is on C-M-_.
-  keymap_.bindPrefixed(KeymapProfile::TERMINAL, ctrl_x, KeyStroke::pack('u', false, false, false, false), "undo");
-  keymap_.bind(KeymapProfile::TERMINAL, KeyStroke::pack('_', true, false, false, false), "undo");
-  keymap_.bind(KeymapProfile::TERMINAL, KeyStroke::pack('/', true, false, false, false), "undo");
-  keymap_.bind(KeymapProfile::TERMINAL, KeyStroke::pack('_', true, true, false, false), "undo-redo");
+  keymap_.bindPrefixed(cellui::KeymapProfile::TERMINAL, ctrl_x, cellui::KeyStroke::pack('u', false, false, false, false), "undo");
+  keymap_.bind(cellui::KeymapProfile::TERMINAL, cellui::KeyStroke::pack('_', true, false, false, false), "undo");
+  keymap_.bind(cellui::KeymapProfile::TERMINAL, cellui::KeyStroke::pack('/', true, false, false, false), "undo");
+  keymap_.bind(cellui::KeymapProfile::TERMINAL, cellui::KeyStroke::pack('_', true, true, false, false), "undo-redo");
   // What terminals actually send for them: the single control byte 0x1f
   // (older builds reported it as key 31, no modifiers; with Alt in front for
   // the redo; the parser now decodes it as Ctrl+_), and in the Kitty protocol Ctrl+Shift+- for C-_.
-  keymap_.bind(KeymapProfile::TERMINAL, KeyStroke::pack(31, false, false, false, false), "undo");
-  keymap_.bind(KeymapProfile::TERMINAL, KeyStroke::pack(31, false, true, false, false), "undo-redo");
-  keymap_.bind(KeymapProfile::TERMINAL, KeyStroke::pack('-', true, false, true, false), "undo");
-  keymap_.bind(KeymapProfile::TERMINAL, KeyStroke::pack('-', true, true, true, false), "undo-redo");
+  keymap_.bind(cellui::KeymapProfile::TERMINAL, cellui::KeyStroke::pack(31, false, false, false, false), "undo");
+  keymap_.bind(cellui::KeymapProfile::TERMINAL, cellui::KeyStroke::pack(31, false, true, false, false), "undo-redo");
+  keymap_.bind(cellui::KeymapProfile::TERMINAL, cellui::KeyStroke::pack('-', true, false, true, false), "undo");
+  keymap_.bind(cellui::KeymapProfile::TERMINAL, cellui::KeyStroke::pack('-', true, true, true, false), "undo-redo");
   // The desktop ones.
   // File commands, with the C-x prefix Emacs-only (Ctrl+X is cut here).
-  keymap_.bind(KeymapProfile::DESKTOP, KeyStroke::pack('s', true, false, false, false), "save-buffer");
-  keymap_.bind(KeymapProfile::DESKTOP, KeyStroke::pack('s', true, false, true, false), "save-buffer-as");
-  keymap_.bind(KeymapProfile::DESKTOP, KeyStroke::pack('o', true, false, false, false), "find-file");
-  keymap_.bind(KeymapProfile::DESKTOP, KeyStroke::pack('q', true, false, false, false), "save-buffers-kill-terminal");
-  keymap_.bind(KeymapProfile::DESKTOP, KeyStroke::pack('z', true, false, false, false), "undo");
-  keymap_.bind(KeymapProfile::DESKTOP, KeyStroke::pack('z', true, false, true, false), "undo-redo");
-  keymap_.bind(KeymapProfile::DESKTOP, KeyStroke::pack('y', true, false, false, false), "undo-redo");
-  keymap_.bind(KeyStroke::pack(' ', false, false, false, false), "toggle-playing");
-  keymap_.bind(KeyStroke::pack('[', false, false, false, false), "octave-down");
-  keymap_.bind(KeyStroke::pack(']', false, false, false, false), "octave-up");
-  keymap_.bind(KeyStroke::pack('\t', false, false, false, false), "toggle-view");
+  keymap_.bind(cellui::KeymapProfile::DESKTOP, cellui::KeyStroke::pack('s', true, false, false, false), "save-buffer");
+  keymap_.bind(cellui::KeymapProfile::DESKTOP, cellui::KeyStroke::pack('s', true, false, true, false), "save-buffer-as");
+  keymap_.bind(cellui::KeymapProfile::DESKTOP, cellui::KeyStroke::pack('o', true, false, false, false), "find-file");
+  keymap_.bind(cellui::KeymapProfile::DESKTOP, cellui::KeyStroke::pack('q', true, false, false, false), "save-buffers-kill-terminal");
+  keymap_.bind(cellui::KeymapProfile::DESKTOP, cellui::KeyStroke::pack('z', true, false, false, false), "undo");
+  keymap_.bind(cellui::KeymapProfile::DESKTOP, cellui::KeyStroke::pack('z', true, false, true, false), "undo-redo");
+  keymap_.bind(cellui::KeymapProfile::DESKTOP, cellui::KeyStroke::pack('y', true, false, false, false), "undo-redo");
+  keymap_.bind(cellui::KeyStroke::pack(' ', false, false, false, false), "toggle-playing");
+  keymap_.bind(cellui::KeyStroke::pack('[', false, false, false, false), "octave-down");
+  keymap_.bind(cellui::KeyStroke::pack(']', false, false, false, false), "octave-up");
+  keymap_.bind(cellui::KeyStroke::pack('\t', false, false, false, false), "toggle-view");
   // Track creation works from every widget, the same as its Track menu
   // entries. The desktop shortcuts are the usual DAW ones (an audio track is a
   // sample track, a MIDI track an instrument track; Ctrl+Shift+D "Drum" has
   // no such counterpart). The terminal keymap uses the same letters after C-c,
   // the shortcut Emacs leaves to the application; Shift is the capital letter.
-  auto ctrl_c = KeyStroke::pack('c', true, false, false, false);
-  keymap_.bind(KeymapProfile::DESKTOP, KeyStroke::pack('t', true, false, false, false), "add-sample-track");
-  keymap_.bind(KeymapProfile::DESKTOP, KeyStroke::pack('t', true, false, true, false), "add-instrument-track");
-  keymap_.bind(KeymapProfile::DESKTOP, KeyStroke::pack('g', true, false, false, false), "add-group-track");
-  keymap_.bind(KeymapProfile::DESKTOP, KeyStroke::pack('d', true, false, true, false), "add-percussion-track");
-  keymap_.bindPrefixed(KeymapProfile::TERMINAL, ctrl_c, KeyStroke::pack('r', false, false, false, false), "rename");
-  keymap_.bindPrefixed(KeymapProfile::TERMINAL, ctrl_c, KeyStroke::pack('t', false, false, false, false), "add-sample-track");
-  keymap_.bindPrefixed(KeymapProfile::TERMINAL, ctrl_c, KeyStroke::pack('T', false, false, false, false), "add-instrument-track");
-  keymap_.bindPrefixed(KeymapProfile::TERMINAL, ctrl_c, KeyStroke::pack('T', false, false, true, false), "add-instrument-track");
-  keymap_.bindPrefixed(KeymapProfile::TERMINAL, ctrl_c, KeyStroke::pack('g', false, false, false, false), "add-group-track");
-  keymap_.bindPrefixed(KeymapProfile::TERMINAL, ctrl_c, KeyStroke::pack('d', false, false, false, false), "add-percussion-track");
+  auto ctrl_c = cellui::KeyStroke::pack('c', true, false, false, false);
+  keymap_.bind(cellui::KeymapProfile::DESKTOP, cellui::KeyStroke::pack('t', true, false, false, false), "add-sample-track");
+  keymap_.bind(cellui::KeymapProfile::DESKTOP, cellui::KeyStroke::pack('t', true, false, true, false), "add-instrument-track");
+  keymap_.bind(cellui::KeymapProfile::DESKTOP, cellui::KeyStroke::pack('g', true, false, false, false), "add-group-track");
+  keymap_.bind(cellui::KeymapProfile::DESKTOP, cellui::KeyStroke::pack('d', true, false, true, false), "add-percussion-track");
+  keymap_.bindPrefixed(cellui::KeymapProfile::TERMINAL, ctrl_c, cellui::KeyStroke::pack('r', false, false, false, false), "rename");
+  keymap_.bindPrefixed(cellui::KeymapProfile::TERMINAL, ctrl_c, cellui::KeyStroke::pack('t', false, false, false, false), "add-sample-track");
+  keymap_.bindPrefixed(cellui::KeymapProfile::TERMINAL, ctrl_c, cellui::KeyStroke::pack('T', false, false, false, false), "add-instrument-track");
+  keymap_.bindPrefixed(cellui::KeymapProfile::TERMINAL, ctrl_c, cellui::KeyStroke::pack('T', false, false, true, false), "add-instrument-track");
+  keymap_.bindPrefixed(cellui::KeymapProfile::TERMINAL, ctrl_c, cellui::KeyStroke::pack('g', false, false, false, false), "add-group-track");
+  keymap_.bindPrefixed(cellui::KeymapProfile::TERMINAL, ctrl_c, cellui::KeyStroke::pack('d', false, false, false, false), "add-percussion-track");
   // The Ableton shortcuts (docs/user-interface.md): function keys on both keymaps,
   // the rest on the desktop one only, where the terminal keymap has no obvious
   // counterpart. Duplicate and Capture MIDI are reserved, not built yet.
-  keymap_.bind(KeyStroke::pack(Key::F9, false, false, false, false), "toggle-record-arm");
-  keymap_.bind(KeyStroke::pack(Key::F10, false, false, false, false), "back-to-arrangement");
-  keymap_.bind(KeymapProfile::DESKTOP, KeyStroke::pack('a', true, false, false, false), "mark-whole-buffer");
-  keymap_.bind(KeymapProfile::DESKTOP, KeyStroke::pack('d', true, false, false, false), "duplicate");
-  keymap_.bind(KeymapProfile::DESKTOP, KeyStroke::pack('i', true, false, false, false), "insert-scene");
+  keymap_.bind(cellui::KeyStroke::pack(Key::F9, false, false, false, false), "toggle-record-arm");
+  keymap_.bind(cellui::KeyStroke::pack(Key::F10, false, false, false, false), "back-to-arrangement");
+  keymap_.bind(cellui::KeymapProfile::DESKTOP, cellui::KeyStroke::pack('a', true, false, false, false), "mark-whole-buffer");
+  keymap_.bind(cellui::KeymapProfile::DESKTOP, cellui::KeyStroke::pack('d', true, false, false, false), "duplicate");
+  keymap_.bind(cellui::KeymapProfile::DESKTOP, cellui::KeyStroke::pack('i', true, false, false, false), "insert-scene");
   // The clip grid binds the same shortcut to quantize-clip; everywhere else it
   // quantizes the region.
-  keymap_.bind(KeymapProfile::DESKTOP, KeyStroke::pack('u', true, false, false, false), "quantize-region");
-  keymap_.bind(KeymapProfile::DESKTOP, KeyStroke::pack('c', true, false, true, false), "capture-midi");
-  keymap_.bind(KeymapProfile::DESKTOP, KeyStroke::pack(Key::Up, true, false, false, false), "double-clip-length");
-  keymap_.bind(KeymapProfile::DESKTOP, KeyStroke::pack(Key::Down, true, false, false, false), "halve-clip-length");
+  keymap_.bind(cellui::KeymapProfile::DESKTOP, cellui::KeyStroke::pack('u', true, false, false, false), "quantize-region");
+  keymap_.bind(cellui::KeymapProfile::DESKTOP, cellui::KeyStroke::pack('c', true, false, true, false), "capture-midi");
+  keymap_.bind(cellui::KeymapProfile::DESKTOP, cellui::KeyStroke::pack(Key::Up, true, false, false, false), "double-clip-length");
+  keymap_.bind(cellui::KeymapProfile::DESKTOP, cellui::KeyStroke::pack(Key::Down, true, false, false, false), "halve-clip-length");
 
   assertCommandBindingsValid();
 

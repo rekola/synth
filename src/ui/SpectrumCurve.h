@@ -4,7 +4,7 @@
 #include <cmath>
 #include <vector>
 
-// The live spectrum as a curve for a LineChart: log-frequency from kMinHz up
+// The live spectrum as a curve for a cellui::LineChart: log-frequency from kMinHz up
 // to Nyquist, `points` values 0..1, kRangeDb of level below 0 dBFS at the top.
 namespace spectrum_curve {
 
