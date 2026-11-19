@@ -219,23 +219,24 @@ constexpr array kUtonalNinths = {
 struct Form {
   Kind kind;
   vector<Ratio> above;
+  Direction direction; // built from its lowest note, or from its top note
 };
 
 const vector<Form> & forms() {
   static const vector<Form> table = {
-      {Kind::HARMONIC_SEVENTH, {Ratio{5, 4}, Ratio{3, 2}, Ratio{7, 4}}}, // 4:5:6:7
-      {Kind::MIRROR_SEVENTH, {Ratio{7, 6}, Ratio{7, 5}, Ratio{7, 4}}},   // 1/7:1/6:1/5:1/4
-      {Kind::MAJOR_SEVENTH, {Ratio{5, 4}, Ratio{3, 2}, Ratio{15, 8}}},   // 8:10:12:15
-      {Kind::SEVEN_SHARP_NINE, {Ratio{7, 6}, Ratio{5, 4}, Ratio{7, 4}}}, // 12:14:15:21
-      {Kind::MAJOR, {Ratio{5, 4}, Ratio{3, 2}}},
-      {Kind::MINOR, {Ratio{6, 5}, Ratio{3, 2}}},
+      {Kind::HARMONIC_SEVENTH, {Ratio{5, 4}, Ratio{3, 2}, Ratio{7, 4}}, Direction::UPWARD}, // 4:5:6:7
+      {Kind::MIRROR_SEVENTH, {Ratio{7, 6}, Ratio{7, 5}, Ratio{7, 4}}, Direction::DOWNWARD}, // 1/7:1/6:1/5:1/4
+      {Kind::MAJOR_SEVENTH, {Ratio{5, 4}, Ratio{3, 2}, Ratio{15, 8}}, Direction::UPWARD},   // 8:10:12:15
+      {Kind::SEVEN_SHARP_NINE, {Ratio{7, 6}, Ratio{5, 4}, Ratio{7, 4}}, Direction::UPWARD}, // 12:14:15:21
+      {Kind::MAJOR, {Ratio{5, 4}, Ratio{3, 2}}, Direction::UPWARD},
+      {Kind::MINOR, {Ratio{6, 5}, Ratio{3, 2}}, Direction::DOWNWARD},
       // The ninth reduced into the octave, so 9/4 is 9/8 and sorts first.
-      {Kind::HARMONIC_NINTH, {Ratio{9, 8}, Ratio{5, 4}, Ratio{3, 2}, Ratio{7, 4}}},                // 4:5:6:7:9
-      {Kind::MIRROR_HARMONIC_NINTH, {Ratio{9, 8}, Ratio{9, 7}, Ratio{3, 2}, Ratio{9, 5}}},         // 1/9:1/7:1/6:1/5:1/4
-      {Kind::MAJOR_NINTH, {Ratio{9, 8}, Ratio{5, 4}, Ratio{3, 2}, Ratio{15, 8}}},                  // 8:10:12:15:18
-      {Kind::MIRROR_MAJOR_NINTH, {Ratio{9, 8}, Ratio{6, 5}, Ratio{3, 2}, Ratio{9, 5}}},            // 1/18:1/15:1/12:1/10:1/8
-      {Kind::SEVEN_SHARP_NINE_FIFTH, {Ratio{7, 6}, Ratio{5, 4}, Ratio{3, 2}, Ratio{7, 4}}},        // 12:14:15:18:21
-      {Kind::MIRROR_SEVEN_SHARP_NINE_FIFTH, {Ratio{7, 6}, Ratio{7, 5}, Ratio{3, 2}, Ratio{7, 4}}}, // 1/21:1/18:1/15:1/14:1/12
+      {Kind::HARMONIC_NINTH, {Ratio{9, 8}, Ratio{5, 4}, Ratio{3, 2}, Ratio{7, 4}}, Direction::UPWARD},                  // 4:5:6:7:9
+      {Kind::MIRROR_HARMONIC_NINTH, {Ratio{9, 8}, Ratio{9, 7}, Ratio{3, 2}, Ratio{9, 5}}, Direction::DOWNWARD},         // 1/9:1/7:1/6:1/5:1/4
+      {Kind::MAJOR_NINTH, {Ratio{9, 8}, Ratio{5, 4}, Ratio{3, 2}, Ratio{15, 8}}, Direction::UPWARD},                    // 8:10:12:15:18
+      {Kind::MIRROR_MAJOR_NINTH, {Ratio{9, 8}, Ratio{6, 5}, Ratio{3, 2}, Ratio{9, 5}}, Direction::DOWNWARD},            // 1/18:1/15:1/12:1/10:1/8
+      {Kind::SEVEN_SHARP_NINE_FIFTH, {Ratio{7, 6}, Ratio{5, 4}, Ratio{3, 2}, Ratio{7, 4}}, Direction::UPWARD},          // 12:14:15:18:21
+      {Kind::MIRROR_SEVEN_SHARP_NINE_FIFTH, {Ratio{7, 6}, Ratio{7, 5}, Ratio{3, 2}, Ratio{7, 4}}, Direction::DOWNWARD}, // 1/21:1/18:1/15:1/14:1/12
   };
   return table;
 }
@@ -442,6 +443,13 @@ const ChordTable & tableFor(Scale scale, int size) {
 
 } // namespace
 
+Direction directionOf(Kind kind) {
+  for (auto & form : forms()) {
+    if (form.kind == kind) return form.direction;
+  }
+  return Direction::UPWARD;
+}
+
 const vector<Entry> & degreeChords(Scale scale, size_t gamut_index, int size) {
   static const vector<Entry> none;
   auto & table = tableFor(scale, size);
@@ -554,12 +562,34 @@ Result complete(const ScaleChords & scale, vector<int> given, int size, const ma
     vector<pair<int, size_t>> placed; // value and ratio
     for (auto value : given) placed.emplace_back(value, *ratio_of(value));
     auto written = given_notes;
-    for (auto note : entry->notes) {
-      if (static_cast<int>(placed.size()) >= size) break;
-      if (find(written.begin(), written.end(), note) != written.end()) continue;
-      int above = (((scale.stepOf(note) - scale.stepOf(*degree)) % scale.edo()) + scale.edo()) % scale.edo();
-      placed.emplace_back(given[0] + above, note);
-      written.push_back(note);
+    if (given.size() == 1 && directionOf(entry->kind) == Direction::DOWNWARD) {
+      // A downward chord hangs from the played note's octave up: the pitch heard in a
+      // mirror chord follows its lowest note, so the chord's top note is an octave above
+      // the played one and the others are added below it, the nearest first, so a chord
+      // cut to the width keeps the notes just below the top.
+      int top = given[0] + scale.edo();
+      placed.clear();
+      placed.emplace_back(top, *degree);
+      vector<pair<int, size_t>> below; // steps below the top note, note
+      for (auto note : entry->notes) {
+        if (note == *degree) continue;
+        int steps = (((scale.stepOf(*degree) - scale.stepOf(note)) % scale.edo()) + scale.edo()) % scale.edo();
+        below.emplace_back(steps, note);
+      }
+      sort(below.begin(), below.end());
+      for (auto & [steps, note] : below) {
+        if (static_cast<int>(placed.size()) >= size) break;
+        placed.emplace_back(top - steps, note);
+        written.push_back(note);
+      }
+    } else {
+      for (auto note : entry->notes) {
+        if (static_cast<int>(placed.size()) >= size) break;
+        if (find(written.begin(), written.end(), note) != written.end()) continue;
+        int above = (((scale.stepOf(note) - scale.stepOf(*degree)) % scale.edo()) + scale.edo()) % scale.edo();
+        placed.emplace_back(given[0] + above, note);
+        written.push_back(note);
+      }
     }
     sort(placed.begin(), placed.end());
     for (auto & [value, note] : placed) {
@@ -571,13 +601,15 @@ Result complete(const ScaleChords & scale, vector<int> given, int size, const ma
 
     chord.name = scale.chordName(*entry);
     if (written.size() < entry->notes.size()) {
+      // A triad is named on its lowest note.
+      auto lowest = placed.front().second;
       optional<string> triad;
       if (written.size() == 3) {
-        auto above = aboveRoot(written, *degree);
+        auto above = aboveRoot(written, lowest);
         triad = triadName(above[0], above[1]);
       }
       if (triad)
-        chord.name = scale.noteName(*degree) + " " + *triad;
+        chord.name = scale.noteName(lowest) + " " + *triad;
       else
         chord.name += " (" + to_string(chord.notes.size()) + " notes)";
     }

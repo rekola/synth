@@ -30,6 +30,16 @@ enum class Kind { HARMONIC_SEVENTH,
                   SEVEN_SHARP_NINE_FIFTH,
                   MIRROR_SEVEN_SHARP_NINE_FIFTH };
 
+// Which note a chord is built from. An upward chord (its proportion in whole
+// numbers, 4:5:6:7) has its notes above its lowest note; a downward chord (the
+// mirror of an upward one, 1/7:1/6:1/5:1/4) has them below its top note.
+enum class Direction { UPWARD,
+                       DOWNWARD };
+
+// The direction of a kind of chord: the mirror of an upward kind is downward, so
+// the minor triad (A C E hangs from E) is.
+Direction directionOf(Kind kind);
+
 // The most notes a chord has.
 constexpr int kMaxSize = 5;
 
@@ -106,7 +116,8 @@ struct Result {
 };
 
 // Completes the given notes (note values, in any order) to chords of `size`
-// notes. The lowest given note is the degree; every chord of its list that
+// notes. A downward chord is written with a single given note as its top note an
+// octave above it, the others added below that (the nearest first when cut to `size`). The lowest given note is the degree; every chord of its list that
 // contains the others, octaves ignored, gives one result: the given notes at
 // their own octaves, and the chord's other notes, from its lowest upward,
 // within the octave above the lowest given note, until there are `size`

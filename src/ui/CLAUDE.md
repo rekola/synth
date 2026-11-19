@@ -202,11 +202,10 @@ Controller-level and per-widget commands. Not migrated: `StatusLine`,
   diamond's lists are the two scales' own, then the chords that take notes from
   both) when the deadline passes
   (`tickChordEntry()`, from `render()`) or the last key is released. A held
-  key's voice stays on the column it started on, whatever column its note is
-  written in; added notes sound on free columns (`freeVoiceColumn()`),
-  one after another (`Arpeggio`: the first with the completion, each gap
-  after it half the one before, starting from half the interval or half a
-  quick tap's length; played from `render()`, so no finer than a frame), though they are written at once. The
+  key's voice is a column reserved at the press (`ChordEntry::voice_of`), whatever
+  column its note is written in; nothing sounds at the press, and the whole chord,
+  the played notes on their reserved columns and the added ones on free columns
+  (`freeVoiceColumn()`), starts together with the completion. The
   entry holds the note-held undo group open, so it is one step, and breaks
   the typing run on both sides.
 
