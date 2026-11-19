@@ -196,7 +196,10 @@ Controller-level and per-widget commands. Not migrated: `StatusLine`,
   path: a `ChordEntry` collects the keys of one entry (held together, or
   within `kCompletionInterval` where no release is reported), writes each
   as it is pressed, and `applyChordCompletion()` rewrites the cursor's columns
-  with `chords::complete()`'s first result (`model/Chords.h`: the lists,
+  with `chords::complete()`'s first result (`model/Chords.h`: the lists, each
+  kind of chord upward or downward (`directionOf()`): upward chords are built from
+  their lowest note, downward ones from their top note, which for one played note
+  is an octave above it; a list starts with the chords its note names;
   names and completion, for the otonal, utonal and diamond scales; a seventh
   chord is named by its root, a mirror seventh's being its top note; the
   diamond's lists are the two scales' own, then the chords that take notes from

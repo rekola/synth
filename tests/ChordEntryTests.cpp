@@ -106,7 +106,7 @@ TEST(chord_cursor_leaves_the_columns_in_use_when_it_leaves_the_track) {
   f.wait();
   f.up('q');
   f.up('w');
-  CHECK(f.row(0) == (V{C, Ds, F, A}));
+  CHECK(f.row(0) == (V{C, Ds, E, Asu}));
   f.widen(0);
   f.controller->ensureNoteColumns(f.track_id, 6);
   f.press(cellui::Key::Right, kModCtrl);
@@ -158,10 +158,10 @@ TEST(chord_entry_completes_several_keys_from_the_chords_that_contain_them) {
     f.down('w');
     CHECK(f.row(0) == (V{C, Ds})); // no other chord on the way
     f.wait();
-    CHECK(f.row(0) == (V{C, Ds, F, A}));
+    CHECK(f.row(0) == (V{C, Ds, E, Asu}));
     f.up('w');
     f.up('q');
-    CHECK(f.row(0) == (V{C, Ds, F, A}));
+    CHECK(f.row(0) == (V{C, Ds, E, Asu}));
   }
   {
     ChordFixture f;
@@ -192,7 +192,7 @@ TEST(chord_entry_works_the_chord_out_again_when_a_key_joins_the_held_ones) {
   f.down('w');
   CHECK(f.row(0) == (V{C, Ds})); // what the first completion added is gone
   f.wait();
-  CHECK(f.row(0) == (V{C, Ds, F, A}));
+  CHECK(f.row(0) == (V{C, Ds, E, Asu}));
   f.up('q');
   f.up('w');
   f.execute("undo");
@@ -268,13 +268,13 @@ TEST(chord_entry_without_key_releases_completes_when_the_interval_closes) {
   f.type("w");
   CHECK(f.row(0) == (V{C, Ds}));
   f.wait();
-  CHECK(f.row(0) == (V{C, Ds, F, A}));
+  CHECK(f.row(0) == (V{C, Ds, E, Asu}));
   f.type("q");
   f.wait();
   CHECK(f.row(1) == (V{C, E, G, Asu}));
   f.execute("undo");
   CHECK(f.row(1).empty());
-  CHECK(f.row(0) == (V{C, Ds, F, A}));
+  CHECK(f.row(0) == (V{C, Ds, E, Asu}));
 }
 
 TEST(saving_removes_the_empty_note_columns_from_the_file_only) {
@@ -301,6 +301,9 @@ TEST(chord_palette_steps_through_the_chords_of_the_entry_just_made) {
   f.meta('/');
   CHECK(f.shows("Chord: 3 notes"));
   CHECK(f.row(0) == (V{C, E, G}));
+  // The chords C names come first: its 7♯9, cut to three notes.
+  f.press(cellui::Key::Down);
+  CHECK(f.row(0) == (V{C, Ds, E}));
   f.press(cellui::Key::Down);
   CHECK(f.row(0) == (V{C, Ds, F}));
   CHECK(f.shows("C narrow major"));
@@ -310,16 +313,14 @@ TEST(chord_palette_steps_through_the_chords_of_the_entry_just_made) {
   CHECK(f.shows("A♯↑ mirror seventh / C (3 notes)"));
   f.press(cellui::Key::Down);
   CHECK(f.row(0) == (V{C, E, F}));
-  f.press(cellui::Key::Down);
-  CHECK(f.row(0) == (V{C, Ds, E}));
   // Round to the first, with no chord twice.
   f.press(cellui::Key::Down);
   CHECK(f.row(0) == (V{C, E, G}));
   f.press(cellui::Key::Up);
-  CHECK(f.row(0) == (V{C, Ds, E}));
+  CHECK(f.row(0) == (V{C, E, F}));
   f.press(cellui::Key::Enter);
   CHECK(!f.shows("Chord: 3 notes"));
-  CHECK(f.row(0) == (V{C, Ds, E}));
+  CHECK(f.row(0) == (V{C, E, F}));
   // The whole session is one undo step, the entry another.
   f.execute("undo");
   CHECK(f.row(0) == (V{C, E, G}));
@@ -338,12 +339,13 @@ TEST(chord_palette_completes_notes_played_with_a_cursor_of_one_column) {
   // with no chord there yet the first is written.
   f.meta('/');
   CHECK(f.shows("Chord: 4 notes"));
-  CHECK(f.row(0) == (V{C, Ds, F, A}));
-  CHECK(f.shows("C D♯ F♯↑ A♯↑") && f.shows("C D♯ E A♯↑"));
-  f.press(cellui::Key::Down);
-  CHECK(f.row(0) == (V{C, Ds, Fsu, Asu}));
-  f.press(cellui::Key::Down);
   CHECK(f.row(0) == (V{C, Ds, E, Asu}));
+  CHECK(f.shows("C D♯ F A") && f.shows("C D♯ E A♯↑"));
+  f.press(cellui::Key::Down);
+  CHECK(f.row(0) == (V{C, Ds, F, A}));
+  f.press(cellui::Key::Down);
+  // The mirror seventh is found from the highest played note, D♯, and hangs from it.
+  CHECK(f.row(0) == (V{Fsu - 53, Asu - 53, C, Ds}));
   // Cancelling puts back what was there.
   f.ctrl('g');
   CHECK(f.row(0) == (V{C, Ds}));
@@ -404,10 +406,10 @@ TEST(chord_palette_opens_on_a_chord_entered_earlier) {
   f.meta('/');
   CHECK(f.row(0) == (V{C, E, G}));
   f.press(cellui::Key::Up);
+  CHECK(f.row(0) == (V{C, E, F}));
+  f.press(cellui::Key::Down);
+  f.press(cellui::Key::Down);
   CHECK(f.row(0) == (V{C, Ds, E}));
-  f.press(cellui::Key::Down);
-  f.press(cellui::Key::Down);
-  CHECK(f.row(0) == (V{C, Ds, F}));
   f.ctrl('g');
   CHECK(f.row(0) == (V{C, E, G}));
   CHECK(f.row(1) == (V{F, A, 53 + C}));
@@ -453,11 +455,11 @@ TEST(chord_palette_is_accepted_by_the_next_note) {
   f.up('q');
   f.meta('/');
   f.press(cellui::Key::Up);
-  CHECK(f.row(0) == (V{C, Ds, E}));
+  CHECK(f.row(0) == (V{C, E, F}));
   f.down('r');
   f.up('r');
   CHECK(!f.shows("Chord: 3 notes"));
-  CHECK(f.row(0) == (V{C, Ds, E}));
+  CHECK(f.row(0) == (V{C, E, F}));
   CHECK(f.row(1) == (V{F, A, 53 + C}));
   f.meta('/');
   CHECK(f.shows("Chord: 3 notes"));
@@ -478,7 +480,7 @@ TEST(chord_palette_on_the_desktop_keymap) {
   f.press(' ', kModCtrl);
   CHECK(f.shows("Chord: 3 notes"));
   f.press(cellui::Key::Down);
-  CHECK(f.row(0) == (V{C, Ds, F}));
+  CHECK(f.row(0) == (V{C, Ds, E}));
   f.press(cellui::Key::Escape);
   CHECK(!f.shows("Chord: 3 notes"));
   CHECK(f.row(0) == (V{C, E, G}));
@@ -602,8 +604,8 @@ TEST(chord_entry_at_five_columns_writes_five_note_chords) {
     f.down('q');
     f.wait();
     f.up('q');
-    CHECK(f.row(0) == (V{C, Ds, F, G, A}));
-    CHECK(f.shows("F harmonic ninth / C"));
+    CHECK(f.row(0) == (V{C, Ds, E, G, Asu}));
+    CHECK(f.shows("C 7♯9 with fifth")); // the chords C names come first
   }
   {
     // Read from F♯↑: its only five-note chord.
@@ -729,9 +731,9 @@ TEST(chord_entry_in_a_diamond_song_uses_the_diamond_keys) {
   f.down('7'); // A♭
   f.wait();
   f.up('7');
-  // The utonal mirror seventh E𝄫 F A♭ C first, hanging from an octave above the played A♭ (C5 E𝄫5 F5 A♭5); the
-  // keys are the diamond's, so every note is one of the 13.
-  CHECK(f.row(0) == (V{53, 53 + 10, 53 + 22, 53 + 36}));
+  // The harmonic seventh A♭ names comes first, A♭ C E♭ F♯↑ (it takes notes from both scales); the keys
+  // are the diamond's, so every note is one of the 13.
+  CHECK(f.row(0) == (V{36, 53, 53 + 14, 53 + 26}));
   // A key of no diamond note writes nothing.
   ChordFixture g(Scale::DIAMOND);
   g.down('4');
@@ -839,4 +841,79 @@ TEST(a_tapped_chord_entry_starts_its_notes_at_the_release) {
   auto started = startedNotes(f);
   std::sort(started.begin(), started.end());
   CHECK(started == (std::vector<int>{kC + C, kC + E, kC + G, kC + Asu}));
+}
+
+// Phase 2: a line of single notes in utonal follows the melody by the top notes of its chords.
+TEST(a_line_of_single_notes_in_utonal_gives_chords_whose_top_notes_are_the_notes) {
+  ChordFixture f(Scale::UTONAL);
+  f.widen(3);
+  for (char key : std::string("qut")) { // C, B𝄫, G
+    f.down(key);
+    f.wait();
+    f.up(key);
+  }
+  auto top = [&](int row) { return f.row(row).back() % 53; };
+  CHECK(f.row(0).size() == 4 && f.row(1).size() == 4 && f.row(2).size() == 4);
+  CHECK(top(0) == 0);  // C
+  CHECK(top(1) == 41); // B𝄫
+  CHECK(top(2) == 31); // G
+}
+
+// F and the C above it together write E𝄫 F A♭ C with that C on top, keeping their octaves.
+TEST(two_played_notes_complete_a_mirror_chord_from_the_highest) {
+  ChordFixture f(Scale::UTONAL);
+  f.widen(3);
+  f.down('r'); // F
+  f.down('i'); // C an octave up
+  f.wait();
+  f.up('r');
+  f.up('i');
+  CHECK(f.row(0) == (V{10, 22, 36, 53}));
+  CHECK(f.shows("C mirror seventh"));
+}
+
+// The chord the key's note is heard as, with a four-column cursor: the keys of otonal and diamond.
+TEST(a_key_writes_the_chord_its_note_names) {
+  {
+    ChordFixture f(Scale::OTONAL);
+    f.widen(3);
+    f.down('u'); // A♯↑
+    f.wait();
+    f.up('u');
+    CHECK(f.row(0) == (V{53 + C, 53 + Ds, 53 + Fsu, 53 + Asu}));
+  }
+  {
+    ChordFixture f(Scale::OTONAL);
+    f.widen(3);
+    f.down('k'); // B
+    f.wait();
+    f.up('k');
+    CHECK(f.row(0) == (V{53 + 5, 53 + E, 53 + G, 53 + 48}));
+  }
+  {
+    // E names no chord in otonal: its first chord as before.
+    ChordFixture f(Scale::OTONAL);
+    f.widen(3);
+    f.down('e');
+    f.wait();
+    f.up('e');
+    CHECK(f.row(0) == (V{E, G, Asu, 53 + C}));
+  }
+  {
+    // Diamond E (the diamond layout puts 5/4 on e): its mirror seventh G♭↓ A C E.
+    ChordFixture f(Scale::DIAMOND);
+    f.widen(3);
+    f.down('e');
+    f.wait();
+    f.up('e');
+    CHECK(f.row(0) == (V{27, 39, 53, 53 + 17}));
+  }
+  {
+    ChordFixture f(Scale::DIAMOND);
+    f.widen(2);
+    f.down('e');
+    f.wait();
+    f.up('e');
+    CHECK(f.row(0) == (V{39, 53, 53 + 17}));
+  }
 }

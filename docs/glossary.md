@@ -30,6 +30,16 @@ and fifth, like C E G). Not to be confused with a keyboard
 *shortcut* (a key with its modifiers, `KeyStroke` in the code) or a *key
 sequence* (several shortcuts in a row, such as `C-x C-s`).
 
+**Upward and downward chord**
+The two directions of a chord in chord entry. An upward chord (harmonic seventh,
+major seventh, 7♯9, major triad and the ninths built on them; whole-number
+proportion, 4:5:6:7) is built from its lowest note, whose overtones the others
+are. A downward chord (mirror seventh, minor triad and the mirrors of the
+others; fractions, 1/7:1/6:1/5:1/4) is built from its top note, from which the
+others hang. The note a chord is heard as is its lowest note (upward) or its top
+note (downward); a seventh chord is named by it. See user-interface.md, Chord
+entry.
+
 **Chord completion**
 What the pattern editor adds to the notes played when its cursor is wider
 than one note column: the other notes of a chord of the song's scale that

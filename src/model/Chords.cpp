@@ -417,16 +417,64 @@ ChordTable joinTables(const ChordTable & otonal, const ChordTable & utonal, cons
   return table;
 }
 
+// The note a chord is heard as: the lowest note of an upward chord in its basic form, the top
+// note of a downward one.
+optional<size_t> namedBy(const Entry & entry) {
+  const Form * form = nullptr;
+  for (auto & candidate : forms()) {
+    if (candidate.kind == entry.kind) form = &candidate;
+  }
+  if (!form) return nullopt;
+  for (auto lowest : entry.notes) {
+    if (aboveRoot(entry.notes, lowest) != form->above) continue;
+    if (form->direction == Direction::UPWARD) return lowest;
+    auto top = (ratioOf(lowest) * form->above.back()).reduced();
+    for (auto note : entry.notes) {
+      if (ratioOf(note) == top) return note;
+    }
+  }
+  return nullopt;
+}
+
+// Each list starts with the chords its note names: the seventh chords (those of the direction
+// the scale is named for first), the triads, then the rest of them; the other chords follow in
+// their order.
+ChordTable ordered(const ChordTable & table, Direction preferred) {
+  ChordTable out;
+  for (auto & [degree, list] : table) {
+    vector<Entry> sevenths_preferred, sevenths_other, triads, named, rest;
+    for (auto & entry : list) {
+      auto by = namedBy(entry);
+      if (!by || *by != degree) {
+        rest.push_back(entry);
+      } else if (entry.kind == Kind::HARMONIC_SEVENTH || entry.kind == Kind::MIRROR_SEVENTH) {
+        (directionOf(entry.kind) == preferred ? sevenths_preferred : sevenths_other).push_back(entry);
+      } else if (entry.kind == Kind::MAJOR || entry.kind == Kind::MINOR) {
+        triads.push_back(entry);
+      } else {
+        named.push_back(entry);
+      }
+    }
+    auto & result = out[degree];
+    for (auto * part : {&sevenths_preferred, &sevenths_other, &triads, &named, &rest}) result.insert(result.end(), part->begin(), part->end());
+  }
+  return out;
+}
+
 // The chords of notes up to four (size 4), or of exactly five.
 const ChordTable & tableFor(Scale scale, int size) {
-  static const ChordTable otonal = buildTable(kOtonalChords, GamutSide::OTONAL);
-  static const ChordTable utonal = buildTable(kUtonalChords, GamutSide::UTONAL);
-  static const ChordTable otonal5 = buildTable(kOtonalNinths, GamutSide::OTONAL);
-  static const ChordTable utonal5 = buildTable(kUtonalNinths, GamutSide::UTONAL);
+  static const ChordTable otonal_lists = buildTable(kOtonalChords, GamutSide::OTONAL);
+  static const ChordTable utonal_lists = buildTable(kUtonalChords, GamutSide::UTONAL);
+  static const ChordTable otonal5_lists = buildTable(kOtonalNinths, GamutSide::OTONAL);
+  static const ChordTable utonal5_lists = buildTable(kUtonalNinths, GamutSide::UTONAL);
   static const ChordTable cross = buildCrossTable(false);
   static const ChordTable cross5 = buildCrossTable(true);
-  static const ChordTable diamond = joinTables(otonal, utonal, cross);
-  static const ChordTable diamond5 = joinTables(otonal5, utonal5, cross5);
+  static const ChordTable otonal = ordered(otonal_lists, Direction::UPWARD);
+  static const ChordTable utonal = ordered(utonal_lists, Direction::DOWNWARD);
+  static const ChordTable otonal5 = ordered(otonal5_lists, Direction::UPWARD);
+  static const ChordTable utonal5 = ordered(utonal5_lists, Direction::DOWNWARD);
+  static const ChordTable diamond = ordered(joinTables(otonal_lists, utonal_lists, cross), Direction::UPWARD);
+  static const ChordTable diamond5 = ordered(joinTables(otonal5_lists, utonal5_lists, cross5), Direction::UPWARD);
   static const ChordTable none;
   bool five = size >= 5;
   switch (scale) {
@@ -541,39 +589,48 @@ Result complete(const ScaleChords & scale, vector<int> given, int size, const ma
     if (auto it = known.find(value); it != known.end()) return it->second;
     return scale.degreeOf(value);
   };
-  auto degree = ratio_of(given[0]);
-  if (!degree) return result;
+  // An upward candidate is found from the lowest played note, a downward one from the highest.
+  auto low_degree = ratio_of(given.front());
+  if (!low_degree) return result;
   result.status = Status::NOTHING_TO_ADD;
   if (static_cast<int>(given.size()) >= size) return result;
   result.status = Status::NO_CHORD;
 
-  vector<size_t> given_notes; // distinct, the degree first
+  vector<size_t> given_notes; // distinct
   for (auto value : given) {
     auto note = ratio_of(value);
     if (!note) return result;
     if (find(given_notes.begin(), given_notes.end(), *note) == given_notes.end()) given_notes.push_back(*note);
   }
+  const bool single = given.size() == 1;
+  auto high_degree = ratio_of(given.back()); // a note of the scale: the loop above would have returned
+  if (!high_degree) return result;
 
   auto add = [&](const Entry * entry) {
     auto in_entry = [&](size_t note) { return find(entry->notes.begin(), entry->notes.end(), note) != entry->notes.end(); };
     if (!all_of(given_notes.begin(), given_notes.end(), in_entry)) return;
+    const bool downward = directionOf(entry->kind) == Direction::DOWNWARD;
 
     Completion chord;
     vector<pair<int, size_t>> placed; // value and ratio
     for (auto value : given) placed.emplace_back(value, *ratio_of(value));
     auto written = given_notes;
-    if (given.size() == 1 && directionOf(entry->kind) == Direction::DOWNWARD) {
-      // A downward chord hangs from the played note's octave up: the pitch heard in a
-      // mirror chord follows its lowest note, so the chord's top note is an octave above
-      // the played one and the others are added below it, the nearest first, so a chord
-      // cut to the width keeps the notes just below the top.
-      int top = given[0] + scale.edo();
-      placed.clear();
-      placed.emplace_back(top, *degree);
+    if (downward) {
+      // A downward chord hangs from its top note; nothing is added above it. One played note
+      // has the top an octave above it, since the pitch heard in a mirror chord follows its
+      // lowest note; several played notes keep their octaves, the highest being the top.
+      // The others are added below, the nearest first, so a chord cut to the width keeps the
+      // notes just below the top.
+      const size_t top_note = single ? *low_degree : *high_degree;
+      const int top = single ? given.front() + scale.edo() : given.back();
+      if (single) {
+        placed.clear();
+        placed.emplace_back(top, top_note);
+      }
       vector<pair<int, size_t>> below; // steps below the top note, note
       for (auto note : entry->notes) {
-        if (note == *degree) continue;
-        int steps = (((scale.stepOf(*degree) - scale.stepOf(note)) % scale.edo()) + scale.edo()) % scale.edo();
+        if (find(written.begin(), written.end(), note) != written.end()) continue;
+        int steps = (((scale.stepOf(top_note) - scale.stepOf(note)) % scale.edo()) + scale.edo()) % scale.edo();
         below.emplace_back(steps, note);
       }
       sort(below.begin(), below.end());
@@ -582,12 +639,14 @@ Result complete(const ScaleChords & scale, vector<int> given, int size, const ma
         placed.emplace_back(top - steps, note);
         written.push_back(note);
       }
+      // A note below the lowest the track can hold: the chord is not offered.
+      if (any_of(placed.begin(), placed.end(), [](const pair<int, size_t> & note) { return note.first < 0; })) return;
     } else {
       for (auto note : entry->notes) {
         if (static_cast<int>(placed.size()) >= size) break;
         if (find(written.begin(), written.end(), note) != written.end()) continue;
-        int above = (((scale.stepOf(note) - scale.stepOf(*degree)) % scale.edo()) + scale.edo()) % scale.edo();
-        placed.emplace_back(given[0] + above, note);
+        int above = (((scale.stepOf(note) - scale.stepOf(*low_degree)) % scale.edo()) + scale.edo()) % scale.edo();
+        placed.emplace_back(given.front() + above, note);
         written.push_back(note);
       }
     }
@@ -615,11 +674,41 @@ Result complete(const ScaleChords & scale, vector<int> given, int size, const ma
     }
     result.chords.push_back(std::move(chord));
   };
+  // The candidates of a list size. One played note has its own list, each chord read in its
+  // direction. Several played notes take the upward chords of the lowest note's list and the
+  // downward chords of the highest note's, those of the direction the scale is named for first.
+  auto candidates = [&](int list) {
+    vector<const Entry *> out;
+    if (single) return scale.chordsOf(*low_degree, list);
+    vector<const Entry *> up, down;
+    for (auto entry : scale.chordsOf(*low_degree, list)) {
+      if (directionOf(entry->kind) == Direction::UPWARD) up.push_back(entry);
+    }
+    for (auto entry : scale.chordsOf(*high_degree, list)) {
+      if (directionOf(entry->kind) == Direction::DOWNWARD) down.push_back(entry);
+    }
+    // A chord is listed under some of its notes only (a stand-alone triad under its lowest): a
+    // downward chord that the lowest played note's list has and the highest's lacks is read from the top too.
+    auto same_notes = [](const Entry * a, const Entry * b) {
+      auto x = a->notes, y = b->notes;
+      sort(x.begin(), x.end());
+      sort(y.begin(), y.end());
+      return x == y;
+    };
+    for (auto entry : scale.chordsOf(*low_degree, list)) {
+      if (directionOf(entry->kind) != Direction::DOWNWARD) continue;
+      if (none_of(down.begin(), down.end(), [&](const Entry * other) { return other->kind == entry->kind && same_notes(other, entry); })) down.push_back(entry);
+    }
+    bool upward_first = scale.lists() != Scale::UTONAL;
+    out = upward_first ? up : down;
+    out.insert(out.end(), upward_first ? down.begin() : up.begin(), upward_first ? down.end() : up.end());
+    return out;
+  };
   // The widest chords first, then each smaller list down to the four-note one.
   for (int list = min(size, kMaxSize); list >= 5; list--) {
-    for (auto entry : scale.chordsOf(*degree, list)) add(entry);
+    for (auto entry : candidates(list)) add(entry);
   }
-  for (auto entry : scale.chordsOf(*degree)) add(entry);
+  for (auto entry : candidates(4)) add(entry);
   if (!result.chords.empty()) result.status = Status::OK;
   return result;
 }

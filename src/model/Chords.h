@@ -74,6 +74,8 @@ class ScaleChords {
   ScaleChords(Scale scale, Tuning tuning, int key);
 
   bool hasChords() const { return edo_ > 0; }
+  // The scale whose lists these are.
+  Scale lists() const { return scale_; }
   int edo() const { return edo_; }
   // The scale note a note value is, if any.
   std::optional<std::size_t> degreeOf(int note_value) const;
