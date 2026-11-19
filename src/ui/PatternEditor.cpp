@@ -1865,6 +1865,7 @@ PatternEditor::handleBufferChanged() {
     getController().setNoteHeld(false);
   }
   audition_ = Audition();
+  arpeggio_ = Arpeggio();
   if (chord_entry_.open) {
     chord_entry_ = ChordEntry();
     getController().setNoteHeld(false);
@@ -4579,9 +4580,6 @@ int PatternEditor::freeVoiceColumn(int track_id, int from) const {
     }
     auto & s = chord_entry_;
     if (audition_.active && audition_.track_id == track_id && std::find(audition_.columns.begin(), audition_.columns.end(), column) != audition_.columns.end()) return true;
-    for (auto & [value, kept] : s.voice_of) {
-      if (kept == column) return true;
-    }
     return std::find(s.voices.begin(), s.voices.end(), column) != s.voices.end() ||
            std::find(s.added_voices.begin(), s.added_voices.end(), column) != s.added_voices.end();
   };
@@ -4617,6 +4615,7 @@ bool PatternEditor::enterChordKey(const cellui::KeyDown & e, int track_id, int m
     // the held notes, and what the earlier completion added goes.
     for (auto column : s.added_voices) queue.push(make_unique<PlaybackControlEvent>(PlaybackControlEvent::STOP_NOTE, buffer, track_id, column));
     s.added_voices.clear();
+    arpeggio_ = Arpeggio();
     std::vector<std::pair<int, int>> held;
     for (auto & [key, note] : active_keyboard_notes_) {
       if (note.chord) held.emplace_back(note.order, note.value);
@@ -4624,8 +4623,6 @@ bool PatternEditor::enterChordKey(const cellui::KeyDown & e, int track_id, int m
     std::sort(held.begin(), held.end());
     s.given.clear();
     for (auto & [order, value] : held) s.given.push_back(value);
-    // A key let go no longer sounds, and may be played again.
-    s.sounded.erase(std::remove_if(s.sounded.begin(), s.sounded.end(), [&](int value) { return std::find(s.given.begin(), s.given.end(), value) == s.given.end(); }), s.sounded.end());
     s.applied = false;
     rewrite = true;
   }
@@ -4650,9 +4647,11 @@ bool PatternEditor::enterChordKey(const cellui::KeyDown & e, int track_id, int m
   }
   controller.ensureNoteColumns(track_id, s.column + count);
 
-  // The note does not sound yet: the chord starts together when it is completed. Its column is kept.
   int voice = freeVoiceColumn(track_id, s.column);
   s.voice_of[midi_note] = voice;
+  if (controller.isMonitoring(track_id)) {
+    queue.push(make_unique<PlaybackControlEvent>(PlaybackControlEvent::PLAY_NOTE, buffer, track_id, voice, midi_note, constants::DEFAULT_NOTE_ON_VELOCITY));
+  }
   if (s.hold) {
     ActiveKeyboardNote held{voice, controller.getPlaybackInfo().getAbsolutePosition(), track_id};
     held.value = midi_note;
@@ -4700,37 +4699,52 @@ void PatternEditor::applyChordCompletion(bool released) {
   row_edited = true;
   if (!controller.isMonitoring(s.track_id)) return;
 
-  // The whole chord, the played notes included, sounds together now, after the
-  // small delay the completion waited for.
+  // The played notes have sounded; the written ones that did not follow as a quick arpeggio,
+  // from the lowest to the highest whatever the order of the columns.
   auto now = std::chrono::steady_clock::now();
+  arpeggio_ = Arpeggio();
+  arpeggio_.track_id = s.track_id;
+  arpeggio_.from_column = s.column;
+  arpeggio_.audition = released;
+  for (auto value : chord.notes) {
+    if (std::find(s.given.begin(), s.given.end(), value) == s.given.end()) arpeggio_.values.push_back(value);
+  }
+  std::sort(arpeggio_.values.begin(), arpeggio_.values.end());
+  // A sounding pitch that is not written (a note in another octave is another note) stops now.
+  for (auto value : s.given) {
+    auto kept = s.voice_of.find(value);
+    if (std::find(chord.notes.begin(), chord.notes.end(), value) == chord.notes.end() && kept != s.voice_of.end()) {
+      controller.getPlaybackEventQueue().push(make_unique<PlaybackControlEvent>(PlaybackControlEvent::STOP_NOTE, controller.getActiveBufferName(), s.track_id, kept->second));
+    }
+  }
+  arpeggio_.interval = kCompletionInterval;
+  if (released && s.hold) {
+    // A tap shorter than the interval sets the pace: as long as the key was down.
+    auto down = now - (s.deadline - kCompletionInterval);
+    arpeggio_.interval = std::clamp<std::chrono::steady_clock::duration>(down, std::chrono::milliseconds(10), kCompletionInterval);
+  }
+  arpeggio_.next = now;
   if (released) {
     audition_.active = true;
     audition_.track_id = s.track_id;
     audition_.columns = s.voices;
-    audition_.until = now + kAuditionTime;
+    audition_.until = now + arpeggio_.interval * static_cast<int>(arpeggio_.values.size()) + kAuditionTime;
     s.voices.clear();
   }
-  for (auto value : chord.notes) {
-    bool played = std::find(s.given.begin(), s.given.end(), value) != s.given.end();
-    // A played note sounds on the column its key kept, and its key's release ends it; one already
-    // sounding from an earlier completion is left alone.
-    bool held_key = false;
-    int column;
-    if (played) {
-      if (std::find(s.sounded.begin(), s.sounded.end(), value) != s.sounded.end()) continue;
-      s.sounded.push_back(value);
-      auto kept = s.voice_of.find(value);
-      column = kept != s.voice_of.end() ? kept->second : freeVoiceColumn(s.track_id, s.column);
-      for (auto & [key, note] : active_keyboard_notes_) held_key = held_key || (note.chord && note.value == value);
-    } else {
-      column = freeVoiceColumn(s.track_id, s.column);
-    }
-    controller.getPlaybackEventQueue().push(make_unique<PlaybackControlEvent>(PlaybackControlEvent::PLAY_NOTE, controller.getActiveBufferName(), s.track_id, column, value,
-                                                                              constants::DEFAULT_NOTE_ON_VELOCITY));
-    if (released)
-      audition_.columns.push_back(column);
-    else if (!held_key)
-      s.added_voices.push_back(column);
+  playArpeggio(now);
+}
+
+void PatternEditor::playArpeggio(std::chrono::steady_clock::time_point now) {
+  auto & controller = getController();
+  while (!arpeggio_.values.empty() && now >= arpeggio_.next) {
+    int column = freeVoiceColumn(arpeggio_.track_id, arpeggio_.from_column);
+    controller.getPlaybackEventQueue().push(make_unique<PlaybackControlEvent>(PlaybackControlEvent::PLAY_NOTE, controller.getActiveBufferName(), arpeggio_.track_id, column,
+                                                                              arpeggio_.values.front(), constants::DEFAULT_NOTE_ON_VELOCITY));
+    (arpeggio_.audition ? audition_.columns : chord_entry_.added_voices).push_back(column);
+    arpeggio_.values.erase(arpeggio_.values.begin());
+    // Each gap is half the one before.
+    arpeggio_.interval /= 2;
+    arpeggio_.next += arpeggio_.interval;
   }
 }
 
@@ -4741,6 +4755,8 @@ void PatternEditor::finishChordEntry() {
   for (auto column : s.added_voices) {
     controller.getPlaybackEventQueue().push(make_unique<PlaybackControlEvent>(PlaybackControlEvent::STOP_NOTE, controller.getActiveBufferName(), s.track_id, column));
   }
+  // Notes still to sound with the held keys have nothing to join.
+  if (!arpeggio_.audition) arpeggio_ = Arpeggio();
   last_entry_ = LastEntry();
   for (auto value : s.given) {
     auto known = s.ratios.find(value);
@@ -4758,6 +4774,7 @@ void PatternEditor::endAudition() {
     controller.getPlaybackEventQueue().push(make_unique<PlaybackControlEvent>(PlaybackControlEvent::STOP_NOTE, controller.getActiveBufferName(), audition_.track_id, column));
   }
   audition_ = Audition();
+  if (arpeggio_.audition) arpeggio_ = Arpeggio();
 }
 
 void PatternEditor::tickChordEntry() {
@@ -4773,6 +4790,7 @@ void PatternEditor::tickChordEntry() {
       settleLastEntry();
     }
   }
+  playArpeggio(now);
   if (audition_.active && now >= audition_.until) endAudition();
 }
 

@@ -229,7 +229,7 @@ const vector<Form> & forms() {
       {Kind::MAJOR_SEVENTH, {Ratio{5, 4}, Ratio{3, 2}, Ratio{15, 8}}, Direction::UPWARD},   // 8:10:12:15
       {Kind::SEVEN_SHARP_NINE, {Ratio{7, 6}, Ratio{5, 4}, Ratio{7, 4}}, Direction::UPWARD}, // 12:14:15:21
       {Kind::MAJOR, {Ratio{5, 4}, Ratio{3, 2}}, Direction::UPWARD},
-      {Kind::MINOR, {Ratio{6, 5}, Ratio{3, 2}}, Direction::DOWNWARD},
+      {Kind::MINOR, {Ratio{6, 5}, Ratio{3, 2}}, Direction::UPWARD},
       // The ninth reduced into the octave, so 9/4 is 9/8 and sorts first.
       {Kind::HARMONIC_NINTH, {Ratio{9, 8}, Ratio{5, 4}, Ratio{3, 2}, Ratio{7, 4}}, Direction::UPWARD},                  // 4:5:6:7:9
       {Kind::MIRROR_HARMONIC_NINTH, {Ratio{9, 8}, Ratio{9, 7}, Ratio{3, 2}, Ratio{9, 5}}, Direction::DOWNWARD},         // 1/9:1/7:1/6:1/5:1/4
@@ -420,6 +420,8 @@ ChordTable joinTables(const ChordTable & otonal, const ChordTable & utonal, cons
 // The note a chord is heard as: the lowest note of an upward chord in its basic form, the top
 // note of a downward one.
 optional<size_t> namedBy(const Entry & entry) {
+  // The minor triad is entered by the subharmonic run from its top note, so no note names it.
+  if (entry.kind == Kind::MINOR) return nullopt;
   const Form * form = nullptr;
   for (auto & candidate : forms()) {
     if (candidate.kind == entry.kind) form = &candidate;
@@ -551,6 +553,10 @@ optional<size_t> ScaleChords::degreeOf(int note_value) const {
   return static_cast<size_t>(held_[step]);
 }
 
+bool ScaleChords::holds(size_t gamut_index) const {
+  return edo_ > 0 && held_[static_cast<size_t>(stepOf(gamut_index))] == static_cast<int>(gamut_index);
+}
+
 int ScaleChords::stepOf(size_t gamut_index) const {
   if (edo_ <= 0) return 0;
   return ((ratioOf(gamut_index).steps(edo_) % edo_) + edo_) % edo_;
@@ -651,6 +657,23 @@ Result complete(const ScaleChords & scale, vector<int> given, int size, const ma
       }
     }
     sort(placed.begin(), placed.end());
+    // A triad is named on its lowest note.
+    auto lowest = placed.front().second;
+    // A seventh chord at five or more columns repeats its first note an octave on: higher in an
+    // upward chord, lower in a downward one.
+    if (size >= 5 && placed.size() == 4 && entry->notes.size() == 4) {
+      auto & first = downward ? placed.back() : placed.front();
+      int value = downward ? first.first - scale.edo() : first.first + scale.edo();
+      bool taken = any_of(placed.begin(), placed.end(), [&](const pair<int, size_t> & note) { return note.first == value; });
+      if (value >= 0 && !taken) {
+        if (downward)
+          placed.insert(placed.begin(), {value, first.second});
+        else
+          placed.emplace_back(value, first.second);
+      }
+    }
+    // The first column holds the played note: an upward chord rises from it, a downward one falls.
+    if (downward) reverse(placed.begin(), placed.end());
     for (auto & [value, note] : placed) {
       chord.notes.push_back(value);
       chord.ratios.push_back(note);
@@ -660,8 +683,6 @@ Result complete(const ScaleChords & scale, vector<int> given, int size, const ma
 
     chord.name = scale.chordName(*entry);
     if (written.size() < entry->notes.size()) {
-      // A triad is named on its lowest note.
-      auto lowest = placed.front().second;
       optional<string> triad;
       if (written.size() == 3) {
         auto above = aboveRoot(written, lowest);
@@ -687,28 +708,125 @@ Result complete(const ScaleChords & scale, vector<int> given, int size, const ma
     for (auto entry : scale.chordsOf(*high_degree, list)) {
       if (directionOf(entry->kind) == Direction::DOWNWARD) down.push_back(entry);
     }
-    // A chord is listed under some of its notes only (a stand-alone triad under its lowest): a
-    // downward chord that the lowest played note's list has and the highest's lacks is read from the top too.
-    auto same_notes = [](const Entry * a, const Entry * b) {
-      auto x = a->notes, y = b->notes;
-      sort(x.begin(), x.end());
-      sort(y.begin(), y.end());
-      return x == y;
-    };
-    for (auto entry : scale.chordsOf(*low_degree, list)) {
-      if (directionOf(entry->kind) != Direction::DOWNWARD) continue;
-      if (none_of(down.begin(), down.end(), [&](const Entry * other) { return other->kind == entry->kind && same_notes(other, entry); })) down.push_back(entry);
-    }
+
     bool upward_first = scale.lists() != Scale::UTONAL;
     out = upward_first ? up : down;
     out.insert(out.end(), upward_first ? down.begin() : up.begin(), upward_first ? down.end() : up.end());
     return out;
   };
-  // The widest chords first, then each smaller list down to the four-note one.
-  for (int list = min(size, kMaxSize); list >= 5; list--) {
-    for (auto entry : candidates(list)) add(entry);
+  // A note's own chord is a run of consecutive ratios from 4: its notes times 5/4, 6/4, 7/4, 8/4 and
+  // 9/4 (harmonic) or its top note times 4/5 ... 4/9 (subharmonic); the width says how many are written.
+  // The run stops at the first ratio the scale lacks, and a note names one if it has at least 4:5:6.
+  // Only for one played note; a subharmonic chord hangs from the note an octave above it.
+  auto run = [&](Direction direction, int count) {
+    vector<pair<int, size_t>> out;
+    const int base = direction == Direction::UPWARD ? given.front() : given.front() + scale.edo();
+    out.emplace_back(base, *low_degree);
+    for (int k = 5; k <= 9 && static_cast<int>(out.size()) < count; k++) {
+      auto ratio = (direction == Direction::UPWARD ? ratioOf(*low_degree) * Ratio{k, 4} : ratioOf(*low_degree) * Ratio{4, k}).reduced();
+      optional<size_t> note;
+      for (size_t i = 0; i < gamut::kExtendedDiamond.size(); i++) {
+        if (ratioOf(i) == ratio) note = i;
+      }
+      if (!note || !scale.holds(*note)) break;
+      int octaves = k >= 8 ? 1 : 0;
+      int offset = direction == Direction::UPWARD ? scale.stepOf(*note) - scale.stepOf(*low_degree) : scale.stepOf(*low_degree) - scale.stepOf(*note);
+      offset = ((offset % scale.edo()) + scale.edo()) % scale.edo() + octaves * scale.edo();
+      int value = direction == Direction::UPWARD ? base + offset : base - offset;
+      if (value < 0) break;
+      out.emplace_back(value, *note);
+    }
+    return out;
+  };
+  if (single) {
+    const Direction preferred = scale.lists() == Scale::UTONAL ? Direction::DOWNWARD : Direction::UPWARD;
+    const Direction other = preferred == Direction::UPWARD ? Direction::DOWNWARD : Direction::UPWARD;
+    size_t preferred_length = run(preferred, kMaxSize).size();
+    size_t other_length = run(other, kMaxSize).size();
+    // The longer run comes first; if they are equally long, the kind the scale is named for.
+    vector<Direction> order;
+    if (other_length > preferred_length)
+      order = {other, preferred};
+    else
+      order = {preferred, other};
+    auto emit_run = [&](Direction direction) {
+      auto notes = run(direction, size);
+      Completion chord;
+      for (auto & [value, note] : notes) {
+        chord.notes.push_back(value);
+        chord.ratios.push_back(note);
+      }
+      if (any_of(result.chords.begin(), result.chords.end(), [&](const Completion & c) { return c.notes == chord.notes && c.ratios == chord.ratios; })) return;
+      const bool up = direction == Direction::UPWARD;
+      const string root = scale.noteName(*low_degree);
+      const string family = up ? "harmonic" : "mirror";
+      switch (notes.size()) {
+        case 2:
+          chord.name = root + " " + family + " seventh (2 notes)";
+          break;
+        case 3: {
+          // A triad is named on its lowest note: C major, F minor.
+          const size_t lowest_note = up ? notes.front().second : notes.back().second;
+          vector<size_t> members;
+          for (auto & [value, note] : notes) members.push_back(note);
+          auto above = aboveRoot(members, lowest_note);
+          auto triad = triadName(above[0], above[1]);
+          chord.name = triad ? scale.noteName(lowest_note) + " " + *triad : root + " " + family + " seventh (3 notes)";
+          break;
+        }
+        case 4:
+        case 5:
+          chord.name = root + " " + family + " seventh";
+          break;
+        default:
+          chord.name = root + " " + family + " ninth";
+          break;
+      }
+      result.chords.push_back(std::move(chord));
+    };
+    auto length_of = [&](Direction direction) { return direction == preferred ? preferred_length : other_length; };
+    // The width chooses the class of chord: a triad, a seventh chord (four and five columns) or a
+    // ninth chord. In each class the note's own run comes first if it reaches the class, then the
+    // first chord of the class in the note's list; a ninth class falls back to the seventh class.
+    struct Class {
+      size_t run_length;
+      int list;
+    };
+    vector<Class> classes;
+    if (size >= 6)
+      classes = {{6, 5}, {4, 4}};
+    else if (size >= 4)
+      classes = {{4, 4}};
+    else
+      classes = {{3, 0}};
+    for (auto & klass : classes) {
+      for (auto direction : order) {
+        if (length_of(direction) >= klass.run_length) emit_run(direction);
+      }
+      if (klass.list == 0) continue;
+      for (auto entry : scale.chordsOf(*low_degree, klass.list)) {
+        if (static_cast<int>(entry->notes.size()) == klass.list) {
+          add(entry);
+          break;
+        }
+      }
+    }
+    // The other runs and chords follow as alternatives.
+    for (auto direction : order) {
+      if (length_of(direction) >= 3) emit_run(direction);
+    }
   }
-  for (auto entry : candidates(4)) add(entry);
+  // Ninth chords come first at a width of six or more, then the seventh chords; at five columns
+  // the seventh chords are first and the ninth chords follow.
+  if (size >= 6) {
+    for (auto entry : candidates(5)) add(entry);
+    for (auto entry : candidates(4)) add(entry);
+  } else {
+    for (auto entry : candidates(4)) add(entry);
+    if (size >= 5) {
+      for (auto entry : candidates(5)) add(entry);
+    }
+  }
   if (!result.chords.empty()) result.status = Status::OK;
   return result;
 }

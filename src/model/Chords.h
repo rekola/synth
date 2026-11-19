@@ -41,7 +41,7 @@ enum class Direction { UPWARD,
 Direction directionOf(Kind kind);
 
 // The most notes a chord has.
-constexpr int kMaxSize = 5;
+constexpr int kMaxSize = 6;
 
 struct Entry {
   std::vector<std::size_t> notes; // gamut indices, upward from the degree (notes[0])
@@ -81,6 +81,8 @@ class ScaleChords {
   std::optional<std::size_t> degreeOf(int note_value) const;
   // Steps above the tonic, 0 to edo - 1.
   int stepOf(std::size_t gamut_index) const;
+  // Whether the scale has this gamut note on its key.
+  bool holds(std::size_t gamut_index) const;
   // The degree's chords whose notes the tuning all holds.
   std::vector<const Entry *> chordsOf(std::size_t gamut_index, int size = 4) const;
   // A scale note's name, without an octave: the gamut's spelling on C, the
