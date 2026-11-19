@@ -270,24 +270,54 @@ track go when the cursor leaves the track and when the song is saved (an
 empty column with a used one to its right stays). `add-note-column` and
 `remove-note-column` are in the command palette and have no shortcut.
 
-**Completion.** In a song whose scale is otonal or utonal, a cursor of N
-columns (N above 1) completes the notes you play to a chord of N notes of the
-scale. The lowest note played is the degree. Its chords
-([extended-diamond.md](extended-diamond.md)) are tried in order: the seventh
-chords, a stand-alone triad, then the major sevenths and the 7♯9 chords. At
-five columns the five-note chords (ninths, below) come first and these
-four-note chords are the fallback. The first that contains every other note played, octaves aside, is written: the
-notes played keep their octaves, and the chord's other notes are added from
-its lowest upward, within the octave above the lowest note played, until
-there are N. A chord of fewer notes than N is written whole and not padded.
-Nothing is ever added below the lowest note played, so E with A♯↑ at four
-columns gives E G A♯↑ C.
+**Completion.** In a song whose scale is otonal, utonal or diamond, a cursor of
+N columns (N above 1) completes the notes you play to a chord of N notes of the
+scale. Every chord is one of two directions. An **upward** chord (harmonic
+seventh, major seventh, 7♯9, major triad and the larger chords built on them;
+its proportion is whole numbers, 4:5:6:7) is built from its lowest note, whose
+overtones the others are. A **downward** chord (mirror seventh, minor triad, and
+the mirror of each of the others; its proportion is fractions, 1/7:1/6:1/5:1/4)
+is built from its top note, from which the others hang: A C E hangs from E. The
+note heard as the chord's note is the lowest of an upward chord and the top of a
+downward one, so a line of mirror chords follows the melody by their top notes.
+
+A note's chords ([extended-diamond.md](extended-diamond.md)) are tried in
+order. The chords the note names come first: the upward chords it is the lowest
+note of and the downward chords it is the top note of, the seventh chords
+before the triads (where it names both an upward and a downward seventh chord
+the kind the scale is named for comes first: upward in otonal and the diamond,
+downward in utonal). The rest follow in their order. So the key for a note gives
+the chord that note is heard as, whenever the scale has one: utonal C gives its
+mirror seventh, otonal A♯↑ the mirror seventh C D♯ F♯↑ A♯↑. At five columns the
+five-note chords (ninths, below) come first and these four-note chords are the
+fallback.
+
+With one note played, an upward chord is written with the played note as its
+lowest note, the others added above it within the octave. A downward chord is
+written with its top note an octave above the played note (the pitch heard in a
+mirror chord follows its lowest note, so a chord hung from the played note
+itself would sound an octave low) and the others added below that, nothing
+above; utonal C played in octave 4 gives E𝄫4 F4 A♭4 C5, diamond E gives G♭↓4 A4
+C5 E5. A downward chord in the list of a note that is not its top is read
+downward from the note all the same. With several notes played, an upward
+chord is found from the lowest and a downward one from the highest note (those
+of the direction the scale is named for first); it must contain every note
+played, which keep their octaves, and a downward one has nothing added above
+the highest note: in utonal F with the C above it gives E𝄫 F A♭ C. A downward
+chord that would need a note below the lowest the track can hold is not
+offered. The first candidate is written, and a chord of fewer notes than N is
+written whole and not padded.
+
+A chord with more notes than N is cut from its far end: an upward chord keeps
+the played note and the notes just above it, a downward chord the top note and
+the notes just below it. Diamond E at three columns gives A4 C5 E5, utonal C
+F4 A♭4 C5.
 
 **Five-note chords** are offered only at a width, or a palette size, of five;
 they are not cut down for a narrower cursor. At five columns the candidates
 are the five-note chords that contain all the notes played, in list order,
 followed by the four-note candidates as they are found at four: C at five
-columns gives C D♯ F G A ("F harmonic ninth / C"), F gives F G A C D♯ ("F
+columns gives C D♯ E G A♯↑ ("C 7♯9 with fifth"), F gives F G A C D♯ ("F
 harmonic ninth"), C with B gives C D E G B, and D𝄫, which has no five-note
 chord, gives its four-note chord and the fifth column is emptied.
 

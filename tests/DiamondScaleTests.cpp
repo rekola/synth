@@ -173,21 +173,34 @@ TEST(seventh_chords_are_named_by_their_root) {
   CHECK(name_of(setOf({1 / 1_r, 5 / 4_r, 3 / 2_r, 7 / 4_r})) == "C harmonic seventh");
 }
 
-// A note's chords are those of otonal, then those of utonal, then the chords that take notes from both.
-TEST(a_notes_chords_are_those_of_its_scale_then_the_chords_of_both) {
+// A note's list starts with the chords it names, the seventh chords of otonal's direction first
+// (upward) in the diamond; the others keep their order: otonal's, utonal's, then those of both.
+TEST(a_notes_chords_are_those_it_names_then_those_of_its_scales_then_those_of_both) {
+  auto name_of = [](Scale scale, std::size_t note, std::size_t at) {
+    ScaleChords chords(scale, Tuning::EDO53, 0);
+    auto list = chords.chordsOf(note);
+    return at < list.size() ? chords.chordName(*list[at]) : std::string();
+  };
+  // C names an upward and a downward seventh chord: the upward one comes first in the diamond, the
+  // downward one in utonal.
+  CHECK(name_of(Scale::DIAMOND, index(1 / 1_r), 0) == "C harmonic seventh");
+  CHECK(name_of(Scale::DIAMOND, index(1 / 1_r), 1) == "C mirror seventh");
+  CHECK(name_of(Scale::UTONAL, index(1 / 1_r), 0) == "C mirror seventh");
+  CHECK(name_of(Scale::OTONAL, index(1 / 1_r), 0) == "C harmonic seventh");
+  // A♭ names the chord A♭ C E♭ F♯↑, which takes notes from both scales.
+  CHECK(name_of(Scale::DIAMOND, index(8 / 5_r), 0) == "A♭ harmonic seventh");
+  // E names the mirror seventh G♭↓ A C E.
+  CHECK(name_of(Scale::DIAMOND, index(5 / 4_r), 0) == "E mirror seventh");
+  // The chords a note does not name keep their order: otonal's before utonal's.
   auto of_c = degreeChords(Scale::DIAMOND, index(1 / 1_r));
-  auto otonal_c = degreeChords(Scale::OTONAL, index(1 / 1_r));
-  auto utonal_c = degreeChords(Scale::UTONAL, index(1 / 1_r));
-  CHECK(of_c.size() > otonal_c.size() + utonal_c.size());
-  for (std::size_t i = 0; i < otonal_c.size(); i++) CHECK(of_c[i].notes == otonal_c[i].notes);
-  for (std::size_t i = 0; i < utonal_c.size(); i++) CHECK(of_c[otonal_c.size() + i].notes == utonal_c[i].notes);
-  // A♭ is utonal: its utonal chords, then the chords of both, among them A♭ C E♭ F♯↑.
-  auto a_flat = index(8 / 5_r);
-  auto of_a_flat = degreeChords(Scale::DIAMOND, a_flat);
-  auto utonal = degreeChords(Scale::UTONAL, a_flat);
-  for (std::size_t i = 0; i < utonal.size(); i++) CHECK(of_a_flat[i].notes == utonal[i].notes);
-  std::vector<std::size_t> wanted = {a_flat, index(1 / 1_r), index(6 / 5_r), index(7 / 5_r)};
-  auto at = std::find_if(of_a_flat.begin(), of_a_flat.end(), [&](const Entry & e) { return e.notes == wanted; });
-  CHECK(at != of_a_flat.end());
-  CHECK(static_cast<std::size_t>(at - of_a_flat.begin()) >= utonal.size());
+  auto position = [&](std::vector<std::size_t> notes) {
+    for (std::size_t i = 0; i < of_c.size(); i++) {
+      if (of_c[i].notes == notes) return static_cast<int>(i);
+    }
+    return -1;
+  };
+  int otonal = position({index(1 / 1_r), index(7 / 6_r), index(4 / 3_r), index(5 / 3_r)});  // C D♯ F A
+  int utonal = position({index(1 / 1_r), index(6 / 5_r), index(3 / 2_r), index(12 / 7_r)}); // C E♭ G B𝄫
+  CHECK(otonal >= 0 && utonal >= 0);
+  CHECK(otonal < utonal);
 }

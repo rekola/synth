@@ -113,7 +113,11 @@ pentatonic (C D E G A) does not occur.
 
 A chord is any set of notes in which every interval is a ratio of the gamut.
 A degree's chord is a seventh chord it belongs to, read upward from the
-degree. In practice the fourth note is often dropped, which also keeps two
+degree. A harmonic seventh is built upward from its lowest note, whose
+overtones the others are; a mirror chord hangs from its top note, and is
+entered by it (user-interface.md, Chord entry): the key for A♯↑ in otonal gives
+C D♯ F♯↑ A♯↑, and in utonal the key for C gives E𝄫 F A♭ C, each with its top
+note an octave above the key. In practice the fourth note is often dropped, which also keeps two
 degrees of one seventh chord from sounding alike.
 
 ### 15 notes
