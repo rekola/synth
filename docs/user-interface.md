@@ -523,48 +523,8 @@ The terminal interface does everything the program does, with these limits:
 ### Supported terminals
 
 Known to work are kitty, xterm, GNOME Terminal and foot. The table of terminals
-(graphics, mouse, notes) is in
-[cellui's README](https://github.com/rekola/cellui#supported-terminals); xterm's
-settings are under [xterm](#xterm) below.
-
-### Setup
-
-#### xterm
-
-xterm's defaults are poor for this UI: 16 colors, no Sixels, a small image
-limit, a tiny bitmap font. Put this in `~/.Xresources`:
-
-```
-XTerm*termName: xterm-256color
-XTerm*decTerminalID: vt340
-XTerm*numColorRegisters: 256
-XTerm*maxGraphicSize: 2048x2048
-XTerm*renderFont: true
-XTerm*faceName: monospace
-XTerm*faceSize: 12
-```
-
-- `termName` sets `TERM`; xterm's default `xterm` has only 8/16 colors, which
-  is why the UI looked 16-color everywhere but the Sixel images.
-- `decTerminalID: vt340` makes xterm identify as Sixel-capable, and
-  `numColorRegisters` sets the image palette size.
-- `maxGraphicSize` raises the Sixel image size limit (default 1000x1000).
-- `renderFont` with `faceName` selects an antialiased Xft font through
-  fontconfig. `monospace` is fontconfig's alias for the system's default
-  monospace font, so it is the same on every machine; name a font such as
-  `DejaVu Sans Mono` to pick one. `faceSize` is in points.
-
-xterm shows 24-bit color only when it is built with direct-color support and
-`XTerm*directColor: true` (the default in some builds). The UI asks the
-terminal at start-up by setting a color and reading it back; where xterm
-reports it kept, the UI uses true color, otherwise it is limited to the
-256-color palette. In that case xterm snaps the colors of text to its palette
-while Sixel pictures keep their own, so a picture's flat background can differ
-slightly in shade from the cells beside it.
-
-Reload with `xrdb -merge ~/.Xresources` and start a new xterm; running ones
-keep their old settings. If `TERM` is still `xterm` inside it, check with
-`echo $TERM`; a shell profile that exports `TERM` overrides the resource.
+(graphics, mouse, notes) and xterm's recommended settings are in
+[cellui's README](https://github.com/rekola/cellui#supported-terminals).
 
 ## Tempo and time signature changes
 
