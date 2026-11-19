@@ -522,14 +522,14 @@ The terminal interface does everything the program does, with these limits:
 
 ### Supported terminals
 
-Known to work are kitty, xterm and GNOME Terminal; the rest are untested here.
+Known to work are kitty, xterm, GNOME Terminal and foot; the rest are untested here.
 The Graphics and Mouse columns come from testing another program (nanoclj) in
 these terminals; xterm's lack of true color applies to synth as well.
 
 | Terminal | Status | Graphics | Mouse | Notes |
 | - | - | - | - | - |
-| foot | Untested | OK | OK | Wayland only |
-| kitty | Works | OK | ? | True color images, but window resizing has bugs (as of 0.26.5) |
+| foot | Works | OK | OK | Wayland only |
+| kitty | Works | OK | ? | True color images |
 | wezterm | Untested | OK | OK | Buggy (as of 20230712) |
 | mlterm | Untested | OK | ? | |
 | Konsole | Untested | OK | ? | True color images, but on HiDPI system images are upscaled |

@@ -175,7 +175,7 @@ the spectrum analyzer and the DirAC heatmap in the scopes are drawn as real
 pixels instead of braille cells, and without pixel support they fall back to
 braille. See [docs/user-interface.md](docs/user-interface.md#terminal) for terminal-specific setup.
 
-Known to work are kitty, xterm and GNOME Terminal. The full table is in
+Known to work are kitty, xterm, GNOME Terminal and foot. The full table is in
 [docs/user-interface.md](docs/user-interface.md#supported-terminals).
 
 ## Launchpad support
