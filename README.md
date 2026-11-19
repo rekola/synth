@@ -165,18 +165,13 @@ in its `piano` preset).
 
 ## Terminal support
 
-The terminal UI works in any terminal with xterm-style escape sequences, but a
-modern one is better. Terminals with the Kitty keyboard protocol (kitty, foot, WezTerm,
-Ghostty) report key releases, which keyboard note entry needs to know how long
-a note is held, so they can sustain several notes at once. Other terminals
-can't tell how long a note is held, but keys typed within about 0.1 s of each
-other still form a chord, on one row. Terminals with Kitty graphics or Sixels get pixel graphics:
-the spectrum analyzer and the DirAC heatmap in the scopes are drawn as real
-pixels instead of braille cells, and without pixel support they fall back to
-braille. See [docs/user-interface.md](docs/user-interface.md#terminal) for terminal-specific setup.
-
-Known to work are kitty, xterm, GNOME Terminal and foot. The full table is in
-[docs/user-interface.md](docs/user-interface.md#supported-terminals).
+The terminal UI works in any terminal with xterm-style escape sequences; one
+with the Kitty keyboard protocol (kitty, foot, WezTerm, Ghostty) also reports
+key releases, which note entry needs to sustain several notes at once, and one
+with Kitty graphics or Sixels draws the scopes as pixels. What differs is in
+[docs/user-interface.md](docs/user-interface.md#terminal); the table of
+terminals and xterm's settings are in
+[cellui's README](https://github.com/rekola/cellui#supported-terminals).
 
 ## Launchpad support
 
