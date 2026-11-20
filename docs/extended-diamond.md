@@ -29,7 +29,7 @@ Three things set these scales apart from major and minor:
    notes of a chord is itself a ratio of the gamut, so a chord never contains
    a near-pure interval or one the scales do not have.
 2. **Every note has a seventh chord.** From 7 notes on, each degree belongs
-   to a harmonic seventh, 4:5:6:7, or its mirror, 1/7:1/6:1/5:1/4.
+   to a harmonic seventh, 4:5:6:7, or its subharmonic form, 1/4:1/5:1/6:1/7.
 3. **Nothing drifts.** Every note has one fixed ratio to the tonic. D enters
    at 15 notes, and D and A never share a chord, because 40/27 is not a
    ratio of the gamut; so the diatonic wolf fifth and the comma pumps of
@@ -50,7 +50,7 @@ proportion in fractions is the same chord as the whole numbers beside it.
 A round splits every interval between two different notes of the step
 before, at its arithmetic and its harmonic mean, and keeps the results that
 are notes of the scale. The derivations below are for otonal; utonal has
-the mirror of each.
+the subharmonic form of each.
 
 **1 note.** The tonic and its octave.
 
@@ -80,7 +80,7 @@ needs: F♭ (9/7) divides D♭↓–G, and B♭ (9/5) divides G–D. The 15 note
 everything the scale produces from itself, and they bring four more seventh
 chords:
 
-- C D♯ F♯↑ A♯↑, with the tritone. It is a mirror chord, the first harmonic
+- C D♯ F♯↑ A♯↑, with the tritone. It is a subharmonic chord, the first harmonic
   contrast, and holds the minor triad D♯ F♯↑ A♯↑.
 - D♭↓ E G B, the first chord without the tonic, so the harmony can move
   away from it. E gains a pure fifth and the minor triad E G B, and B is a
@@ -114,7 +114,7 @@ pentatonic (C D E G A) does not occur.
 A chord is any set of notes in which every interval is a ratio of the gamut.
 A degree's chord is a seventh chord it belongs to, read upward from the
 degree. A harmonic seventh is built upward from its lowest note, whose
-overtones the others are; a mirror chord hangs from its top note, and is
+overtones the others are; a subharmonic chord hangs from its top note, and is
 entered by it (user-interface.md, Chord entry): the key for A♯↑ in otonal gives
 C D♯ F♯↑ A♯↑, and in utonal the key for C gives E𝄫 F A♭ C, each with its top
 note an octave above the key. In practice the fourth note is often dropped, which also keeps two
@@ -127,39 +127,39 @@ The last column lists the major, minor and narrow triads the degree roots.
 
 | C otonal | Chord | Proportion | Or | Triad |
 |---|---|---|---|---|
-| C | C E G A♯↑ | 4:5:6:7 | C D♯ F A (6:7:8:10), C D♯ F♯↑ A♯↑ (1/7:1/6:1/5:1/4) | C E G, major; C D♯ F, narrow major |
+| C | C E G A♯↑ | 4:5:6:7 | C D♯ F A (6:7:8:10), C D♯ F♯↑ A♯↑ (1/4:1/5:1/6:1/7) | C E G, major; C D♯ F, narrow major |
 | D𝄫 | D𝄫 D♯ F𝄪 A♯↑ | 7:8:10:12 | | |
-| D♭↓ | D♭↓ E G B | 1/7:1/6:1/5:1/4 | | |
-| D | D F♭ G B♭ | 1/8:1/7:1/6:1/5 | | D F♭ G, narrow minor |
-| D♯ | D♯ F A C′ | 7:8:10:12 | D♯ F♯↑ A♯↑ C′ (1/12:1/10:1/8:1/7), D♯ F𝄪 A♯↑ D𝄫′ (4:5:6:7) | D♯ F𝄪 A♯↑, major; D♯ F♯↑ A♯↑, minor |
-| E | E G A♯↑ C′ | 5:6:7:8 | E G B D♭↓′ (1/12:1/10:1/8:1/7) | E G B, minor; E F𝄪 A, narrow major |
-| F♭ | F♭ G B♭ D′ | 1/7:1/6:1/5:1/4 | | |
+| D♭↓ | D♭↓ E G B | 1/4:1/5:1/6:1/7 | | |
+| D | D F♭ G B♭ | 1/5:1/6:1/7:1/8 | | D F♭ G, narrow minor |
+| D♯ | D♯ F A C′ | 7:8:10:12 | D♯ F♯↑ A♯↑ C′ (1/7:1/8:1/10:1/12), D♯ F𝄪 A♯↑ D𝄫′ (4:5:6:7) | D♯ F𝄪 A♯↑, major; D♯ F♯↑ A♯↑, minor |
+| E | E G A♯↑ C′ | 5:6:7:8 | E G B D♭↓′ (1/7:1/8:1/10:1/12) | E G B, minor; E F𝄪 A, narrow major |
+| F♭ | F♭ G B♭ D′ | 1/4:1/5:1/6:1/7 | | |
 | F | F A C′ D♯′ | 4:5:6:7 | | F A C, major |
-| F♯↑ | F♯↑ A♯↑ C′ D♯′ | 1/10:1/8:1/7:1/6 | | |
+| F♯↑ | F♯↑ A♯↑ C′ D♯′ | 1/6:1/7:1/8:1/10 | | |
 | F𝄪 | F𝄪 A♯↑ D𝄫′ D♯′ | 5:6:7:8 | | |
-| G | G A♯↑ C′ E′ | 6:7:8:10 | G B D♭↓′ E′ (1/10:1/8:1/7:1/6), G B♭ D′ F♭′ (1/12:1/10:1/8:1/7) | G B D, major; G B♭ D, minor; G A♯↑ C, narrow major |
+| G | G A♯↑ C′ E′ | 6:7:8:10 | G B D♭↓′ E′ (1/6:1/7:1/8:1/10), G B♭ D′ F♭′ (1/7:1/8:1/10:1/12) | G B D, major; G B♭ D, minor; G A♯↑ C, narrow major |
 | A | A C′ D♯′ F′ | 5:6:7:8 | | A C E, minor |
-| A♯↑ | A♯↑ C′ E′ G′ | 7:8:10:12 | A♯↑ C′ D♯′ F♯↑′ (1/8:1/7:1/6:1/5), A♯↑ D𝄫′ D♯′ F𝄪′ (6:7:8:10) | A♯↑ D𝄫 D♯, narrow major; A♯↑ C D♯, narrow minor |
-| B♭ | B♭ D′ F♭′ G′ | 1/10:1/8:1/7:1/6 | | |
-| B | B D♭↓′ E′ G′ | 1/8:1/7:1/6:1/5 | | B D♭↓ E, narrow minor |
+| A♯↑ | A♯↑ C′ E′ G′ | 7:8:10:12 | A♯↑ C′ D♯′ F♯↑′ (1/5:1/6:1/7:1/8), A♯↑ D𝄫′ D♯′ F𝄪′ (6:7:8:10) | A♯↑ D𝄫 D♯, narrow major; A♯↑ C D♯, narrow minor |
+| B♭ | B♭ D′ F♭′ G′ | 1/6:1/7:1/8:1/10 | | |
+| B | B D♭↓′ E′ G′ | 1/5:1/6:1/7:1/8 | | B D♭↓ E, narrow minor |
 
 | C utonal | Chord | Proportion | Or | Triad |
 |---|---|---|---|---|
-| C | C E𝄫 F A♭ | 1/8:1/7:1/6:1/5 | C E♭ G B𝄫 (1/12:1/10:1/8:1/7), C E𝄫 G♭↓ B𝄫 (7:8:10:12) | C E♭ G, minor; C E𝄫 F, narrow minor |
+| C | C E𝄫 F A♭ | 1/5:1/6:1/7:1/8 | C E♭ G B𝄫 (1/7:1/8:1/10:1/12), C E𝄫 G♭↓ B𝄫 (7:8:10:12) | C E♭ G, minor; C E𝄫 F, narrow minor |
 | D♭↓ | D♭↓ F A♭ B | 4:5:6:7 | | D♭↓ F A♭, major |
 | D↓ | D↓ F G♯ B♭↓ | 5:6:7:8 | | |
-| E𝄫 | E𝄫 F A♭ C′ | 1/7:1/6:1/5:1/4 | E𝄫 G♭↓ B𝄫 C′ (4:5:6:7), E𝄫 G𝄫 B𝄫 B♯ (1/12:1/10:1/8:1/7) | E𝄫 G♭↓ B𝄫, major; E𝄫 G𝄫 B𝄫, minor |
-| E♭ | E♭ G B𝄫 C′ | 1/10:1/8:1/7:1/6 | | E♭ G𝄫 A♭, narrow minor |
-| F | F A♭ C′ E𝄫′ | 1/12:1/10:1/8:1/7 | F A♭ B D♭↓′ (5:6:7:8), F G♯ B♭↓ D↓′ (6:7:8:10) | F A♭ C, minor; F G♯ B♭↓, narrow major |
-| G𝄫 | G𝄫 B𝄫 B♯ E𝄫′ | 1/10:1/8:1/7:1/6 | | |
+| E𝄫 | E𝄫 F A♭ C′ | 1/4:1/5:1/6:1/7 | E𝄫 G♭↓ B𝄫 C′ (4:5:6:7), E𝄫 G𝄫 B𝄫 B♯ (1/7:1/8:1/10:1/12) | E𝄫 G♭↓ B𝄫, major; E𝄫 G𝄫 B𝄫, minor |
+| E♭ | E♭ G B𝄫 C′ | 1/6:1/7:1/8:1/10 | | E♭ G𝄫 A♭, narrow minor |
+| F | F A♭ C′ E𝄫′ | 1/7:1/8:1/10:1/12 | F A♭ B D♭↓′ (5:6:7:8), F G♯ B♭↓ D↓′ (6:7:8:10) | F A♭ C, minor; F G♯ B♭↓, narrow major |
+| G𝄫 | G𝄫 B𝄫 B♯ E𝄫′ | 1/6:1/7:1/8:1/10 | | |
 | G♭↓ | G♭↓ B𝄫 C′ E𝄫′ | 5:6:7:8 | | |
-| G | G B𝄫 C′ E♭′ | 1/8:1/7:1/6:1/5 | | G B𝄫 C, narrow minor |
+| G | G B𝄫 C′ E♭′ | 1/5:1/6:1/7:1/8 | | G B𝄫 C, narrow minor |
 | G♯ | G♯ B♭↓ D↓′ F′ | 7:8:10:12 | | |
-| A♭ | A♭ C′ E𝄫′ F′ | 1/10:1/8:1/7:1/6 | A♭ B D♭↓′ F′ (6:7:8:10) | A♭ C E♭, major; A♭ B D♭↓, narrow major |
-| B𝄫 | B𝄫 C′ E♭′ G′ | 1/7:1/6:1/5:1/4 | B𝄫 C′ E𝄫′ G♭↓′ (6:7:8:10), B𝄫 B♯ E𝄫′ G𝄫′ (1/8:1/7:1/6:1/5) | B𝄫 C E𝄫, narrow major; B𝄫 B♯ E𝄫, narrow minor |
+| A♭ | A♭ C′ E𝄫′ F′ | 1/6:1/7:1/8:1/10 | A♭ B D♭↓′ F′ (6:7:8:10) | A♭ C E♭, major; A♭ B D♭↓, narrow major |
+| B𝄫 | B𝄫 C′ E♭′ G′ | 1/4:1/5:1/6:1/7 | B𝄫 C′ E𝄫′ G♭↓′ (6:7:8:10), B𝄫 B♯ E𝄫′ G𝄫′ (1/5:1/6:1/7:1/8) | B𝄫 C E𝄫, narrow major; B𝄫 B♯ E𝄫, narrow minor |
 | B♭↓ | B♭↓ D↓′ F′ G♯′ | 4:5:6:7 | | B♭↓ D↓ F, major; B♭↓ D♭↓ F, minor |
 | B | B D♭↓′ F′ A♭′ | 7:8:10:12 | | |
-| B♯ | B♯ E𝄫′ G𝄫′ B𝄫′ | 1/7:1/6:1/5:1/4 | | |
+| B♯ | B♯ E𝄫′ G𝄫′ B𝄫′ | 1/4:1/5:1/6:1/7 | | |
 
 ### 18 notes
 
@@ -168,7 +168,7 @@ notes, read upward from any of them, and brings these triads:
 
 | Scale | Seventh chord | Proportion | Triads it brings |
 |---|---|---|---|
-| otonal | D𝄪 F♯↑ G𝄪 B♯ | 1/8:1/7:1/6:1/5 | G𝄪 D𝄫 D𝄪 major, G𝄪 B♯ D𝄪 minor, D𝄪 F♯↑ G𝄪 narrow minor |
+| otonal | D𝄪 F♯↑ G𝄪 B♯ | 1/5:1/6:1/7:1/8 | G𝄪 D𝄫 D𝄪 major, G𝄪 B♯ D𝄪 minor, D𝄪 F♯↑ G𝄪 narrow minor |
 | utonal | A♭↑ D𝄫′ F𝄫′ G♭↓′ | 4:5:6:7 | A♭↑ D𝄫 F𝄫 major, A♭↑ B♯ F𝄫 minor, F𝄫 G♭↓ A♭↑ narrow major |
 
 ### Triads and other chords
@@ -176,10 +176,10 @@ notes, read upward from any of them, and brings these triads:
 | Triad | Proportion | Divides |
 |---|---|---|
 | major | 4:5:6 | the fifth, at its arithmetic mean |
-| minor | 10:12:15 = 1/6:1/5:1/4 | the fifth, at its harmonic mean |
+| minor | 10:12:15 = 1/4:1/5:1/6 | the fifth, at its harmonic mean |
 | narrow major | 6:7:8 | the fourth, at its arithmetic mean |
-| narrow minor | 21:24:28 = 1/8:1/7:1/6 | the fourth, at its harmonic mean |
-| septimal diminished | 5:6:7, and its mirror 1/7:1/6:1/5 | |
+| narrow minor | 21:24:28 = 1/6:1/7:1/8 | the fourth, at its harmonic mean |
+| septimal diminished | 5:6:7, and its subharmonic form 1/5:1/6:1/7 | |
 
 Each is three notes of a seventh chord of the gamut. For A C E in otonal,
 and A♭ C E♭ in utonal, that chord (G♭↓ A C E, A♭ C E♭ F♯↑) also needs the
@@ -206,26 +206,26 @@ against E (5/4), a 15/14 apart. Two of them are familiar:
 ### Five-note chords
 
 Chord entry at a width of five offers these, nine to a scale. Each kind has
-a mirror, and a chord is named after its lowest note in that form.
+a subharmonic form, and a chord is named after its lowest note in that form.
 
 | Kind | Proportion | Notes above the lowest |
 |---|---|---|
 | harmonic ninth | 4:5:6:7:9 | 5/4, 3/2, 7/4, 9/4 |
-| mirror harmonic ninth | 1/9:1/7:1/6:1/5:1/4 | 9/8, 9/7, 3/2, 9/5 |
+| subharmonic harmonic ninth | 1/4:1/5:1/6:1/7:1/9 | 9/8, 9/7, 3/2, 9/5 |
 | major ninth | 8:10:12:15:18 | 5/4, 3/2, 15/8, 9/4 |
-| mirror major ninth | 1/18:1/15:1/12:1/10:1/8 | 6/5, 3/2, 9/5, 9/4 |
+| subharmonic major ninth | 1/8:1/10:1/12:1/15:1/18 | 6/5, 3/2, 9/5, 9/4 |
 | 7♯9 with fifth | 12:14:15:18:21 | 7/6, 5/4, 3/2, 7/4 |
-| mirror 7♯9 with fifth | 1/21:1/18:1/15:1/14:1/12 | 7/6, 7/5, 3/2, 7/4 |
+| subharmonic 7♯9 with fifth | 1/12:1/14:1/15:1/18:1/21 | 7/6, 7/5, 3/2, 7/4 |
 
 The nine of otonal are F harmonic ninth (C D♯ F G A on C), F major ninth,
-C 7♯9 with fifth, C harmonic ninth, C mirror harmonic ninth, C major ninth,
-A mirror major ninth, C mirror 7♯9 with fifth and A mirror harmonic ninth.
-The nine of utonal are F mirror harmonic ninth, F mirror major ninth, E𝄫
-mirror 7♯9 with fifth, B♭↓ harmonic ninth, B♭↓ mirror harmonic ninth, D♭↓
-major ninth, B♭↓ mirror major ninth, E𝄫 7♯9 with fifth and D♭↓ harmonic
+C 7♯9 with fifth, C harmonic ninth, C subharmonic harmonic ninth, C major ninth,
+A subharmonic major ninth, C subharmonic 7♯9 with fifth and A subharmonic harmonic ninth.
+The nine of utonal are F subharmonic harmonic ninth, F subharmonic major ninth, E𝄫
+subharmonic 7♯9 with fifth, B♭↓ harmonic ninth, B♭↓ subharmonic harmonic ninth, D♭↓
+major ninth, B♭↓ subharmonic major ninth, E𝄫 7♯9 with fifth and D♭↓ harmonic
 ninth. A degree's list is every one of the nine that contains it, read
 upward from it: chords from a lower step first, then harmonic ninths and
-their mirrors, major ninths and theirs, 7♯9 chords and theirs, then the chord
+their subharmonic forms, major ninths and theirs, 7♯9 chords and theirs, then the chord
 named after the degree itself. Degrees with none (D𝄫, for one) have only
 their four-note chords.
 
@@ -233,44 +233,44 @@ Otonal, on C (transpose with the tonic):
 
 | Degree | Five-note chords |
 |---|---|
-| C | F harmonic ninth / C, F major ninth / C, C 7♯9 with fifth, C harmonic ninth, C mirror harmonic ninth, C major ninth, A mirror major ninth / C, C mirror 7♯9 with fifth |
-| D♭↓ | A mirror harmonic ninth / D♭↓ |
-| D | C harmonic ninth / D, C mirror harmonic ninth / D, C major ninth / D |
-| D♯ | F harmonic ninth / D♯, C 7♯9 with fifth / D♯, C mirror 7♯9 with fifth / D♯ |
-| E | F major ninth / E, C 7♯9 with fifth / E, C harmonic ninth / E, A mirror harmonic ninth / E, C major ninth / E, A mirror major ninth / E |
-| F♭ | C mirror harmonic ninth / F♭ |
+| C | F harmonic ninth / C, F major ninth / C, C 7♯9 with fifth, C harmonic ninth, C subharmonic harmonic ninth, C major ninth, A subharmonic major ninth / C, C subharmonic 7♯9 with fifth |
+| D♭↓ | A subharmonic harmonic ninth / D♭↓ |
+| D | C harmonic ninth / D, C subharmonic harmonic ninth / D, C major ninth / D |
+| D♯ | F harmonic ninth / D♯, C 7♯9 with fifth / D♯, C subharmonic 7♯9 with fifth / D♯ |
+| E | F major ninth / E, C 7♯9 with fifth / E, C harmonic ninth / E, A subharmonic harmonic ninth / E, C major ninth / E, A subharmonic major ninth / E |
+| F♭ | C subharmonic harmonic ninth / F♭ |
 | F | F harmonic ninth, F major ninth |
-| F♯↑ | C mirror 7♯9 with fifth / F♯↑ |
-| G | F harmonic ninth / G, F major ninth / G, C 7♯9 with fifth / G, C harmonic ninth / G, A mirror harmonic ninth / G, C mirror harmonic ninth / G, C major ninth / G, A mirror major ninth / G, C mirror 7♯9 with fifth / G |
-| A | F harmonic ninth / A, F major ninth / A, A mirror harmonic ninth, A mirror major ninth |
-| A♯↑ | C 7♯9 with fifth / A♯↑, C harmonic ninth / A♯↑, C mirror 7♯9 with fifth / A♯↑ |
-| B♭ | C mirror harmonic ninth / B♭ |
-| B | A mirror harmonic ninth / B, C major ninth / B, A mirror major ninth / B |
+| F♯↑ | C subharmonic 7♯9 with fifth / F♯↑ |
+| G | F harmonic ninth / G, F major ninth / G, C 7♯9 with fifth / G, C harmonic ninth / G, A subharmonic harmonic ninth / G, C subharmonic harmonic ninth / G, C major ninth / G, A subharmonic major ninth / G, C subharmonic 7♯9 with fifth / G |
+| A | F harmonic ninth / A, F major ninth / A, A subharmonic harmonic ninth, A subharmonic major ninth |
+| A♯↑ | C 7♯9 with fifth / A♯↑, C harmonic ninth / A♯↑, C subharmonic 7♯9 with fifth / A♯↑ |
+| B♭ | C subharmonic harmonic ninth / B♭ |
+| B | A subharmonic harmonic ninth / B, C major ninth / B, A subharmonic major ninth / B |
 
 Utonal, on C:
 
 | Degree | Five-note chords |
 |---|---|
-| C | F mirror harmonic ninth / C, F mirror major ninth / C, E𝄫 mirror 7♯9 with fifth / C, B♭↓ harmonic ninth / C, B♭↓ mirror harmonic ninth / C, D♭↓ major ninth / C, B♭↓ mirror major ninth / C, E𝄫 7♯9 with fifth / C |
-| D♭↓ | D♭↓ harmonic ninth, D♭↓ major ninth, B♭↓ mirror major ninth / D♭↓ |
+| C | F subharmonic harmonic ninth / C, F subharmonic major ninth / C, E𝄫 subharmonic 7♯9 with fifth / C, B♭↓ harmonic ninth / C, B♭↓ subharmonic harmonic ninth / C, D♭↓ major ninth / C, B♭↓ subharmonic major ninth / C, E𝄫 7♯9 with fifth / C |
+| D♭↓ | D♭↓ harmonic ninth, D♭↓ major ninth, B♭↓ subharmonic major ninth / D♭↓ |
 | D↓ | B♭↓ harmonic ninth / D↓ |
-| E𝄫 | E𝄫 mirror 7♯9 with fifth, B♭↓ mirror harmonic ninth / E𝄫, E𝄫 7♯9 with fifth |
-| E♭ | F mirror harmonic ninth / E♭, F mirror major ninth / E♭, D♭↓ harmonic ninth / E♭, D♭↓ major ninth / E♭ |
-| F | F mirror harmonic ninth, F mirror major ninth, E𝄫 mirror 7♯9 with fifth / F, D♭↓ harmonic ninth / F, B♭↓ harmonic ninth / F, B♭↓ mirror harmonic ninth / F, D♭↓ major ninth / F, B♭↓ mirror major ninth / F, E𝄫 7♯9 with fifth / F |
+| E𝄫 | E𝄫 subharmonic 7♯9 with fifth, B♭↓ subharmonic harmonic ninth / E𝄫, E𝄫 7♯9 with fifth |
+| E♭ | F subharmonic harmonic ninth / E♭, F subharmonic major ninth / E♭, D♭↓ harmonic ninth / E♭, D♭↓ major ninth / E♭ |
+| F | F subharmonic harmonic ninth, F subharmonic major ninth, E𝄫 subharmonic 7♯9 with fifth / F, D♭↓ harmonic ninth / F, B♭↓ harmonic ninth / F, B♭↓ subharmonic harmonic ninth / F, D♭↓ major ninth / F, B♭↓ subharmonic major ninth / F, E𝄫 7♯9 with fifth / F |
 | G♭↓ | E𝄫 7♯9 with fifth / G♭↓ |
-| G | F mirror harmonic ninth / G, F mirror major ninth / G |
+| G | F subharmonic harmonic ninth / G, F subharmonic major ninth / G |
 | G♯ | B♭↓ harmonic ninth / G♯ |
-| A♭ | F mirror major ninth / A♭, E𝄫 mirror 7♯9 with fifth / A♭, D♭↓ harmonic ninth / A♭, B♭↓ mirror harmonic ninth / A♭, D♭↓ major ninth / A♭, B♭↓ mirror major ninth / A♭ |
-| B𝄫 | F mirror harmonic ninth / B𝄫, E𝄫 mirror 7♯9 with fifth / B𝄫, E𝄫 7♯9 with fifth / B𝄫 |
-| B♭↓ | B♭↓ harmonic ninth, B♭↓ mirror harmonic ninth, B♭↓ mirror major ninth |
+| A♭ | F subharmonic major ninth / A♭, E𝄫 subharmonic 7♯9 with fifth / A♭, D♭↓ harmonic ninth / A♭, B♭↓ subharmonic harmonic ninth / A♭, D♭↓ major ninth / A♭, B♭↓ subharmonic major ninth / A♭ |
+| B𝄫 | F subharmonic harmonic ninth / B𝄫, E𝄫 subharmonic 7♯9 with fifth / B𝄫, E𝄫 7♯9 with fifth / B𝄫 |
+| B♭↓ | B♭↓ harmonic ninth, B♭↓ subharmonic harmonic ninth, B♭↓ subharmonic major ninth |
 | B | D♭↓ harmonic ninth / B |
 
 ## Names
 
-A harmonic seventh (4:5:6:7) is named by its root, the lowest note; a mirror
-seventh (1/7:1/6:1/5:1/4) is named by its top note, its root too. The status
+A harmonic seventh (4:5:6:7) is named by its root, the lowest note; a subharmonic
+seventh (1/4:1/5:1/6:1/7) is named by its top note, its root too. The status
 line and the chord palette use it: C E G A♯↑ is "C harmonic seventh", and C D♯
-F♯↑ A♯↑ is "A♯↑ mirror seventh" ("A♯↑ mirror seventh / C" read upward from C).
+F♯↑ A♯↑ is "A♯↑ subharmonic seventh" ("A♯↑ subharmonic seventh / C" read upward from C).
 
 ## Borrowed chords
 
@@ -282,9 +282,9 @@ identified by their ratios.
 
 | Otonal may borrow | Utonal may borrow |
 |---|---|
-| E mirror seventh: [G♭↓] A C E | A♭ harmonic seventh: A♭ C E♭ [F♯↑] |
-| D♭↓ mirror seventh: [F𝄫] [G♭↓] [B𝄫] D♭↓ | B harmonic seventh: B [D♯] [F♯↑] [G𝄪] |
-| B𝄫 harmonic seventh: [B𝄫] D♭↓ F♭ G | D♯ mirror seventh: F G♯ B [D♯] |
+| E subharmonic seventh: [G♭↓] A C E | A♭ harmonic seventh: A♭ C E♭ [F♯↑] |
+| D♭↓ subharmonic seventh: [F𝄫] [G♭↓] [B𝄫] D♭↓ | B harmonic seventh: B [D♯] [F♯↑] [G𝄪] |
+| B𝄫 harmonic seventh: [B𝄫] D♭↓ F♭ G | D♯ subharmonic seventh: F G♯ B [D♯] |
 
 So otonal borrows F𝄫 60/49, G♭↓ 10/7 and B𝄫 12/7, and utonal borrows D♯ 7/6,
 F♯↑ 7/5 and G𝄪 49/30. In 53-EDO none of them shares a key with a note of the
@@ -311,7 +311,7 @@ those of utonal, then the chords that take notes from both, and a chord is
 offered only if all its notes are notes of the diamond, so it has eight seventh
 chords: C E G A♯↑, F A C D♯ and C D♯ F♯↑ A♯↑ from otonal, E𝄫 F A♭ C, B𝄫 C E♭
 G and E𝄫 G♭↓ B𝄫 C from utonal, and two that take notes from both scales and
-need none outside the 13: G♭↓ A C E (E mirror seventh) and A♭ C E♭ F♯↑ (A♭
+need none outside the 13: G♭↓ A C E (E subharmonic seventh) and A♭ C E♭ F♯↑ (A♭
 harmonic seventh).
 
 **A key with two ratios.** In 53-EDO four keys of the gamut carry one ratio

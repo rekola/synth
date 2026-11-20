@@ -110,7 +110,7 @@ TEST(chord_cursor_leaves_the_columns_in_use_when_it_leaves_the_track) {
   f.wait();
   f.up('q');
   f.up('w');
-  CHECK(f.row(0) == (V{C, Ds, E, Asu}));
+  CHECK(f.row(0) == (V{C, Ds, F, A}));
   f.widen(0);
   f.controller->ensureNoteColumns(f.track_id, 6);
   f.press(cellui::Key::Right, kModCtrl);
@@ -162,10 +162,10 @@ TEST(chord_entry_completes_several_keys_from_the_chords_that_contain_them) {
     f.down('w');
     CHECK(f.row(0) == (V{C, Ds})); // no other chord on the way
     f.wait();
-    CHECK(f.row(0) == (V{C, Ds, E, Asu}));
+    CHECK(f.row(0) == (V{C, Ds, F, A}));
     f.up('w');
     f.up('q');
-    CHECK(f.row(0) == (V{C, Ds, E, Asu}));
+    CHECK(f.row(0) == (V{C, Ds, F, A}));
   }
   {
     ChordFixture f;
@@ -196,7 +196,7 @@ TEST(chord_entry_works_the_chord_out_again_when_a_key_joins_the_held_ones) {
   f.down('w');
   CHECK(f.row(0) == (V{C, Ds})); // what the first completion added is gone
   f.wait();
-  CHECK(f.row(0) == (V{C, Ds, E, Asu}));
+  CHECK(f.row(0) == (V{C, Ds, F, A}));
   f.up('q');
   f.up('w');
   f.execute("undo");
@@ -272,13 +272,13 @@ TEST(chord_entry_without_key_releases_completes_when_the_interval_closes) {
   f.type("w");
   CHECK(f.row(0) == (V{C, Ds}));
   f.wait();
-  CHECK(f.row(0) == (V{C, Ds, E, Asu}));
+  CHECK(f.row(0) == (V{C, Ds, F, A}));
   f.type("q");
   f.wait();
   CHECK(f.row(1) == (V{C, E, G, Asu}));
   f.execute("undo");
   CHECK(f.row(1).empty());
-  CHECK(f.row(0) == (V{C, Ds, E, Asu}));
+  CHECK(f.row(0) == (V{C, Ds, F, A}));
 }
 
 TEST(saving_removes_the_empty_note_columns_from_the_file_only) {
@@ -305,27 +305,27 @@ TEST(chord_palette_steps_through_the_chords_of_the_entry_just_made) {
   f.meta('/');
   CHECK(f.shows("Chord: 3 notes"));
   CHECK(f.row(0) == (V{C, E, G}));
-  // The chords C names come first: its 7♯9, cut to three notes.
-  f.press(cellui::Key::Down);
-  CHECK(f.row(0) == (V{C, Ds, E}));
+  // The list is C's table, cut to three notes: narrow major, the subharmonic seventh, F major seventh, 7♯9.
   f.press(cellui::Key::Down);
   CHECK(f.row(0) == (V{C, Ds, F}));
   CHECK(f.shows("C narrow major"));
   f.press(cellui::Key::Down);
-  // The mirror seventh A♯↑ hangs from an octave above the played C, so it is cut to its top three
+  // The subharmonic seventh A♯↑ hangs from an octave above the played C, so it is cut to its top three
   // notes, which fall from the first column.
   CHECK(f.row(0) == (V{53 + C, Asu, Fsu}));
-  CHECK(f.shows("A♯↑ mirror seventh / C (3 notes)"));
+  CHECK(f.shows("A♯↑ subharmonic seventh / C (3 notes)"));
   f.press(cellui::Key::Down);
   CHECK(f.row(0) == (V{C, E, F}));
+  f.press(cellui::Key::Down);
+  CHECK(f.row(0) == (V{C, Ds, E}));
   // Round to the first, with no chord twice.
   f.press(cellui::Key::Down);
   CHECK(f.row(0) == (V{C, E, G}));
   f.press(cellui::Key::Up);
-  CHECK(f.row(0) == (V{C, E, F}));
+  CHECK(f.row(0) == (V{C, Ds, E}));
   f.press(cellui::Key::Enter);
   CHECK(!f.shows("Chord: 3 notes"));
-  CHECK(f.row(0) == (V{C, E, F}));
+  CHECK(f.row(0) == (V{C, Ds, E}));
   // The whole session is one undo step, the entry another.
   f.execute("undo");
   CHECK(f.row(0) == (V{C, E, G}));
@@ -344,12 +344,12 @@ TEST(chord_palette_completes_notes_played_with_a_cursor_of_one_column) {
   // with no chord there yet the first is written.
   f.meta('/');
   CHECK(f.shows("Chord: 4 notes"));
-  CHECK(f.row(0) == (V{C, Ds, E, Asu}));
+  CHECK(f.row(0) == (V{C, Ds, F, A}));
   CHECK(f.shows("C D♯ F A") && f.shows("C D♯ E A♯↑"));
   f.press(cellui::Key::Down);
-  CHECK(f.row(0) == (V{C, Ds, F, A}));
+  CHECK(f.row(0) == (V{C, Ds, E, Asu}));
   f.press(cellui::Key::Down);
-  // The mirror seventh is found from the highest played note, D♯, and hangs from it.
+  // The subharmonic seventh is found from the highest played note, D♯, and hangs from it.
   CHECK(f.row(0) == (V{Ds, C, Asu - 53, Fsu - 53}));
   // Cancelling puts back what was there.
   f.ctrl('g');
@@ -411,10 +411,10 @@ TEST(chord_palette_opens_on_a_chord_entered_earlier) {
   f.meta('/');
   CHECK(f.row(0) == (V{C, E, G}));
   f.press(cellui::Key::Up);
-  CHECK(f.row(0) == (V{C, E, F}));
-  f.press(cellui::Key::Down);
-  f.press(cellui::Key::Down);
   CHECK(f.row(0) == (V{C, Ds, E}));
+  f.press(cellui::Key::Down);
+  f.press(cellui::Key::Down);
+  CHECK(f.row(0) == (V{C, Ds, F}));
   f.ctrl('g');
   CHECK(f.row(0) == (V{C, E, G}));
   CHECK(f.row(1) == (V{F, A, 53 + C}));
@@ -465,11 +465,11 @@ TEST(chord_palette_is_accepted_by_the_next_note) {
   f.up('q');
   f.meta('/');
   f.press(cellui::Key::Up);
-  CHECK(f.row(0) == (V{C, E, F}));
+  CHECK(f.row(0) == (V{C, Ds, E}));
   f.down('r');
   f.up('r');
   CHECK(!f.shows("Chord: 3 notes"));
-  CHECK(f.row(0) == (V{C, E, F}));
+  CHECK(f.row(0) == (V{C, Ds, E}));
   CHECK(f.row(1) == (V{F, A, 53 + C}));
   f.meta('/');
   CHECK(f.shows("Chord: 3 notes"));
@@ -490,7 +490,7 @@ TEST(chord_palette_on_the_desktop_keymap) {
   f.press(' ', kModCtrl);
   CHECK(f.shows("Chord: 3 notes"));
   f.press(cellui::Key::Down);
-  CHECK(f.row(0) == (V{C, Ds, E}));
+  CHECK(f.row(0) == (V{C, Ds, F}));
   f.press(cellui::Key::Escape);
   CHECK(!f.shows("Chord: 3 notes"));
   CHECK(f.row(0) == (V{C, E, G}));
@@ -623,8 +623,8 @@ TEST(chord_entry_at_five_columns_writes_five_note_chords) {
     f.up('5');
     auto row = f.row(0);
     CHECK(row.size() == 5);
-    CHECK(row[4] == row[0] + 53);
-    CHECK(f.shows("7♯9"));
+    CHECK(row[4] == row[0] - 53); // a subharmonic seventh falls, so the repeated note is an octave lower
+    CHECK(f.shows("A♯↑ subharmonic seventh / F♯↑"));
     CHECK(!f.shows("with octave"));
   }
   {
@@ -754,8 +754,8 @@ TEST(chord_entry_in_a_diamond_song_uses_the_diamond_keys) {
   CHECK(g.row(0) == (V{-1}) || g.row(0).empty());
 }
 
-// A mirror chord is built downward from the played note: nothing is written above it.
-TEST(a_mirror_chord_is_entered_by_its_top_note) {
+// A subharmonic chord is built downward from the played note: nothing is written above it.
+TEST(a_subharmonic_chord_is_entered_by_its_top_note) {
   {
     ChordFixture f(Scale::UTONAL);
     f.widen(3);
@@ -763,7 +763,7 @@ TEST(a_mirror_chord_is_entered_by_its_top_note) {
     f.wait();
     f.up('q');
     CHECK(f.row(0) == (V{53, 36, 22, 10})); // C5 A♭4 F4 E𝄫4, falling
-    CHECK(f.shows("C mirror seventh"));
+    CHECK(f.shows("C subharmonic seventh"));
   }
   {
     ChordFixture f(Scale::UTONAL);
@@ -801,8 +801,8 @@ TEST(a_mirror_chord_is_entered_by_its_top_note) {
   }
 }
 
-// The palette lists the same candidates and writes a mirror chord the same way.
-TEST(the_palette_writes_a_mirror_chord_from_the_played_note) {
+// The palette lists the same candidates and writes a subharmonic chord the same way.
+TEST(the_palette_writes_a_subharmonic_chord_from_the_played_note) {
   ChordFixture f(Scale::UTONAL);
   f.widen(3);
   f.down('q');
@@ -811,7 +811,7 @@ TEST(the_palette_writes_a_mirror_chord_from_the_played_note) {
   f.meta('/');
   CHECK(f.row(0) == (V{53, 36, 22, 10}));
   f.press(cellui::Key::Down);
-  CHECK(f.shows("G mirror seventh / C"));
+  CHECK(f.shows("G subharmonic seventh / C"));
   CHECK(f.row(0) == (V{53, 41, 31, 14})); // C5 B𝄫4 G4 E♭4
   f.press(cellui::Key::Down);
   CHECK(f.row(0) == (V{0, 10, 27, 41})); // E𝄫 harmonic seventh read upward from C, as before
@@ -847,7 +847,7 @@ TEST(a_line_of_single_notes_in_utonal_gives_chords_whose_top_notes_are_the_notes
 }
 
 // F and the C above it together write E𝄫 F A♭ C with that C on top, keeping their octaves.
-TEST(two_played_notes_complete_a_mirror_chord_from_the_highest) {
+TEST(two_played_notes_complete_a_subharmonic_chord_from_the_highest) {
   ChordFixture f(Scale::UTONAL);
   f.widen(3);
   f.down('r'); // F
@@ -856,7 +856,7 @@ TEST(two_played_notes_complete_a_mirror_chord_from_the_highest) {
   f.up('r');
   f.up('i');
   CHECK(f.row(0) == (V{53, 36, 22, 10}));
-  CHECK(f.shows("C mirror seventh"));
+  CHECK(f.shows("C subharmonic seventh"));
 }
 
 // The chord the key's note is heard as, with a four-column cursor: the keys of otonal and diamond.
@@ -887,7 +887,7 @@ TEST(a_key_writes_the_chord_its_note_names) {
     CHECK(f.row(0) == (V{E, G, Asu, 53 + C}));
   }
   {
-    // Diamond E (the diamond layout puts 5/4 on e): its mirror seventh G♭↓ A C E.
+    // Diamond E (the diamond layout puts 5/4 on e): its subharmonic seventh G♭↓ A C E.
     ChordFixture f(Scale::DIAMOND);
     f.widen(3);
     f.down('e');

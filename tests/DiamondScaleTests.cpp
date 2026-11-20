@@ -63,7 +63,7 @@ std::vector<Seventh> sevenths(const ScaleChords & chords) {
   std::vector<Seventh> out;
   for (std::size_t d = 0; d < gamut::kExtendedDiamond.size(); d++) {
     for (auto entry : chords.chordsOf(d)) {
-      if (entry->kind != Kind::HARMONIC_SEVENTH && entry->kind != Kind::MIRROR_SEVENTH) continue;
+      if (entry->kind != Kind::HARMONIC_SEVENTH && entry->kind != Kind::SUBHARMONIC_SEVENTH) continue;
       std::set<std::size_t> notes(entry->notes.begin(), entry->notes.end());
       bool seen = std::any_of(out.begin(), out.end(), [&](const Seventh & s) { return s.notes == notes; });
       if (!seen) out.push_back({notes, entry->root, entry->kind});
@@ -155,7 +155,7 @@ TEST(the_diamond_has_exactly_eight_seventh_chords_and_no_chord_outside_its_13_no
   CHECK(sevenths(ScaleChords(Scale::DIAMOND, Tuning::EDO31, 0)).size() == 8);
 }
 
-// A harmonic seventh is named by its lowest note, a mirror seventh by its top note.
+// A harmonic seventh is named by its lowest note, a subharmonic seventh by its top note.
 TEST(seventh_chords_are_named_by_their_root) {
   ScaleChords chords(Scale::DIAMOND, Tuning::EDO53, 0);
   auto name_of = [&](std::set<std::size_t> notes) {
@@ -166,31 +166,29 @@ TEST(seventh_chords_are_named_by_their_root) {
     }
     return std::string("none");
   };
-  CHECK(name_of(setOf({10 / 7_r, 5 / 3_r, 1 / 1_r, 5 / 4_r})) == "E mirror seventh");
-  CHECK(name_of(setOf({1 / 1_r, 7 / 6_r, 7 / 5_r, 7 / 4_r})) == "A♯↑ mirror seventh");
-  CHECK(name_of(setOf({8 / 7_r, 4 / 3_r, 8 / 5_r, 1 / 1_r})) == "C mirror seventh");
+  CHECK(name_of(setOf({10 / 7_r, 5 / 3_r, 1 / 1_r, 5 / 4_r})) == "E subharmonic seventh");
+  CHECK(name_of(setOf({1 / 1_r, 7 / 6_r, 7 / 5_r, 7 / 4_r})) == "A♯↑ subharmonic seventh");
+  CHECK(name_of(setOf({8 / 7_r, 4 / 3_r, 8 / 5_r, 1 / 1_r})) == "C subharmonic seventh");
   CHECK(name_of(setOf({8 / 5_r, 1 / 1_r, 6 / 5_r, 7 / 5_r})) == "A♭ harmonic seventh");
   CHECK(name_of(setOf({1 / 1_r, 5 / 4_r, 3 / 2_r, 7 / 4_r})) == "C harmonic seventh");
 }
 
-// A note's list starts with the chords it names, the seventh chords of otonal's direction first
-// (upward) in the diamond; the others keep their order: otonal's, utonal's, then those of both.
+// A note's list is in the order of its table: otonal's chords, utonal's, then those of both.
 TEST(a_notes_chords_are_those_it_names_then_those_of_its_scales_then_those_of_both) {
   auto name_of = [](Scale scale, std::size_t note, std::size_t at) {
     ScaleChords chords(scale, Tuning::EDO53, 0);
     auto list = chords.chordsOf(note);
     return at < list.size() ? chords.chordName(*list[at]) : std::string();
   };
-  // C names an upward and a downward seventh chord: the upward one comes first in the diamond, the
-  // downward one in utonal.
+  // C's first chord is otonal's in the diamond and utonal's in utonal.
   CHECK(name_of(Scale::DIAMOND, index(1 / 1_r), 0) == "C harmonic seventh");
-  CHECK(name_of(Scale::DIAMOND, index(1 / 1_r), 1) == "C mirror seventh");
-  CHECK(name_of(Scale::UTONAL, index(1 / 1_r), 0) == "C mirror seventh");
+  CHECK(name_of(Scale::DIAMOND, index(1 / 1_r), 1) == "F harmonic seventh / C");
+  CHECK(name_of(Scale::DIAMOND, index(1 / 1_r), 5) == "C subharmonic seventh");
+  CHECK(name_of(Scale::UTONAL, index(1 / 1_r), 0) == "C subharmonic seventh");
   CHECK(name_of(Scale::OTONAL, index(1 / 1_r), 0) == "C harmonic seventh");
-  // A♭ names the chord A♭ C E♭ F♯↑, which takes notes from both scales.
-  CHECK(name_of(Scale::DIAMOND, index(8 / 5_r), 0) == "A♭ harmonic seventh");
-  // E names the mirror seventh G♭↓ A C E.
-  CHECK(name_of(Scale::DIAMOND, index(5 / 4_r), 0) == "E mirror seventh");
+  // The chords that take notes from both scales come last: A♭ C E♭ F♯↑ for A♭, G♭↓ A C E for E.
+  CHECK(name_of(Scale::DIAMOND, index(8 / 5_r), 3) == "A♭ harmonic seventh");
+  CHECK(name_of(Scale::DIAMOND, index(5 / 4_r), 3) == "E subharmonic seventh");
   // The chords a note does not name keep their order: otonal's before utonal's.
   auto of_c = degreeChords(Scale::DIAMOND, index(1 / 1_r));
   auto position = [&](std::vector<std::size_t> notes) {
