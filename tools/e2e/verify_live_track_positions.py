@@ -134,13 +134,13 @@ def main():
     scr.pump(0.5)
 
     # A note in each track's third clip, then back up into the second clip.
-    scr.send(b"q")
+    scr.send(b"z")
     scr.pump(0.5)
     scr.send(CTRL_RIGHT)
     scr.pump(0.4)
     scr.send(UP)
     scr.pump(0.3)
-    scr.send(b"q")
+    scr.send(b"z")
     scr.pump(0.5)
     for _ in range(3):
         scr.send(UP)
