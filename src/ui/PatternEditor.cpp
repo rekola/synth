@@ -4675,7 +4675,7 @@ void PatternEditor::applyChordCompletion(bool released) {
   s.pending = false;
   auto track = song.getMasterTrack().getChildByInternalId(s.track_id);
   if (!track) return;
-  chords::ScaleChords scale(song.getScale(), song.getTuningForTrack(*track), song.getKey());
+  chords::ScaleChords scale(song.getScale(), song.getTuningForTrack(*track), song.getKey(), song.getBorrowedChords());
   auto result = chords::complete(scale, s.given, s.width, s.ratios);
   if (result.status == chords::Status::NO_CHORD) controller.log("No chord of the scale contains these notes");
   if (result.status != chords::Status::OK) return;
@@ -4823,7 +4823,7 @@ std::vector<int> PatternEditor::chordAt(int track_id, RowAddress row, int column
   auto & song = getController().getSong();
   auto track = song.getMasterTrack().getChildByInternalId(track_id);
   std::optional<chords::ScaleChords> scale;
-  if (ratios && track) scale.emplace(song.getScale(), song.getTuningForTrack(*track), song.getKey());
+  if (ratios && track) scale.emplace(song.getScale(), song.getTuningForTrack(*track), song.getKey(), song.getBorrowedChords());
   auto target = source_->edit(track_id, row);
   for (int i = 0; i < kPaletteColumns; i++) {
     auto note = target.pattern->getNote(target.effective_row, column + i);
@@ -4873,43 +4873,46 @@ void PatternEditor::stepChordPalette(int direction) {
     auto info = getTrackInfoFor(song, opened.track_id);
     bool on_notes = track && dynamic_cast<const LeafTrack *>(track) && track->getType() != TrackType::SAMPLE && info.has_note_column_ && !info.collapsed_ &&
                     !current_cursor.isOnLocator() && !info.isTrackFxColumn(current_cursor.col) && song.getTuningForTrack(*track) != Tuning::PERCUSSION;
-    if (!on_notes) {
-      controller.log("No note under the cursor to build a chord on");
-      return;
+    // Without a note the palette still opens, on no chord: it is where its settings are.
+    if (on_notes) {
+      if (isLiveMode()) scene_source_->selectClip(opened.track_id);
+      opened.row = source_->cursor();
+      opened.column = info.getNoteNumber(current_cursor.col);
+      auto there = chordAt(opened.track_id, opened.row, opened.column, &opened.ratios);
+      if (!there.empty()) opened.given = {there[0]};
+    } else {
+      opened.row = source_->cursor();
     }
-    if (isLiveMode()) scene_source_->selectClip(opened.track_id);
-    opened.row = source_->cursor();
-    opened.column = info.getNoteNumber(current_cursor.col);
-    auto there = chordAt(opened.track_id, opened.row, opened.column, &opened.ratios);
-    if (there.empty()) {
-      controller.log("No note under the cursor to build a chord on");
-      return;
-    }
-    opened.given = {there[0]};
   }
   auto track = song.getMasterTrack().getChildByInternalId(opened.track_id);
   if (!track) return;
   auto tuning = song.getTuningForTrack(*track);
-  chords::ScaleChords scale(song.getScale(), tuning, song.getKey());
-  int lowest = *std::min_element(opened.given.begin(), opened.given.end());
-  if (!opened.ratios.count(lowest) && !scale.degreeOf(lowest)) {
-    controller.log(Note::keyToString(tuning, lowest % std::max(scale.edo(), 1)) + " is not a note of the song's scale");
-    return;
+  chords::ScaleChords scale(song.getScale(), tuning, song.getKey(), song.getBorrowedChords());
+  if (!opened.given.empty()) {
+    int lowest = *std::min_element(opened.given.begin(), opened.given.end());
+    if (!opened.ratios.count(lowest) && !scale.degreeOf(lowest)) {
+      controller.log(Note::keyToString(tuning, lowest % std::max(scale.edo(), 1)) + " is not a note of the song's scale");
+      return;
+    }
   }
   opened.size = cursor_width_ > 1 ? cursor_width_ : palette_size_;
   // Fewer notes than were played is no completion: the size starts above them.
   opened.size = std::clamp(std::max(opened.size, static_cast<int>(opened.given.size()) + 1), 2, kMaxCursorWidth);
-  if (chords::complete(scale, opened.given, opened.size, opened.ratios).status != chords::Status::OK) {
+  if (!opened.given.empty() && chords::complete(scale, opened.given, opened.size, opened.ratios).status != chords::Status::OK) {
+    // The palette still opens, so that the setting can be changed.
+    opened.given.clear();
+    opened.ratios.clear();
     controller.log("No chord of the scale contains these notes");
-    return;
   }
 
-  auto current = chordAt(opened.track_id, opened.row, opened.column);
-  {
+  int span = 0;
+  if (!opened.given.empty()) {
+    span = static_cast<int>(chordAt(opened.track_id, opened.row, opened.column).size());
     auto target = source_->edit(opened.track_id, opened.row);
     for (int i = 0; i < kPaletteColumns; i++) opened.original.push_back(target.pattern->getNote(target.effective_row, opened.column + i));
   }
-  opened.span = static_cast<int>(current.size());
+  auto current = opened.given.empty() ? std::vector<int>() : chordAt(opened.track_id, opened.row, opened.column);
+  opened.span = span;
   opened.open = true;
   palette = std::move(opened);
 
@@ -4919,6 +4922,7 @@ void PatternEditor::stepChordPalette(int direction) {
   fillChordPalette();
   // The chord in the pattern is where the selection starts; one that is no line of the list gives way to the first.
   int count = static_cast<int>(palette.lines.size());
+  if (count == 0) return;
   int found = -1;
   for (int i = 0; i < count; i++) {
     if (palette.lines[static_cast<size_t>(i)].notes == current) found = i;
@@ -4935,7 +4939,7 @@ void PatternEditor::fillChordPalette() {
   palette.selected = 0;
   auto track = song.getMasterTrack().getChildByInternalId(palette.track_id);
   if (!track) return;
-  chords::ScaleChords scale(song.getScale(), song.getTuningForTrack(*track), song.getKey());
+  chords::ScaleChords scale(song.getScale(), song.getTuningForTrack(*track), song.getKey(), song.getBorrowedChords());
   palette.lines = chords::complete(scale, palette.given, palette.size, palette.ratios).chords;
   for (auto & line : palette.lines) {
     std::string names;
@@ -5040,10 +5044,19 @@ bool PatternEditor::chordPaletteKey(const cellui::KeyDown & e) {
       return true;
     }
   }
+  // Tab moves the focus between the list and the check box; on the check box Space or Enter toggles it.
+  if (e.key == Key::Tab && !e.mods.ctrl && !e.mods.alt && !e.mods.meta) {
+    chord_palette_.on_checkbox = !chord_palette_.on_checkbox;
+    force_full_redraw_ = true;
+    return true;
+  }
   if (e.mods.ctrl || e.mods.alt || e.mods.meta || e.mods.shift) return false;
+  if (chord_palette_.on_checkbox && palette_box_ && palette_box_->key(e)) return true;
   if (e.key == Key::Down) {
+    chord_palette_.on_checkbox = false;
     stepChordPalette(1);
   } else if (e.key == Key::Up) {
+    chord_palette_.on_checkbox = false;
     stepChordPalette(-1);
   } else if (e.key == Key::Enter) {
     if (!e.repeat) closeChordPalette(true);
@@ -5056,6 +5069,7 @@ bool PatternEditor::chordPaletteKey(const cellui::KeyDown & e) {
 void PatternEditor::renderChordPalette() {
   auto & palette = chord_palette_;
   if (!palette.open) {
+    palette_box_.reset();
     palette_plane_.reset();
     palette_drawn_ = false;
     return;
@@ -5065,10 +5079,16 @@ void PatternEditor::renderChordPalette() {
   auto [rows, cols] = getDim();
   int count = static_cast<int>(palette.lines.size());
   int list_rows = std::max(1, std::min(count, rows - 2));
-  int panel_rows = list_rows + 1;
+  int panel_rows = list_rows + 2; // the list, the size and keys, the check box
   if (!palette_plane_) {
     palette_plane_ = getPlane().createChild();
     palette_plane_->setElevation(palette_plane_->getStyles().theme.elevation.overlay);
+  }
+  if (!palette_box_) {
+    palette_box_ = std::make_unique<cellui::Checkbox>(
+        *palette_plane_, "Borrowed chords", [this]() { return getController().getSong().getBorrowedChords(); }, [this](bool on) { setBorrowedChords(on); });
+    // As high as the palette, or its own cells would be drawn over the box.
+    palette_box_->setElevation(palette_plane_->getStyles().theme.elevation.overlay);
   }
   auto & plane = *palette_plane_;
   plane.resize(panel_rows, cols);
@@ -5092,7 +5112,7 @@ void PatternEditor::renderChordPalette() {
     plane.putstr(i, 0, blank);
     if (count == 0) {
       set(quiet, styles.picker_bg_color);
-      plane.putstr(i, 1, Utf8::truncateToWidth(fmt::format("No chord of {} notes contains these notes", palette.size), cols - 2));
+      plane.putstr(i, 1, Utf8::truncateToWidth(palette.given.empty() ? std::string("No note to build a chord on") : fmt::format("No chord of {} notes contains these notes", palette.size), cols - 2));
       continue;
     }
     auto & line = palette.lines[static_cast<size_t>(index)];
@@ -5104,10 +5124,32 @@ void PatternEditor::renderChordPalette() {
   plane.putstr(list_rows, 0, blank);
   auto title = fmt::format("Chord: {} notes", palette.size);
   plane.putstr(list_rows, 1, Utf8::truncateToWidth(title, cols - 2), cellui::kBoldFace);
-  const std::string hint = "Up/Down choose  Enter accept  " + bindingFor("keyboard-quit") + " cancel";
+  const std::string hint = "Up/Down choose  Tab check box  Enter accept  " + bindingFor("keyboard-quit") + " cancel";
   int hint_width = Utf8::displayWidth(hint);
   if (Utf8::displayWidth(title) + hint_width + 4 <= cols) {
     set(quiet, styles.picker_bg_color);
     plane.putstr(list_rows, cols - 1 - hint_width, hint);
   }
+  // The check box, on the same surface.
+  set(styles.window_fg_color, styles.picker_bg_color);
+  plane.putstr(list_rows + 1, 0, blank);
+  palette_box_->resize(1, std::min(cols - 2, palette_box_->preferredWidth()));
+  // Where a plane made from the palette goes is given in the root's coordinates in a flat tree.
+  auto [origin_row, origin_col] = plane.childOrigin();
+  palette_box_->move(origin_row + list_rows + 1, origin_col + 1);
+  palette_box_->moveToTop(); // over the palette's own row
+  palette_box_->setFocused(palette.on_checkbox);
+  palette_box_->render(styles, true);
+}
+
+void PatternEditor::setBorrowedChords(bool enabled) {
+  auto & song = getController().getSong();
+  if (song.getBorrowedChords() == enabled) return;
+  song.setBorrowedChords(enabled);
+  getController().log(enabled ? "Borrowed chords on" : "Borrowed chords off");
+  force_full_redraw_ = true;
+  if (!chord_palette_.open) return;
+  // The candidates are rebuilt at once, the first of them written.
+  fillChordPalette();
+  writePaletteChord();
 }

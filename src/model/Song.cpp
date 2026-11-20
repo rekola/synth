@@ -1424,6 +1424,7 @@ Song::loadParameters(const ParameterSource & input) {
   setSwing(input.get<int>("swing", swing::kStraight));
   setStandardPitch(input.get<float>("standardPitch", kNominalStandardPitchHz));
   setRecordQuantize(input.get<bool>("recordQuantize", false));
+  setBorrowedChords(input.get<bool>("borrowedChords", false));
 
   setEarHeight(input.get<float>("earHeight", constants::DEFAULT_EAR_HEIGHT));
   setFloorReflectionEnabled(input.get<bool>("floorReflection", constants::DEFAULT_FLOOR_REFLECTION_ENABLED));
@@ -1663,6 +1664,7 @@ Song::storeParameters(ParameterSource & output) const {
   output.set("swing", getSwing(), swing::kStraight);
   output.set("standardPitch", getStandardPitch(), kNominalStandardPitchHz);
   if (getRecordQuantize()) output.set("recordQuantize", true);
+  if (getBorrowedChords()) output.set("borrowedChords", true);
 
   output.set("earHeight", getEarHeight(), constants::DEFAULT_EAR_HEIGHT);
   if (getFloorReflectionEnabled() != constants::DEFAULT_FLOOR_REFLECTION_ENABLED) output.set("floorReflection", getFloorReflectionEnabled());
@@ -1717,11 +1719,10 @@ Song::getScaleDegreesWindow(int start_index, int count, bool major_if_none) cons
     auto c_value = Note::stringToKey(tuning, "C");
     for (auto & name : degree_names) offsets_from_tonic.push_back(Note::stringToKey(tuning, name) - c_value);
   }
-  // A key two notes share is one degree of the diamond scale.
-  if (scale == Scale::DIAMOND) {
-    std::sort(offsets_from_tonic.begin(), offsets_from_tonic.end());
-    offsets_from_tonic.erase(std::unique(offsets_from_tonic.begin(), offsets_from_tonic.end()), offsets_from_tonic.end());
-  }
+  // In a coarse tuning the spellings of otonal and utonal can land out of order, so the degrees
+  // are put in order. A key two notes share is one degree of the diamond scale.
+  if (scale == Scale::OTONAL || scale == Scale::UTONAL || scale == Scale::DIAMOND) std::sort(offsets_from_tonic.begin(), offsets_from_tonic.end());
+  if (scale == Scale::DIAMOND) offsets_from_tonic.erase(std::unique(offsets_from_tonic.begin(), offsets_from_tonic.end()), offsets_from_tonic.end());
   auto n = static_cast<int>(offsets_from_tonic.size());
   if (n <= 0) return {};
 

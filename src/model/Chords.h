@@ -59,7 +59,10 @@ inline bool hasChords(Scale scale) {
 // notes from both.
 // `size` 4 (or less) is the list of chords of two to four notes, 5 the
 // five-note chords.
-const std::vector<Entry> & degreeChords(Scale scale, std::size_t gamut_index, int size = 4);
+// With `borrowed`, otonal and utonal also have the chords that take notes from the other
+// scale (division.h): every chord whose notes are all in the scale or borrowed, with at
+// least one borrowed note.
+const std::vector<Entry> & degreeChords(Scale scale, std::size_t gamut_index, int size = 4, bool borrowed = false);
 
 // The name of a triad whose other two notes are these ratios above its lowest
 // (both within the octave, ascending), if it has one.
@@ -71,7 +74,9 @@ std::optional<std::string> triadName(Ratio second, Ratio third);
 class ScaleChords {
  public:
   // `key` is a note value of which only the pitch class counts (-1 reads as C).
-  ScaleChords(Scale scale, Tuning tuning, int key);
+  // With `borrowed` (otonal and utonal only) the notes of the division's chords that the scale lacks
+  // are available as notes of chords, each on a key no note of the scale has.
+  ScaleChords(Scale scale, Tuning tuning, int key, bool borrowed = false);
 
   bool hasChords() const { return edo_ > 0; }
   // The scale whose lists these are.
@@ -83,6 +88,8 @@ class ScaleChords {
   int stepOf(std::size_t gamut_index) const;
   // Whether the scale has this gamut note on its key.
   bool holds(std::size_t gamut_index) const;
+  // Whether the gamut note is one the scale borrows (and `borrowed` is on).
+  bool isBorrowed(std::size_t gamut_index) const;
   // The degree's chords whose notes the tuning all holds.
   std::vector<const Entry *> chordsOf(std::size_t gamut_index, int size = 4) const;
   // A scale note's name, without an octave: the gamut's spelling on C, the
@@ -96,6 +103,7 @@ class ScaleChords {
   Tuning tuning_;
   int edo_ = 0;
   int key_ = 0;
+  bool borrowed_ = false;
   std::vector<int> held_; // by step: gamut index, or -1
 };
 
@@ -103,6 +111,7 @@ struct Completion {
   std::vector<int> notes; // note values, rising
   std::vector<std::size_t> ratios; // each note's gamut index, as `notes`
   std::string name;
+  bool borrowed = false; // a note of it is borrowed from the other scale; the name says so
 };
 
 enum class Status {
