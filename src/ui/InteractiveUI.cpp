@@ -8,7 +8,7 @@
 #include <cellui/HeatmapChart.h>
 #include "InfoLine.h"
 #include "TransportButton.h"
-#include "StatusLine.h"
+#include <cellui/StatusLine.h>
 #include "PatternEditor.h"
 #include "ArrangementGrid.h"
 #include "ClipGrid.h"
@@ -689,7 +689,7 @@ InteractiveUI::initializeWidgets() {
   arrangement_grid_->setCommitCallback([this](int track_id, int row) { commitOverviewCell(track_id, row); });
   info_line_ = make_shared<InfoLine>(getPlane());
   transport_button_ = make_shared<TransportButton>(getPlane());
-  status_line_ = make_shared<StatusLine>(getPlane());
+  status_line_ = make_shared<cellui::StatusLine>(getPlane());
   // See StatusLine::showPrompt()'s own comment: opening any StatusLine
   // reader (M-x included) must take focus away from any widget's own
   // inline editor rather than opening on top of it.

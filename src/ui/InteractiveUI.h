@@ -26,6 +26,7 @@
 
 namespace cellui {
 class Backend;
+class StatusLine;
 }
 
 #include <cellui/UIMenu.h>
@@ -34,7 +35,6 @@ class Backend;
 #include "ChannelMeter.h"
 class InfoLine;
 class TransportButton;
-class StatusLine;
 class PatternEditor;
 class ArrangementGrid;
 class ClipGrid;
@@ -149,7 +149,7 @@ class InteractiveUI : public UI {
   std::shared_ptr<cellui::HeatmapChart> heatmap_;
   // The scopes in the versions this terminal shows.
   const cellui::Charts & charts_;
-  std::shared_ptr<StatusLine> status_line_;
+  std::shared_ptr<cellui::StatusLine> status_line_;
 
   StyleProvider & styles_;
 
