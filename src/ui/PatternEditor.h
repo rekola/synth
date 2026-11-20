@@ -470,7 +470,6 @@ private:
     int from_column = 0;
     bool audition = false;    // after the keys were released: the audition ends the notes
     std::vector<int> values;  // still to sound, rising
-    std::vector<int> detunes; // each one's PLAY_NOTE detune parameter (0: none)
     std::chrono::steady_clock::time_point next;
     std::chrono::steady_clock::duration interval{}; // the gap before the note last played
   };
@@ -486,8 +485,6 @@ private:
   void tickChordEntry();
   int freeVoiceColumn(int track_id, int from) const;
   Note chordNote(const Song & song, int value) const;
-  // The PLAY_NOTE detune parameter a note is sounded with: its own correction, 0 for none.
-  static int detuneOf(const Note & note);
 
   // The last note entry: what the chord palette acts on while nothing has
   // been edited or moved since. `given` are the notes played, not the ones a

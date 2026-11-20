@@ -2,6 +2,7 @@
 
 #include "../src/model/Chords.h"
 #include "../src/model/Division.h"
+#include "../src/model/JustIntonation.h"
 #include "../src/model/InstrumentTrack.h"
 #include "../src/model/Note.h"
 #include "../src/model/Song.h"
@@ -254,6 +255,21 @@ TEST(borrowed_step_view_degrees_are_in_order) {
       song.setScale(scale);
       auto degrees = song.getScaleDegreesWindow(0, 60);
       CHECK(std::is_sorted(degrees.begin(), degrees.end()));
+    }
+  }
+}
+
+// The tuning table the player and the recording paths use already holds a borrowed note: it gives every key of
+// the tuning the gamut note nearest it, the scale's own first, and a borrowed note never shares a key with one.
+TEST(borrowed_notes_are_tuned_to_their_ratios_by_the_scales_tuning_table) {
+  for (auto scale : {Scale::OTONAL, Scale::UTONAL}) {
+    auto table = just_intonation::scaleCorrectionsFor(Tuning::EDO53, scale, 0);
+    for (auto ratio : borrowedOf(scale)) {
+      int step = ((ratio.steps(53) % 53) + 53) % 53;
+      auto got = table.forNote(5 * 53 + step);
+      CHECK(got.has_value());
+      CHECK_NEAR(got.value_or(1e9), ratio.cents() - ratio.steps(53) * 1200.0 / 53, 1e-9);
+      CHECK(table.ratioForNote(5 * 53 + step).value_or(just_intonation::ScaleCorrections::NoteRatio{}).ratio == ratio);
     }
   }
 }

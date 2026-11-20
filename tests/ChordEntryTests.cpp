@@ -910,7 +910,6 @@ struct Sound {
   bool play;
   int column;
   int value; // as steps above C-4; unused for a stop
-  int detune = 0; // PLAY_NOTE's detune parameter, 0 for none
 };
 
 // The sound of pressing the keys together and holding them until the completion has come.
@@ -922,7 +921,7 @@ std::vector<Sound> soundOf(ChordFixture & f, std::string keys) {
     while (queue.hasEvents()) {
       auto event = queue.pop();
       if (!event) continue;
-      if (event->getType() == PlaybackControlEvent::PLAY_NOTE) out.push_back({true, event->getParameter2(), event->getParameter3() - kC, event->getParameter5()});
+      if (event->getType() == PlaybackControlEvent::PLAY_NOTE) out.push_back({true, event->getParameter2(), event->getParameter3() - kC});
       if (event->getType() == PlaybackControlEvent::STOP_NOTE) out.push_back({false, event->getParameter2(), 0});
     }
   };
@@ -1126,24 +1125,4 @@ TEST(borrowed_chords_in_chord_entry) {
     CHECK(f.row(0) == (V{E, G, Asu, 53 + C}));
     CHECK(!f.shows("(borrowed)"));
   }
-}
-
-// The sound of a note the song's scale does not hold, a borrowed one, is tuned to its ratio all the same.
-TEST(borrowed_chord_notes_sound_at_their_exact_ratios) {
-  ChordFixture f; // otonal
-  f.widen(3);
-  f.controller->getSong().setBorrowedChords(true);
-  auto events = soundOf(f, "e");
-  bool found = false;
-  for (auto & e : events) {
-    if (!e.play || e.value != Gbv) continue; // G♭↓, 10/7: no note of otonal
-    found = true;
-    CHECK(e.detune != 0);
-    // 10/7 is 617.49 cents, 27 steps of 53-EDO 611.32.
-    CHECK_NEAR(PlaybackControlEvent::detuneFromParameter(e.detune), 617.488 - 27 * 1200.0 / 53, 0.1);
-  }
-  CHECK(found);
-  // The key pressed is tuned to its ratio as well: E, 5/4.
-  CHECK(!events.empty() && events[0].detune != 0);
-  CHECK_NEAR(PlaybackControlEvent::detuneFromParameter(events[0].detune), 386.314 - 17 * 1200.0 / 53, 0.1);
 }
