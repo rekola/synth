@@ -3,7 +3,7 @@
 Toolkit-agnostic plumbing plus the one concrete backend, `InteractiveUI`.
 Widgets are built on cellui (cellui's CLAUDE.md); what stays here is what
 knows the song or the controller: `PatternEditor`, `ClipGrid`,
-`ArrangementGrid`, `OutlineView`, `InfoLine`, `StatusLine`, `PatternScroll`,
+`ArrangementGrid`, `OutlineView`, `InfoLine`, `PatternScroll`,
 `TerminalMenu` on `MenuBar`, the pixel charts. Many `ui/*.h` are forwarding
 headers for what moved to cellui. The UI sources are the `synth_ui` library.
 
@@ -61,7 +61,7 @@ arrangement grid, the backdrop.
 Commands (`CommandRegistry` names, run by a key or M-x) live in
 `UI::initializeCommands()`, not `InteractiveUI`: a GUI backend shares the
 names and behaviour, only the *binding* is backend-specific. A command stays
-in `InteractiveUI` only while it needs a `StatusLine` prompt or a concrete
+in `InteractiveUI` only while it needs a `cellui::StatusLine` prompt or a concrete
 widget pointer with no abstract stand-in. The permanent exception is
 pattern-editor selection/copy-paste (`set-mark`/`kill-region`/
 `kill-ring-save`/`yank`/`exchange-point-and-mark`): a GUI's copy-paste
@@ -74,7 +74,7 @@ constructor and call `dispatchCommand()` early in their key handler, anything
 unbound falling through to manual handling. `Controller::sendCommand()` (what
 the palette calls) falls back to `UI::executeCommand()` — the active element's
 registry, then UI's — for names it doesn't know, so M-x reaches both
-Controller-level and per-widget commands. Not migrated: `StatusLine`,
+Controller-level and per-widget commands. Not migrated: `cellui::StatusLine`,
 `OutlineView`. Every command needs a line in `ui/CommandDescriptions.cpp`
 (a test fails otherwise).
 
@@ -114,7 +114,8 @@ Controller-level and per-widget commands. Not migrated: `StatusLine`,
   `"Ctrl+Shift+S"`; `cellui::KeyStroke::parse()`), a prefix and a key in one
   string. `KeyStroke::pack()` stays only for what that cannot spell: a raw
   control byte a terminal sends, and a capital letter with Shift.
-- `StatusLine`'s M-x detection is a single check for a Meta-x `Input`:
+- `cellui::StatusLine`'s M-x detection (the bottom row's message and prompt live
+  in cellui, `cellui/StatusLine.h`) is a single check for a Meta-x `Input`:
   `cellui::KeyReader` folds a bare `ESC` followed, arbitrarily later, by `x`
   into one Meta event (Emacs's indefinite ESC-as-Meta, "ESC-" indicator
   included — no timing window) and holds a bare Escape until the next key,
