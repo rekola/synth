@@ -34,7 +34,7 @@ sequence* (several shortcuts in a row, such as `C-x C-s`).
 A seventh chord that takes notes from both the otonal and the utonal scale; each
 scale may borrow three of the six (extended-diamond.md, Borrowed chords), and the
 notes of such a chord that the scale lacks are its borrowed notes. Chord entry
-offers them only with the song's "borrowed chords" setting on (off by default, a
+offers them while the song's "borrowed chords" setting is on (on by default, a
 check box in the chord palette, saved in the song); the scale itself does not
 change and a borrowed note has no key of its own.
 

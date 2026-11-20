@@ -204,7 +204,7 @@ class Song : public SongObject {
   bool getRecordQuantize() const { return read(songschema::kRecordQuantize); }
   void setRecordQuantize(bool enabled) { write("set record quantize", songschema::kRecordQuantize, enabled); }
   // Whether chord entry also offers the chords that borrow notes from the other of otonal and
-  // utonal (division.h). Off by default; an undoable edit of the song.
+  // utonal (division.h). On by default; an undoable edit of the song.
   bool getBorrowedChords() const { return read(songschema::kBorrowedChords); }
   void setBorrowedChords(bool enabled) { write("set borrowed chords", songschema::kBorrowedChords, enabled); }
   // `absolute_row` as a musical position, "bar.beat.sixteenth", each

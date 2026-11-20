@@ -20,7 +20,7 @@ inline const doc::Prop<int> kSwing{"swing", 50};  // swing::kStraight
 inline const doc::Prop<float> kStandardPitch{"standardPitch", 440.0f}; // kNominalStandardPitchHz
 inline const doc::Prop<bool> kRecordQuantize{"recordQuantize", false};
 // Chord entry also offers the seventh chords that borrow notes from the other of otonal and utonal.
-inline const doc::Prop<bool> kBorrowedChords{"borrowedChords", false};
+inline const doc::Prop<bool> kBorrowedChords{"borrowedChords", true};
 inline const doc::Prop<float> kEarHeight{"earHeight", constants::DEFAULT_EAR_HEIGHT};
 inline const doc::Prop<bool> kFloorReflection{"floorReflection", constants::DEFAULT_FLOOR_REFLECTION_ENABLED};
 inline const doc::Prop<float> kFloorReflectionStrength{"floorReflectionStrength", constants::DEFAULT_FLOOR_REFLECTION_STRENGTH};

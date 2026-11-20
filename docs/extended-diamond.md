@@ -265,6 +265,17 @@ Utonal, on C:
 | B♭↓ | B♭↓ harmonic ninth, B♭↓ subharmonic harmonic ninth, B♭↓ subharmonic major ninth |
 | B | D♭↓ harmonic ninth / B |
 
+### The 7sus2 and the subharmonic 7♯9
+
+Two kinds of four-note chord are not in the lists of seventh chords above, and
+are offered after them: the **7sus2**, a seventh chord with its ninth in place
+of its third (4:6:7:9, subharmonic 1/4:1/6:1/7:1/9), and the subharmonic form of
+the 7♯9 (1/12:1/14:1/15:1/21). Each is built from every note that has the other
+three in the scale. Chord entry gives a note its own such chord first when the
+note has no run (user-interface.md, Chord entry): the 7sus2 to a note that has
+the 6, the 7 and the 9 and lacks the 5, and the 7♯9 chords to the notes that
+are their roots or top notes.
+
 ## Names
 
 A harmonic seventh (4:5:6:7) is named by its root, the lowest note; a subharmonic
@@ -291,7 +302,7 @@ F♯↑ 7/5 and G𝄪 49/30. In 53-EDO none of them shares a key with a note of 
 borrowing scale. The scales themselves do not change (18 notes, the same layouts and
 step view): a borrowed note has no key of its own and appears only as a note of a
 chord, tuned to its ratio like any note of the gamut. Chord entry offers these chords
-only with the song's "borrowed chords" setting on (user-interface.md, Chord palette).
+while the song's "borrowed chords" setting is on, which a new song has (user-interface.md, Chord palette).
 In 31-EDO a borrowed note never takes the key of a note of the scale, and a chord is
 offered only if every note it needs is available there: otonal keeps G♭↓ and B𝄫 but
 not F𝄫, utonal keeps D♯ and F♯↑ but not G𝄪.
