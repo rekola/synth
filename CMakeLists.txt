@@ -229,7 +229,7 @@ set(CELLUI_ENABLE_GTK ${SYNTH_ENABLE_GTK})
 include(FetchContent)
 FetchContent_Declare(cellui
   GIT_REPOSITORY https://github.com/rekola/cellui
-  GIT_TAG 168fc70174857f5d73b7456bf69dcbf5da31e228)
+  GIT_TAG cd4dba236af0742fc356861e3d46174eeebab32e)
 FetchContent_MakeAvailable(cellui)
 target_link_libraries(synth_engine PUBLIC cellui)
 
