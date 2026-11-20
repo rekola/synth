@@ -108,9 +108,8 @@ class InteractiveUI : public UI {
   // Which widget takes the keys, by name (for a test backend's frames).
   std::string focusName() const;
 
-  // The "ESC-" indicator while an Escape waits for its next key.
-  int escapeIndicatorPollTimeoutMs() const;
-  void updateEscapeIndicator();
+  // The screen changed size: lays out again and redraws everything.
+  void handleResize();
 
   // Constructs every widget (menu_ through octave_control_ below) and
   // defines every UI-level command/keybinding - called once from
@@ -262,8 +261,8 @@ class InteractiveUI : public UI {
 
   // The terminal's inputs as the widgets see them, Escape as Meta included.
   cellui::KeyReader & key_reader_;
-  // Whether "ESC-" is on the status line for the current wait.
-  bool escape_indicator_shown_ = false;
+  // An input reached the widgets in this turn of the loop: the next frame shows it.
+  bool input_arrived_ = false;
   // Declared last so the handlers disconnect before the members they use go.
   std::vector<cellui::Connection> controller_connections_;
   // Gives a widget the keys the dispatcher sends it, as the Input they came from.

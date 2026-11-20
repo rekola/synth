@@ -16,9 +16,17 @@ headers for what moved to cellui. The UI sources are the `synth_ui` library.
   `cellui::Application`, which opens the display (terminal, GTK or Win32 window)
   and owns the root plane, charts, input dispatcher, key reader and theme
   setup; `InteractiveUI` draws on a plane of its own over the root plane and
-  keeps its own loop, handing each backend event to `Application::handle()`
-  and drawing with `Application::present()`; `HeadlessUI` is the one
-  with no screen. `UI::View` (`ARRANGEMENT`/`LIVE`) is UI state independent
+  runs the application's loop (`Application::run()` from `startUI()`), which
+  reads the display, waits for its deadlines (a held Escape, a frame the pacer
+  held back) and echoes "ESC-". `InteractiveUI` adds its own sources (stderr,
+  MIDI, Launchpad) to the loop before it runs, and hooks: `setBeforeTurn()`
+  (statistics, animation, a one-second wait so a signal's quit is seen),
+  `setAfterTurn()` (quit, and `frameDue()`: whether a wake asks for a frame)
+  and `setFrameHook()` (`renderComponents()`; a frame with nothing new is not
+  shown). The application asks for a frame only when the display reported
+  something, so the audio thread's wakes, about 190 a second, ask for one
+  only through `frameDue()`. Tests drive it with `step()` instead
+  (`readInput()`, then a frame). `HeadlessUI` is the one with no screen. `UI::View` (`ARRANGEMENT`/`LIVE`) is UI state independent
   of which buffer is active; a buffer is just a song.
 - Threads: a status message from UI code is `Controller::log()`. The audio
   and visualization threads send plain event structs with

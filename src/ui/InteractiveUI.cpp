@@ -462,29 +462,6 @@ InteractiveUI::InteractiveUI(cellui::Application & app)
 InteractiveUI::~InteractiveUI() {
 }
 
-// Shows "ESC-" once a pending Escape has waited KeyReader::kIndicatorDelay,
-// the way Emacs shows its Meta prefix; readInput() clears it when the wait
-// ends.
-void
-InteractiveUI::updateEscapeIndicator() {
-  auto due = key_reader_.indicatorDue();
-  if (!due || escape_indicator_shown_) return;
-  if (std::chrono::steady_clock::now() >= *due) {
-    setStatus("ESC-");
-    escape_indicator_shown_ = true;
-  }
-}
-
-// The loop's wait, shortened so the indicator appears on time.
-int
-InteractiveUI::escapeIndicatorPollTimeoutMs() const {
-  constexpr int kDefaultPollTimeoutMs = 1000;
-  auto due = key_reader_.indicatorDue();
-  if (!due || escape_indicator_shown_) return kDefaultPollTimeoutMs;
-  auto remaining_ms = std::chrono::duration_cast<std::chrono::milliseconds>(*due - std::chrono::steady_clock::now()).count();
-  return static_cast<int>(std::clamp<long long>(remaining_ms, 0, kDefaultPollTimeoutMs));
-}
-
 void
 InteractiveUI::initialize(std::shared_ptr<Controller> & controller) {
   // A change of the link's class shows in the info line, so a frame is wanted.
@@ -498,6 +475,7 @@ InteractiveUI::initialize(std::shared_ptr<Controller> & controller) {
   setPlane(root_plane_.createChild());
   resize(app_.rows(), app_.cols());
   app_.setInputHook([this](const cellui::Input & input) {
+    input_arrived_ = true;
     offerInput(input);
     return true;
   });
@@ -518,7 +496,7 @@ InteractiveUI::initialize(std::shared_ptr<Controller> & controller) {
   display_connections_.push_back(app_.message.connect([this](const std::string & text) { setStatus(text); }));
   display_connections_.push_back(app_.resized.connect([this](int rows, int cols) {
     resize(rows, cols);
-    key_reader_.push(cellui::Input(Key::Resize, -1, -1, false, false, false, false));
+    handleResize();
   }));
   // What a colour looks like depends on the display; a cursor shows only while the window has the focus.
   display_connections_.push_back(app_.display_changed.connect([this] { force_next_render_ = true; }));
@@ -666,10 +644,6 @@ InteractiveUI::readInput() {
 
   cellui::Input input(0, -1, -1, false, false, false, false);
   while (key_reader_.next(&input)) offerInput(input);
-  if (escape_indicator_shown_ && !key_reader_.escapePending()) {
-    setStatus("");
-    escape_indicator_shown_ = false;
-  }
   return true;
 }
 
@@ -1683,6 +1657,22 @@ void InteractiveUI::activateAt(int row, int col) {
   if (octave_control_->isEditing() && active_element_.lock() != octave_control_) octave_control_->cancelEditing();
 }
 
+void InteractiveUI::handleResize() {
+  // The screen and the root plane already have the new size; the terminal
+  // reflowed, so the next frame redraws everything.
+  refresh();
+  layout();
+  if (auto modal = activeModal()) modal->relayout();
+  // Deferred, not a direct renderComponents(true) call - see
+  // force_next_render_'s own comment on InteractiveUI.h: this runs from
+  // inside event handling, before the frame hook's own renderComponents()
+  // call (the one that decides whether a frame is shown) - a direct call
+  // here would draw everything correctly into the planes, then report
+  // "nothing left to redraw" right back to that call, which would then skip
+  // the frame and never actually show it.
+  force_next_render_ = true;
+}
+
 bool
 InteractiveUI::offerInput(const cellui::Input & input) {
   bool handled = false;
@@ -1719,21 +1709,7 @@ InteractiveUI::offerInput(const cellui::Input & input) {
   if (!pointer && !reader_active && dispatchCommand(input.getId(), mods)) return true;
 
   if (input.getId() == Key::Resize) {
-    // The screen and the root plane already have the new size
-    // (resizeScreen(), as the event was read); the terminal reflowed, so
-    // the next frame redraws everything.
-    refresh();
-    layout();
-    if (auto modal = activeModal()) modal->relayout();
-    // Deferred, not a direct renderComponents(true) call - see
-    // force_next_render_'s own comment on InteractiveUI.h: this runs from
-    // inside input handling, before startUI()'s own main loop reaches its
-    // own renderComponents() call (the one that actually gates
-    // render(), the real terminal update) - a direct call here would
-    // draw everything correctly into the planes, then
-    // report "nothing left to redraw" right back to that outer call,
-    // which would then skip the flush and never actually show it.
-    force_next_render_ = true;
+    handleResize();
   } else if (mods.ctrl && input.getId() == 'l') {
     refresh();
   }
@@ -2182,20 +2158,13 @@ InteractiveUI::startUI(AudioAPI &, MidiInput & midi, LaunchpadIO & launchpad_io)
   close(out_pipe[1]);
 #endif
 
-  // In the order the loop handles them.
+  // The application's loop reads the display; these are the program's own
+  // sources, in the order the loop handles them after the display's.
   WaitSet waits;
-  auto input_group = waits.group();
   auto stderr_group = waits.group();
   auto midi_group = waits.group();
   auto launchpad_group = waits.group();
 
-#ifdef _WIN32
-  // The window's events: handles, not descriptors.
-  for (void * handle : backend_.inputHandles()) waits.addHandle(input_group, handle);
-#else
-  waits.addFd(input_group, backend_.inputFd());
-  waits.addFd(input_group, backend_.wakeFd());
-#endif
 #ifdef _WIN32
   StderrCapture stderr_capture;
   if (stderr_capture.active()) waits.add(stderr_group, stderr_capture.notifier());
@@ -2232,19 +2201,15 @@ InteractiveUI::startUI(AudioAPI &, MidiInput & midi, LaunchpadIO & launchpad_io)
   auto stats_thread_ticks = stats_path ? threadCpuTicks() : std::map<std::string, long>{};
   auto count = [](const std::string & what) { statCount(what); };
 
-  // A turn: what the handlers below set, then the frame logic in the after
-  // hook. The loop is the backend's own.
-  bool render = false;
+  // A turn: what the handlers below and the input hook set, then the frame
+  // logic in the after hook. The loop is the application's (app_.run()),
+  // which reads the display, asks for a frame when the display reported
+  // something, and settles a held Escape and the "ESC-" echo.
   bool other_wake = false; // input, MIDI, Launchpad or stderr woke the loop, not just a posted event
   auto & loop = backend_.eventLoop();
   auto add_source = [&](WaitSet::Group group, cellui::EventLoop::Handler handler) {
     addWaitGroup(loop, waits, group, std::move(handler));
   };
-  add_source(input_group, [&] {
-    count("fd" + std::to_string(input_group));
-    other_wake = true;
-    render |= readInput();
-  });
   add_source(stderr_group, [&] {
     count("fd" + std::to_string(stderr_group));
     other_wake = true;
@@ -2297,8 +2262,9 @@ InteractiveUI::startUI(AudioAPI &, MidiInput & midi, LaunchpadIO & launchpad_io)
     for (auto & ev : evs) deliver(ev);
   });
 
-  // The backend calls this when it is time to render the current state.
-  backend_.setFrameHandler([&](int64_t) {
+  // When the display lets a frame start: draws what changed, and shows the
+  // frame only when something did.
+  app_.setFrameHook([&]() {
     last_frame = std::chrono::steady_clock::now();
     if (redraw_requested_) render_pending = true;
     redraw_requested_ = false;
@@ -2308,20 +2274,18 @@ InteractiveUI::startUI(AudioAPI &, MidiInput & midi, LaunchpadIO & launchpad_io)
     count("frame");
     if (components) count("frame:components-asked-redraw");
     render_pending |= components;
-    if (render_pending) {
-      render_pending = false;
-      count("present");
-      StatTimer timer("us:render");
-      InteractiveUI::render();
-    }
     // A colour still easing needs the next frame even if nothing else wakes
     // the loop.
     if ((getView() == View::LIVE && (clip_grid_->isAnimating() || outline_view_->isAnimating())) || pattern_editor_->isAnimating() ||
         arrangement_grid_->isAnimating()) backend_.requestFrame();
+    if (!render_pending) return false;
+    render_pending = false;
+    count("present");
+    return true;
   });
 
-  loop.setBefore([&]() -> int {
-    render = false;
+  app_.setBeforeTurn([&]() -> int {
+    input_arrived_ = false;
     other_wake = false;
     if (stats_path && std::chrono::steady_clock::now() - stats_since >= std::chrono::seconds(1)) {
       timespec cpu_now{};
@@ -2346,36 +2310,29 @@ InteractiveUI::startUI(AudioAPI &, MidiInput & midi, LaunchpadIO & launchpad_io)
       stats_since = std::chrono::steady_clock::now();
     }
 
-    updateEscapeIndicator();
-
-    int poll_timeout_ms = escapeIndicatorPollTimeoutMs();
     // A view still moving toward where it was scrolled to asks for the next frame.
     if (animating()) backend_.requestFrame();
-
-    // The terminal's input waits a few milliseconds for the rest of a
-    // sequence a read split; when that runs out, what it holds is settled.
-    if (auto deadline = backend_.nextDeadline()) {
-      auto wait = std::chrono::duration_cast<std::chrono::milliseconds>(*deadline - std::chrono::steady_clock::now()).count() + 1;
-      wait = std::max<long>(wait, 0);
-      poll_timeout_ms = poll_timeout_ms < 0 ? static_cast<int>(wait) : std::min(poll_timeout_ms, static_cast<int>(wait));
-    }
-    return poll_timeout_ms;
+    // At least once a second, so a quit asked for by a signal is seen.
+    constexpr int kTurnTimeoutMs = 1000;
+    return kTurnTimeoutMs;
   });
 
-  loop.setAfter([&](bool woken) {
+  app_.setAfterTurn([&](bool woken) {
     if (shouldClose()) {
-      loop.quit();
+      app_.quit();
       return;
     }
-    if (!woken && backend_.nextDeadline() && std::chrono::steady_clock::now() >= *backend_.nextDeadline()) {
-      readInput();
+    // The display's input (the application's own source, or a held key it
+    // settled when its grace ran out).
+    if (input_arrived_) {
+      count("input");
       other_wake = true;
       woken = true;
     }
     count(woken ? "wake" : "timeout");
 
     if (woken) {
-      render_pending |= render;
+      render_pending |= input_arrived_;
       // A wake nothing asked a redraw of (the audio blocks, ~190 a second)
       // looks for news at most this often.
       auto now = std::chrono::steady_clock::now();
@@ -2387,5 +2344,9 @@ InteractiveUI::startUI(AudioAPI &, MidiInput & midi, LaunchpadIO & launchpad_io)
     }
   });
 
-  if (!shouldClose()) loop.run();
+  if (!shouldClose()) app_.run();
+  // The hooks hold this function's state.
+  app_.setFrameHook(nullptr);
+  app_.setBeforeTurn(nullptr);
+  app_.setAfterTurn(nullptr);
 }
