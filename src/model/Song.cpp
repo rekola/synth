@@ -1719,11 +1719,10 @@ Song::getScaleDegreesWindow(int start_index, int count, bool major_if_none) cons
     auto c_value = Note::stringToKey(tuning, "C");
     for (auto & name : degree_names) offsets_from_tonic.push_back(Note::stringToKey(tuning, name) - c_value);
   }
-  // A key two notes share is one degree of the diamond scale.
-  if (scale == Scale::DIAMOND) {
-    std::sort(offsets_from_tonic.begin(), offsets_from_tonic.end());
-    offsets_from_tonic.erase(std::unique(offsets_from_tonic.begin(), offsets_from_tonic.end()), offsets_from_tonic.end());
-  }
+  // In a coarse tuning the spellings of otonal and utonal can land out of order, so the degrees
+  // are put in order. A key two notes share is one degree of the diamond scale.
+  if (scale == Scale::OTONAL || scale == Scale::UTONAL || scale == Scale::DIAMOND) std::sort(offsets_from_tonic.begin(), offsets_from_tonic.end());
+  if (scale == Scale::DIAMOND) offsets_from_tonic.erase(std::unique(offsets_from_tonic.begin(), offsets_from_tonic.end()), offsets_from_tonic.end());
   auto n = static_cast<int>(offsets_from_tonic.size());
   if (n <= 0) return {};
 

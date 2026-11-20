@@ -9,6 +9,7 @@
 
 #include <algorithm>
 #include <filesystem>
+#include <set>
 #include <string>
 #include <vector>
 
@@ -121,10 +122,11 @@ TEST(borrowed_on_changes_only_what_it_adds) {
       for (int width = 3; width <= 6; width++) {
         auto off = completeIn(scale, {step}, width, false);
         if (off.status != Status::OK) continue;
-        // Every chord offered without the setting is still offered with it.
+        // Every chord offered without the setting is still offered with it, or is the start of a
+        // run that a borrowed note makes longer.
         auto on = completeIn(scale, {step}, width, true);
         for (auto & chord : off.chords) {
-          CHECK(std::any_of(on.chords.begin(), on.chords.end(), [&](const Completion & c) { return c.notes == chord.notes && c.ratios == chord.ratios; }));
+          CHECK(std::any_of(on.chords.begin(), on.chords.end(), [&](const Completion & c) { return c.notes.size() >= chord.notes.size() && std::equal(chord.notes.begin(), chord.notes.end(), c.notes.begin()) && std::equal(chord.ratios.begin(), chord.ratios.end(), c.ratios.begin()); }));
           CHECK(!chord.borrowed);
         }
       }
@@ -241,4 +243,17 @@ TEST(borrowed_setting_is_in_the_song) {
   edited.setBorrowedChords(true);
   edited.undo();
   CHECK(!edited.getBorrowedChords());
+}
+
+// The step view's degrees of otonal, utonal and the diamond rise in every tuning.
+TEST(borrowed_step_view_degrees_are_in_order) {
+  for (auto scale : {Scale::OTONAL, Scale::UTONAL, Scale::DIAMOND}) {
+    for (auto tuning : {Tuning::EDO12, Tuning::EDO19, Tuning::EDO31, Tuning::EDO53}) {
+      Song song;
+      song.setTuning(tuning);
+      song.setScale(scale);
+      auto degrees = song.getScaleDegreesWindow(0, 60);
+      CHECK(std::is_sorted(degrees.begin(), degrees.end()));
+    }
+  }
 }
