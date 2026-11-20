@@ -211,38 +211,38 @@ TEST(borrowed_in_31_edo_never_takes_a_key_of_the_scale) {
   CHECK(!on.holds(gamutIndexOf(Ratio{60, 49})));
 }
 
-// The setting belongs to the song: off by default, saved and restored, undoable, and a song file
-// without it loads with it off.
+// The setting belongs to the song: on by default, saved and restored, undoable, and a song file
+// without it loads with it on.
 TEST(borrowed_setting_is_in_the_song) {
   Song song;
   song.addTrack(std::make_unique<InstrumentTrack>(0));
-  CHECK(!song.getBorrowedChords());
-  song.setBorrowedChords(true);
   CHECK(song.getBorrowedChords());
+  song.setBorrowedChords(false);
+  CHECK(!song.getBorrowedChords());
 
   auto path = std::string(TESTS_SCRATCH_DIR) + "/borrowed_chords_round_trip.xml";
   song.save(path);
   Song reloaded;
   InstrumentProvider provider;
   CHECK(reloaded.open(path, provider));
-  CHECK(reloaded.getBorrowedChords());
+  CHECK(!reloaded.getBorrowedChords());
   // Another open song keeps its own.
-  CHECK(!Song().getBorrowedChords());
+  CHECK(Song().getBorrowedChords());
 
-  // Saved off, the file does not mention it and loads off.
-  reloaded.setBorrowedChords(false);
+  // Saved on, the file does not mention it, and a file without it loads on.
+  reloaded.setBorrowedChords(true);
   reloaded.save(path);
   Song again;
   CHECK(again.open(path, provider));
-  CHECK(!again.getBorrowedChords());
+  CHECK(again.getBorrowedChords());
   std::filesystem::remove(path);
 
   // It is an edit that can be undone.
   Song edited;
   edited.addTrack(std::make_unique<InstrumentTrack>(0));
-  edited.setBorrowedChords(true);
+  edited.setBorrowedChords(false);
   edited.undo();
-  CHECK(!edited.getBorrowedChords());
+  CHECK(edited.getBorrowedChords());
 }
 
 // The step view's degrees of otonal, utonal and the diamond rise in every tuning.

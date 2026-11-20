@@ -28,7 +28,10 @@ enum class Kind { HARMONIC_SEVENTH,
                   MAJOR_NINTH,
                   SUBHARMONIC_MAJOR_NINTH,
                   SEVEN_SHARP_NINE_FIFTH,
-                  SUBHARMONIC_SEVEN_SHARP_NINE_FIFTH };
+                  SUBHARMONIC_SEVEN_SHARP_NINE_FIFTH,
+                  SEVENTH_SUS2,
+                  SUBHARMONIC_SEVENTH_SUS2,
+                  SUBHARMONIC_SEVEN_SHARP_NINE };
 
 // Which note a chord is built from. An upward chord (its proportion in whole
 // numbers, 4:5:6:7) has its notes above its lowest note; a downward chord (the

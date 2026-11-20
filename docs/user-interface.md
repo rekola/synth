@@ -304,14 +304,36 @@ chord, six a ninth chord. The first candidate is, in this order:
    the scale has 4:5:6 from it, and a downward one if it has 1/4:1/5:1/6; where
    it names both the longer one comes first, and for equal ones the kind the
    scale is named for (upward in otonal and the diamond, downward in utonal).
-2. Otherwise the first chord of the class in the note's list, that is a chord
-   the note belongs to without naming it, read from the note in the chord's
+2. Otherwise another chord the note **owns** that fills the width: a four-note
+   chord at four and five columns, a five-note chord at six. A note owns a
+   chord if it is the root of an upward chord or the top note of a downward
+   one. These are the 7sus2 (below), the 7♯9, their subharmonic forms and the
+   larger chords built on them (the 7♯9 with fifth); a 7sus2 comes before the
+   7♯9 chords. A major seventh is owned by its root only and is not one of
+   them. At three columns only the 7sus2 is looked for. At five columns a
+   four-note chord has its first note again an octave on, as the seventh chords
+   do.
+3. Otherwise the first chord of the class in the note's list, that is a chord
+   the note belongs to without owning it, read from the note in the chord's
    direction.
-3. Otherwise the class below: at six columns a seventh chord, the sixth column
+4. Otherwise the class below: at six columns a seventh chord, the sixth column
    empty.
 
-So every key gives a seventh chord at four and five columns; at three a note's
-own triad comes first. The other chords of the list follow in the palette. A
+Only the first candidate is chosen this way; the rest of the list keeps its
+order, and a note whose run reaches the class has the run first and its owned
+chords where the list has them. So every key gives a seventh chord at four and
+five columns; at three a note's own triad comes first (a 7sus2 when it has no
+triad run).
+
+**The 7sus2** is a seventh chord with its ninth in place of its third: 4:6:7:9
+upward and 1/4:1/6:1/7:1/9 downward. A note owns it if the scale has the 6, the
+7 and the 9 above it (or the 1/6, 1/7 and 1/9 below it) and lacks the 5 (or the
+1/5); a note with a run does not get it first. Its ninth is a ninth above the
+root, an octave higher than the other chords' ninths. At three columns it is
+4:6:7 ("A seventh, no third"), at four 4:6:7:9 ("A 7sus2", "G subharmonic
+7sus2"), at five 4:6:7:8:9 with the octave in its place by pitch (between the
+7 and the 9) and at six the same with the sixth column empty. A subharmonic
+7♯9 (1/12:1/14:1/15:1/21) is the 7♯9's subharmonic form. The other chords of the list follow in the palette. A
 downward chord hangs from the note an octave above the played one (a chord's
 pitch follows its lowest note, so one hung from the played note itself would
 sound an octave low); that is its first column. The minor triad is upward
@@ -412,9 +434,9 @@ window in Japanese text input: each move writes the chord it lands on.
   list. Tab moves the keyboard focus between the list and the check box (Up and Down
   move it back to the list); on the check box Space or Enter toggles it, and so does a
   click. Toggling rebuilds the list at once, keeps the palette open and writes the
-  first chord of the new list. The setting is the song's, not the editor's: off by
-  default, saved in the song file as `<song borrowedChords="true">` (a file without it
-  loads with it off, and an off setting is not written), restored on loading, and a
+  first chord of the new list. The setting is the song's, not the editor's: on by
+  default, saved in the song file as `<song borrowedChords="false">` when it is off
+  (a file without it loads with it on, and an on setting is not written), restored on loading, and a
   change is an edit that marks the song modified and can be undone. There is no
   command or key binding for it.
   - Off, chord entry writes only notes of the scale. On, the notes of the otonal or

@@ -221,23 +221,29 @@ struct Form {
   Kind kind;
   vector<Ratio> above;
   Direction direction; // built from its lowest note, or from its top note
+  Ratio top = Ratio{1, 1}; // a downward form's top note above its lowest, within the octave
 };
 
 const vector<Form> & forms() {
   static const vector<Form> table = {
-      {Kind::HARMONIC_SEVENTH, {Ratio{5, 4}, Ratio{3, 2}, Ratio{7, 4}}, Direction::UPWARD},      // 4:5:6:7
-      {Kind::SUBHARMONIC_SEVENTH, {Ratio{7, 6}, Ratio{7, 5}, Ratio{7, 4}}, Direction::DOWNWARD}, // 1/4:1/5:1/6:1/7
-      {Kind::MAJOR_SEVENTH, {Ratio{5, 4}, Ratio{3, 2}, Ratio{15, 8}}, Direction::UPWARD},        // 8:10:12:15
-      {Kind::SEVEN_SHARP_NINE, {Ratio{7, 6}, Ratio{5, 4}, Ratio{7, 4}}, Direction::UPWARD},      // 12:14:15:21
+      {Kind::HARMONIC_SEVENTH, {Ratio{5, 4}, Ratio{3, 2}, Ratio{7, 4}}, Direction::UPWARD},                   // 4:5:6:7
+      {Kind::SUBHARMONIC_SEVENTH, {Ratio{7, 6}, Ratio{7, 5}, Ratio{7, 4}}, Direction::DOWNWARD, Ratio{7, 4}}, // 1/4:1/5:1/6:1/7
+      {Kind::MAJOR_SEVENTH, {Ratio{5, 4}, Ratio{3, 2}, Ratio{15, 8}}, Direction::UPWARD},                     // 8:10:12:15
+      {Kind::SEVEN_SHARP_NINE, {Ratio{7, 6}, Ratio{5, 4}, Ratio{7, 4}}, Direction::UPWARD},                   // 12:14:15:21
       {Kind::MAJOR, {Ratio{5, 4}, Ratio{3, 2}}, Direction::UPWARD},
       {Kind::MINOR, {Ratio{6, 5}, Ratio{3, 2}}, Direction::UPWARD},
       // The ninth reduced into the octave, so 9/4 is 9/8 and sorts first.
-      {Kind::HARMONIC_NINTH, {Ratio{9, 8}, Ratio{5, 4}, Ratio{3, 2}, Ratio{7, 4}}, Direction::UPWARD},                       // 4:5:6:7:9
-      {Kind::SUBHARMONIC_HARMONIC_NINTH, {Ratio{9, 8}, Ratio{9, 7}, Ratio{3, 2}, Ratio{9, 5}}, Direction::DOWNWARD},         // 1/4:1/5:1/6:1/7:1/9
-      {Kind::MAJOR_NINTH, {Ratio{9, 8}, Ratio{5, 4}, Ratio{3, 2}, Ratio{15, 8}}, Direction::UPWARD},                         // 8:10:12:15:18
-      {Kind::SUBHARMONIC_MAJOR_NINTH, {Ratio{9, 8}, Ratio{6, 5}, Ratio{3, 2}, Ratio{9, 5}}, Direction::DOWNWARD},            // 1/8:1/10:1/12:1/15:1/18
-      {Kind::SEVEN_SHARP_NINE_FIFTH, {Ratio{7, 6}, Ratio{5, 4}, Ratio{3, 2}, Ratio{7, 4}}, Direction::UPWARD},               // 12:14:15:18:21
-      {Kind::SUBHARMONIC_SEVEN_SHARP_NINE_FIFTH, {Ratio{7, 6}, Ratio{7, 5}, Ratio{3, 2}, Ratio{7, 4}}, Direction::DOWNWARD}, // 1/12:1/14:1/15:1/18:1/21
+      {Kind::HARMONIC_NINTH, {Ratio{9, 8}, Ratio{5, 4}, Ratio{3, 2}, Ratio{7, 4}}, Direction::UPWARD},                                    // 4:5:6:7:9
+      {Kind::SUBHARMONIC_HARMONIC_NINTH, {Ratio{9, 8}, Ratio{9, 7}, Ratio{3, 2}, Ratio{9, 5}}, Direction::DOWNWARD, Ratio{9, 8}},         // 1/4:1/5:1/6:1/7:1/9
+      {Kind::MAJOR_NINTH, {Ratio{9, 8}, Ratio{5, 4}, Ratio{3, 2}, Ratio{15, 8}}, Direction::UPWARD},                                      // 8:10:12:15:18
+      {Kind::SUBHARMONIC_MAJOR_NINTH, {Ratio{9, 8}, Ratio{6, 5}, Ratio{3, 2}, Ratio{9, 5}}, Direction::DOWNWARD, Ratio{9, 8}},            // 1/8:1/10:1/12:1/15:1/18
+      {Kind::SEVEN_SHARP_NINE_FIFTH, {Ratio{7, 6}, Ratio{5, 4}, Ratio{3, 2}, Ratio{7, 4}}, Direction::UPWARD},                            // 12:14:15:18:21
+      {Kind::SUBHARMONIC_SEVEN_SHARP_NINE_FIFTH, {Ratio{7, 6}, Ratio{7, 5}, Ratio{3, 2}, Ratio{7, 4}}, Direction::DOWNWARD, Ratio{7, 4}}, // 1/12:1/14:1/15:1/18:1/21
+      // The seventh chord with its ninth in place of its third, 4:6:7:9 (the 9 reduced like the ninths above), and the
+      // 7♯9 chord's subharmonic form.
+      {Kind::SEVENTH_SUS2, {Ratio{9, 8}, Ratio{3, 2}, Ratio{7, 4}}, Direction::UPWARD},                                // 4:6:7:9
+      {Kind::SUBHARMONIC_SEVENTH_SUS2, {Ratio{9, 8}, Ratio{9, 7}, Ratio{3, 2}}, Direction::DOWNWARD, Ratio{9, 8}},     // 1/4:1/6:1/7:1/9
+      {Kind::SUBHARMONIC_SEVEN_SHARP_NINE, {Ratio{7, 5}, Ratio{3, 2}, Ratio{7, 4}}, Direction::DOWNWARD, Ratio{7, 4}}, // 1/12:1/14:1/15:1/21
   };
   return table;
 }
@@ -268,6 +274,12 @@ const char * kindName(Kind kind) {
       return "7♯9 with fifth";
     case Kind::SUBHARMONIC_SEVEN_SHARP_NINE_FIFTH:
       return "subharmonic 7♯9 with fifth";
+    case Kind::SEVENTH_SUS2:
+      return "7sus2";
+    case Kind::SUBHARMONIC_SEVENTH_SUS2:
+      return "subharmonic 7sus2";
+    case Kind::SUBHARMONIC_SEVEN_SHARP_NINE:
+      return "subharmonic 7♯9";
   }
   return "";
 }
@@ -292,20 +304,22 @@ optional<size_t> gamutIndex(string_view spelling, GamutSide side) {
   return nullopt;
 }
 
-// The note a chord is named after: the lowest of its form, except a subharmonic
-// seventh, which is named by its top note.
-size_t rootOf(Kind kind, const vector<size_t> & notes, size_t lowest) {
-  if (kind != Kind::SUBHARMONIC_SEVENTH) return lowest;
-  size_t top = lowest;
-  Ratio highest{1, 1};
-  for (auto note : notes) {
-    auto above = (ratioOf(note) / ratioOf(lowest)).reduced();
-    if (above > highest) {
-      highest = above;
-      top = note;
-    }
+const Form * formOf(Kind kind) {
+  for (auto & form : forms()) {
+    if (form.kind == kind) return &form;
   }
-  return top;
+  return nullptr;
+}
+
+// The note a chord is named after: the lowest of its form, except a subharmonic seventh, a
+// subharmonic 7sus2 and a subharmonic 7♯9, which are named by their top note.
+size_t rootOf(Kind kind, const vector<size_t> & notes, size_t lowest) {
+  if (kind != Kind::SUBHARMONIC_SEVENTH && kind != Kind::SUBHARMONIC_SEVENTH_SUS2 && kind != Kind::SUBHARMONIC_SEVEN_SHARP_NINE) return lowest;
+  auto top = (ratioOf(lowest) * formOf(kind)->top).reduced();
+  for (auto note : notes) {
+    if (ratioOf(note) == top) return note;
+  }
+  return lowest;
 }
 
 using ChordTable = map<size_t, vector<Entry>>;
@@ -351,7 +365,7 @@ vector<Kind> kindOrder(bool five) {
       if (form.above.size() == 4) order.push_back(form.kind);
     }
   } else {
-    order = {Kind::HARMONIC_SEVENTH, Kind::SUBHARMONIC_SEVENTH, Kind::MAJOR, Kind::MINOR, Kind::MAJOR_SEVENTH, Kind::SEVEN_SHARP_NINE};
+    order = {Kind::HARMONIC_SEVENTH, Kind::SUBHARMONIC_SEVENTH, Kind::MAJOR, Kind::MINOR, Kind::MAJOR_SEVENTH, Kind::SEVEN_SHARP_NINE, Kind::SEVENTH_SUS2, Kind::SUBHARMONIC_SEVENTH_SUS2, Kind::SUBHARMONIC_SEVEN_SHARP_NINE};
   }
   return order;
 }
@@ -408,6 +422,38 @@ ChordTable buildCrossTable(bool five) {
   return table;
 }
 
+// The note that owns a chord: its root if it is an upward chord (its lowest note, whose overtones the
+// others are), its top note if it is a downward one. A major seventh is owned by its root only.
+optional<size_t> ownerOf(const Entry & entry) {
+  auto form = formOf(entry.kind);
+  if (!form) return nullopt;
+  for (auto lowest : entry.notes) {
+    if (aboveRoot(entry.notes, lowest) != form->above) continue;
+    if (form->direction == Direction::UPWARD) return lowest;
+    auto top = (ratioOf(lowest) * form->top).reduced();
+    for (auto note : entry.notes) {
+      if (ratioOf(note) == top) return note;
+    }
+  }
+  return nullopt;
+}
+
+// The chords of the kinds the string tables do not list (7sus2, subharmonic 7sus2, subharmonic 7♯9)
+// whose notes are all notes of the scale, each read upward from each of its notes.
+ChordTable buildExtraTable(Scale scale) {
+  ChordTable table;
+  auto just = justScale(scale);
+  if (!just) return table;
+  forEachChord(false, [&](Kind kind, const vector<size_t> & notes, size_t root) {
+    if (kind != Kind::SEVENTH_SUS2 && kind != Kind::SUBHARMONIC_SEVENTH_SUS2 && kind != Kind::SUBHARMONIC_SEVEN_SHARP_NINE) return;
+    for (auto note : notes) {
+      if (!just->contains(gamut::kExtendedDiamond[note])) return;
+    }
+    for (auto degree : notes) table[degree].push_back(readFrom(kind, root, notes, degree));
+  });
+  return table;
+}
+
 // Whether the gamut note is one `scale` borrows: a note of a chord the division gives it, that the
 // scale does not have.
 bool borrowedNote(const JustScale & just, size_t index) {
@@ -448,8 +494,8 @@ ChordTable joinTables(const ChordTable & otonal, const ChordTable & utonal, cons
 
 // The chords of notes up to four (size 4), or of exactly five.
 const ChordTable & tableFor(Scale scale, int size, bool borrowed = false) {
-  static const ChordTable otonal_lists = buildTable(kOtonalChords, GamutSide::OTONAL);
-  static const ChordTable utonal_lists = buildTable(kUtonalChords, GamutSide::UTONAL);
+  static const ChordTable otonal_lists = joinTables(buildTable(kOtonalChords, GamutSide::OTONAL), buildExtraTable(Scale::OTONAL), {});
+  static const ChordTable utonal_lists = joinTables(buildTable(kUtonalChords, GamutSide::UTONAL), buildExtraTable(Scale::UTONAL), {});
   static const ChordTable otonal5_lists = buildTable(kOtonalNinths, GamutSide::OTONAL);
   static const ChordTable utonal5_lists = buildTable(kUtonalNinths, GamutSide::UTONAL);
   static const ChordTable cross = buildCrossTable(false);
@@ -613,6 +659,8 @@ Result complete(const ScaleChords & scale, vector<int> given, int size, const ma
     auto in_entry = [&](size_t note) { return find(entry->notes.begin(), entry->notes.end(), note) != entry->notes.end(); };
     if (!all_of(given_notes.begin(), given_notes.end(), in_entry)) return;
     const bool downward = directionOf(entry->kind) == Direction::DOWNWARD;
+    // A 7sus2 read from its root (or top note) has its ninth an octave higher than the other chords' ninths.
+    const bool owned_sus2 = single && (entry->kind == Kind::SEVENTH_SUS2 || entry->kind == Kind::SUBHARMONIC_SEVENTH_SUS2) && entry->root == *low_degree;
 
     Completion chord;
     vector<pair<int, size_t>> placed; // value and ratio
@@ -634,6 +682,8 @@ Result complete(const ScaleChords & scale, vector<int> given, int size, const ma
       for (auto note : entry->notes) {
         if (find(written.begin(), written.end(), note) != written.end()) continue;
         int steps = (((scale.stepOf(top_note) - scale.stepOf(note)) % scale.edo()) + scale.edo()) % scale.edo();
+        // The 9 of a 7sus2 is a ninth below the top, not a second.
+        if (owned_sus2 && (ratioOf(top_note) / ratioOf(note)).reduced() == Ratio{9, 8}) steps += scale.edo();
         below.emplace_back(steps, note);
       }
       sort(below.begin(), below.end());
@@ -645,11 +695,18 @@ Result complete(const ScaleChords & scale, vector<int> given, int size, const ma
       // A note below the lowest the track can hold: the chord is not offered.
       if (any_of(placed.begin(), placed.end(), [](const pair<int, size_t> & note) { return note.first < 0; })) return;
     } else {
+      vector<pair<int, size_t>> above; // steps above the lowest note, note
       for (auto note : entry->notes) {
-        if (static_cast<int>(placed.size()) >= size) break;
         if (find(written.begin(), written.end(), note) != written.end()) continue;
-        int above = (((scale.stepOf(note) - scale.stepOf(*low_degree)) % scale.edo()) + scale.edo()) % scale.edo();
-        placed.emplace_back(given.front() + above, note);
+        int steps = (((scale.stepOf(note) - scale.stepOf(*low_degree)) % scale.edo()) + scale.edo()) % scale.edo();
+        // The 9 of a 7sus2 is a ninth above the root, not a second.
+        if (owned_sus2 && (ratioOf(note) / ratioOf(*low_degree)).reduced() == Ratio{9, 8}) steps += scale.edo();
+        above.emplace_back(steps, note);
+      }
+      sort(above.begin(), above.end());
+      for (auto & [steps, note] : above) {
+        if (static_cast<int>(placed.size()) >= size) break;
+        placed.emplace_back(given.front() + steps, note);
         written.push_back(note);
       }
     }
@@ -667,6 +724,7 @@ Result complete(const ScaleChords & scale, vector<int> given, int size, const ma
           placed.insert(placed.begin(), {value, first.second});
         else
           placed.emplace_back(value, first.second);
+        sort(placed.begin(), placed.end()); // the octave takes its place by pitch
       }
     }
     // The first column holds the played note: an upward chord rises from it, a downward one falls.
@@ -687,6 +745,8 @@ Result complete(const ScaleChords & scale, vector<int> given, int size, const ma
       }
       if (triad)
         chord.name = scale.noteName(lowest) + " " + *triad;
+      else if (owned_sus2 && written.size() == 3)
+        chord.name = scale.noteName(entry->root) + (downward ? " subharmonic" : "") + " seventh, no third";
       else
         chord.name += " (" + to_string(chord.notes.size()) + " notes)";
     }
@@ -784,21 +844,58 @@ Result complete(const ScaleChords & scale, vector<int> given, int size, const ma
     auto length_of = [&](Direction direction) { return direction == preferred ? preferred_length : other_length; };
     // The width chooses the class of chord: a triad, a seventh chord (four and five columns) or a
     // ninth chord. In each class the note's own run comes first if it reaches the class, then the
-    // first chord of the class in the note's list; a ninth class falls back to the seventh class.
+    // chords the note owns that fill the width (a 7sus2 first), then the first chord of the class
+    // in the note's list; a ninth class falls back to the seventh class.
+    struct Owned {
+      int list;
+      vector<Kind> kinds;
+    };
     struct Class {
       size_t run_length;
       int list;
+      vector<Owned> owned;
     };
+    // Whether the scale has the 5 above the note (the 1/5 below it, for a downward chord).
+    auto has_fifth = [&](bool up) {
+      auto ratio = (ratioOf(*low_degree) * (up ? Ratio{5, 4} : Ratio{4, 5})).reduced();
+      for (size_t i = 0; i < gamut::kExtendedDiamond.size(); i++) {
+        if (ratioOf(i) == ratio && scale.holds(i)) return true;
+      }
+      return false;
+    };
+    // A downward kind first where the scale is named for it.
+    auto by_direction = [&](Kind up, Kind down) {
+      return preferred == Direction::UPWARD ? vector<Kind>{up, down} : vector<Kind>{down, up};
+    };
+    const auto sus2 = by_direction(Kind::SEVENTH_SUS2, Kind::SUBHARMONIC_SEVENTH_SUS2);
+    const auto sharp_nine = by_direction(Kind::SEVEN_SHARP_NINE, Kind::SUBHARMONIC_SEVEN_SHARP_NINE);
+    const auto sharp_nine_fifth = by_direction(Kind::SEVEN_SHARP_NINE_FIFTH, Kind::SUBHARMONIC_SEVEN_SHARP_NINE_FIFTH);
     vector<Class> classes;
     if (size >= 6)
-      classes = {{6, 5}, {4, 4}};
+      classes = {{6, 5, {{4, sus2}, {5, sharp_nine_fifth}}}, {4, 4, {}}};
     else if (size >= 4)
-      classes = {{4, 4}};
+      classes = {{4, 4, {{4, sus2}, {4, sharp_nine}}}};
     else
-      classes = {{3, 0}};
+      classes = {{3, 0, {{4, sus2}}}};
     for (auto & klass : classes) {
+      bool has_run = false;
       for (auto direction : order) {
-        if (length_of(direction) >= klass.run_length) emit_run(direction);
+        if (length_of(direction) >= klass.run_length) {
+          emit_run(direction);
+          has_run = true;
+        }
+      }
+      // With no run that reaches the class, a chord the note owns comes first; the rest of the list keeps its order.
+      for (auto & owned : klass.owned) {
+        if (has_run) break;
+        for (auto kind : owned.kinds) {
+          for (auto entry : scale.chordsOf(*low_degree, owned.list)) {
+            if (entry->kind != kind || ownerOf(*entry) != *low_degree) continue;
+            // A 7sus2 is owned only by a note whose scale lacks its 5 (or 1/5): it has no run to give.
+            if ((kind == Kind::SEVENTH_SUS2 || kind == Kind::SUBHARMONIC_SEVENTH_SUS2) && has_fifth(kind == Kind::SEVENTH_SUS2)) continue;
+            add(entry);
+          }
+        }
       }
       if (klass.list == 0) continue;
       for (auto entry : scale.chordsOf(*low_degree, klass.list)) {

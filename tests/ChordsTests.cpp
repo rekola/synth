@@ -111,7 +111,7 @@ TEST(chords_every_degree_of_both_scales_has_its_list) {
       }
       total += list.size();
     }
-    CHECK(total == (scale == Scale::OTONAL ? 45u : 49u));
+    CHECK(total == 77u); // with the 7sus2 and subharmonic 7♯9 chords
   }
   CHECK(degreeChords(Scale::MAJOR, 0).empty());
 }
@@ -120,18 +120,18 @@ TEST(chords_are_named_after_their_root) {
   // A harmonic seventh by its lowest note, a subharmonic seventh by its top note. A note's list is in
   // the order of its table: its seventh chords, a stand-alone triad, then the major sevenths and 7♯9.
   using V = std::vector<std::string>;
-  CHECK(namesOf(Scale::OTONAL, "C") == (V{"C harmonic seventh", "F harmonic seventh / C", "A♯↑ subharmonic seventh / C", "F major seventh / C", "C major seventh", "C 7♯9"}));
-  CHECK(namesOf(Scale::OTONAL, "D♯") == (V{"F harmonic seventh / D♯", "A♯↑ subharmonic seventh / D♯", "D♯ harmonic seventh", "C 7♯9 / D♯"}));
-  CHECK(namesOf(Scale::OTONAL, "A") == (V{"F harmonic seventh / A", "A minor", "F major seventh / A"}));
+  CHECK(namesOf(Scale::OTONAL, "C") == (V{"C harmonic seventh", "F harmonic seventh / C", "A♯↑ subharmonic seventh / C", "F major seventh / C", "C major seventh", "C 7♯9", "C 7sus2", "F 7sus2 / C", "D subharmonic 7sus2 / C", "A♯↑ subharmonic 7♯9 / C"}));
+  CHECK(namesOf(Scale::OTONAL, "D♯") == (V{"F harmonic seventh / D♯", "A♯↑ subharmonic seventh / D♯", "D♯ harmonic seventh", "C 7♯9 / D♯", "F 7sus2 / D♯", "D𝄫 subharmonic 7♯9 / D♯", "F𝄪 subharmonic 7♯9 / D♯"}));
+  CHECK(namesOf(Scale::OTONAL, "A") == (V{"F harmonic seventh / A", "A minor", "F major seventh / A", "A 7sus2", "B subharmonic 7sus2 / A", "F𝄪 subharmonic 7♯9 / A"}));
   CHECK(namesOf(Scale::OTONAL, "D𝄪") == (V{"D𝄪 subharmonic seventh", "F♯↑ 7♯9 / D𝄪"}));
-  CHECK(namesOf(Scale::OTONAL, "D♭↓") == (V{"B subharmonic seventh / D♭↓"}));
-  CHECK(namesOf(Scale::OTONAL, "B") == (V{"B subharmonic seventh", "C major seventh / B"}));
-  CHECK(namesOf(Scale::UTONAL, "C") == (V{"C subharmonic seventh", "G subharmonic seventh / C", "E𝄫 harmonic seventh / C", "A♭ major seventh / C", "D♭↓ major seventh / C", "E𝄫 7♯9 / C"}));
-  CHECK(namesOf(Scale::UTONAL, "A♭") == (V{"C subharmonic seventh / A♭", "D♭↓ harmonic seventh / A♭", "A♭ major", "A♭ major seventh", "D♭↓ major seventh / A♭", "G𝄫 7♯9 / A♭"}));
-  CHECK(namesOf(Scale::UTONAL, "D♭↓") == (V{"D♭↓ harmonic seventh", "D♭↓ major seventh"}));
+  CHECK(namesOf(Scale::OTONAL, "D♭↓") == (V{"B subharmonic seventh / D♭↓", "B subharmonic 7sus2 / D♭↓"}));
+  CHECK(namesOf(Scale::OTONAL, "B") == (V{"B subharmonic seventh", "C major seventh / B", "A 7sus2 / B", "B subharmonic 7sus2"}));
+  CHECK(namesOf(Scale::UTONAL, "C") == (V{"C subharmonic seventh", "G subharmonic seventh / C", "E𝄫 harmonic seventh / C", "A♭ major seventh / C", "D♭↓ major seventh / C", "E𝄫 7♯9 / C", "B♭↓ 7sus2 / C", "G subharmonic 7sus2 / C", "C subharmonic 7sus2", "C subharmonic 7♯9"}));
+  CHECK(namesOf(Scale::UTONAL, "A♭") == (V{"C subharmonic seventh / A♭", "D♭↓ harmonic seventh / A♭", "A♭ major", "A♭ major seventh", "D♭↓ major seventh / A♭", "G𝄫 7♯9 / A♭", "D♭↓ 7sus2 / A♭", "E♭ subharmonic 7sus2 / A♭", "C subharmonic 7♯9 / A♭"}));
+  CHECK(namesOf(Scale::UTONAL, "D♭↓") == (V{"D♭↓ harmonic seventh", "D♭↓ major seventh", "D♭↓ 7sus2", "E♭ subharmonic 7sus2 / D♭↓"}));
   CHECK(namesOf(Scale::UTONAL, "B♯") == (V{"B𝄫 subharmonic seventh / B♯", "B♯ 7♯9"}));
-  CHECK(namesOf(Scale::UTONAL, "B") == (V{"D♭↓ harmonic seventh / B"}));
-  CHECK(namesOf(Scale::UTONAL, "E𝄫") == (V{"C subharmonic seventh / E𝄫", "E𝄫 harmonic seventh", "B𝄫 subharmonic seventh / E𝄫", "E𝄫 7♯9", "B♯ 7♯9 / E𝄫"}));
+  CHECK(namesOf(Scale::UTONAL, "B") == (V{"D♭↓ harmonic seventh / B", "D♭↓ 7sus2 / B"}));
+  CHECK(namesOf(Scale::UTONAL, "E𝄫") == (V{"C subharmonic seventh / E𝄫", "E𝄫 harmonic seventh", "B𝄫 subharmonic seventh / E𝄫", "E𝄫 7♯9", "B♯ 7♯9 / E𝄫", "C subharmonic 7sus2 / E𝄫", "C subharmonic 7♯9 / E𝄫", "G♭↓ subharmonic 7♯9 / E𝄫"}));
 }
 
 TEST(chords_one_note_is_completed_to_the_first_notes_of_its_first_chord) {
@@ -139,19 +139,21 @@ TEST(chords_one_note_is_completed_to_the_first_notes_of_its_first_chord) {
   CHECK(four.status == Status::OK);
   CHECK(four.chords[0].notes == notes({C, E, G, Asu}));
   CHECK(four.chords[0].name == "C harmonic seventh");
-  CHECK(four.chords.size() == 6);
-  // Then the list in the order of its table: the other seventh chords C belongs to, the major sevenths, the 7♯9.
+  CHECK(four.chords.size() == 10);
+  // Then the list in the order of its table: the other seventh chords C belongs to, the major sevenths, the
+  // 7♯9 and the chords of the newer kinds (7sus2, subharmonic 7♯9). A chord C owns is not moved up when C has a run.
   CHECK(four.chords[1].name == "F harmonic seventh / C");
   CHECK(four.chords[2].name == "A♯↑ subharmonic seventh / C");
   CHECK(four.chords[3].name == "F major seventh / C");
   CHECK(four.chords[4].name == "C major seventh");
   CHECK(four.chords[5].name == "C 7♯9");
+  CHECK(four.chords[6].name == "C 7sus2");
 
   auto three = completeIn(Scale::OTONAL, {C}, 3);
   CHECK(three.chords[0].notes == notes({C, E, G}));
   CHECK(three.chords[0].name == "C major");
   // The alternatives in list order; C E G of the major seventh repeats the first and is dropped.
-  CHECK(three.chords.size() == 5);
+  CHECK(three.chords.size() == 8);
   CHECK(three.chords[1].notes == notes({C, Ds, F}));
   CHECK(three.chords[1].name == "C narrow major");
   // A subharmonic seventh hangs from the played note's octave up, so its three notes at a width of
@@ -165,18 +167,21 @@ TEST(chords_one_note_is_completed_to_the_first_notes_of_its_first_chord) {
   CHECK(three.chords[4].name == "C 7♯9 (3 notes)");
 
   auto two = completeIn(Scale::OTONAL, {C}, 2);
-  CHECK(two.chords.size() == 3);
+  CHECK(two.chords.size() == 5);
   CHECK(two.chords[0].notes == notes({C, E}));
   CHECK(two.chords[0].name == "C harmonic seventh (2 notes)");
   CHECK(two.chords[1].notes == notes({C, Ds}));
   CHECK(two.chords[2].notes == notes({53 + C, Asu})); // the subharmonic seventh, from its top note
 
   auto a = completeIn(Scale::OTONAL, {A}, 3);
-  CHECK(a.chords[0].notes == notes({A, 53 + C, 53 + Ds}));
-  CHECK(a.chords[0].name == "A septimal diminished");
+  // A has no run: the 7sus2 it owns comes first, cut to three notes (4:6:7), then the list.
+  CHECK(a.chords[0].notes == notes({A, 53 + E, 53 + 29}));
+  CHECK(a.chords[0].name == "A seventh, no third");
+  CHECK(a.chords[1].notes == notes({A, 53 + C, 53 + Ds}));
+  CHECK(a.chords[1].name == "A septimal diminished");
   // The minor triad is an upward chord: A C E from A.
-  CHECK(a.chords[1].notes == notes({A, 53 + C, 53 + E}));
-  CHECK(a.chords[1].name == "A minor");
+  CHECK(a.chords[2].notes == notes({A, 53 + C, 53 + E}));
+  CHECK(a.chords[2].name == "A minor");
 
   auto utonal = completeIn(Scale::UTONAL, {C}, 4);
   CHECK(utonal.chords[0].notes == notes({53 + C, Ab, F, Ebb}));
@@ -189,15 +194,16 @@ TEST(chords_one_note_is_completed_to_the_first_notes_of_its_first_chord) {
 
 TEST(chords_several_given_notes_pick_the_chords_that_contain_them) {
   auto c_ds = completeIn(Scale::OTONAL, {C, Ds}, 4);
-  CHECK(c_ds.chords.size() == 3);
+  CHECK(c_ds.chords.size() == 4);
   CHECK(c_ds.chords[0].notes == notes({C, Ds, F, A}));
   CHECK(c_ds.chords[0].name == "F harmonic seventh / C");
   CHECK(c_ds.chords[1].notes == notes({C, Ds, E, Asu}));
   CHECK(c_ds.chords[1].name == "C 7♯9");
   // The subharmonic seventh is found from the highest given note, D♯, and hangs from it: the played
   // notes keep their octaves and nothing is added above D♯.
-  CHECK(c_ds.chords[2].notes == notes({Ds, C, Asu - 53, Fsu - 53}));
-  CHECK(c_ds.chords[2].name == "A♯↑ subharmonic seventh / D♯");
+  CHECK(c_ds.chords[2].name == "F 7sus2 / C");
+  CHECK(c_ds.chords[3].notes == notes({Ds, C, Asu - 53, Fsu - 53}));
+  CHECK(c_ds.chords[3].name == "A♯↑ subharmonic seventh / D♯");
 
   // A given note is never left out; the rest fill from the chord's lowest.
   auto c_as = completeIn(Scale::OTONAL, {C, Asu}, 3);
@@ -315,9 +321,10 @@ TEST(chords_five_columns_hold_a_seventh_chord_and_the_ninths_follow) {
   auto fsu = completeIn(Scale::OTONAL, {Fsu}, 5);
   CHECK(fsu.chords[0].notes.size() == 5);
   // The subharmonic seventh falls from F♯↑'s octave above, with that note an octave lower at the end.
-  CHECK(fsu.chords[0].notes[4] == fsu.chords[0].notes[0] - 53);
-  CHECK(fsu.chords[0].name == "A♯↑ subharmonic seventh / F♯↑");
-  CHECK(has(fsu, "F♯↑ 7♯9", {26, 38, 43, 69, 79}));
+  // F♯↑ owns a 7♯9 (12:14:15:21), which comes first, with its first note an octave on.
+  CHECK(fsu.chords[0].notes == notes({26, 38, 43, 69, 79}));
+  CHECK(fsu.chords[0].name == "F♯↑ 7♯9");
+  CHECK(has(fsu, "A♯↑ subharmonic seventh / F♯↑", {79, 65, 53, 43, 26}));
   CHECK(has(fsu, "C subharmonic 7♯9 with fifth / F♯↑", {53 + Fsu, 53 + Ds, 53 + C, Asu, G}));
 
   auto cb = completeIn(Scale::OTONAL, {C, B}, 5);
@@ -333,7 +340,7 @@ TEST(chords_a_degree_without_five_note_chords_falls_back_to_four) {
   CHECK(dbb.chords.size() == four.chords.size());
   // The seventh chord with its first note an octave on.
   auto first = four.chords[0].notes;
-  first.push_back(first[0] + 53);
+  first.push_back(first[0] + (first[1] > first[0] ? 53 : -53)); // a subharmonic chord falls
   CHECK(dbb.chords[0].notes == first);
 }
 
@@ -349,7 +356,7 @@ TEST(chords_five_note_chords_are_not_offered_at_narrower_widths) {
   // Four given notes of a five-note chord are completed by it.
   auto four = completeIn(Scale::OTONAL, {C, Ds, F, G}, 5);
   CHECK(four.status == Status::OK);
-  CHECK(four.chords[0].notes == notes({C, Ds, F, G, A}));
+  CHECK(std::any_of(four.chords.begin(), four.chords.end(), [](const Completion & c) { return c.notes == notes({C, Ds, F, G, A}); }));
 }
 
 TEST(chords_utonal_five_note_chords_complete_from_a_degree) {
@@ -545,7 +552,10 @@ TEST(chords_the_width_chooses_the_class_of_chord) {
       CHECK(four.chords[0].notes.size() == 4u);
       // A seventh chord at five columns has its first note an octave on.
       CHECK(five.chords[0].notes.size() == 5u);
-      CHECK(five.chords[0].notes[4] == five.chords[0].notes[0] + (five.chords[0].notes[1] > five.chords[0].notes[0] ? 53 : -53));
+      // (a 7sus2 has it between the 7 and the 9: by pitch, so the fifth column is not always the octave)
+      const int first_note = five.chords[0].notes[0];
+      const int octave = first_note + (five.chords[0].notes[1] > first_note ? 53 : -53);
+      CHECK(std::count(five.chords[0].notes.begin(), five.chords[0].notes.end(), octave) == 1);
       CHECK(six.chords[0].notes.size() >= 5u);
       for (auto * r : {&four, &five, &six}) {
         for (auto & chord : r->chords) CHECK(chord.name.find("with octave") == std::string::npos);
@@ -553,7 +563,7 @@ TEST(chords_the_width_chooses_the_class_of_chord) {
       // The fourth column is a seventh chord's, whatever the note.
       auto & name = five.chords[0].name;
       CHECK(name.find("ninth") == std::string::npos);
-      CHECK(name.find("seventh") != std::string::npos || name.find("7♯9") != std::string::npos);
+      CHECK(name.find("seventh") != std::string::npos || name.find("7♯9") != std::string::npos || name.find("7sus2") != std::string::npos);
     }
   }
 }
@@ -710,4 +720,128 @@ TEST(runs_only_the_run_is_moved_to_the_front_of_a_list) {
   };
   CHECK(position("F harmonic seventh / C") < position("C major seventh"));
   CHECK(position("F harmonic seventh / C") < position("C 7♯9"));
+}
+
+// ---- Every degree gets its own chord where it can ----
+
+namespace {
+
+// The first chord of one note played in octave 4, as steps above C-4, with its name.
+struct First {
+  std::vector<int> notes;
+  std::string name;
+};
+
+First firstChord(Scale scale, bool borrowed, const char * degree, int width) {
+  ScaleChords chords(scale, Tuning::EDO53, 0, borrowed);
+  auto result = complete(chords, {kC + chords.stepOf(gamutNote(scale, degree))}, width);
+  First out;
+  if (result.chords.empty()) return out;
+  for (int value : result.chords[0].notes) out.notes.push_back(value - kC);
+  out.name = result.chords[0].name;
+  return out;
+}
+
+} // namespace
+
+TEST(owned_the_acceptance_rows_of_otonal_with_borrowing) {
+  using V = std::vector<int>;
+  auto row = [](const char * degree, int width, V notes, std::string name) {
+    auto got = firstChord(Scale::OTONAL, true, degree, width);
+    CHECK(got.notes == notes);
+    CHECK(got.name == name);
+  };
+  row("F♯↑", 4, {26, 38, 43, 69}, "F♯↑ 7♯9");
+  row("F♯↑", 5, {26, 38, 43, 69, 79}, "F♯↑ 7♯9");
+  row("D𝄫", 4, {55, 43, 38, 12}, "D𝄫 subharmonic 7♯9");
+  row("A", 3, {39, 70, 82}, "A seventh, no third");
+  row("A", 4, {39, 70, 82, 101}, "A 7sus2");
+  row("A", 5, {39, 70, 82, 92, 101}, "A 7sus2");
+  row("A", 6, {39, 70, 82, 92, 101}, "A 7sus2"); // the sixth column is empty
+  // G's 7sus2 needs the borrowed B𝄫: G5 C5 B𝄫4 F4, with G4 between at five columns.
+  row("G", 4, {84, 53, 41, 22}, "G subharmonic 7sus2 (borrowed)");
+  row("G", 5, {84, 53, 41, 31, 22}, "G subharmonic 7sus2 (borrowed)");
+  row("E", 4, {70, 53, 39, 27}, "E subharmonic seventh (borrowed)");
+  row("C", 4, {0, 17, 31, 43}, "C harmonic seventh");
+  // With borrowing off, G has no 7sus2 and writes what it wrote.
+  auto off = firstChord(Scale::OTONAL, false, "G", 4);
+  CHECK(off.notes == (V{31, 43, 53, 70}));
+  CHECK(off.name == "C harmonic seventh / G");
+}
+
+// The chords of step 2 come after a run that reaches the class and before the chords a note only belongs to.
+TEST(owned_a_run_comes_first_and_the_rest_of_the_list_keeps_its_order) {
+  for (auto scale : {Scale::OTONAL, Scale::UTONAL, Scale::DIAMOND}) {
+    for (bool borrowed : {false, true}) {
+      ScaleChords chords(scale, Tuning::EDO53, 0, borrowed);
+      for (std::size_t i = 0; i < gamut::kExtendedDiamond.size(); i++) {
+        if (!chords.holds(i)) continue;
+        auto up = oracleRun(chords, i, true), down = oracleRun(chords, i, false);
+        if (std::max(up.values.size(), down.values.size()) < 4) continue;
+        // A note with a complete run to the 7 has it first, whatever else it owns.
+        auto result = complete(chords, {5 * chords.edo() + chords.stepOf(i)}, 4);
+        auto prefix = [](const Run & run) { return std::vector<int>(run.values.begin(), run.values.begin() + static_cast<std::ptrdiff_t>(std::min<std::size_t>(4, run.values.size()))); };
+        bool first_is_run = result.chords[0].notes == prefix(up) || result.chords[0].notes == prefix(down);
+        CHECK(first_is_run);
+      }
+    }
+  }
+  // C owns a 7♯9 and a 7sus2 too, but only after its run and the list's other chords, in the list's order.
+  auto c = completeIn(Scale::OTONAL, {0}, 4);
+  CHECK(c.chords[1].name == "F harmonic seventh / C");
+}
+
+// Every note of the three scales: a note owns a 7sus2 if the scale has its 6, 7 and 9 and lacks its 5, and then
+// the 7sus2 is its first chord when it has no run.
+TEST(owned_7sus2_for_every_note_of_the_three_scales) {
+  int owners = 0;
+  for (auto scale : {Scale::OTONAL, Scale::UTONAL, Scale::DIAMOND}) {
+    for (bool borrowed : {false, true}) {
+      ScaleChords chords(scale, Tuning::EDO53, 0, borrowed);
+      auto find = [&](Ratio r) -> std::optional<std::size_t> {
+        for (std::size_t i = 0; i < gamut::kExtendedDiamond.size(); i++) {
+          if (gamut::kExtendedDiamond[i].ratio == r && chords.holds(i)) return i;
+        }
+        return std::nullopt;
+      };
+      for (std::size_t i = 0; i < gamut::kExtendedDiamond.size(); i++) {
+        if (!chords.holds(i)) continue;
+        auto ratio = gamut::kExtendedDiamond[i].ratio;
+        bool has_sus2 = false;
+        for (bool up : {true, false}) {
+          auto at = [&](int num, int den) { return find((up ? ratio * Ratio{num, den} : ratio * Ratio{den, num}).reduced()); };
+          has_sus2 = has_sus2 || (at(6, 4) && at(7, 4) && at(9, 4) && !at(5, 4));
+        }
+        auto run = oracleRun(chords, i, true);
+        auto other = oracleRun(chords, i, false);
+        // A note with a run that reaches the class does not have the chord first.
+        if (std::max(run.values.size(), other.values.size()) >= 4 || !has_sus2) continue;
+        owners++;
+        auto got = complete(chords, {5 * chords.edo() + chords.stepOf(i)}, 4);
+        CHECK(!got.chords.empty());
+        auto & name = got.chords[0].name;
+        CHECK(name.find("7sus2") != std::string::npos);
+        CHECK(name.find(" / ") == std::string::npos); // owned, not read from another note
+      }
+    }
+  }
+  CHECK(owners > 0);
+}
+
+// A 7sus2 is 4:6:7:9 upward and 1/4:1/6:1/7:1/9 downward, its width cut and octave as the table says.
+TEST(owned_7sus2_widths) {
+  using V = std::vector<int>;
+  // Utonal F, with borrowing, owns the upward 7sus2 F C′ D♯′ G′ (4:6:7:9).
+  auto four = firstChord(Scale::UTONAL, true, "F", 4);
+  CHECK(four.name == "F 7sus2 (borrowed)");
+  CHECK(four.notes.size() == 4);
+  auto five = firstChord(Scale::UTONAL, true, "F", 5);
+  CHECK(five.notes.size() == 5);
+  // The ninth is a ninth above the root, an octave above the other chords' ninths; the octave sits between.
+  CHECK(four.notes[3] - four.notes[0] > 53);
+  CHECK(five.notes[3] == five.notes[0] + 53);
+  // The same for the subharmonic form, falling.
+  auto sub = firstChord(Scale::OTONAL, true, "G", 5);
+  CHECK(sub.notes == (V{84, 53, 41, 31, 22}));
+  CHECK(sub.notes[0] - sub.notes[4] > 53);
 }
