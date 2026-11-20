@@ -85,17 +85,27 @@ Controller-level and per-widget commands. Not migrated: `StatusLine`,
   new-song binding (`select-named-buffer` starts one by name). Ctrl-K is
   `PatternEditor`'s kill-row (Emacs's C-k repurposed). `docs/user-interface.md`
   has the tables.
-- The command palette (`cellui::CommandPalette`, opened by
-  `InteractiveUI::showCommandPalette()`) is a modal panel across the bottom
-  rows with no scrim: the query on the last row ("M-x " or "> "), the
-  selected command's description above it (quiet, italic, on the display's
-  own background so it isn't taken for a command), and above that the
-  `cellui::fuzzyMatch()`-ranked commands with their bindings, growing upward.
-  The app gives it `PaletteEntry`s from `commandCompletions("")`,
-  `commandDescription()` and `Widget::bindingFor()` (the display profile's
-  binding, spelled by `KeyStroke::describe()`). Choosing runs
-  `Controller::sendCommand()` after the palette has closed. Tab completes
-  Emacs-style to the longest shared prefix.
+- The command palette is the `cellui::Application`'s (`openCommandPalette()`,
+  called by `InteractiveUI::showCommandPalette()`, which first cancels a
+  widget's half-typed edit): a modal panel across the bottom rows with no
+  scrim: the query on the last row ("M-x " or "> "), the selected command's
+  description above it (quiet, italic, on the display's own background so it
+  isn't taken for a command), and above that the `cellui::fuzzyMatch()`-ranked
+  commands with their bindings, growing upward. While open, the application's
+  capture handlers on the root take every key, click and wheel event ahead of
+  `InteractiveUI`'s, and `takeEscape` hands it a bare Escape at once.
+  `InteractiveUI` gives the application its commands as an
+  `Application::CommandSource`: the names of `commandCompletions("")`,
+  `commandDescription()`, `bindingFor()` (the focused widget's binding first,
+  spelled by `KeyStroke::describe()`) and `Controller::sendCommand()`, which
+  runs the choice after the palette has closed; the application's `message`
+  (an unknown name) goes to the status line. Tab completes Emacs-style to the
+  longest shared prefix.
+- Key bindings are written as a person reads them (`keymap_.bind(
+  cellui::KeymapProfile::TERMINAL, "C-x C-s", "save-buffer")`,
+  `"Ctrl+Shift+S"`; `cellui::KeyStroke::parse()`), a prefix and a key in one
+  string. `KeyStroke::pack()` stays only for what that cannot spell: a raw
+  control byte a terminal sends, and a capital letter with Shift.
 - `StatusLine`'s M-x detection is a single check for a Meta-x `Input`:
   `cellui::KeyReader` folds a bare `ESC` followed, arbitrarily later, by `x`
   into one Meta event (Emacs's indefinite ESC-as-Meta, "ESC-" indicator

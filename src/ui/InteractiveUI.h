@@ -7,7 +7,6 @@
 #include <cellui/ChoiceModal.h>
 #include <cellui/InfoModal.h>
 #include <cellui/InputDispatcher.h>
-#include <cellui/CommandPalette.h>
 #include "UI.h"
 #include "StyleProvider.h"
 #include "../playback/InputEvent.h"
@@ -188,11 +187,9 @@ class InteractiveUI : public UI {
   // time; only which ones are on screen changes.
   std::shared_ptr<ClipGrid> clip_grid_;
   std::shared_ptr<OutlineView> outline_view_;
-  // The command palette M-x and its desktop shortcut open: modal, across the
-  // bottom of the screen where the status line is.
-  cellui::CommandPalette command_palette_;
+  // Opens the application's command palette (M-x and its desktop shortcut)
+  // over the commands of every registry (commandCompletions()).
   void showCommandPalette();
-  void layoutCommandPalette();
   bool anyModalOpen() const;
   bool modalLayerOpen(int key, const cellui::Modifiers & mods) const;
   // The layers that see a key before the focused widget, and the pointer
@@ -204,7 +201,6 @@ class InteractiveUI : public UI {
   bool offerKeyLayersUp(const cellui::KeyUp & e);
   bool offerMenuCommand(bool taken);
   void activateAt(int row, int col);
-  void handleCommandPaletteResult(cellui::CommandPalette::Result result);
   std::string bindingFor(const std::string & command) const;
   void raiseOverlays();
   // Arrangement view's scope row (toggle-scopes); Live View never
