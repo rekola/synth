@@ -385,9 +385,9 @@ window in Japanese text input: each move writes the chord it lands on.
   completion added. Otherwise it acts at the cursor, and the note in the
   cursor's first column is the one given note. To change a chord entered
   earlier, put the cursor on its lowest note and open the palette. With no
-  note there, a note that is not a note of the scale, or a song whose scale
-  is not otonal or utonal, the palette does not open and the status line says
-  why.
+  note there, the palette opens with no chord (below). A note that is not a note of
+  the scale, or a song whose scale is not otonal, utonal or diamond, does not open
+  it, and the status line says why.
 - **Size.** The chords of the palette have 2 to 5 notes. The size starts at
   the cursor's width; with a cursor of one column, at the size last used
   there, 4 the first time. So with a narrow cursor you can play one or more
@@ -409,6 +409,28 @@ window in Japanese text input: each move writes the chord it lands on.
   the desktop keymap) cancels and puts back the notes that were there when
   the palette opened.
 - One session is one undo step, however many chords were tried.
+- **Borrowed chords.** The palette shows a check box, "Borrowed chords", under the
+  list. Tab moves the keyboard focus between the list and the check box (Up and Down
+  move it back to the list); on the check box Space or Enter toggles it, and so does a
+  click. Toggling rebuilds the list at once, keeps the palette open and writes the
+  first chord of the new list. The setting is the song's, not the editor's: off by
+  default, saved in the song file as `<song borrowedChords="true">` (a file without it
+  loads with it off, and an off setting is not written), restored on loading, and a
+  change is an edit that marks the song modified and can be undone. There is no
+  command or key binding for it.
+  - Off, chord entry writes only notes of the scale. On, the notes of the otonal or
+    utonal scale for chord entry are its 18 notes and its three borrowed ones, so that
+    every kind of chord is offered wherever all its notes are among those 21, with every
+    rule of chord entry unchanged (a note's own run, the class of chord for the width,
+    the direction, the order of the lists, the sound on entry). The six seventh chords
+    that take notes from both scales are in [extended-diamond.md](extended-diamond.md#borrowed-chords);
+    each scale may borrow three. A chord with a borrowed note is marked "(borrowed)" in
+    the list and in the status line. The scales do not change: a borrowed note has no
+    key. The diamond has all of these notes already and is not affected.
+- **Without a note.** In a pattern of an otonal, utonal or diamond song the palette
+  opens also with no entry and no note under the cursor (or where the cursor is not on
+  a note column). It then shows the check box and an empty list, and accepting writes
+  nothing: this is where the palette's settings are.
 
 ## Just intonation
 

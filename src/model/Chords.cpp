@@ -1,5 +1,6 @@
 #include "Chords.h"
 #include "Note.h"
+#include "Division.h"
 
 #include <algorithm>
 #include <array>
@@ -407,6 +408,34 @@ ChordTable buildCrossTable(bool five) {
   return table;
 }
 
+// Whether the gamut note is one `scale` borrows: a note of a chord the division gives it, that the
+// scale does not have.
+bool borrowedNote(const JustScale & just, size_t index) {
+  if (!just.side || !just.only.empty()) return false;
+  auto & note = gamut::kExtendedDiamond[index];
+  return !just.contains(note) && division::borrows(*just.side, note.ratio);
+}
+
+// The chords of a scale that have a borrowed note: every chord of every form whose notes are all
+// notes of the scale or borrowed, each read upward from each of its notes.
+ChordTable buildBorrowedTable(Scale scale, bool five) {
+  ChordTable table;
+  auto just = justScale(scale);
+  if (!just) return table;
+  forEachChord(five, [&](Kind kind, const vector<size_t> & notes, size_t root) {
+    bool borrowed = false;
+    for (auto note : notes) {
+      if (borrowedNote(*just, note))
+        borrowed = true;
+      else if (!just->contains(gamut::kExtendedDiamond[note]))
+        return;
+    }
+    if (!borrowed) return;
+    for (auto degree : notes) table[degree].push_back(readFrom(kind, root, notes, degree));
+  });
+  return table;
+}
+
 // The diamond scales' lists: each degree's otonal chords, then its utonal ones,
 // then the chords that take notes from both.
 ChordTable joinTables(const ChordTable & otonal, const ChordTable & utonal, const ChordTable & cross) {
@@ -464,7 +493,7 @@ ChordTable ordered(const ChordTable & table, Direction preferred) {
 }
 
 // The chords of notes up to four (size 4), or of exactly five.
-const ChordTable & tableFor(Scale scale, int size) {
+const ChordTable & tableFor(Scale scale, int size, bool borrowed = false) {
   static const ChordTable otonal_lists = buildTable(kOtonalChords, GamutSide::OTONAL);
   static const ChordTable utonal_lists = buildTable(kUtonalChords, GamutSide::UTONAL);
   static const ChordTable otonal5_lists = buildTable(kOtonalNinths, GamutSide::OTONAL);
@@ -477,8 +506,17 @@ const ChordTable & tableFor(Scale scale, int size) {
   static const ChordTable utonal5 = ordered(utonal5_lists, Direction::DOWNWARD);
   static const ChordTable diamond = ordered(joinTables(otonal_lists, utonal_lists, cross), Direction::UPWARD);
   static const ChordTable diamond5 = ordered(joinTables(otonal5_lists, utonal5_lists, cross5), Direction::UPWARD);
+  // With the borrowed chords: the scale's own lists, then the chords that borrow, ordered as ever.
+  static const ChordTable otonal_b = ordered(joinTables(otonal_lists, buildBorrowedTable(Scale::OTONAL, false), {}), Direction::UPWARD);
+  static const ChordTable utonal_b = ordered(joinTables(utonal_lists, buildBorrowedTable(Scale::UTONAL, false), {}), Direction::DOWNWARD);
+  static const ChordTable otonal5_b = ordered(joinTables(otonal5_lists, buildBorrowedTable(Scale::OTONAL, true), {}), Direction::UPWARD);
+  static const ChordTable utonal5_b = ordered(joinTables(utonal5_lists, buildBorrowedTable(Scale::UTONAL, true), {}), Direction::DOWNWARD);
   static const ChordTable none;
   bool five = size >= 5;
+  if (borrowed) {
+    if (scale == Scale::OTONAL) return five ? otonal5_b : otonal_b;
+    if (scale == Scale::UTONAL) return five ? utonal5_b : utonal_b;
+  }
   switch (scale) {
     case Scale::OTONAL:
       return five ? otonal5 : otonal;
@@ -500,9 +538,9 @@ Direction directionOf(Kind kind) {
   return Direction::UPWARD;
 }
 
-const vector<Entry> & degreeChords(Scale scale, size_t gamut_index, int size) {
+const vector<Entry> & degreeChords(Scale scale, size_t gamut_index, int size, bool borrowed) {
   static const vector<Entry> none;
-  auto & table = tableFor(scale, size);
+  auto & table = tableFor(scale, size, borrowed);
   auto it = table.find(gamut_index);
   return it == table.end() ? none : it->second;
 }
@@ -526,7 +564,7 @@ optional<string> triadName(Ratio second, Ratio third) {
   return nullopt;
 }
 
-ScaleChords::ScaleChords(Scale scale, Tuning tuning, int key) : scale_(scale), tuning_(tuning) {
+ScaleChords::ScaleChords(Scale scale, Tuning tuning, int key, bool borrowed) : scale_(scale), tuning_(tuning), borrowed_(borrowed && (scale == Scale::OTONAL || scale == Scale::UTONAL)) {
   int edo = edoStepsFor(tuning);
   auto just = justScale(scale);
   if (!chords::hasChords(scale) || edo <= 0 || !just) return;
@@ -534,16 +572,25 @@ ScaleChords::ScaleChords(Scale scale, Tuning tuning, int key) : scale_(scale), t
   key_ = ((max(key, 0) % edo) + edo) % edo;
   held_.assign(static_cast<size_t>(edo), -1);
   vector<double> error(static_cast<size_t>(edo), 0.0);
+  vector<int> rank(static_cast<size_t>(edo), 0);
   for (size_t i = 0; i < just->gamut.size(); i++) {
     auto & note = just->gamut[i];
-    if (!just->contains(note)) continue;
+    // A note of the scale, or with the setting a borrowed one, which never takes the key of a note of the scale.
+    int note_rank = just->contains(note) ? 2 : (borrowed_ && borrowedNote(*just, i) ? 1 : 0);
+    if (note_rank == 0) continue;
     int steps = note.ratio.steps(edo);
     auto step = static_cast<size_t>(((steps % edo) + edo) % edo);
     double off = fabs(note.ratio.cents() - steps * 1200.0 / edo);
-    if (held_[step] >= 0 && off >= error[step] - 1e-9) continue;
+    if (held_[step] >= 0 && (note_rank < rank[step] || (note_rank == rank[step] && off >= error[step] - 1e-9))) continue;
     held_[step] = static_cast<int>(i);
+    rank[step] = note_rank;
     error[step] = off;
   }
+}
+
+bool ScaleChords::isBorrowed(size_t gamut_index) const {
+  auto just = justScale(scale_);
+  return borrowed_ && just && borrowedNote(*just, gamut_index);
 }
 
 optional<size_t> ScaleChords::degreeOf(int note_value) const {
@@ -565,7 +612,7 @@ int ScaleChords::stepOf(size_t gamut_index) const {
 vector<const Entry *> ScaleChords::chordsOf(size_t gamut_index, int size) const {
   vector<const Entry *> out;
   if (edo_ <= 0) return out;
-  for (auto & entry : degreeChords(scale_, gamut_index, size)) {
+  for (auto & entry : degreeChords(scale_, gamut_index, size, borrowed_)) {
     bool held = true;
     for (auto note : entry.notes) held = held && held_[static_cast<size_t>(stepOf(note))] == static_cast<int>(note);
     if (held) out.push_back(&entry);
@@ -826,6 +873,11 @@ Result complete(const ScaleChords & scale, vector<int> given, int size, const ma
     if (size >= 5) {
       for (auto entry : candidates(5)) add(entry);
     }
+  }
+  // A chord with a borrowed note says so.
+  for (auto & chord : result.chords) {
+    chord.borrowed = any_of(chord.ratios.begin(), chord.ratios.end(), [&](size_t note) { return scale.isBorrowed(note); });
+    if (chord.borrowed) chord.name += " (borrowed)";
   }
   if (!result.chords.empty()) result.status = Status::OK;
   return result;

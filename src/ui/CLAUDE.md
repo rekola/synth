@@ -230,6 +230,13 @@ Controller-level and per-widget commands. Not migrated: `StatusLine`,
   column. Its lines are `chords::complete()` at the palette's size;
   `writePaletteChord()` rewrites the columns and auditions the chord. The
   session holds the note-held undo group open; cancel writes `original` back.
+  It opens with no note too (empty `given`, empty list; accepting writes nothing),
+  and holds a `cellui::Checkbox`, "Borrowed chords", under the list: Tab moves
+  the focus between list and check box (`ChordPalette::on_checkbox`), Space or
+  Enter toggles it, and `setBorrowedChords()` sets `Song::getBorrowedChords()` (the
+  song's setting, saved as `borrowedChords`, one undo step with the session) and
+  rebuilds the list. The setting reaches `chords::ScaleChords`'s `borrowed` flag at
+  every construction in `PatternEditor`; a chord that borrows says "(borrowed)" in its name.
 
 ## Cursor, focus and colours
 

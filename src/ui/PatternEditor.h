@@ -15,6 +15,7 @@
 #include "PatternSource.h"
 #include "ChordGrouper.h"
 #include "ScenePatternSource.h"
+#include <cellui/Checkbox.h>
 #include <cellui/InlineEditor.h>
 #include "LevelMeter.h"
 #include "../model/Chords.h"
@@ -520,12 +521,16 @@ private:
     std::vector<chords::Completion> lines;
     std::vector<std::string> spelled; // each line's notes by name
     int selected = 0;
+    bool on_checkbox = false; // the keyboard focus is on the "Borrowed chords" check box, not the list
   };
   ChordPalette chord_palette_;
   static constexpr int kPaletteColumns = kMaxCursorWidth;
   int palette_size_ = 4; // the size last used with a cursor of one column
   bool palette_drawn_ = false;
   std::unique_ptr<cellui::Plane> palette_plane_;
+  std::unique_ptr<cellui::Checkbox> palette_box_; // on palette_plane_
+  // Sets the song's borrowed-chords setting and rebuilds the open palette's candidates at once.
+  void setBorrowedChords(bool enabled);
   // Moves the open palette's selection on (1) or back (-1); opens a closed one, `direction` lines from the chord in the pattern.
   void stepChordPalette(int direction);
   void fillChordPalette();

@@ -1424,6 +1424,7 @@ Song::loadParameters(const ParameterSource & input) {
   setSwing(input.get<int>("swing", swing::kStraight));
   setStandardPitch(input.get<float>("standardPitch", kNominalStandardPitchHz));
   setRecordQuantize(input.get<bool>("recordQuantize", false));
+  setBorrowedChords(input.get<bool>("borrowedChords", false));
 
   setEarHeight(input.get<float>("earHeight", constants::DEFAULT_EAR_HEIGHT));
   setFloorReflectionEnabled(input.get<bool>("floorReflection", constants::DEFAULT_FLOOR_REFLECTION_ENABLED));
@@ -1663,6 +1664,7 @@ Song::storeParameters(ParameterSource & output) const {
   output.set("swing", getSwing(), swing::kStraight);
   output.set("standardPitch", getStandardPitch(), kNominalStandardPitchHz);
   if (getRecordQuantize()) output.set("recordQuantize", true);
+  if (getBorrowedChords()) output.set("borrowedChords", true);
 
   output.set("earHeight", getEarHeight(), constants::DEFAULT_EAR_HEIGHT);
   if (getFloorReflectionEnabled() != constants::DEFAULT_FLOOR_REFLECTION_ENABLED) output.set("floorReflection", getFloorReflectionEnabled());
