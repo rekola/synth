@@ -482,12 +482,17 @@ InteractiveUI::initialize(std::shared_ptr<Controller> & controller) {
   app_.setQuitOnClose(false);
   app_.setBeforeRefresh([this] { raiseOverlays(); });
   app_.setFocusName([this] { return focusName(); });
-  // The palette lists every registry's commands (the focused widget's, the
-  // pattern editor's, this one's) and runs a choice as M-x does.
+  // The palette lists every registry's commands (the Controller's, the
+  // focused widget's, the pattern editor's, this one's) and runs a choice as
+  // M-x does. A buffer's own "switch-to-buffer:<name>" is the Buffers menu's
+  // (select-named-buffer switches by name), not a command to list.
   cellui::Application::CommandSource source;
   source.names = [this] {
-    auto names = commandCompletions("");
-    return std::vector<std::string>(names.begin(), names.end());
+    std::vector<std::string> names;
+    for (auto & name : getController().commandCompletions("")) {
+      if (name.find(':') == std::string::npos) names.push_back(name);
+    }
+    return names;
   };
   source.description = [](const std::string & name) { return commandDescription(name); };
   source.binding = [this](const std::string & name) { return bindingFor(name); };
