@@ -1126,3 +1126,28 @@ TEST(borrowed_chords_in_chord_entry) {
     CHECK(!f.shows("(borrowed)"));
   }
 }
+
+// A click on the check box toggles it, and the palette stays open.
+TEST(borrowed_chords_check_box_is_toggled_by_a_click) {
+  ChordFixture f;
+  f.widen(3);
+  f.down('e');
+  f.wait();
+  f.up('e');
+  f.meta('/');
+  auto lines = f.lines();
+  int row = -1, col = -1;
+  for (std::size_t y = 0; y < lines.size(); y++) {
+    auto at = lines[y].find("☐ Borrowed chords");
+    if (at == std::string::npos) continue;
+    row = static_cast<int>(y);
+    col = static_cast<int>(std::count_if(lines[y].begin(), lines[y].begin() + static_cast<std::ptrdiff_t>(at), [](char c) { return (c & 0xC0) != 0x80; })) + 3;
+  }
+  CHECK(row >= 0);
+  f.terminal.pushMouse(row, col, cellui::Key::Button1);
+  f.ui->step();
+  f.terminal.pushMouse(row, col, cellui::Key::Button1, 0, cellui::Input::Kind::RELEASE);
+  f.ui->step();
+  CHECK(f.shows("☑ Borrowed chords"));
+  CHECK(f.controller->getSong().getBorrowedChords());
+}
