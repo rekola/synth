@@ -49,7 +49,7 @@ def main():
 
     # Mark on row 5 (inside the clip), point on row 11 (background), kill.
     move(scr, DOWN, 5)
-    scr.send(vk.ctrl('b'))
+    scr.send(b"\x1b[32;5u")  # Ctrl-Space: set-mark
     scr.pump(0.3)
     move(scr, DOWN, 6)
     scr.send(vk.ctrl('w'))
