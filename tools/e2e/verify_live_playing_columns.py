@@ -41,7 +41,7 @@ def main():
 
     # A note in T0's first clip and one in T1's, then launch T0's clip.
     other_window(scr)  # clip grid -> pattern editor, on T0
-    scr.send(b"q")
+    scr.send(b"z")
     scr.pump(0.4)
     scr.send(CTRL_RIGHT)
     scr.pump(0.3)

@@ -110,7 +110,7 @@ def main():
     # The pattern editor keeps focus across the view switch.
     scr.send(vk.ctrl('a'))  # back to the first track
     scr.pump(0.3)
-    scr.send(b"q")
+    scr.send(b"z")
     scr.pump(0.5)
     check("typing into an empty slot creates Clip 1", "Clip 1" in scr.dump(), scr)
 
