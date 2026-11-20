@@ -492,7 +492,15 @@ InteractiveUI::initialize(std::shared_ptr<Controller> & controller) {
   source.description = [](const std::string & name) { return commandDescription(name); };
   source.binding = [this](const std::string & name) { return bindingFor(name); };
   source.execute = [this](const std::string & name) { return getController().sendCommand(name); };
+  // A key runs this class's own command (the keymap's names are all in its
+  // registry), never a focused widget's of the same name, as M-x would.
+  source.run_binding = [this](const std::string & name) { return commands_.execute(name); };
   app_.setCommandSource(std::move(source));
+  // The bindings come after the layers of offerKeyLayers() (an open editor, a
+  // prompt) and ahead of the focused widget, which offers them the key.
+  app_.setKeymapOrder(cellui::Application::KeymapOrder::PROGRAM);
+  // M-x and its desktop shortcut cancel a widget's half-typed edit first.
+  app_.commands().define("command-palette", [this] { showCommandPalette(); });
   display_connections_.push_back(app_.message.connect([this](const std::string & text) { setStatus(text); }));
   display_connections_.push_back(app_.resized.connect([this](int rows, int cols) {
     resize(rows, cols);
@@ -986,9 +994,8 @@ InteractiveUI::initializeWidgets() {
   // see PatternEditor.cpp's own definition) - forwarded through
   // executeCommand() the same way this class's own active-element fallback
   // would, since the C-x prefix itself is only ever recognized at this
-  // level (dispatchCommand() below checks *this* registry, not
-  // PatternEditor's - unlike the M-x path, which does go through that
-  // fallback chain).
+  // level (a bound key runs *this* registry's command, not PatternEditor's -
+  // unlike the M-x path, which does go through that fallback chain).
   // Rename is the focused widget's (the pattern editor when that has none).
   commands_.define("rename", [this]() {
     auto el = active_element_.lock();
@@ -1050,85 +1057,85 @@ InteractiveUI::initializeWidgets() {
   // under the name this codebase's M-x already used - see
   // Controller::sendCommand()) rather than
   // one-off single-key shortcuts or made-up names - see
-  // cellui::Keymap::bindPrefixed()/UIElement::dispatchCommand() for the two-key
+  // the application's keymap (cellui::Application::offerKey()) for the two-key
   // prefix-sequence machinery this needs. No Ctrl-N/"New" binding any
   // more - see select-named-buffer's own comment above for why there's no
   // separate "New" command left to bind.
-  keymap_.bind(cellui::KeymapProfile::TERMINAL, "C-x C-c", "save-buffers-kill-terminal");
-  keymap_.bind(cellui::KeymapProfile::TERMINAL, "C-x C-s", "save-buffer");
-  keymap_.bind(cellui::KeymapProfile::TERMINAL, "C-x C-f", "find-file");
-  keymap_.bind(cellui::KeymapProfile::TERMINAL, "C-x C-w", "save-buffer-as");
-  keymap_.bind(cellui::KeymapProfile::TERMINAL, "C-x C-x", "exchange-point-and-mark");
-  keymap_.bind(cellui::KeymapProfile::TERMINAL, "C-x h", "mark-whole-buffer");
+  app_.keymap().bind(cellui::KeymapProfile::TERMINAL, "C-x C-c", "save-buffers-kill-terminal");
+  app_.keymap().bind(cellui::KeymapProfile::TERMINAL, "C-x C-s", "save-buffer");
+  app_.keymap().bind(cellui::KeymapProfile::TERMINAL, "C-x C-f", "find-file");
+  app_.keymap().bind(cellui::KeymapProfile::TERMINAL, "C-x C-w", "save-buffer-as");
+  app_.keymap().bind(cellui::KeymapProfile::TERMINAL, "C-x C-x", "exchange-point-and-mark");
+  app_.keymap().bind(cellui::KeymapProfile::TERMINAL, "C-x h", "mark-whole-buffer");
   // The buffer commands' own real Emacs bindings, unlike every C-x C-<letter>
   // above, hold Ctrl for the C-x prefix only, not the second key: kill-buffer
   // is C-x k (plain k), next-buffer/previous-buffer are C-x <right>/C-x
   // <left>, and select-named-buffer (switch-to-buffer) is C-x b.
-  keymap_.bind(cellui::KeymapProfile::TERMINAL, "C-x k", "kill-buffer");
-  keymap_.bind(cellui::KeymapProfile::TERMINAL, "C-x Right", "next-buffer");
-  keymap_.bind(cellui::KeymapProfile::TERMINAL, "C-x Left", "previous-buffer");
-  keymap_.bind(cellui::KeymapProfile::TERMINAL, "C-x b", "select-named-buffer");
-  keymap_.bind(cellui::KeymapProfile::TERMINAL, "C-x o", "other-window");
-  keymap_.bind(cellui::KeymapProfile::TERMINAL, "C-x m", "merge-clip-to-background");
-  keymap_.bind(cellui::KeymapProfile::TERMINAL, "C-x r", "toggle-record-arm");
+  app_.keymap().bind(cellui::KeymapProfile::TERMINAL, "C-x k", "kill-buffer");
+  app_.keymap().bind(cellui::KeymapProfile::TERMINAL, "C-x Right", "next-buffer");
+  app_.keymap().bind(cellui::KeymapProfile::TERMINAL, "C-x Left", "previous-buffer");
+  app_.keymap().bind(cellui::KeymapProfile::TERMINAL, "C-x b", "select-named-buffer");
+  app_.keymap().bind(cellui::KeymapProfile::TERMINAL, "C-x o", "other-window");
+  app_.keymap().bind(cellui::KeymapProfile::TERMINAL, "C-x m", "merge-clip-to-background");
+  app_.keymap().bind(cellui::KeymapProfile::TERMINAL, "C-x r", "toggle-record-arm");
   // Emacs's own undo bindings: C-x u, plus C-_ and C-/ (a terminal sends the
   // same byte for both). undo-redo (Emacs 28) is on C-M-_.
-  keymap_.bind(cellui::KeymapProfile::TERMINAL, "C-x u", "undo");
-  keymap_.bind(cellui::KeymapProfile::TERMINAL, "C-_", "undo");
-  keymap_.bind(cellui::KeymapProfile::TERMINAL, "C-/", "undo");
-  keymap_.bind(cellui::KeymapProfile::TERMINAL, "C-M-_", "undo-redo");
+  app_.keymap().bind(cellui::KeymapProfile::TERMINAL, "C-x u", "undo");
+  app_.keymap().bind(cellui::KeymapProfile::TERMINAL, "C-_", "undo");
+  app_.keymap().bind(cellui::KeymapProfile::TERMINAL, "C-/", "undo");
+  app_.keymap().bind(cellui::KeymapProfile::TERMINAL, "C-M-_", "undo-redo");
   // What terminals actually send for them: the single control byte 0x1f
   // (older builds reported it as key 31, no modifiers; with Alt in front for
   // the redo; the parser now decodes it as Ctrl+_), and in the Kitty protocol Ctrl+Shift+- for C-_.
-  keymap_.bind(cellui::KeymapProfile::TERMINAL, cellui::KeyStroke::pack(31, false, false, false, false), "undo");
-  keymap_.bind(cellui::KeymapProfile::TERMINAL, cellui::KeyStroke::pack(31, false, true, false, false), "undo-redo");
-  keymap_.bind(cellui::KeymapProfile::TERMINAL, "C-S--", "undo");
-  keymap_.bind(cellui::KeymapProfile::TERMINAL, "C-M-S--", "undo-redo");
+  app_.keymap().bind(cellui::KeymapProfile::TERMINAL, cellui::KeyStroke::pack(31, false, false, false, false), "undo");
+  app_.keymap().bind(cellui::KeymapProfile::TERMINAL, cellui::KeyStroke::pack(31, false, true, false, false), "undo-redo");
+  app_.keymap().bind(cellui::KeymapProfile::TERMINAL, "C-S--", "undo");
+  app_.keymap().bind(cellui::KeymapProfile::TERMINAL, "C-M-S--", "undo-redo");
   // The desktop ones.
   // File commands, with the C-x prefix Emacs-only (Ctrl+X is cut here).
-  keymap_.bind(cellui::KeymapProfile::DESKTOP, "Ctrl+S", "save-buffer");
-  keymap_.bind(cellui::KeymapProfile::DESKTOP, "Ctrl+Shift+S", "save-buffer-as");
-  keymap_.bind(cellui::KeymapProfile::DESKTOP, "Ctrl+O", "find-file");
-  keymap_.bind(cellui::KeymapProfile::DESKTOP, "Ctrl+Q", "save-buffers-kill-terminal");
-  keymap_.bind(cellui::KeymapProfile::DESKTOP, "Ctrl+Z", "undo");
-  keymap_.bind(cellui::KeymapProfile::DESKTOP, "Ctrl+Shift+Z", "undo-redo");
-  keymap_.bind(cellui::KeymapProfile::DESKTOP, "Ctrl+Y", "undo-redo");
-  keymap_.bind("SPC", "toggle-playing");
-  keymap_.bind("[", "octave-down");
-  keymap_.bind("]", "octave-up");
-  keymap_.bind("TAB", "toggle-view");
+  app_.keymap().bind(cellui::KeymapProfile::DESKTOP, "Ctrl+S", "save-buffer");
+  app_.keymap().bind(cellui::KeymapProfile::DESKTOP, "Ctrl+Shift+S", "save-buffer-as");
+  app_.keymap().bind(cellui::KeymapProfile::DESKTOP, "Ctrl+O", "find-file");
+  app_.keymap().bind(cellui::KeymapProfile::DESKTOP, "Ctrl+Q", "save-buffers-kill-terminal");
+  app_.keymap().bind(cellui::KeymapProfile::DESKTOP, "Ctrl+Z", "undo");
+  app_.keymap().bind(cellui::KeymapProfile::DESKTOP, "Ctrl+Shift+Z", "undo-redo");
+  app_.keymap().bind(cellui::KeymapProfile::DESKTOP, "Ctrl+Y", "undo-redo");
+  app_.keymap().bind("SPC", "toggle-playing");
+  app_.keymap().bind("[", "octave-down");
+  app_.keymap().bind("]", "octave-up");
+  app_.keymap().bind("TAB", "toggle-view");
   // Track creation works from every widget, the same as its Track menu
   // entries. The desktop shortcuts are the usual DAW ones (an audio track is a
   // sample track, a MIDI track an instrument track; Ctrl+Shift+D "Drum" has
   // no such counterpart). The terminal keymap uses the same letters after C-c,
   // the shortcut Emacs leaves to the application; Shift is the capital letter.
   auto ctrl_c = cellui::KeyStroke::pack('c', true, false, false, false);
-  keymap_.bind(cellui::KeymapProfile::DESKTOP, "Ctrl+T", "add-sample-track");
-  keymap_.bind(cellui::KeymapProfile::DESKTOP, "Ctrl+Shift+T", "add-instrument-track");
-  keymap_.bind(cellui::KeymapProfile::DESKTOP, "Ctrl+G", "add-group-track");
-  keymap_.bind(cellui::KeymapProfile::DESKTOP, "Ctrl+Shift+D", "add-percussion-track");
-  keymap_.bind(cellui::KeymapProfile::TERMINAL, "C-c r", "rename");
-  keymap_.bind(cellui::KeymapProfile::TERMINAL, "C-c t", "add-sample-track");
-  keymap_.bind(cellui::KeymapProfile::TERMINAL, "C-c T", "add-instrument-track");
-  keymap_.bindPrefixed(cellui::KeymapProfile::TERMINAL, ctrl_c, cellui::KeyStroke::pack('T', false, false, true, false), "add-instrument-track");
-  keymap_.bind(cellui::KeymapProfile::TERMINAL, "C-c g", "add-group-track");
-  keymap_.bind(cellui::KeymapProfile::TERMINAL, "C-c d", "add-percussion-track");
+  app_.keymap().bind(cellui::KeymapProfile::DESKTOP, "Ctrl+T", "add-sample-track");
+  app_.keymap().bind(cellui::KeymapProfile::DESKTOP, "Ctrl+Shift+T", "add-instrument-track");
+  app_.keymap().bind(cellui::KeymapProfile::DESKTOP, "Ctrl+G", "add-group-track");
+  app_.keymap().bind(cellui::KeymapProfile::DESKTOP, "Ctrl+Shift+D", "add-percussion-track");
+  app_.keymap().bind(cellui::KeymapProfile::TERMINAL, "C-c r", "rename");
+  app_.keymap().bind(cellui::KeymapProfile::TERMINAL, "C-c t", "add-sample-track");
+  app_.keymap().bind(cellui::KeymapProfile::TERMINAL, "C-c T", "add-instrument-track");
+  app_.keymap().bindPrefixed(cellui::KeymapProfile::TERMINAL, ctrl_c, cellui::KeyStroke::pack('T', false, false, true, false), "add-instrument-track");
+  app_.keymap().bind(cellui::KeymapProfile::TERMINAL, "C-c g", "add-group-track");
+  app_.keymap().bind(cellui::KeymapProfile::TERMINAL, "C-c d", "add-percussion-track");
   // The Ableton shortcuts (docs/user-interface.md): function keys on both keymaps,
   // the rest on the desktop one only, where the terminal keymap has no obvious
   // counterpart. Duplicate and Capture MIDI are reserved, not built yet.
-  keymap_.bind("F9", "toggle-record-arm");
-  keymap_.bind("F10", "back-to-arrangement");
-  keymap_.bind(cellui::KeymapProfile::DESKTOP, "Ctrl+A", "mark-whole-buffer");
-  keymap_.bind(cellui::KeymapProfile::DESKTOP, "Ctrl+D", "duplicate");
-  keymap_.bind(cellui::KeymapProfile::DESKTOP, "Ctrl+I", "insert-scene");
+  app_.keymap().bind("F9", "toggle-record-arm");
+  app_.keymap().bind("F10", "back-to-arrangement");
+  app_.keymap().bind(cellui::KeymapProfile::DESKTOP, "Ctrl+A", "mark-whole-buffer");
+  app_.keymap().bind(cellui::KeymapProfile::DESKTOP, "Ctrl+D", "duplicate");
+  app_.keymap().bind(cellui::KeymapProfile::DESKTOP, "Ctrl+I", "insert-scene");
   // The clip grid binds the same shortcut to quantize-clip; everywhere else it
   // quantizes the region.
-  keymap_.bind(cellui::KeymapProfile::DESKTOP, "Ctrl+U", "quantize-region");
-  keymap_.bind(cellui::KeymapProfile::DESKTOP, "Ctrl+Shift+C", "capture-midi");
-  keymap_.bind(cellui::KeymapProfile::DESKTOP, "Ctrl+Up", "double-clip-length");
-  keymap_.bind(cellui::KeymapProfile::DESKTOP, "Ctrl+Down", "halve-clip-length");
+  app_.keymap().bind(cellui::KeymapProfile::DESKTOP, "Ctrl+U", "quantize-region");
+  app_.keymap().bind(cellui::KeymapProfile::DESKTOP, "Ctrl+Shift+C", "capture-midi");
+  app_.keymap().bind(cellui::KeymapProfile::DESKTOP, "Ctrl+Up", "double-clip-length");
+  app_.keymap().bind(cellui::KeymapProfile::DESKTOP, "Ctrl+Down", "halve-clip-length");
 
-  assertCommandBindingsValid();
+  assert(app_.keymap().allBoundIn(commands_));
 
   // Lets StatusLine's M-x path (Controller::sendCommand, which only reaches
   // Controller/Song-level state) also invoke commands owned by this class or
@@ -1597,7 +1604,7 @@ bool InteractiveUI::offerKeyLayers(const cellui::KeyDown & e) {
   // No open reader (a StatusLine prompt, any widget's inline editor) may let a
   // global keybinding steal a keystroke meant for it.
   bool reader_active = status_line_->isReaderActive() || pattern_editor_->isReaderActive() || clip_grid_->isReaderActive();
-  if (!reader_active && dispatchCommand(e.key, e.mods)) return true;
+  if (!reader_active && app_.offerKey(e)) return true;
   if (offerMenuCommand(menu_->keyDown(e))) return true;
   return status_line_->keyDown(e);
 }
@@ -1704,10 +1711,6 @@ InteractiveUI::offerInput(const cellui::Input & input) {
   if (pointer && anyModalOpen()) return true;
 
   // A resize or the redraw key.
-  bool reader_active = status_line_->isReaderActive() || pattern_editor_->isReaderActive() ||
-    clip_grid_->isReaderActive();
-  if (!pointer && !reader_active && dispatchCommand(input.getId(), mods)) return true;
-
   if (input.getId() == Key::Resize) {
     handleResize();
   } else if (mods.ctrl && input.getId() == 'l') {
@@ -1761,7 +1764,7 @@ std::string InteractiveUI::bindingFor(const std::string & command) const {
   }
   if (auto binding = pattern_editor_->bindingFor(command); !binding.empty()) return binding;
   if (auto binding = clip_grid_->bindingFor(command); !binding.empty()) return binding;
-  return cellui::Widget::bindingFor(command);
+  return app_.keymap().bindingFor(command, keymapProfile());
 }
 
 void InteractiveUI::showCommandPalette() {
