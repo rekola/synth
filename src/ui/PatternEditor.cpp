@@ -5089,6 +5089,12 @@ void PatternEditor::renderChordPalette() {
         *palette_plane_, "Borrowed chords", [this]() { return getController().getSong().getBorrowedChords(); }, [this](bool on) { setBorrowedChords(on); });
     // As high as the palette, or its own cells would be drawn over the box.
     palette_box_->setElevation(palette_plane_->getStyles().theme.elevation.overlay);
+    // Part of the palette's surface, not a raised card of its own, so no shadow or edge of its own.
+    palette_box_->setElevationArea(false);
+    // In the widget tree, or the dispatcher never finds it under the pointer; the palette routes its own keys, so a
+    // press leaves the focus where it was.
+    palette_box_->attach(*this);
+    palette_box_->setFocusable(false);
   }
   auto & plane = *palette_plane_;
   plane.resize(panel_rows, cols);
