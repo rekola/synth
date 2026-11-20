@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<!-- Purpose-built for verify_just_intonation.py: 31-EDO in C, one track with
+<!-- Purpose-built for verify_just_intonation.py: 31-EDO in C major, one track with
      C, D#, F on the first rows and a G (the key's fifth) on the fourth. -->
-<song temperament="31edo" key="C" tempo="120" timeSignature="1/4">
+<song scale="major" temperament="31edo" key="C" tempo="120" timeSignature="1/4">
   <instruments>
     <instrument id="i1" from="string.bowed.ensemble.pizzicato" />
   </instruments>

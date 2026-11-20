@@ -8,7 +8,9 @@ key with the notes, so the corrections stay as they were.
 """
 import os
 import re
+import shutil
 import sys
+import tempfile
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import harness as vk
@@ -51,7 +53,10 @@ def mx(scr, command):
 
 
 def main():
-    pid, fd = vk.spawn(FIXTURE)
+    # A copy, so that saving below leaves the fixture alone.
+    work = os.path.join(tempfile.mkdtemp(), "just_intonation_test.xml")
+    shutil.copy(FIXTURE, work)
+    pid, fd = vk.spawn(work)
     scr = vk.Screen(fd)
     vk.wait_ready(scr)
     vk.other_window(scr)  # the pattern editor
@@ -65,21 +70,22 @@ def main():
 
     mx(scr, "apply-just-intonation-region")
     check("it tuned every note", "Tuned 4 notes" in scr.dump(), scr)
-    check("the tonic needs nothing, the others their correction",
-          fx_column(scr) == ["+00", "-42", "-53", "+53"], scr)
+    check("the tonic and D#, which has no gamut note, need nothing; F and G their correction",
+          fx_column(scr) == ["+00", "+00", "-53", "+53"], scr)
 
     mx(scr, "clear-tuning-correction-region")
     check("clearing takes them off", fx_column(scr) == ["···"] * 4, scr)
 
     mx(scr, "apply-just-intonation-region")
     before = notes(scr)
-    key_line = [l for l in scr.dump().splitlines() if "31edo" in l]
     mx(scr, "transpose-region-up")
     after = notes(scr)
     check("transposing moves every note", after != before and before[0] == "C-4", scr)
-    check("and the corrections stay as they were", fx_column(scr) == ["+00", "-42", "-53", "+53"], scr)
-    key_line_after = [l for l in scr.dump().splitlines() if "31edo" in l]
-    check("because the key moved with the notes", key_line and key_line_after and key_line != key_line_after, scr)
+    check("and the corrections stay as they were", fx_column(scr) == ["+00", "+00", "-53", "+53"], scr)
+    # The key is not on screen; the saved song has it.
+    mx(scr, "save-buffer")
+    key_after = re.search(r'\bkey="([^"]*)"', open(work).read())
+    check("because the key moved with the notes", key_after is not None and key_after.group(1) != "C", scr)
 
     scr.send(vk.ctrl('g'))
     scr.pump(0.5)
