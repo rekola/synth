@@ -58,7 +58,9 @@ the terminal keymap only, as Capture MIDI has it on the desktop one.
 
 Ctrl+X is cut there, so the `C-x` prefix sequences are terminal-only; the buffer
 commands (`next-buffer`, `kill-buffer`, ...) have no desktop shortcut yet and are
-in the menus and the command palette. What the terminal can't do is listed
+in the menus and the command palette. As in Emacs, the status line shows `C-x-`
+while a prefix waits for its key, and a sequence bound to nothing says so
+(`C-x C-z is undefined`) instead of doing anything else. What the terminal can't do is listed
 under [Terminal](#terminal) at the end.
 
 ## Command palette

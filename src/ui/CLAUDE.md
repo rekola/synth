@@ -69,12 +69,18 @@ follows GUI conventions, not Emacs mark-and-kill, so these stay in the
 widgets' own registries (`PatternEditor`, `ClipGrid`) for good.
 
 Dispatch: cellui's `KeyStroke.h`/`Keymap.h`/`CommandRegistry.h` map key stroke →
-command name → callable; widgets fill `keymap_`/`commands_` in their
-constructor and call `dispatchCommand()` early in their key handler, anything
-unbound falling through to manual handling. `Controller::sendCommand()` (what
-the palette calls) falls back to `UI::executeCommand()` — the active element's
-registry, then UI's — for names it doesn't know, so M-x reaches both
-Controller-level and per-widget commands. Not migrated: `cellui::StatusLine`,
+command name → callable. The app-wide bindings are the `cellui::Application`'s
+keymap (`app_.keymap()`, filled in `InteractiveUI::initializeWidgets()`), with
+`KeymapOrder::PROGRAM`: `offerKeyLayers()` offers a key to it (`offerKey()`)
+after the octave editor and only while no prompt or inline editor is reading,
+ahead of the focused widget; a bound name runs `InteractiveUI`'s own registry
+(`CommandSource::run_binding`), and the application says "C-x-" and "C-x C-z is
+undefined" on the status line. Widgets fill their own `keymap_`/`commands_` in
+their constructor and call `dispatchCommand()` early in their key handler,
+anything unbound falling through to manual handling. `Controller::sendCommand()`
+(what the palette calls) falls back to `UI::executeCommand()` — the active
+element's registry, then UI's — for names it doesn't know, so M-x reaches both
+Controller-level and per-widget commands. Not migrated: `StatusLine`,
 `OutlineView`. Every command needs a line in `ui/CommandDescriptions.cpp`
 (a test fails otherwise).
 
@@ -109,7 +115,7 @@ Controller-level and per-widget commands. Not migrated: `cellui::StatusLine`,
   runs the choice after the palette has closed; the application's `message`
   (an unknown name) goes to the status line. Tab completes Emacs-style to the
   longest shared prefix.
-- Key bindings are written as a person reads them (`keymap_.bind(
+- Key bindings are written as a person reads them (`app_.keymap().bind(
   cellui::KeymapProfile::TERMINAL, "C-x C-s", "save-buffer")`,
   `"Ctrl+Shift+S"`; `cellui::KeyStroke::parse()`), a prefix and a key in one
   string. `KeyStroke::pack()` stays only for what that cannot spell: a raw
