@@ -19,6 +19,7 @@ enum Step { C = 0,
             E = 17,
             F = 22,
             Fsu = 26,
+            Gbv = 27,
             G = 31,
             A = 39,
             Asu = 43 };
@@ -429,9 +430,14 @@ TEST(chord_palette_says_why_it_does_not_open) {
     CHECK(f.row(0) == (V{C}));
   }
   {
+    // Without a note the palette still opens, with its check box and no chords; accepting writes nothing.
     ChordFixture f;
     f.execute("chord-palette");
-    CHECK(f.shows("No note under the cursor"));
+    CHECK(f.shows("Borrowed chords"));
+    CHECK(f.shows("No note to build a chord on"));
+    f.press(cellui::Key::Enter);
+    CHECK(!f.shows("Borrowed chords"));
+    for (auto v : f.row(0)) CHECK(v == -1);
   }
   {
     // C in D otonal: no key gives it, so it is written by hand.
@@ -1038,4 +1044,63 @@ TEST(a_chord_is_a_run_of_ratios_from_the_played_note) {
   CHECK(row(Scale::UTONAL, 3, 'q') == (V{53, 36, 22, 10}));
   CHECK(row(Scale::UTONAL, 5, 'q') == (V{53, 36, 22, 10, 0, -9}));
   CHECK(row(Scale::OTONAL, 2, 'e') == (V{70, 53, 39})); // at three columns the run E C A
+}
+
+// The setting "borrowed chords" is switched in the chord palette: Tab moves the focus to its check box and
+// Space toggles it, and the candidates change at once.
+TEST(borrowed_chords_are_switched_in_the_chord_palette) {
+  ChordFixture f; // otonal
+  f.widen(3);
+  f.down('e');
+  f.wait();
+  f.up('e');
+  auto before = f.row(0);
+  CHECK(before == (V{E, G, Asu, 53 + C})); // E: C harmonic seventh / E, as ever
+  f.meta('/');
+  CHECK(f.shows("☐ Borrowed chords"));
+  CHECK(!f.shows("(borrowed)"));
+  f.press(cellui::Key::Tab);
+  f.press(' ');
+  CHECK(f.shows("☑ Borrowed chords"));
+  CHECK(f.controller->getSong().getBorrowedChords());
+  // The first candidate is now E's own chord with G♭↓, marked.
+  CHECK(f.row(0) == (V{53 + E, 53 + C, A, Gbv}));
+  CHECK(f.shows("(borrowed)"));
+  f.press(' ');
+  CHECK(f.shows("☐ Borrowed chords"));
+  CHECK(f.row(0) == before);
+  f.press(' ');
+  f.press(cellui::Key::Enter); // toggles on the check box
+  f.press(cellui::Key::Down);  // back to the list
+  f.press(cellui::Key::Enter);
+  CHECK(!f.shows("Borrowed chords"));
+  // The setting is kept when the palette is opened again.
+  CHECK(f.controller->getSong().getBorrowedChords() == false);
+  f.controller->getSong().setBorrowedChords(true);
+  f.meta('/');
+  CHECK(f.shows("☑ Borrowed chords"));
+  f.press(cellui::Key::Enter);
+}
+
+// Off, no key writes a note outside the scale; on, a key writes the chord with the borrowed note.
+TEST(borrowed_chords_in_chord_entry) {
+  {
+    ChordFixture f;
+    f.widen(3);
+    f.controller->getSong().setBorrowedChords(true);
+    f.down('e');
+    f.wait();
+    f.up('e');
+    CHECK(f.row(0) == (V{53 + E, 53 + C, A, Gbv}));
+    CHECK(f.shows("(borrowed)"));
+  }
+  {
+    ChordFixture f;
+    f.widen(3);
+    f.down('e');
+    f.wait();
+    f.up('e');
+    CHECK(f.row(0) == (V{E, G, Asu, 53 + C}));
+    CHECK(!f.shows("(borrowed)"));
+  }
 }

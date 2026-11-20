@@ -272,6 +272,30 @@ seventh (1/7:1/6:1/5:1/4) is named by its top note, its root too. The status
 line and the chord palette use it: C E G A♯↑ is "C harmonic seventh", and C D♯
 F♯↑ A♯↑ is "A♯↑ mirror seventh" ("A♯↑ mirror seventh / C" read upward from C).
 
+## Borrowed chords
+
+The gamut has twenty seventh chords. Each scale has seven made of its own notes,
+and six more take notes from both scales. `model/Division.h` is the one table that
+gives each scale three of the six, which it may borrow: the notes of such a chord
+that the scale lacks are its borrowed notes. Brackets mark them; notes are
+identified by their ratios.
+
+| Otonal may borrow | Utonal may borrow |
+|---|---|
+| E mirror seventh: [G♭↓] A C E | A♭ harmonic seventh: A♭ C E♭ [F♯↑] |
+| D♭↓ mirror seventh: [F𝄫] [G♭↓] [B𝄫] D♭↓ | B harmonic seventh: B [D♯] [F♯↑] [G𝄪] |
+| B𝄫 harmonic seventh: [B𝄫] D♭↓ F♭ G | D♯ mirror seventh: F G♯ B [D♯] |
+
+So otonal borrows F𝄫 60/49, G♭↓ 10/7 and B𝄫 12/7, and utonal borrows D♯ 7/6,
+F♯↑ 7/5 and G𝄪 49/30. In 53-EDO none of them shares a key with a note of the
+borrowing scale. The scales themselves do not change (18 notes, the same layouts and
+step view): a borrowed note has no key of its own and appears only as a note of a
+chord, tuned to its ratio like any note of the gamut. Chord entry offers these chords
+only with the song's "borrowed chords" setting on (user-interface.md, Chord palette).
+In 31-EDO a borrowed note never takes the key of a note of the scale, and a chord is
+offered only if every note it needs is available there: otonal keeps G♭↓ and B𝄫 but
+not F𝄫, utonal keeps D♯ and F♯↑ but not G𝄪.
+
 ## The diamond scale
 
 **Diamond** is the 7-limit tonality diamond itself, every ratio between two of

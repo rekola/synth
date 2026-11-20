@@ -30,6 +30,14 @@ and fifth, like C E G). Not to be confused with a keyboard
 *shortcut* (a key with its modifiers, `KeyStroke` in the code) or a *key
 sequence* (several shortcuts in a row, such as `C-x C-s`).
 
+**Borrowed chord, borrowed note**
+A seventh chord that takes notes from both the otonal and the utonal scale; each
+scale may borrow three of the six (extended-diamond.md, Borrowed chords), and the
+notes of such a chord that the scale lacks are its borrowed notes. Chord entry
+offers them only with the song's "borrowed chords" setting on (off by default, a
+check box in the chord palette, saved in the song); the scale itself does not
+change and a borrowed note has no key of its own.
+
 **Upward and downward chord**
 The two directions of a chord in chord entry. An upward chord (harmonic seventh,
 major seventh, 7♯9, major triad and the ninths built on them; whole-number

@@ -24,6 +24,7 @@ add_executable(synth_tests
 	PatternBlockOpsTests.cpp
 	JustIntonationTests.cpp
 	ChordsTests.cpp
+	BorrowedChordsTests.cpp
 	GamutTests.cpp
 	DiamondScaleTests.cpp
 	SeikilosTests.cpp
