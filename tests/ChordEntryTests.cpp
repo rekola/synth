@@ -1057,17 +1057,17 @@ TEST(borrowed_chords_are_switched_in_the_chord_palette) {
   auto before = f.row(0);
   CHECK(before == (V{E, G, Asu, 53 + C})); // E: C harmonic seventh / E, as ever
   f.meta('/');
-  CHECK(f.shows("[ ] Borrowed chords"));
+  CHECK(f.shows("☐ Borrowed chords"));
   CHECK(!f.shows("(borrowed)"));
   f.press(cellui::Key::Tab);
   f.press(' ');
-  CHECK(f.shows("[x] Borrowed chords"));
+  CHECK(f.shows("☑ Borrowed chords"));
   CHECK(f.controller->getSong().getBorrowedChords());
   // The first candidate is now E's own chord with G♭↓, marked.
   CHECK(f.row(0) == (V{53 + E, 53 + C, A, Gbv}));
   CHECK(f.shows("(borrowed)"));
   f.press(' ');
-  CHECK(f.shows("[ ] Borrowed chords"));
+  CHECK(f.shows("☐ Borrowed chords"));
   CHECK(f.row(0) == before);
   f.press(' ');
   f.press(cellui::Key::Enter); // toggles on the check box
@@ -1078,7 +1078,7 @@ TEST(borrowed_chords_are_switched_in_the_chord_palette) {
   CHECK(f.controller->getSong().getBorrowedChords() == false);
   f.controller->getSong().setBorrowedChords(true);
   f.meta('/');
-  CHECK(f.shows("[x] Borrowed chords"));
+  CHECK(f.shows("☑ Borrowed chords"));
   f.press(cellui::Key::Enter);
 }
 
