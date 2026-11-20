@@ -76,26 +76,12 @@ you're changing.
   (Ctrl-Space/W/Y/G/C-x o/C-x b/C-x C-c), independent of Launchpad. Kept as a
   pty smoke test: the real key encodings through the terminal parser, and the
   process actually exiting. What the keys do is covered by the unit tests.
-- **`verify_live_pattern_editor.py`** - PatternEditor's Live mode
-  (Live View): locators only in Arrangement view, typing into an
-  empty slot creates a clip (not arrangement content), a launched clip's
-  playhead shows in its own track's column only (never on the divider
-  after it), and Space is the transport in Live View too. Independent
-  of Launchpad hardware.
-- **`verify_live_track_positions.py`** - Live View's per-track
-  positions: moved in the pattern editor or by launching a clip, never by
-  the clip grid's cursor; each column's own header clip number, row
-  numbers and row accents; a playing track's position can't be moved (Up
-  says so) while a stopped one's can; and moving one track never moves
-  another.
-- **`verify_live_playing_columns.py`** - with the focused track
-  playing, the columns to its right don't change at all (text or
-  colors), and the rows the playing track doesn't have (before its first
-  clip) draw blank.
 - The scroll margin, the clip grid's stop buttons, `set-song-scale`, the mouse
   wheel, Live View's layout and the keybindings' effects are unit tests on the
   test backend now (`tests/InteractiveUITests.cpp`, `InteractiveUIViewTests.cpp`),
-  not scripts here.
+  not scripts here. The Live View scripts (pattern editor, per-track positions,
+  playing columns) were retired: they found the playhead by the exact colour of
+  the marked row, which no longer matches the theme.
 
 - **`verify_arrangement_clip_region.py`** (fixture
   `arrangement_clip_region_test.xml`) - Arrangement view's block commands
