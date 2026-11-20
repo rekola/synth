@@ -402,10 +402,10 @@ Controller::Controller(ChannelConfiguration _channel_config) : channel_config(_c
       armNoteCapture();
     }
   });
-  commands_.define("add-filter", [this]() { });
-  // A placeholder stub (menu-visible) for Song::getKey()/setKey(), which
-  // has no UI path to reach it yet.
-  commands_.define("set-song-key", [this]() {});
+  // Placeholders: they say so, as the UI's own unbuilt commands do. The song's
+  // key (Song::getKey()/setKey()) has no UI path to reach it yet.
+  commands_.define("add-filter", [this]() { log("add-filter: not implemented yet"); });
+  commands_.define("set-song-key", [this]() { log("set-song-key: not implemented yet"); });
   commands_.define("toggle-mixer-type", [this]() {
     // "Bypass HRTF entirely" toggle: AMBISONIC_STEREO <-> AMBISONIC_BINAURAL.
     // A no-op for a MONO config - MixerFactory never attempts binaural

@@ -109,7 +109,9 @@ Controller-level and per-widget commands. Not migrated: `StatusLine`,
   capture handlers on the root take every key, click and wheel event ahead of
   `InteractiveUI`'s, and `takeEscape` hands it a bare Escape at once.
   `InteractiveUI` gives the application its commands as an
-  `Application::CommandSource`: the names of `commandCompletions("")`,
+  `Application::CommandSource`: the names of `Controller::commandCompletions("")`
+  (the Controller's own commands and every registry `InteractiveUI` reaches,
+  less the Buffers menu's `switch-to-buffer:<name>` entries),
   `commandDescription()`, `bindingFor()` (the focused widget's binding first,
   spelled by `KeyStroke::describe()`) and `Controller::sendCommand()`, which
   runs the choice after the palette has closed; the application's `message`
