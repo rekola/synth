@@ -1058,6 +1058,28 @@ TEST(borrowed_chords_are_switched_in_the_chord_palette) {
   CHECK(before == (V{E, G, Asu, 53 + C})); // E: C harmonic seventh / E, as ever
   f.meta('/');
   CHECK(f.shows("☐ Borrowed chords"));
+  {
+    // The check box is on the palette's last row, under the size line and at its left edge.
+    auto text = f.text();
+    std::vector<std::string> lines;
+    for (std::size_t start = 0; start <= text.size();) {
+      auto end = text.find('\n', start);
+      if (end == std::string::npos) end = text.size();
+      lines.push_back(text.substr(start, end - start));
+      start = end + 1;
+    }
+    auto column = [](const std::string & line, const std::string & what) {
+      auto at = line.find(what);
+      return at == std::string::npos ? -1 : static_cast<int>(std::count_if(line.begin(), line.begin() + static_cast<std::ptrdiff_t>(at), [](char c) { return (c & 0xC0) != 0x80; }));
+    };
+    int title = -1, box = -1;
+    for (std::size_t i = 0; i < lines.size(); i++) {
+      if (column(lines[i], "Chord: ") >= 0) title = static_cast<int>(i);
+      if (column(lines[i], "☐ Borrowed chords") >= 0) box = static_cast<int>(i);
+    }
+    CHECK(title >= 0 && box == title + 1);
+    if (title >= 0 && box >= 0) CHECK(column(lines[static_cast<std::size_t>(box)], "☐") == column(lines[static_cast<std::size_t>(title)], "Chord: "));
+  }
   CHECK(!f.shows("(borrowed)"));
   f.press(cellui::Key::Tab);
   f.press(' ');

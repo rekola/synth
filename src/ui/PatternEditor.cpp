@@ -5087,6 +5087,8 @@ void PatternEditor::renderChordPalette() {
   if (!palette_box_) {
     palette_box_ = std::make_unique<cellui::Checkbox>(
         *palette_plane_, "Borrowed chords", [this]() { return getController().getSong().getBorrowedChords(); }, [this](bool on) { setBorrowedChords(on); });
+    // As high as the palette, or its own cells would be drawn over the box.
+    palette_box_->setElevation(palette_plane_->getStyles().theme.elevation.overlay);
   }
   auto & plane = *palette_plane_;
   plane.resize(panel_rows, cols);
@@ -5132,7 +5134,10 @@ void PatternEditor::renderChordPalette() {
   set(styles.window_fg_color, styles.picker_bg_color);
   plane.putstr(list_rows + 1, 0, blank);
   palette_box_->resize(1, std::min(cols - 2, palette_box_->preferredWidth()));
-  palette_box_->move(list_rows + 1, 1);
+  // Where a plane made from the palette goes is given in the root's coordinates in a flat tree.
+  auto [origin_row, origin_col] = plane.childOrigin();
+  palette_box_->move(origin_row + list_rows + 1, origin_col + 1);
+  palette_box_->moveToTop(); // over the palette's own row
   palette_box_->setFocused(palette.on_checkbox);
   palette_box_->render(styles, true);
 }
