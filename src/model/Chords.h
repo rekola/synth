@@ -18,25 +18,25 @@
 namespace chords {
 
 enum class Kind { HARMONIC_SEVENTH,
-                  MIRROR_SEVENTH,
+                  SUBHARMONIC_SEVENTH,
                   MAJOR_SEVENTH,
                   SEVEN_SHARP_NINE,
                   MAJOR,
                   MINOR,
                   HARMONIC_NINTH,
-                  MIRROR_HARMONIC_NINTH,
+                  SUBHARMONIC_HARMONIC_NINTH,
                   MAJOR_NINTH,
-                  MIRROR_MAJOR_NINTH,
+                  SUBHARMONIC_MAJOR_NINTH,
                   SEVEN_SHARP_NINE_FIFTH,
-                  MIRROR_SEVEN_SHARP_NINE_FIFTH };
+                  SUBHARMONIC_SEVEN_SHARP_NINE_FIFTH };
 
 // Which note a chord is built from. An upward chord (its proportion in whole
 // numbers, 4:5:6:7) has its notes above its lowest note; a downward chord (the
-// mirror of an upward one, 1/7:1/6:1/5:1/4) has them below its top note.
+// subharmonic form of an upward one, 1/4:1/5:1/6:1/7) has them below its top note.
 enum class Direction { UPWARD,
                        DOWNWARD };
 
-// The direction of a kind of chord: the mirror of an upward kind is downward, so
+// The direction of a kind of chord: the subharmonic form of an upward kind is downward, so
 // the minor triad (A C E hangs from E) is.
 Direction directionOf(Kind kind);
 

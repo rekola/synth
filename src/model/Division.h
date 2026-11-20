@@ -12,8 +12,8 @@
 // both scales, and each scale may borrow three of them. The notes such a chord has
 // that the scale lacks are the scale's borrowed notes: otonal borrows F𝄫 60/49,
 // G♭↓ 10/7 and B𝄫 12/7, utonal D♯ 7/6, F♯↑ 7/5 and G𝄪 49/30. A chord is named by its
-// root: the lowest note of a harmonic seventh (4:5:6:7), the top note of a mirror
-// seventh (1/7:1/6:1/5:1/4).
+// root: the lowest note of a harmonic seventh (4:5:6:7), the top note of a subharmonic
+// seventh (1/4:1/5:1/6:1/7).
 //
 // This is the one table of the division. The scales do not change by it: chord entry
 // offers the borrowed notes, as notes of chords only, when the song's setting is on.
@@ -21,17 +21,17 @@ namespace division {
 
 struct DividedChord {
   Ratio root;
-  bool harmonic;   // else a mirror seventh
+  bool harmonic;   // else a subharmonic seventh
   GamutSide given; // OTONAL or UTONAL: the scale that borrows its notes
 };
 
 inline constexpr std::array<DividedChord, 6> kChords = {{
-    {Ratio{5, 4}, false, GamutSide::OTONAL},   // E mirror seventh: G♭↓ A C E
-    {Ratio{15, 14}, false, GamutSide::OTONAL}, // D♭↓ mirror seventh: F𝄫 G♭↓ B𝄫 D♭↓
+    {Ratio{5, 4}, false, GamutSide::OTONAL},   // E subharmonic seventh: G♭↓ A C E
+    {Ratio{15, 14}, false, GamutSide::OTONAL}, // D♭↓ subharmonic seventh: F𝄫 G♭↓ B𝄫 D♭↓
     {Ratio{12, 7}, true, GamutSide::OTONAL},   // B𝄫 harmonic seventh: B𝄫 D♭↓ F♭ G
     {Ratio{8, 5}, true, GamutSide::UTONAL},    // A♭ harmonic seventh: A♭ C E♭ F♯↑
     {Ratio{28, 15}, true, GamutSide::UTONAL},  // B harmonic seventh: B D♯ F♯↑ G𝄪
-    {Ratio{7, 6}, false, GamutSide::UTONAL},   // D♯ mirror seventh: F G♯ B D♯
+    {Ratio{7, 6}, false, GamutSide::UTONAL},   // D♯ subharmonic seventh: F G♯ B D♯
 }};
 
 // The four notes of a chord, octave-reduced, the root among them.

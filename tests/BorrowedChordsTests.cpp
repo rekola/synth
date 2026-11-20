@@ -163,12 +163,12 @@ TEST(borrowed_on_gives_the_chords_with_a_borrowed_note) {
 TEST(borrowed_chords_are_marked_and_listed_from_other_notes) {
   enum { G = 31,
          F = 22 };
-  // The B𝄫 harmonic seventh read from G (otonal), the D♯ mirror seventh read from F (utonal).
+  // The B𝄫 harmonic seventh read from G (otonal), the D♯ subharmonic seventh read from F (utonal).
   auto g = completeIn(Scale::OTONAL, {G}, 4, true);
   CHECK(hasName(g, "B𝄫 harmonic seventh / G (borrowed)"));
   CHECK(!hasName(completeIn(Scale::OTONAL, {G}, 4, false), "B𝄫 harmonic seventh / G (borrowed)"));
   auto f = completeIn(Scale::UTONAL, {F}, 4, true);
-  CHECK(hasName(f, "D♯ mirror seventh / F (borrowed)"));
+  CHECK(hasName(f, "D♯ subharmonic seventh / F (borrowed)"));
   for (auto & chord : g.chords) CHECK(chord.borrowed == (chord.name.find("(borrowed)") != std::string::npos));
   // No chord offered without the setting is marked.
   for (auto & chord : completeIn(Scale::OTONAL, {G}, 4, false).chords) CHECK(!chord.borrowed);

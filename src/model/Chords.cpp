@@ -118,7 +118,7 @@ constexpr array kUtonalChords = {
 };
 
 // Five-note chords, offered at a width of five. Same order rule per degree: chords
-// from a lower step first, harmonic ninths and their mirrors, major ninths and
+// from a lower step first, harmonic ninths and their subharmonic forms, major ninths and
 // theirs, 7♯9 chords and theirs, then the chord named after the degree itself.
 constexpr array kOtonalNinths = {
     "C D♯ F G A",
@@ -225,19 +225,19 @@ struct Form {
 
 const vector<Form> & forms() {
   static const vector<Form> table = {
-      {Kind::HARMONIC_SEVENTH, {Ratio{5, 4}, Ratio{3, 2}, Ratio{7, 4}}, Direction::UPWARD}, // 4:5:6:7
-      {Kind::MIRROR_SEVENTH, {Ratio{7, 6}, Ratio{7, 5}, Ratio{7, 4}}, Direction::DOWNWARD}, // 1/7:1/6:1/5:1/4
-      {Kind::MAJOR_SEVENTH, {Ratio{5, 4}, Ratio{3, 2}, Ratio{15, 8}}, Direction::UPWARD},   // 8:10:12:15
-      {Kind::SEVEN_SHARP_NINE, {Ratio{7, 6}, Ratio{5, 4}, Ratio{7, 4}}, Direction::UPWARD}, // 12:14:15:21
+      {Kind::HARMONIC_SEVENTH, {Ratio{5, 4}, Ratio{3, 2}, Ratio{7, 4}}, Direction::UPWARD},      // 4:5:6:7
+      {Kind::SUBHARMONIC_SEVENTH, {Ratio{7, 6}, Ratio{7, 5}, Ratio{7, 4}}, Direction::DOWNWARD}, // 1/4:1/5:1/6:1/7
+      {Kind::MAJOR_SEVENTH, {Ratio{5, 4}, Ratio{3, 2}, Ratio{15, 8}}, Direction::UPWARD},        // 8:10:12:15
+      {Kind::SEVEN_SHARP_NINE, {Ratio{7, 6}, Ratio{5, 4}, Ratio{7, 4}}, Direction::UPWARD},      // 12:14:15:21
       {Kind::MAJOR, {Ratio{5, 4}, Ratio{3, 2}}, Direction::UPWARD},
       {Kind::MINOR, {Ratio{6, 5}, Ratio{3, 2}}, Direction::UPWARD},
       // The ninth reduced into the octave, so 9/4 is 9/8 and sorts first.
-      {Kind::HARMONIC_NINTH, {Ratio{9, 8}, Ratio{5, 4}, Ratio{3, 2}, Ratio{7, 4}}, Direction::UPWARD},                  // 4:5:6:7:9
-      {Kind::MIRROR_HARMONIC_NINTH, {Ratio{9, 8}, Ratio{9, 7}, Ratio{3, 2}, Ratio{9, 5}}, Direction::DOWNWARD},         // 1/9:1/7:1/6:1/5:1/4
-      {Kind::MAJOR_NINTH, {Ratio{9, 8}, Ratio{5, 4}, Ratio{3, 2}, Ratio{15, 8}}, Direction::UPWARD},                    // 8:10:12:15:18
-      {Kind::MIRROR_MAJOR_NINTH, {Ratio{9, 8}, Ratio{6, 5}, Ratio{3, 2}, Ratio{9, 5}}, Direction::DOWNWARD},            // 1/18:1/15:1/12:1/10:1/8
-      {Kind::SEVEN_SHARP_NINE_FIFTH, {Ratio{7, 6}, Ratio{5, 4}, Ratio{3, 2}, Ratio{7, 4}}, Direction::UPWARD},          // 12:14:15:18:21
-      {Kind::MIRROR_SEVEN_SHARP_NINE_FIFTH, {Ratio{7, 6}, Ratio{7, 5}, Ratio{3, 2}, Ratio{7, 4}}, Direction::DOWNWARD}, // 1/21:1/18:1/15:1/14:1/12
+      {Kind::HARMONIC_NINTH, {Ratio{9, 8}, Ratio{5, 4}, Ratio{3, 2}, Ratio{7, 4}}, Direction::UPWARD},                       // 4:5:6:7:9
+      {Kind::SUBHARMONIC_HARMONIC_NINTH, {Ratio{9, 8}, Ratio{9, 7}, Ratio{3, 2}, Ratio{9, 5}}, Direction::DOWNWARD},         // 1/4:1/5:1/6:1/7:1/9
+      {Kind::MAJOR_NINTH, {Ratio{9, 8}, Ratio{5, 4}, Ratio{3, 2}, Ratio{15, 8}}, Direction::UPWARD},                         // 8:10:12:15:18
+      {Kind::SUBHARMONIC_MAJOR_NINTH, {Ratio{9, 8}, Ratio{6, 5}, Ratio{3, 2}, Ratio{9, 5}}, Direction::DOWNWARD},            // 1/8:1/10:1/12:1/15:1/18
+      {Kind::SEVEN_SHARP_NINE_FIFTH, {Ratio{7, 6}, Ratio{5, 4}, Ratio{3, 2}, Ratio{7, 4}}, Direction::UPWARD},               // 12:14:15:18:21
+      {Kind::SUBHARMONIC_SEVEN_SHARP_NINE_FIFTH, {Ratio{7, 6}, Ratio{7, 5}, Ratio{3, 2}, Ratio{7, 4}}, Direction::DOWNWARD}, // 1/12:1/14:1/15:1/18:1/21
   };
   return table;
 }
@@ -246,8 +246,8 @@ const char * kindName(Kind kind) {
   switch (kind) {
     case Kind::HARMONIC_SEVENTH:
       return "harmonic seventh";
-    case Kind::MIRROR_SEVENTH:
-      return "mirror seventh";
+    case Kind::SUBHARMONIC_SEVENTH:
+      return "subharmonic seventh";
     case Kind::MAJOR_SEVENTH:
       return "major seventh";
     case Kind::SEVEN_SHARP_NINE:
@@ -258,16 +258,16 @@ const char * kindName(Kind kind) {
       return "minor";
     case Kind::HARMONIC_NINTH:
       return "harmonic ninth";
-    case Kind::MIRROR_HARMONIC_NINTH:
-      return "mirror harmonic ninth";
+    case Kind::SUBHARMONIC_HARMONIC_NINTH:
+      return "subharmonic harmonic ninth";
     case Kind::MAJOR_NINTH:
       return "major ninth";
-    case Kind::MIRROR_MAJOR_NINTH:
-      return "mirror major ninth";
+    case Kind::SUBHARMONIC_MAJOR_NINTH:
+      return "subharmonic major ninth";
     case Kind::SEVEN_SHARP_NINE_FIFTH:
       return "7♯9 with fifth";
-    case Kind::MIRROR_SEVEN_SHARP_NINE_FIFTH:
-      return "mirror 7♯9 with fifth";
+    case Kind::SUBHARMONIC_SEVEN_SHARP_NINE_FIFTH:
+      return "subharmonic 7♯9 with fifth";
   }
   return "";
 }
@@ -292,10 +292,10 @@ optional<size_t> gamutIndex(string_view spelling, GamutSide side) {
   return nullopt;
 }
 
-// The note a chord is named after: the lowest of its form, except a mirror
+// The note a chord is named after: the lowest of its form, except a subharmonic
 // seventh, which is named by its top note.
 size_t rootOf(Kind kind, const vector<size_t> & notes, size_t lowest) {
-  if (kind != Kind::MIRROR_SEVENTH) return lowest;
+  if (kind != Kind::SUBHARMONIC_SEVENTH) return lowest;
   size_t top = lowest;
   Ratio highest{1, 1};
   for (auto note : notes) {
@@ -351,7 +351,7 @@ vector<Kind> kindOrder(bool five) {
       if (form.above.size() == 4) order.push_back(form.kind);
     }
   } else {
-    order = {Kind::HARMONIC_SEVENTH, Kind::MIRROR_SEVENTH, Kind::MAJOR, Kind::MINOR, Kind::MAJOR_SEVENTH, Kind::SEVEN_SHARP_NINE};
+    order = {Kind::HARMONIC_SEVENTH, Kind::SUBHARMONIC_SEVENTH, Kind::MAJOR, Kind::MINOR, Kind::MAJOR_SEVENTH, Kind::SEVEN_SHARP_NINE};
   }
   return order;
 }
@@ -446,52 +446,6 @@ ChordTable joinTables(const ChordTable & otonal, const ChordTable & utonal, cons
   return table;
 }
 
-// The note a chord is heard as: the lowest note of an upward chord in its basic form, the top
-// note of a downward one.
-optional<size_t> namedBy(const Entry & entry) {
-  // The minor triad is entered by the subharmonic run from its top note, so no note names it.
-  if (entry.kind == Kind::MINOR) return nullopt;
-  const Form * form = nullptr;
-  for (auto & candidate : forms()) {
-    if (candidate.kind == entry.kind) form = &candidate;
-  }
-  if (!form) return nullopt;
-  for (auto lowest : entry.notes) {
-    if (aboveRoot(entry.notes, lowest) != form->above) continue;
-    if (form->direction == Direction::UPWARD) return lowest;
-    auto top = (ratioOf(lowest) * form->above.back()).reduced();
-    for (auto note : entry.notes) {
-      if (ratioOf(note) == top) return note;
-    }
-  }
-  return nullopt;
-}
-
-// Each list starts with the chords its note names: the seventh chords (those of the direction
-// the scale is named for first), the triads, then the rest of them; the other chords follow in
-// their order.
-ChordTable ordered(const ChordTable & table, Direction preferred) {
-  ChordTable out;
-  for (auto & [degree, list] : table) {
-    vector<Entry> sevenths_preferred, sevenths_other, triads, named, rest;
-    for (auto & entry : list) {
-      auto by = namedBy(entry);
-      if (!by || *by != degree) {
-        rest.push_back(entry);
-      } else if (entry.kind == Kind::HARMONIC_SEVENTH || entry.kind == Kind::MIRROR_SEVENTH) {
-        (directionOf(entry.kind) == preferred ? sevenths_preferred : sevenths_other).push_back(entry);
-      } else if (entry.kind == Kind::MAJOR || entry.kind == Kind::MINOR) {
-        triads.push_back(entry);
-      } else {
-        named.push_back(entry);
-      }
-    }
-    auto & result = out[degree];
-    for (auto * part : {&sevenths_preferred, &sevenths_other, &triads, &named, &rest}) result.insert(result.end(), part->begin(), part->end());
-  }
-  return out;
-}
-
 // The chords of notes up to four (size 4), or of exactly five.
 const ChordTable & tableFor(Scale scale, int size, bool borrowed = false) {
   static const ChordTable otonal_lists = buildTable(kOtonalChords, GamutSide::OTONAL);
@@ -500,17 +454,13 @@ const ChordTable & tableFor(Scale scale, int size, bool borrowed = false) {
   static const ChordTable utonal5_lists = buildTable(kUtonalNinths, GamutSide::UTONAL);
   static const ChordTable cross = buildCrossTable(false);
   static const ChordTable cross5 = buildCrossTable(true);
-  static const ChordTable otonal = ordered(otonal_lists, Direction::UPWARD);
-  static const ChordTable utonal = ordered(utonal_lists, Direction::DOWNWARD);
-  static const ChordTable otonal5 = ordered(otonal5_lists, Direction::UPWARD);
-  static const ChordTable utonal5 = ordered(utonal5_lists, Direction::DOWNWARD);
-  static const ChordTable diamond = ordered(joinTables(otonal_lists, utonal_lists, cross), Direction::UPWARD);
-  static const ChordTable diamond5 = ordered(joinTables(otonal5_lists, utonal5_lists, cross5), Direction::UPWARD);
-  // With the borrowed chords: the scale's own lists, then the chords that borrow, ordered as ever.
-  static const ChordTable otonal_b = ordered(joinTables(otonal_lists, buildBorrowedTable(Scale::OTONAL, false), {}), Direction::UPWARD);
-  static const ChordTable utonal_b = ordered(joinTables(utonal_lists, buildBorrowedTable(Scale::UTONAL, false), {}), Direction::DOWNWARD);
-  static const ChordTable otonal5_b = ordered(joinTables(otonal5_lists, buildBorrowedTable(Scale::OTONAL, true), {}), Direction::UPWARD);
-  static const ChordTable utonal5_b = ordered(joinTables(utonal5_lists, buildBorrowedTable(Scale::UTONAL, true), {}), Direction::DOWNWARD);
+  static const ChordTable diamond = joinTables(otonal_lists, utonal_lists, cross);
+  static const ChordTable diamond5 = joinTables(otonal5_lists, utonal5_lists, cross5);
+  // With the borrowed chords: the scale's own lists, then the chords that borrow.
+  static const ChordTable otonal_b = joinTables(otonal_lists, buildBorrowedTable(Scale::OTONAL, false), {});
+  static const ChordTable utonal_b = joinTables(utonal_lists, buildBorrowedTable(Scale::UTONAL, false), {});
+  static const ChordTable otonal5_b = joinTables(otonal5_lists, buildBorrowedTable(Scale::OTONAL, true), {});
+  static const ChordTable utonal5_b = joinTables(utonal5_lists, buildBorrowedTable(Scale::UTONAL, true), {});
   static const ChordTable none;
   bool five = size >= 5;
   if (borrowed) {
@@ -519,9 +469,9 @@ const ChordTable & tableFor(Scale scale, int size, bool borrowed = false) {
   }
   switch (scale) {
     case Scale::OTONAL:
-      return five ? otonal5 : otonal;
+      return five ? otonal5_lists : otonal_lists;
     case Scale::UTONAL:
-      return five ? utonal5 : utonal;
+      return five ? utonal5_lists : utonal_lists;
     case Scale::DIAMOND:
       return five ? diamond5 : diamond;
     default:
@@ -556,7 +506,7 @@ optional<string> triadName(Ratio second, Ratio third) {
       {Ratio{7, 6}, Ratio{4, 3}, "narrow major"},
       {Ratio{8, 7}, Ratio{4, 3}, "narrow minor"},
       {Ratio{6, 5}, Ratio{7, 5}, "septimal diminished"},
-      {Ratio{7, 6}, Ratio{7, 5}, "mirror diminished"},
+      {Ratio{7, 6}, Ratio{7, 5}, "subharmonic diminished"},
   }};
   for (auto & triad : triads) {
     if (triad.second == second && triad.third == third) return string(triad.name);
@@ -670,7 +620,7 @@ Result complete(const ScaleChords & scale, vector<int> given, int size, const ma
     auto written = given_notes;
     if (downward) {
       // A downward chord hangs from its top note; nothing is added above it. One played note
-      // has the top an octave above it, since the pitch heard in a mirror chord follows its
+      // has the top an octave above it, since the pitch heard in a subharmonic chord follows its
       // lowest note; several played notes keep their octaves, the highest being the top.
       // The others are added below, the nearest first, so a chord cut to the width keeps the
       // notes just below the top.
@@ -806,7 +756,7 @@ Result complete(const ScaleChords & scale, vector<int> given, int size, const ma
       if (any_of(result.chords.begin(), result.chords.end(), [&](const Completion & c) { return c.notes == chord.notes && c.ratios == chord.ratios; })) return;
       const bool up = direction == Direction::UPWARD;
       const string root = scale.noteName(*low_degree);
-      const string family = up ? "harmonic" : "mirror";
+      const string family = up ? "harmonic" : "subharmonic";
       switch (notes.size()) {
         case 2:
           chord.name = root + " " + family + " seventh (2 notes)";

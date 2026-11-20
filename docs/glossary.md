@@ -38,12 +38,19 @@ offers them only with the song's "borrowed chords" setting on (off by default, a
 check box in the chord palette, saved in the song); the scale itself does not
 change and a borrowed note has no key of its own.
 
+**Subharmonic chord**
+The downward form of a chord: its proportion is fractions written from the top
+down (1/4:1/5:1/6:1/7, a subharmonic seventh), and it hangs from its top note, which names
+it ("A♯↑ subharmonic seventh"). The harmonic chord 4:5:6:7 is built on
+overtones, this one on undertones, whence the name. See Upward and
+downward chord.
+
 **Upward and downward chord**
 The two directions of a chord in chord entry. An upward chord (harmonic seventh,
 major seventh, 7♯9, major triad and the ninths built on them; whole-number
 proportion, 4:5:6:7) is built from its lowest note, whose overtones the others
-are. A downward chord (mirror seventh, minor triad and the mirrors of the
-others; fractions, 1/7:1/6:1/5:1/4) is built from its top note, from which the
+are. A downward chord (subharmonic seventh, minor triad and the subharmonic forms of the
+others; fractions, 1/4:1/5:1/6:1/7) is built from its top note, from which the
 others hang. The note a chord is heard as is its lowest note (upward) or its top
 note (downward); a seventh chord is named by it. See user-interface.md, Chord
 entry.
@@ -217,10 +224,10 @@ B𝄳, given on C), Bayātī, Ḥijāz, Nahāwand, Kurd, ʿAjam, Ṣabā and Sī
 **Narrow major and narrow minor**
 Two triads that divide the perfect fourth the way major and minor
 divide the fifth. A major triad (4:5:6) places its third at the
-arithmetic mean of the fifth, a minor triad (10:12:15 = 1/6:1/5:1/4)
+arithmetic mean of the fifth, a minor triad (10:12:15 = 1/4:1/5:1/6)
 at the harmonic mean; a narrow major triad (6:7:8) places its middle
 note at the arithmetic mean of the fourth, a narrow minor triad
-(21:24:28 = 1/8:1/7:1/6) at the harmonic mean. Both consist of a
+(21:24:28 = 1/6:1/7:1/8) at the harmonic mean. Both consist of a
 subminor third (7/6) and a supermajor second (8/7), with the larger
 interval on the bottom in narrow major and on top in narrow minor, as
 with major and minor. Neither has a fifth: the outer interval is a
@@ -252,7 +259,7 @@ The 15-note scale is everything a scale produces from itself (otonal
 adds D𝄫 D♭↓ D F♭ F♯↑ F𝄪 B♭ B), and the 18-note scale adds three
 notes that arise only between the two scales (otonal D𝄪 G𝄪 B♯).
 From 7 notes on each note has a seventh chord made of the step’s
-notes, a harmonic seventh 4:5:6:7 or its mirror 1/7:1/6:1/5:1/4, read
+notes, a harmonic seventh 4:5:6:7 or its subharmonic form 1/4:1/5:1/6:1/7, read
 upward from the degree; its fourth note is often dropped. The
 application’s scale is the full 18 notes; which step a piece uses,
 and when it moves up or down, is the artist’s choice. Only the cores
@@ -263,7 +270,7 @@ their chords are the author’s own. Their chords are tabled in
 extended-diamond.md.
 A third scale holds both: the **diamond**, the 13 notes of the 7-limit
 tonality diamond (the two 7-note cores and the two tritones). A harmonic
-seventh is named by its lowest note, a mirror seventh by its top note, its
+seventh is named by its lowest note, a subharmonic seventh by its top note, its
 *root* (extended-diamond.md, The diamond scale).
 
 **Overtone profile and shared overtones**

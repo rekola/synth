@@ -275,22 +275,19 @@ N columns (N above 1) completes the notes you play to a chord of N notes of the
 scale. Every chord is one of two directions. An **upward** chord (harmonic
 seventh, major seventh, 7♯9, major triad and the larger chords built on them;
 its proportion is whole numbers, 4:5:6:7) is built from its lowest note, whose
-overtones the others are. A **downward** chord (mirror seventh, minor triad, and
-the mirror of each of the others; its proportion is fractions, 1/7:1/6:1/5:1/4)
+overtones the others are. A **downward** chord (subharmonic seventh, minor triad, and
+the subharmonic form of each of the others; its proportion is fractions, written top down, 1/4:1/5:1/6:1/7)
 is built from its top note, from which the others hang: A C E hangs from E. The
 note heard as the chord's note is the lowest of an upward chord and the top of a
-downward one, so a line of mirror chords follows the melody by their top notes.
+downward one, so a line of subharmonic chords follows the melody by their top notes.
 
-A note's chords ([extended-diamond.md](extended-diamond.md)) are tried in
-order. The chords the note names come first: the upward chords it is the lowest
-note of and the downward chords it is the top note of, the seventh chords
-before the triads (where it names both an upward and a downward seventh chord
-the kind the scale is named for comes first: upward in otonal and the diamond,
-downward in utonal). The rest follow in their order. So the key for a note gives
-the chord that note is heard as, whenever the scale has one: utonal C gives its
-mirror seventh, otonal A♯↑ the mirror seventh C D♯ F♯↑ A♯↑. At five columns the
-five-note chords (ninths, below) come first and these four-note chords are the
-fallback.
+A note's chords ([extended-diamond.md](extended-diamond.md)) are tried in the
+order of their table: the seventh chords the note belongs to, a stand-alone
+triad, then the major sevenths and the 7♯9 chords. Only the note's own run (below)
+comes before them. So in otonal the list of C is C harmonic seventh (the run), F
+harmonic seventh read from C, then C major seventh and C 7♯9. The five-note chords
+(ninths, below) follow the seventh chords at five columns, and come first only at
+six.
 
 The played note is the chord's first column. An upward chord rises from it
 left to right, a downward one falls. With one note played, the cursor's width
@@ -324,7 +321,7 @@ an upward chord, lower in a downward one (for a run this is its 8 or 1/8; for
 a chord read from another of its notes it is the played note's octave). At five
 columns the five-note ninth chords (4:5:6:7:9 and the like) are not first; they
 follow the seventh chords. A chord's name does not depend on its voicing: a run
-to 7 or 8 is a seventh, to 9 a ninth ("C mirror seventh", "C mirror ninth").
+to 7 or 8 is a seventh, to 9 a ninth ("C subharmonic seventh", "C subharmonic ninth").
 
 With several notes played, an upward chord is found from the lowest and a
 downward one from the highest note (those of the direction the scale is named
@@ -346,7 +343,7 @@ column under the cursor is rewritten, and one the chord does not use is
 emptied. The status line shows its name: "C harmonic seventh", or "F harmonic
 seventh / D♯" for a chord read upward from another of its notes. Three notes
 that make a major, minor, narrow major, narrow minor, septimal diminished or
-mirror diminished triad on the lowest take the triad's name ("C major");
+subharmonic diminished triad on the lowest take the triad's name ("C major");
 other chords written short say how many notes they have. One entry is one
 undo step.
 

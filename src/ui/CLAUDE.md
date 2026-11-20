@@ -206,7 +206,7 @@ Controller-level and per-widget commands. Not migrated: `StatusLine`,
   the first chord of the class in its list, else the class below; a four-note
   chord at five columns repeats its first note an octave on;
   names and completion, for the otonal, utonal and diamond scales; a seventh
-  chord is named by its root, a mirror seventh's being its top note; the
+  chord is named by its root, a subharmonic seventh's being its top note; the
   diamond's lists are the two scales' own, then the chords that take notes from
   both) when the deadline passes
   (`tickChordEntry()`, from `render()`) or the last key is released. A held
