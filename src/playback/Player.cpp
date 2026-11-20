@@ -383,8 +383,12 @@ Player::handlePlaybackControlEvent(PlaybackControlEvent & ev) {
               // A note of a just scale sounds at its exact ratio, as it is written.
               NoteOverride note_override;
               if (tuning != Tuning::PERCUSSION) {
-                // The correction a recorded note would be written with.
-                if (auto cents = content->scalars.scale_corrections.forNote(note.getValue())) {
+                // The correction a recorded note would be written with: the one the sender gave (a note
+                // the key table does not hold, such as a borrowed chord note), else the key's own.
+                if (ev.getParameter5() != 0) {
+                  note_override.has_detune = true;
+                  note_override.detune_cents = static_cast<float>(PlaybackControlEvent::detuneFromParameter(ev.getParameter5()));
+                } else if (auto cents = content->scalars.scale_corrections.forNote(note.getValue())) {
                   if (auto written = Note::quantizeTuningCorrection(*cents)) {
                     note_override.has_detune = true;
                     note_override.detune_cents = static_cast<float>(*written);

@@ -4562,6 +4562,10 @@ void PatternEditor::syncNoteColumns(const Song & song) {
   columns_track_id_ = track_id;
 }
 
+int PatternEditor::detuneOf(const Note & note) {
+  return note.hasTuningCorrection() ? PlaybackControlEvent::detuneParameter(note.getTuningCorrectionCents()) : 0;
+}
+
 Note PatternEditor::chordNote(const Song & song, int value) const {
   Note note(value, constants::DEFAULT_NOTE_ON_VELOCITY, chord_entry_.delay);
   // A note whose ratio is known is written with that ratio's correction.
@@ -4650,7 +4654,7 @@ bool PatternEditor::enterChordKey(const cellui::KeyDown & e, int track_id, int m
   int voice = freeVoiceColumn(track_id, s.column);
   s.voice_of[midi_note] = voice;
   if (controller.isMonitoring(track_id)) {
-    queue.push(make_unique<PlaybackControlEvent>(PlaybackControlEvent::PLAY_NOTE, buffer, track_id, voice, midi_note, constants::DEFAULT_NOTE_ON_VELOCITY));
+    queue.push(make_unique<PlaybackControlEvent>(PlaybackControlEvent::PLAY_NOTE, buffer, track_id, voice, midi_note, constants::DEFAULT_NOTE_ON_VELOCITY, detuneOf(chordNote(song, midi_note))));
   }
   if (s.hold) {
     ActiveKeyboardNote held{voice, controller.getPlaybackInfo().getAbsolutePosition(), track_id};
@@ -4706,10 +4710,15 @@ void PatternEditor::applyChordCompletion(bool released) {
   arpeggio_.track_id = s.track_id;
   arpeggio_.from_column = s.column;
   arpeggio_.audition = released;
+  std::vector<std::pair<int, int>> to_sound; // note value and its detune parameter
   for (auto value : chord.notes) {
-    if (std::find(s.given.begin(), s.given.end(), value) == s.given.end()) arpeggio_.values.push_back(value);
+    if (std::find(s.given.begin(), s.given.end(), value) == s.given.end()) to_sound.emplace_back(value, detuneOf(chordNote(song, value)));
   }
-  std::sort(arpeggio_.values.begin(), arpeggio_.values.end());
+  std::sort(to_sound.begin(), to_sound.end());
+  for (auto & [value, detune] : to_sound) {
+    arpeggio_.values.push_back(value);
+    arpeggio_.detunes.push_back(detune);
+  }
   // A sounding pitch that is not written (a note in another octave is another note) stops now.
   for (auto value : s.given) {
     auto kept = s.voice_of.find(value);
@@ -4739,9 +4748,10 @@ void PatternEditor::playArpeggio(std::chrono::steady_clock::time_point now) {
   while (!arpeggio_.values.empty() && now >= arpeggio_.next) {
     int column = freeVoiceColumn(arpeggio_.track_id, arpeggio_.from_column);
     controller.getPlaybackEventQueue().push(make_unique<PlaybackControlEvent>(PlaybackControlEvent::PLAY_NOTE, controller.getActiveBufferName(), arpeggio_.track_id, column,
-                                                                              arpeggio_.values.front(), constants::DEFAULT_NOTE_ON_VELOCITY));
+                                                                              arpeggio_.values.front(), constants::DEFAULT_NOTE_ON_VELOCITY, arpeggio_.detunes.front()));
     (arpeggio_.audition ? audition_.columns : chord_entry_.added_voices).push_back(column);
     arpeggio_.values.erase(arpeggio_.values.begin());
+    arpeggio_.detunes.erase(arpeggio_.detunes.begin());
     // Each gap is half the one before.
     arpeggio_.interval /= 2;
     arpeggio_.next += arpeggio_.interval;
@@ -4987,7 +4997,8 @@ void PatternEditor::writePaletteChord() {
   for (size_t i = 0; i < chord.notes.size(); i++) {
     int column = freeVoiceColumn(palette.track_id, palette.column);
     controller.getPlaybackEventQueue().push(make_unique<PlaybackControlEvent>(PlaybackControlEvent::PLAY_NOTE, controller.getActiveBufferName(), palette.track_id, column, chord.notes[i],
-                                                                              constants::DEFAULT_NOTE_ON_VELOCITY));
+                                                                              constants::DEFAULT_NOTE_ON_VELOCITY,
+                                                                              PlaybackControlEvent::detuneParameter(ratioCorrectionCents(song.getTuning(), song.getScale(), chord.ratios[i]))));
     audition_.columns.push_back(column);
   }
   audition_.until = std::chrono::steady_clock::now() + kAuditionTime;

@@ -209,7 +209,9 @@ Controller-level and per-widget commands. Not migrated: `StatusLine`,
   the song's tonic in the keyboard's octave plus the ratio's steps, written with
   the ratio's own correction (`ratioCorrectionCents()`). Chord entry passes those
   ratios to `chords::complete()` (its `known` map) and writes each note with its
-  ratio's correction.
+  ratio's correction. The notes of an entry sound with it too: `PLAY_NOTE`'s `parameter5` carries the
+  correction (`PlaybackControlEvent::detuneParameter()`, 0 for none, `detuneOf()`),
+  since the player's key table has no key for a borrowed note.
 - With a wide cursor a note key goes to `enterChordKey()`, not the single-note
   path: a `ChordEntry` collects the keys of one entry (held together, or
   within `kCompletionInterval` where no release is reported), writes each
