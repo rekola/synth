@@ -63,7 +63,7 @@ def main():
     check("Ctrl-Y (yank) shows 'Yanked'", "Yanked" in d, d)
 
     # --- set-mark, then keyboard-quit via Ctrl-G ---
-    scr.send(vk.ctrl('b'))
+    scr.send(b"\x1b[32;5u")
     scr.pump(0.2)
     scr.send(vk.ctrl('g'))
     scr.pump()
@@ -97,7 +97,7 @@ def main():
     for _ in range(3):
         scr.send(b"\x1b[D")  # Left, already at the first track's first column
         scr.pump(0.15)
-    scr.send(b"q")
+    scr.send(b"z")  # a note key: enters C-4 only if focus is still in the pattern editor
     scr.pump(0.5)
     check("Left past the pattern editor's first column keeps focus there",
           vk.has_note(pattern_row("00")), scr.dump())

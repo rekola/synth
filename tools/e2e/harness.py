@@ -22,7 +22,7 @@ BINARY = os.path.join(REPO_ROOT, "build", "synth")
 SONG = os.path.join(REPO_ROOT, "songs", "demo3.xml")
 
 
-def _cellui_dir():
+def cellui_dir():
     """cellui's source: $CELLUI_SRC, the folder cmake was given with
     -DFETCHCONTENT_SOURCE_DIR_CELLUI, or the copy it fetched."""
     if os.environ.get("CELLUI_SRC"):
@@ -37,7 +37,7 @@ def _cellui_dir():
     return os.path.join(REPO_ROOT, "build", "_deps", "cellui-src")
 
 
-sys.path.insert(0, os.path.join(_cellui_dir(), "tools", "e2e"))
+sys.path.insert(0, os.path.join(cellui_dir(), "tools", "e2e"))
 import ptyscreen  # noqa: E402  (cellui's pty screen reader; needs pyte)
 from ptyscreen import Screen  # noqa: E402,F401  (scripts use harness.Screen)
 
