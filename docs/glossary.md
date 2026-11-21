@@ -176,6 +176,14 @@ until the next cell in the column. It has no value, velocity or delay, makes no 
 and ends the previous note in its column, as an OFF does. A *lost note* is the smaller
 case: a note was there, but its pitch is gone.
 
+**Launch quantization**
+How long a queued launch, stop or return to the arrangement waits, as a
+number of rows (`launchQuantization` on `<song>`, `set-launch-quantization`).
+0, the default, is the next bar of the running time signature; otherwise the
+change applies on the next multiple of that many rows counted from the origin
+of the bars in force, so 24 gives 24-row sections in any signature. Song-wide;
+there is no per-clip value yet.
+
 **Lift**
 An OFF's velocity: how fast the key is let go. It scales the release time of
 every envelope the note has, fixed when the OFF arrives:

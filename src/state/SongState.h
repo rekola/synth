@@ -68,6 +68,7 @@ class SongState : public TrackState {
     synced_song_tempo_ = tempo_;
     arrangement_bars_ = ArrangementBars(scalars.time_signature, content_reader->arrangement.getSignatureChanges());
     running_bars_ = scalars.running_bars;
+    launch_quantization_ = scalars.launch_quantization;
     swing_ = scalars.swing;
     auto & tracks = *content_reader->tracks;
     master_sends_ = tracks.master->getSends();
@@ -298,6 +299,7 @@ class SongState : public TrackState {
       song_structure_ = SongStructure(*content.tracks->master);
       song_structure_version_ = song.getMajorVersion();
       swing_ = content.scalars.swing;
+      launch_quantization_ = content.scalars.launch_quantization;
       arrangement_bars_ = ArrangementBars(content.scalars.time_signature, content.arrangement.getSignatureChanges());
       // Only a tempo the song itself changed is applied: a scene launch has
       // set this one ahead of the song's copy (queueSceneChange()), and an
@@ -1598,6 +1600,9 @@ private:
   }
 
   LiveTracks live_tracks_;
+  // Whether queued changes apply on the row being played (the song's launch quantization).
+  bool isLaunchRow() const { return barsAt(absolute_pos_).isLaunchRow(absolute_pos_, launch_quantization_); }
+  int launch_quantization_ = 0;
   int live_clock_ = 0;
   int live_start_clock_ = 0;
   int live_seq_ = 0;
@@ -1608,9 +1613,9 @@ private:
   void advanceLiveTracks(const PlaybackContent & content, int frame) {
     // A launched scene's tempo and signature take effect on the bar (or
     // the first row played, from a stopped transport) the clips launch on.
-    if (pending_scene_.active && (pending_scene_.immediate || barsAt(absolute_pos_).rowInBar(absolute_pos_) == 0)) applyPendingScene();
+    if (pending_scene_.active && (pending_scene_.immediate || isLaunchRow())) applyPendingScene();
     followScene(content, frame);
-    bool bar_start = barsAt(absolute_pos_).rowInBar(absolute_pos_) == 0;
+    bool bar_start = isLaunchRow();
     for (auto it = live_tracks_.begin(); it != live_tracks_.end(); ) {
       auto track_id = it->first;
       auto & live_track = it->second;

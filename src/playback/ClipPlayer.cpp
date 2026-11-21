@@ -382,7 +382,7 @@ ClipPlayer::tick() {
 void
 ClipPlayer::advanceToRow(int step, int row) {
   auto & song = controller_.getSong();
-  if (song.isBarStart(row)) {
+  if (song.isLaunchRow(row)) {
     auto queued = move(queued_recording_);
     queued_recording_.clear();
     for (auto & [ track_id, queued_value ] : queued) {

@@ -81,7 +81,9 @@ show writes them (scenes.md section 3).
 ## 3. The running signature
 
 The transport has its own idea of the bar, used for everything that happens
-"on the next bar": queued launches, stops and returns to the
+"on the next bar": queued launches (unless the song has a launch quantization,
+`set-launch-quantization`, which makes them wait for the next multiple of that
+many rows from the bar origin instead, whatever the signature), stops and returns to the
 arrangement, the ZBxx pattern break (which jumps to a row of the next bar),
 the metronome, and the quantization and length of clip takes.
 

@@ -79,3 +79,28 @@ TEST(a_change_after_the_content_extends_the_arrangement) {
   song.setTempoChange(20, 90);
   CHECK(song.getArrangementLength() == 24);
 }
+
+TEST(launch_quantization_counts_rows_from_the_bar_origin_or_defaults_to_the_bar) {
+  BarGrid bars{{6, 8}, 0};
+  CHECK(bars.isLaunchRow(12, 0) && !bars.isLaunchRow(24 - 1, 0));
+  CHECK(bars.isLaunchRow(24, 24) && !bars.isLaunchRow(12, 24) && bars.isLaunchRow(48, 24));
+  BarGrid running{{6, 8}, 5};
+  CHECK(running.isLaunchRow(29, 24) && !running.isLaunchRow(24, 24) && running.isLaunchRow(5, 24));
+}
+
+TEST(launch_quantization_round_trips_and_is_clamped) {
+  InstrumentProvider provider;
+  Song song;
+  CHECK(song.getLaunchQuantization() == 0);
+  song.setLaunchQuantization(24);
+  CHECK(song.isLaunchRow(24) && !song.isLaunchRow(16) && song.isLaunchRow(48));
+  auto path = std::string(TESTS_SCRATCH_DIR) + "/launch_quantization_round_trip.xml";
+  song.save(path);
+  Song reloaded;
+  CHECK(reloaded.open(path, provider));
+  CHECK(reloaded.getLaunchQuantization() == 24);
+  song.setLaunchQuantization(100000);
+  CHECK(song.getLaunchQuantization() == Song::kMaxLaunchQuantization);
+  song.setLaunchQuantization(-3);
+  CHECK(song.getLaunchQuantization() == 0);
+}

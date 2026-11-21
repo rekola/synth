@@ -17,6 +17,8 @@ inline const doc::Prop<int> kTempo{"tempo", 140};
 inline const doc::Prop<int> kTimeNumerator{"timeNumerator", 4};
 inline const doc::Prop<int> kTimeDenominator{"timeDenominator", 4};
 inline const doc::Prop<int> kSwing{"swing", 50};  // swing::kStraight
+// Rows a queued launch or stop waits for, counted from the bars' origin; 0 = one bar.
+inline const doc::Prop<int> kLaunchQuantization{"launchQuantization", 0};
 inline const doc::Prop<float> kStandardPitch{"standardPitch", 440.0f}; // kNominalStandardPitchHz
 inline const doc::Prop<bool> kRecordQuantize{"recordQuantize", false};
 // Chord entry also offers the seventh chords that borrow notes from the other of otonal and utonal.
