@@ -253,6 +253,7 @@ static vector<MenuSectionSpec> menuSpec(vector<MenuItemSpec> buffer_items) {
                         {"Set Scale...", "", "set-song-scale"},
                         {"Set Tuning System...", "", "set-song-tuning"},
                         {"Set Time Signature...", "", "set-time-signature"},
+                        {"Set Launch Quantization...", "", "set-launch-quantization"},
                         {"Set Signature Change...", "", "set-signature-change"},
                         {"Set Tempo Change...", "", "set-tempo-change"},
                         {"Clear Changes", "", "clear-arrangement-changes"},
@@ -940,6 +941,22 @@ InteractiveUI::initializeWidgets() {
       Song::Edit edit(song, "set time signature");
       song.setTimeSignature(*signature);
       setStatus("Time signature " + signature->toString()); }, getController().getSong().getTimeSignature().toString());
+  });
+
+  // How many rows a queued launch waits for; 0 is the next bar.
+  commands_.define("set-launch-quantization", [this]() {
+    status_line_->showPrompt("Launch quantization (rows, 0 = bar): ", [this](const std::string & typed) {
+      if (typed.empty()) return;
+      int rows = 0;
+      auto [end, error] = std::from_chars(typed.data(), typed.data() + typed.size(), rows);
+      if (error != std::errc() || end != typed.data() + typed.size() || rows < 0 || rows > Song::kMaxLaunchQuantization) {
+        setStatus("Not a number of rows (0-" + std::to_string(Song::kMaxLaunchQuantization) + "): " + typed);
+        return;
+      }
+      auto & song = getController().getSong();
+      Song::Edit edit(song, "set launch quantization");
+      song.setLaunchQuantization(rows);
+      setStatus(rows == 0 ? std::string("Launch quantization: next bar") : "Launch quantization: " + std::to_string(rows) + " rows"); }, std::to_string(getController().getSong().getLaunchQuantization()));
   });
 
   // A time signature or tempo change in the arrangement, at the bar under

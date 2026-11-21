@@ -22,6 +22,12 @@ struct BarGrid {
   int nextBarStart(int row) const { return barStart(row) + barRows(); }
   // `row` itself if it starts a bar, else the next bar start.
   int roundUpToBar(int row) const { return barStart(row) == row ? row : nextBarStart(row); }
+  // Whether a queued launch applies on `row`: every `launch_rows` rows from
+  // the origin, or on each bar start when `launch_rows` is 0.
+  bool isLaunchRow(int row, int launch_rows) const {
+    if (launch_rows <= 0) return rowInBar(row) == 0;
+    return floorDiv(row - origin, launch_rows) * launch_rows == row - origin;
+  }
   // Bars are numbered from 0 at the origin.
   int barIndex(int row) const { return floorDiv(row - origin, barRows()); }
   int barStartRow(int bar) const { return origin + bar * barRows(); }

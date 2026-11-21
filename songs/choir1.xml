@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<song scale="otonal" temperament="53edo" tempo="120" timeSignature="6/8">
+<song scale="otonal" temperament="53edo" tempo="120" timeSignature="6/8" launchQuantization="24">
     <bus>
         <reverb/>
         <haze preset="slap"/>
