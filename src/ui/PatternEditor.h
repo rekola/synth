@@ -543,12 +543,11 @@ private:
   // The pitched notes side by side from a note column, at most kPaletteColumns.
   // The notes of the chord at the cursor; with `ratios`, the gamut note each one stands for (by its correction).
   std::vector<int> chordAt(int track_id, RowAddress row, int column, std::map<int, std::size_t> * ratios = nullptr);
-  // Writes a chord's notes (in column order) at the cursor's first row from `column`: side by side, or with a
-  // cursor of more rows one to a row down that column, like an arpeggio. Everything else under the cursor
-  // (`columns` columns, at least its width, in every row it covers) is emptied. In an open Song::Edit.
+  // Writes a chord's notes (in column order) from `column`, each in its own column: on the cursor's first row, or
+  // with a cursor of more rows as an arpeggio, note i in row i (the last row takes the notes beyond it).
+  // Everything else under the cursor (`columns` columns, at least its width, in every row it covers) is
+  // emptied. In an open Song::Edit.
   void writeChordCells(int track_id, RowAddress row, int column, int columns, const std::vector<Note> & notes);
-  // The columns of the first row that `count` chord notes use: all, or the first alone with a cursor of more rows.
-  int chordColumnsUsed(RowAddress row, int count) const;
 
   // Rows the cursor still owes the notes entered while keys were held: a
   // chord's keys all land on one row, and the cursor steps once the last

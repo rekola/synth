@@ -4701,9 +4701,9 @@ void PatternEditor::applyChordCompletion(bool released) {
     for (int i = 0; i < count; i++) notes.push_back(chordNote(song, chord.notes[static_cast<size_t>(i)]));
     writeChordCells(s.track_id, s.row, s.column, std::max(s.width, s.written), notes);
   }
-  s.written = chordColumnsUsed(s.row, count);
+  s.written = count;
   s.applied = true;
-  controller.ensureNoteColumns(s.track_id, s.column + s.written);
+  controller.ensureNoteColumns(s.track_id, s.column + count);
   controller.log(chord.name);
   row_edited = true;
   if (!controller.isMonitoring(s.track_id)) return;
@@ -4833,12 +4833,11 @@ std::vector<int> PatternEditor::chordAt(int track_id, RowAddress row, int column
   auto track = song.getMasterTrack().getChildByInternalId(track_id);
   std::optional<chords::ScaleChords> scale;
   if (ratios && track) scale.emplace(song.getScale(), song.getTuningForTrack(*track), song.getKey(), song.getBorrowedChords());
-  // A cursor of more rows holds its chord as an arpeggio, one note to a row.
-  const bool down = cursorRows(row) > 1;
+  // A cursor of more rows holds its chord as an arpeggio: note i in column i and row i (the last row, for the notes beyond it).
+  const int rows = cursorRows(row);
   for (int i = 0; i < kPaletteColumns; i++) {
-    if (down && i >= cursorRows(row)) break;
-    auto target = source_->edit(track_id, down ? RowAddress{row.block, row.row + i} : row);
-    auto note = target.pattern->getNote(target.effective_row, down ? column : column + i);
+    auto target = source_->edit(track_id, RowAddress{row.block, row.row + std::min(i, rows - 1)});
+    auto note = target.pattern->getNote(target.effective_row, column + i);
     if (!note.isNoteOn()) break;
     values.push_back(note.getValue());
     if (scale) {
@@ -4847,8 +4846,6 @@ std::vector<int> PatternEditor::chordAt(int track_id, RowAddress row, int column
   }
   return values;
 }
-
-int PatternEditor::chordColumnsUsed(RowAddress row, int count) const { return cursorRows(row) > 1 ? std::min(count, 1) : count; }
 
 void PatternEditor::writeChordCells(int track_id, RowAddress row, int column, int columns, const std::vector<Note> & notes) {
   const int rows = cursorRows(row);
@@ -4861,10 +4858,12 @@ void PatternEditor::writeChordCells(int track_id, RowAddress row, int column, in
     }
     return;
   }
+  // An arpeggio: note i in column i, in row i of the cursor (the last row takes the notes beyond it).
   for (int d = 0; d < rows; d++) {
     auto target = source_->edit(track_id, RowAddress{row.block, row.row + d});
-    for (int i = 0; i < columns; i++) {
-      target.pattern->setNote(target.effective_row, column + i, i == 0 && d < count ? notes[static_cast<size_t>(d)] : Note());
+    for (int i = 0; i < std::max(columns, count); i++) {
+      bool here = i < count && std::min(i, rows - 1) == d;
+      target.pattern->setNote(target.effective_row, column + i, here ? notes[static_cast<size_t>(i)] : Note());
     }
   }
 }
@@ -5012,7 +5011,7 @@ void PatternEditor::writePaletteChord() {
     }
     writeChordCells(palette.track_id, palette.row, palette.column, palette.span, notes);
   }
-  controller.ensureNoteColumns(palette.track_id, palette.column + chordColumnsUsed(palette.row, count));
+  controller.ensureNoteColumns(palette.track_id, palette.column + count);
   row_edited = true;
   controller.log(chord.name);
 

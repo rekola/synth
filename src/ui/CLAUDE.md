@@ -215,8 +215,8 @@ Controller-level and per-widget commands. Not migrated: `StatusLine`,
   rectangle (`cursorRows()` cuts it off at the pattern's end). With no mark the
   region of `getEffectiveSelectionBounds()` is that rectangle (copy, kill,
   transpose), and a chord is written by `writeChordCells()`: side by side with
-  one row, an arpeggio down the first column with more, the rest of the
-  rectangle emptied (`chordAt()` reads it back the same way for the palette).
+  one row, with more an arpeggio (note i in column i and row i, the last row taking
+  the rest), the rest of the rectangle emptied (`chordAt()` reads it back the same way for the palette).
 - In a scale with a gamut layout (`keyboardGivesRatios()`: otonal, utonal and
   diamond) a note key gives a ratio, not a fixed note (`keyToNote()`, `playback/KeyboardNotes.h`):
   the song's tonic in the keyboard's octave plus the ratio's steps, written with

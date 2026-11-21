@@ -257,12 +257,14 @@ Each of them shows the new edit step on the status line.
 - **Copy** with no selection copies everything under the cursor, all its rows
   and columns (a selection is copied as it is, whatever the cursor's height).
 - **A chord** entered, or chosen in the chord palette, with a cursor of more
-  than one row is written as an arpeggio down the cursor's first column: the
-  first row gets the first note, the second row the second, and so on. A chord
-  of more notes than the cursor has rows is cut at its last row; one with fewer
-  leaves the remaining rows empty. Every other cell under the cursor is
-  emptied, as the columns a short chord does not use are with a cursor of one
-  row. Cancelling the palette gives back every row.
+  than one row is written as an arpeggio inside the cursor: each note in its
+  own column, as with one row, and the first note in the first row, the second
+  in the second row, and so on. So the cursor's height only spreads the chord
+  over time. A chord of more notes than the cursor has rows puts the notes
+  beyond the last row in it; one with fewer leaves the remaining rows empty.
+  Every other cell under the cursor is emptied, as the columns a short chord
+  does not use are with a cursor of one row. Cancelling the palette gives back
+  every row.
 - While the cursor is a playhead (the transport running in Arrangement view,
   or a playing clip in Live View) only its first row is shown.
 

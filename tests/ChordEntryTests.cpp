@@ -1197,32 +1197,43 @@ TEST(a_selection_is_copied_as_it_is_whatever_the_cursors_height) {
   CHECK(f.row(8).empty() || f.row(8)[0] == -1);
 }
 
-// A chord entered with a cursor of several rows is an arpeggio down its first column, and every other cell the
-// cursor holds is emptied.
-TEST(a_chord_with_a_cursor_of_several_rows_is_an_arpeggio_down_the_rows) {
+namespace {
+// A row without its empty columns at the right.
+std::vector<int> trimmedRow(ChordFixture & f, int row) {
+  auto v = f.row(row);
+  while (!v.empty() && v.back() == -1) v.pop_back();
+  return v;
+}
+} // namespace
+
+// A chord entered with a cursor of several rows is an arpeggio inside the cursor: each note in its own column, as
+// with one row, and note i in row i (the last row takes the notes beyond it). Every other cell the cursor holds is emptied.
+TEST(a_chord_with_a_cursor_of_several_rows_is_an_arpeggio_inside_the_cursor) {
   ChordFixture f;
   f.widen(3); // four columns wide
   f.execute("set-edit-step-3");
   putNote(f, 1, 2, 5); // in the cursor, to be cleared
-  putNote(f, 2, 3, 9);
+  putNote(f, 2, 0, 9);
   f.down('q'); // otonal C: C E G A♯↑
   f.wait();
   f.up('q');
-  CHECK(f.row(0) == (V{C}));
-  CHECK(f.row(1) == (V{E}));
-  CHECK(f.row(2) == (V{G})); // the fourth note has no row
-  // A shorter chord leaves the rows it has no note for empty.
+  CHECK(trimmedRow(f, 0) == (V{C}));
+  CHECK(trimmedRow(f, 1) == (V{-1, E}));
+  CHECK(trimmedRow(f, 2) == (V{-1, -1, G, Asu})); // the fourth note shares the last row
+  // With more rows than notes, the rows after the chord are empty.
   ChordFixture g;
-  g.widen(1);
-  g.execute("set-edit-step-4");
-  putNote(g, 3, 1, 5);
+  g.widen(3);
+  g.execute("set-edit-step-6");
+  putNote(g, 5, 1, 5);
   g.down('q');
   g.wait();
   g.up('q');
-  CHECK(g.row(0) == (V{C}));
-  CHECK(g.row(1) == (V{E}));
-  CHECK(g.row(2).empty() || g.row(2) == (V{-1}));
-  CHECK(g.row(3).empty() || g.row(3) == (V{-1, -1}) || g.row(3) == (V{-1}));
+  CHECK(trimmedRow(g, 0) == (V{C}));
+  CHECK(trimmedRow(g, 1) == (V{-1, E}));
+  CHECK(trimmedRow(g, 2) == (V{-1, -1, G}));
+  CHECK(trimmedRow(g, 3) == (V{-1, -1, -1, Asu}));
+  CHECK(trimmedRow(g, 4).empty());
+  CHECK(trimmedRow(g, 5).empty());
 }
 
 // The chord palette writes the same arpeggio, and cancelling gives back every row.
@@ -1233,17 +1244,18 @@ TEST(the_chord_palette_with_a_cursor_of_several_rows_writes_an_arpeggio_and_canc
   f.down('q');
   f.wait();
   f.up('q');
-  CHECK(f.row(0) == (V{C}));
-  CHECK(f.row(2) == (V{G}));
-  f.press(cellui::Key::Up); // back to the first row of the entry
-  f.press(cellui::Key::Up);
+  CHECK(trimmedRow(f, 0) == (V{C}));
+  CHECK(trimmedRow(f, 1) == (V{-1, E}));
+  CHECK(trimmedRow(f, 2) == (V{-1, -1, G}));
+  for (int i = 0; i < 3; i++) f.press(cellui::Key::Up); // back to the first row of the entry
   f.meta('/');
-  f.press(cellui::Key::Down);
-  CHECK(f.row(0).size() >= 1 && f.row(0)[0] != -1);
-  auto second = f.row(1);
-  CHECK(second.size() == 1);
+  CHECK(f.shows("Chord: 3 notes"));
+  f.press(cellui::Key::Down); // the next chord, C narrow major
+  CHECK(trimmedRow(f, 0) == (V{C}));
+  CHECK(trimmedRow(f, 1) == (V{-1, Ds}));
+  CHECK(trimmedRow(f, 2) == (V{-1, -1, F}));
   f.ctrl('g');
-  CHECK(f.row(0) == (V{C}));
-  CHECK(f.row(1) == (V{E}));
-  CHECK(f.row(2) == (V{G}));
+  CHECK(trimmedRow(f, 0) == (V{C}));
+  CHECK(trimmedRow(f, 1) == (V{-1, E}));
+  CHECK(trimmedRow(f, 2) == (V{-1, -1, G}));
 }
