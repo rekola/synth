@@ -1591,8 +1591,7 @@ LaunchpadManager::handleCommand(string_view name, int device_id, int fallback_tr
   return false;
 }
 
-int
-LaunchpadManager::resolveNote(const Song & song, int device_id, int track_id, int x, int y) const {
+int LaunchpadManager::resolveNote(const Song & song, int device_id, int track_id, int x, int y, bool step_view) const {
   auto track = song.getMasterTrack().getChildByInternalId(track_id);
   auto tuning = track && track->getType() == TrackType::PERCUSSION_CONTROL ? Tuning::PERCUSSION : song.getTuning();
 
@@ -1600,7 +1599,7 @@ LaunchpadManager::resolveNote(const Song & song, int device_id, int track_id, in
     return LaunchpadLayout::drumPadNoteForPad(x, y);
   }
   if (x < 0 || x > 7 || y < 0 || y > 7) return -1;
-  return resolveKeyboardNotes(song, device_id)[static_cast<size_t>(x + 8 * y)];
+  return resolveKeyboardNotes(song, device_id, step_view)[static_cast<size_t>(x + 8 * y)];
 }
 
 int
@@ -1623,7 +1622,7 @@ LaunchpadManager::neighbourScaleNote(const Song & song, int device_id, int note,
 }
 
 array<int, 64>
-LaunchpadManager::resolveKeyboardNotes(const Song & song, int device_id) const {
+LaunchpadManager::resolveKeyboardNotes(const Song & song, int device_id, bool step_view) const {
   array<int, 64> notes;
   notes.fill(-1);
   auto edo_steps = LaunchpadLayout::edoSteps(song.getTuning());
@@ -1646,6 +1645,13 @@ LaunchpadManager::resolveKeyboardNotes(const Song & song, int device_id) const {
       notes[static_cast<size_t>(x + 8 * y)] = lattice ? LaunchpadLayout::noteForPad(lattice_layout, x, y, base_note)
                                                       : LaunchpadLayout::noteForPad(basis, x - GRID_ORIGIN_X, y - GRID_ORIGIN_Y, base_note);
     }
+  }
+  if (step_view) {
+    // While a clip is open the playing rows are the scale in order: the degrees, tonic first, from the register
+    // base (getScaleDegreesWindow() has the tonic's pitch class in them already).
+    auto degrees = song.getScaleDegreesWindow(0, 8 * LaunchpadLayout::kPlayRows);
+    auto register_base = (octave(device_id) + 1) * edo_steps;
+    for (size_t i = 0; i < degrees.size(); i++) notes[i] = register_base + degrees[i];
   }
   return notes;
 }
@@ -1776,7 +1782,7 @@ void LaunchpadManager::handlePadEvent(const LaunchpadPadEvent & ev, Controller &
         return;
       }
       if (ev.getKind() == LaunchpadPadEvent::PRESS) {
-        auto selected = resolveNote(song, device_id, track_id, ev.getX(), ev.getY());
+        auto selected = resolveNote(song, device_id, track_id, ev.getX(), ev.getY(), assigned_track->getType() == TrackType::INSTRUMENT_CONTROL);
         if (selected >= 0) deviceState(device_id).selected_step_note = selected;
       }
     }
@@ -1808,7 +1814,13 @@ void LaunchpadManager::handlePadEvent(const LaunchpadPadEvent & ev, Controller &
   // assigned track (audible, but never recorded) instead.
   if (recording_reference_track_id >= 0) track_id = recording_reference_track_id;
 
-  auto note_value = resolveNote(song, device_id, track_id, ev.getX(), ev.getY());
+  // The step view's playing rows are the scale in order.
+  bool in_step_view = !controller.isAnyClipRecording() && controller.getFocusedClipTrackId() == track_id;
+  if (in_step_view) {
+    auto viewed = song.getMasterTrack().getChildByInternalId(track_id);
+    in_step_view = viewed && viewed->getType() == TrackType::INSTRUMENT_CONTROL;
+  }
+  auto note_value = resolveNote(song, device_id, track_id, ev.getX(), ev.getY(), in_step_view);
   if (note_value < 0) return; // unused percussion pad (row 7), or an unpitched/degenerate tuning
 
   // Every other currently-recording track that shares this one's own
@@ -2281,7 +2293,7 @@ int
 LaunchpadManager::stepEditNote(const Song & song, int device_id, int track_id) const {
   auto * state = findDeviceState(device_id);
   if (state && state->selected_step_note >= 0) return state->selected_step_note;
-  return resolveNote(song, device_id, track_id, 0, 0); // the first pad: the kick, or the tonic
+  return resolveNote(song, device_id, track_id, 0, 0, true); // the first pad: the kick, or the tonic
 }
 
 void LaunchpadManager::handleStepGridPadEvent(const LaunchpadPadEvent & ev, Controller & controller, int note, int track_id, bool pitched) {
@@ -3408,7 +3420,7 @@ LaunchpadManager::refresh(const Song & song, const vector<int> & track_ids, cons
     state.drum_edit_max_step_offset = drum_max_step_offset;
     state.step_view_bits = step_view_bits;
     state.step_view_length = step_view_length;
-    state.keyboard_notes = resolveKeyboardNotes(song, device_id);
+    state.keyboard_notes = resolveKeyboardNotes(song, device_id, state.show_step_grid && !is_percussion);
     state.drum_playhead_step = drum_playhead_step;
 
     refreshLeds(device_id, state);

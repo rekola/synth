@@ -141,8 +141,10 @@ entry. Defaults to `LIVE`.
   and its octave) and the pads are coloured by the step of the scale's generation
   their note comes in (`latticeTier()`, `latticeColor()`); any other tuning keeps the
   whole-tone/semitone keyboard coloured by consonance class from the tonic. The
-  song's scale does not change the playing keyboard except for that anchor; it
-  picks the degrees the step view steps through.
+  song's scale does not change the playing keyboard except for that anchor. In
+  the step view (below) the playing rows are the song's scale degrees in order,
+  tonic first, left to right and then bottom to top (`resolveKeyboardNotes()` with
+  `step_view`), and the scale picks the degrees 91 and 92 step through.
 - With a clip open for editing (`Controller::getFocusedClipTrackId()`, and no
   Live View take recording) the grid splits Push-style
   (`DeviceState::show_step_grid`): rows 0-3 stay the playing surface, rows 4-7

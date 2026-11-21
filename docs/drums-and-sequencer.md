@@ -29,9 +29,9 @@ Note mode (96) shows a playing surface that follows the track:
   pad at the device's octave.
   - **53-EDO** (the default) has a lattice for the extended diamond gamut: a step
     right is 5 steps (about 16/15) and a row up 12 (7/6), so the fourth runs along
-    the diagonal and a chord keeps its shape wherever it is played. The 4 playing
-    rows (while a clip is open for editing) hold all 21 notes of otonal, the 3
-    borrowed ones included, and 8 rows hold the tonic and its octave. The tonic is
+    the diagonal and a chord keeps its shape wherever it is played. The bottom 4
+    rows hold all 21 notes of otonal, the 3 borrowed ones included, and the 8 rows
+    the tonic and its octave. The tonic is
     on the pad in column 4 of the bottom row; a utonal song has the same lattice
     with the tonic at column 3 of row 3, and it also holds all 21 notes of utonal in the 4 rows. Every pad plays, those of no note
     of the scale as the nearest 53-EDO step. The pads are colored by the step of the
@@ -39,8 +39,13 @@ Note mode (96) shows a playing surface that follows the track:
   - **Other tunings** keep the whole-tone/semitone keyboard: fixed intervals of the
     song's tuning, the pads colored by how consonant their interval to the tonic is.
     A layout of the extended diamond for them is on the roadmap (README).
-  The song's scale does not change the playing keyboard, except to anchor the tonic;
-  it decides the step view's rows (below).
+  The song's scale does not change the playing keyboard, except to anchor the tonic.
+  - **While a clip is open for editing** (the step view, below) the 4 playing rows
+    are the song's scale in order instead: the degrees, tonic first, left to right and
+    then bottom to top, continuing into the next octave (32 pads: otonal's 18 notes
+    and the first 14 of the octave above). The scale is the song's own, so the
+    borrowed notes are not in it, and with no scale every step of the tuning. A
+    percussion track has its drum rack as ever.
 
 ## Pad colors
 

@@ -402,7 +402,9 @@ class LaunchpadManager {
   // anything pitched (resolveKeyboardNotes()). Returns -1 for a pad with
   // no sound or a tuning with no interval structure - callers treat that
   // as "ignore this press".
-  int resolveNote(const Song & song, int device_id, int track_id, int x, int y) const;
+  // With `step_view` (a pitched track with a clip open for editing) the playing rows are the song's scale degrees in
+  // order, tonic first, left to right and then bottom to top, as the step rows above them are laid out.
+  int resolveNote(const Song & song, int device_id, int track_id, int x, int y, bool step_view = false) const;
 
   // The note one scale degree above (direction > 0) or below `note` in the
   // song's scale at this device's octave, or `note` itself at either end.
@@ -410,7 +412,7 @@ class LaunchpadManager {
 
   // The 64 pad notes of the isomorphic keyboard for this device's octave,
   // indexed x + 8*y; all -1 when the tuning has no interval structure.
-  std::array<int, 64> resolveKeyboardNotes(const Song & song, int device_id) const;
+  std::array<int, 64> resolveKeyboardNotes(const Song & song, int device_id, bool step_view = false) const;
 
   // The actual pattern-editing entry point for Launchpad pad (note) input -
   // handles both grid-mode-as-fader (Send A/B/Main/Pan, mutating tracks via
