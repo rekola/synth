@@ -23,6 +23,7 @@
 
 #include "StyleProvider.h"
 #include "ArrangementPatternSource.h"
+#include <cellui/Scrollbar.h>
 #include <cellui/KeyStroke.h>
 #include "PatternScroll.h"
 
@@ -5104,21 +5105,29 @@ void PatternEditor::renderChordPalette() {
   int name_width = 0;
   for (auto & line : palette.lines) name_width = std::max(name_width, Utf8::displayWidth(line.name));
   // The selection stays in view when the list is longer than the panel.
-  int first = std::clamp(palette.selected - list_rows + 1, 0, std::max(count - list_rows, 0));
+  if (palette.window.count() != count) palette.window.reset(count, palette.selected);
+  else palette.window.select(palette.selected);
+  int first = palette.window.firstVisible(list_rows);
   for (int i = 0; i < list_rows; i++) {
     int index = first + i;
     bool selected = index == palette.selected && count > 0;
-    set(selected ? styles.highlight_fg_color : styles.window_fg_color, selected ? styles.highlight_bg_color : styles.picker_bg_color);
+    set(styles.window_fg_color, styles.picker_bg_color);
     plane.putstr(i, 0, blank);
+    if (selected) {
+      // The last column is the scrollbar's.
+      set(styles.highlight_fg_color, styles.highlight_bg_color);
+      plane.putstr(i, 0, blank.substr(0, blank.size() - 1));
+    }
     if (count == 0) {
       set(quiet, styles.picker_bg_color);
       plane.putstr(i, 1, Utf8::truncateToWidth(palette.given.empty() ? std::string("No note to build a chord on") : fmt::format("No chord of {} notes contains these notes", palette.size), cols - 2));
       continue;
     }
     auto & line = palette.lines[static_cast<size_t>(index)];
-    plane.putstr(i, 1, Utf8::truncateToWidth(line.name, cols - 2));
-    if (name_width + 4 < cols) plane.putstr(i, name_width + 3, Utf8::truncateToWidth(palette.spelled[static_cast<size_t>(index)], cols - name_width - 4));
+    plane.putstr(i, 1, Utf8::truncateToWidth(line.name, cols - 3));
+    if (name_width + 4 < cols) plane.putstr(i, name_width + 3, Utf8::truncateToWidth(palette.spelled[static_cast<size_t>(index)], cols - name_width - 5));
   }
+  cellui::drawScrollbar(plane, 0, cols - 1, list_rows, count, list_rows, palette.window.shown(), styles.picker_bg_color, quiet, styles.window_accent_fg_color);
   // The size and the keys, on the surface the list is raised from.
   set(styles.window_accent_fg_color, styles.picker_bg_color);
   plane.putstr(list_rows, 0, blank);
