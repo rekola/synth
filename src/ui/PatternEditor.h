@@ -16,6 +16,7 @@
 #include "ChordGrouper.h"
 #include "ScenePatternSource.h"
 #include <cellui/Checkbox.h>
+#include <cellui/ChoiceList.h>
 #include <cellui/InlineEditor.h>
 #include "LevelMeter.h"
 #include "../model/Chords.h"
@@ -522,6 +523,7 @@ private:
     std::vector<chords::Completion> lines;
     std::vector<std::string> spelled; // each line's notes by name
     int selected = 0;
+    cellui::ChoiceList window; // the scroll window over `lines`, following `selected`
     bool on_checkbox = false; // the keyboard focus is on the "Borrowed chords" check box, not the list
   };
   ChordPalette chord_palette_;
