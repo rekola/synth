@@ -1608,6 +1608,13 @@ PatternEditor::render(const StyleProvider & styles, bool refresh, bool focused) 
   if (rowsShifted() || row_anim_drawn_) force_full_redraw_ = true;
   row_anim_drawn_ = rowsShifted();
   fading_drawn_ = fading;
+  // Tracks Live View has taken over show faded in the arrangement.
+  std::vector<int> taken_over;
+  if (!isLiveMode())
+    for (int id : track_ids)
+      if (getController().getClipPlayer().isTakenOver(id)) taken_over.push_back(id);
+  if (taken_over != current_taken_over_) force_full_redraw_ = true;
+  current_taken_over_ = taken_over;
   if (score_pattern != current_score_pattern ||
       song.getMajorVersion() != current_song_version ||
       score_total_columns != current_score_total_columns ||
@@ -3708,6 +3715,11 @@ PatternEditor::renderRow(const StyleProvider & styles, int heading_height, const
       bool outside = own_row < 0 || own.block != source_->trackBlock(track_id);
       track_dim = outside ? 1.0f : source_->loopPassDim(track_id, address);
       baseColors(own_row, track_dim, track_base_fg, track_base_bg, own.block);
+    }
+    // Live View has taken the track over: the arrangement doesn't play on it, so its notes show faded and don't flash.
+    if (i >= 0 && !isLiveMode() && !per_track_rows && getController().getClipPlayer().isTakenOver(track_ids[static_cast<size_t>(i)])) {
+      track_dim = 1.0f;
+      baseColors(pattern_row, track_dim, track_base_fg, track_base_bg, pattern_idx);
     }
     Color fg = track_base_fg, bg = track_base_bg, cell_fg, cell_bg;
 
