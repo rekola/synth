@@ -1058,6 +1058,64 @@ TEST(a_chord_is_a_run_of_ratios_from_the_played_note) {
   CHECK(row(Scale::OTONAL, 2, 'e') == (V{70, 53, 39})); // at three columns the run E C A
 }
 
+// The paging keys move the selection a page of lines and stop at the ends; the wheel over the palette browses it
+// without choosing (and does not scroll the pattern behind), and a line is chosen by the release over the line it
+// was pressed on.
+namespace {
+// The screen row of the palette's list line `k`, found from its title line.
+int chordPaletteLine(ChordFixture & f, int k) {
+  auto lines = f.lines();
+  for (std::size_t i = 0; i < lines.size(); i++)
+    if (lines[i].find("Chord: 3 notes") != std::string::npos) return static_cast<int>(i) - 8 + k;  // eight lines for the three notes
+  return -1;
+}
+}  // namespace
+
+TEST(chord_palette_pages_with_the_paging_keys_and_stops_at_the_ends) {
+  ChordFixture f;
+  f.widen(2);
+  f.down('q');
+  f.up('q');
+  f.meta('/');
+  CHECK(f.row(0) == (V{C, E, G}));
+  f.press(cellui::Key::PageDown);
+  CHECK(f.row(0) == (V{53 + C, Asu, G}));  // the last of the eight chords, not round to the first
+  f.press(cellui::Key::PageDown);
+  CHECK(f.row(0) == (V{53 + C, Asu, G}));
+  f.press(cellui::Key::PageUp);
+  CHECK(f.row(0) == (V{C, E, G}));
+}
+
+TEST(chord_palette_wheel_browses_without_choosing_and_a_line_is_chosen_on_release) {
+  ChordFixture f;
+  f.widen(2);
+  f.down('q');
+  f.up('q');
+  f.meta('/');
+  int first = chordPaletteLine(f, 0);
+  CHECK(first > 0);
+  // The wheel over the palette changes nothing: the same chord, the palette open.
+  f.wheel(first + 2, 10);
+  f.wheel(first + 2, 10, false);
+  CHECK(f.shows("Chord: 3 notes"));
+  CHECK(f.row(0) == (V{C, E, G}));
+  // Pressed on one line and let go off the list: nothing is chosen.
+  f.terminal.pushMouse(first + 3, 10, cellui::Key::Button1, 0, cellui::Input::Kind::PRESS);
+  f.ui->step();
+  CHECK(f.shows("Chord: 3 notes"));
+  f.terminal.pushMouse(first + 8, 10, cellui::Key::Button1, 0, cellui::Input::Kind::RELEASE);  // the title line
+  f.ui->step();
+  CHECK(f.shows("Chord: 3 notes"));
+  CHECK(f.row(0) == (V{C, E, G}));
+  // Pressed and released on the second line: that chord is written and the palette accepts it.
+  f.terminal.pushMouse(first + 1, 10, cellui::Key::Button1, 0, cellui::Input::Kind::PRESS);
+  f.ui->step();
+  f.terminal.pushMouse(first + 1, 10, cellui::Key::Button1, 0, cellui::Input::Kind::RELEASE);
+  f.ui->step();
+  CHECK(!f.shows("Chord: 3 notes"));
+  CHECK(f.row(0) == (V{C, Ds, F}));
+}
+
 // The setting "borrowed chords" is switched in the chord palette: Tab moves the focus to its check box and
 // Space toggles it, and the candidates change at once.
 TEST(borrowed_chords_are_switched_in_the_chord_palette) {
