@@ -1164,6 +1164,8 @@ PatternEditor::getEffectiveSelectionBounds(const Song & song, const vector<int> 
   auto start_track = has_mark ? selection_start_track_ : current_cursor.track;
   b.row_lo = min(start_row, point.row);
   b.row_hi = max(start_row, point.row);
+  // With no mark the region is the cursor, as high as it is (its width is handled below).
+  if (!has_mark) b.row_hi += cursorRows(point) - 1;
   b.track_lo = min(start_track, current_cursor.track);
   b.track_hi = max(start_track, current_cursor.track);
 
@@ -1199,6 +1201,7 @@ PatternEditor::getEffectiveSelectionBounds(const Song & song, const vector<int> 
     // nothing on the grid is selected, just a row range of locator
     // text (see kill-region/kill-ring-save/yank's own LOCATOR handling).
     b.scope = SelectionScope::LOCATOR;
+    if (!has_mark) b.row_hi = b.row_lo; // a locator is one row
     return b;
   }
 
@@ -4625,6 +4628,14 @@ bool PatternEditor::enterChordKey(const cellui::KeyDown & e, int track_id, int m
     for (auto & [order, value] : held) s.given.push_back(value);
     s.applied = false;
     rewrite = true;
+    // A cursor of more rows had the chord's arpeggio down its first column: the rows below go for now.
+    if (cursorRows(s.row) > 1) {
+      Song::Edit edit(song, "enter chord", Song::Edit::Kind::CONTENT);
+      for (int d = 1; d < cursorRows(s.row); d++) {
+        auto below = source_->edit(track_id, RowAddress{s.row.block, s.row.row + d});
+        for (int i = 0; i < std::max(s.width, s.written); i++) below.pattern->setNote(below.effective_row, s.column + i, Note());
+      }
+    }
   }
   if (std::find(s.given.begin(), s.given.end(), midi_note) != s.given.end()) return true;
   s.given.push_back(midi_note);
@@ -4686,11 +4697,9 @@ void PatternEditor::applyChordCompletion(bool released) {
   for (int i = 0; i < count; i++) s.ratios[chord.notes[static_cast<size_t>(i)]] = chord.ratios[static_cast<size_t>(i)];
   {
     Song::Edit edit(song, "complete chord", Song::Edit::Kind::CONTENT);
-    auto target = source_->edit(s.track_id, s.row);
-    int columns = std::max({s.width, s.written, count});
-    for (int i = 0; i < columns; i++) {
-      target.pattern->setNote(target.effective_row, s.column + i, i < count ? chordNote(song, chord.notes[static_cast<size_t>(i)]) : Note());
-    }
+    std::vector<Note> notes;
+    for (int i = 0; i < count; i++) notes.push_back(chordNote(song, chord.notes[static_cast<size_t>(i)]));
+    writeChordCells(s.track_id, s.row, s.column, std::max(s.width, s.written), notes);
   }
   s.written = count;
   s.applied = true;
@@ -4824,8 +4833,10 @@ std::vector<int> PatternEditor::chordAt(int track_id, RowAddress row, int column
   auto track = song.getMasterTrack().getChildByInternalId(track_id);
   std::optional<chords::ScaleChords> scale;
   if (ratios && track) scale.emplace(song.getScale(), song.getTuningForTrack(*track), song.getKey(), song.getBorrowedChords());
-  auto target = source_->edit(track_id, row);
+  // A cursor of more rows holds its chord as an arpeggio: note i in column i and row i (the last row, for the notes beyond it).
+  const int rows = cursorRows(row);
   for (int i = 0; i < kPaletteColumns; i++) {
+    auto target = source_->edit(track_id, RowAddress{row.block, row.row + std::min(i, rows - 1)});
     auto note = target.pattern->getNote(target.effective_row, column + i);
     if (!note.isNoteOn()) break;
     values.push_back(note.getValue());
@@ -4834,6 +4845,27 @@ std::vector<int> PatternEditor::chordAt(int track_id, RowAddress row, int column
     }
   }
   return values;
+}
+
+void PatternEditor::writeChordCells(int track_id, RowAddress row, int column, int columns, const std::vector<Note> & notes) {
+  const int rows = cursorRows(row);
+  const int count = static_cast<int>(notes.size());
+  columns = std::max(columns, cursor_width_);
+  if (rows <= 1) {
+    auto target = source_->edit(track_id, row);
+    for (int i = 0; i < std::max(columns, count); i++) {
+      target.pattern->setNote(target.effective_row, column + i, i < count ? notes[static_cast<size_t>(i)] : Note());
+    }
+    return;
+  }
+  // An arpeggio: note i in column i, in row i of the cursor (the last row takes the notes beyond it).
+  for (int d = 0; d < rows; d++) {
+    auto target = source_->edit(track_id, RowAddress{row.block, row.row + d});
+    for (int i = 0; i < std::max(columns, count); i++) {
+      bool here = i < count && std::min(i, rows - 1) == d;
+      target.pattern->setNote(target.effective_row, column + i, here ? notes[static_cast<size_t>(i)] : Note());
+    }
+  }
 }
 
 void PatternEditor::stepChordPalette(int direction) {
@@ -4910,6 +4942,11 @@ void PatternEditor::stepChordPalette(int direction) {
     span = static_cast<int>(chordAt(opened.track_id, opened.row, opened.column).size());
     auto target = source_->edit(opened.track_id, opened.row);
     for (int i = 0; i < kPaletteColumns; i++) opened.original.push_back(target.pattern->getNote(target.effective_row, opened.column + i));
+    // A cursor of more rows also has what is in its other rows to give back.
+    for (int d = 1; d < cursorRows(opened.row); d++) {
+      auto below = source_->edit(opened.track_id, RowAddress{opened.row.block, opened.row.row + d});
+      for (int i = 0; i < kPaletteColumns; i++) opened.original_below.push_back(below.pattern->getNote(below.effective_row, opened.column + i));
+    }
   }
   auto current = opened.given.empty() ? std::vector<int>() : chordAt(opened.track_id, opened.row, opened.column);
   opened.span = span;
@@ -4965,16 +5002,14 @@ void PatternEditor::writePaletteChord() {
   bool has_proto = proto.isNoteOn();
   {
     Song::Edit edit(song, "choose chord", Song::Edit::Kind::CONTENT);
-    auto target = source_->edit(palette.track_id, palette.row);
-    for (int i = 0; i < palette.span; i++) {
-      Note note;
-      if (i < count) {
-        note = Note(chord.notes[static_cast<size_t>(i)], has_proto ? proto.getVelocity() : constants::DEFAULT_NOTE_ON_VELOCITY, has_proto ? proto.getDelay() : 0);
-        // Each note is written with its own ratio's correction.
-        note.setTuningCorrection(ratioCorrectionCents(song.getTuning(), song.getScale(), chord.ratios[static_cast<size_t>(i)]));
-      }
-      target.pattern->setNote(target.effective_row, palette.column + i, note);
+    std::vector<Note> notes;
+    for (int i = 0; i < count; i++) {
+      Note note(chord.notes[static_cast<size_t>(i)], has_proto ? proto.getVelocity() : constants::DEFAULT_NOTE_ON_VELOCITY, has_proto ? proto.getDelay() : 0);
+      // Each note is written with its own ratio's correction.
+      note.setTuningCorrection(ratioCorrectionCents(song.getTuning(), song.getScale(), chord.ratios[static_cast<size_t>(i)]));
+      notes.push_back(note);
     }
+    writeChordCells(palette.track_id, palette.row, palette.column, palette.span, notes);
   }
   controller.ensureNoteColumns(palette.track_id, palette.column + count);
   row_edited = true;
@@ -5016,6 +5051,11 @@ void PatternEditor::closeChordPalette(bool accept) {
     auto target = source_->edit(palette.track_id, palette.row);
     for (int i = 0; i < static_cast<int>(palette.original.size()); i++) {
       target.pattern->setNote(target.effective_row, palette.column + i, palette.original[static_cast<size_t>(i)]);
+    }
+    for (std::size_t k = 0; k < palette.original_below.size(); k++) {
+      int d = 1 + static_cast<int>(k) / kPaletteColumns;
+      auto below = source_->edit(palette.track_id, RowAddress{palette.row.block, palette.row.row + d});
+      below.pattern->setNote(below.effective_row, palette.column + static_cast<int>(k) % kPaletteColumns, palette.original_below[k]);
     }
     row_edited = true;
   }

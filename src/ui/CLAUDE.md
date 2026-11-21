@@ -212,7 +212,11 @@ Controller-level and per-widget commands. Not migrated: `StatusLine`,
   band in `updateCursorBands()` is that tall, `Band::border_skip_rows` keeping
   the field's gap in the border to the first row; one row while the cursor
   is a playhead) - except Delete and Backspace, which empty the whole
-  rectangle (`cursorRows()` cuts it off at the pattern's end).
+  rectangle (`cursorRows()` cuts it off at the pattern's end). With no mark the
+  region of `getEffectiveSelectionBounds()` is that rectangle (copy, kill,
+  transpose), and a chord is written by `writeChordCells()`: side by side with
+  one row, with more an arpeggio (note i in column i and row i, the last row taking
+  the rest), the rest of the rectangle emptied (`chordAt()` reads it back the same way for the palette).
 - In a scale with a gamut layout (`keyboardGivesRatios()`: otonal, utonal and
   diamond) a note key gives a ratio, not a fixed note (`keyToNote()`, `playback/KeyboardNotes.h`):
   the song's tonic in the keyboard's octave plus the ratio's steps, written with
