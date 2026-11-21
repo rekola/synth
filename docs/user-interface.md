@@ -238,7 +238,9 @@ Each of them shows the new edit step on the status line.
   colour over its columns on a terminal and the border round them in a
   window, reaches down over all its rows; the cell being edited is marked in
   the first row only. Nothing is entered or played in the rows below the
-  first: the next entry goes in the row just below the last of them.
+  first (except a chord, which fills them, and Delete, copy and the commands
+  that act on a region): the next entry goes in the row just below the last of
+  them.
 - The height is at least 1 and at most one bar at the cursor (16 rows in 4/4).
   There is no edit step of 0 any more: `set-edit-step-0` and Ctrl-0 are gone, and
   the cursor always moves on after an entry. Where the bar is shorter than the
@@ -252,6 +254,15 @@ Each of them shows the new edit step on the status line.
   velocity, delay and fx), in a note's fx column the fx of those notes, in the
   effect column the commands of those rows. Delete leaves the cursor where
   it is; Backspace then moves it up by its height.
+- **Copy** with no selection copies everything under the cursor, all its rows
+  and columns (a selection is copied as it is, whatever the cursor's height).
+- **A chord** entered, or chosen in the chord palette, with a cursor of more
+  than one row is written as an arpeggio down the cursor's first column: the
+  first row gets the first note, the second row the second, and so on. A chord
+  of more notes than the cursor has rows is cut at its last row; one with fewer
+  leaves the remaining rows empty. Every other cell under the cursor is
+  emptied, as the columns a short chord does not use are with a cursor of one
+  row. Cancelling the palette gives back every row.
 - While the cursor is a playhead (the transport running in Arrangement view,
   or a playing clip in Live View) only its first row is shown.
 

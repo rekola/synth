@@ -1150,3 +1150,100 @@ TEST(a_new_song_offers_the_borrowed_chords) {
   UIFixture plain("", UI::View::ARRANGEMENT, {}, {});
   CHECK(plain.controller->getSong().getBorrowedChords());
 }
+
+namespace {
+// A note at C-4 plus `step`, written straight into a row of the first track.
+void putNote(ChordFixture & f, int row, int column, int step) {
+  auto & song = f.controller->getSong();
+  Song::Edit edit(song, "note");
+  auto target = resolveEditTarget(song, f.track_id, row);
+  target.pattern->setNote(target.effective_row, column, Note(kC + step, 0x40, 0));
+  f.controller->ensureNoteColumns(f.track_id, column + 1);
+}
+} // namespace
+
+// A cursor of several rows copies them all, unless there is a selection.
+TEST(a_cursor_of_several_rows_copies_all_its_rows) {
+  ChordFixture f;
+  f.execute("set-edit-step-3");
+  putNote(f, 0, 0, 0);
+  putNote(f, 1, 0, 17);
+  putNote(f, 2, 0, 31);
+  putNote(f, 3, 0, 43); // below the cursor: not copied
+  f.ui->step();
+  f.execute("kill-ring-save");
+  for (int i = 0; i < 6; i++) f.press(cellui::Key::Down);
+  f.execute("yank");
+  CHECK(f.row(6) == (V{C}));
+  CHECK(f.row(7) == (V{E}));
+  CHECK(f.row(8) == (V{G}));
+  CHECK(f.row(9).empty() || f.row(9) == (V{-1}));
+}
+
+// With a selection, the selection is copied, whatever the cursor's height.
+TEST(a_selection_is_copied_as_it_is_whatever_the_cursors_height) {
+  ChordFixture f;
+  f.execute("set-edit-step-3");
+  putNote(f, 0, 0, 0);
+  putNote(f, 1, 0, 17);
+  putNote(f, 2, 0, 31);
+  f.ui->step();
+  f.execute("set-mark");
+  f.press(cellui::Key::Down);
+  f.execute("kill-ring-save");
+  for (int i = 0; i < 5; i++) f.press(cellui::Key::Down); // from row 1 to row 6
+  f.execute("yank");
+  CHECK(!f.row(7).empty() && f.row(7)[0] != -1);
+  CHECK(f.row(8).empty() || f.row(8)[0] == -1);
+}
+
+// A chord entered with a cursor of several rows is an arpeggio down its first column, and every other cell the
+// cursor holds is emptied.
+TEST(a_chord_with_a_cursor_of_several_rows_is_an_arpeggio_down_the_rows) {
+  ChordFixture f;
+  f.widen(3); // four columns wide
+  f.execute("set-edit-step-3");
+  putNote(f, 1, 2, 5); // in the cursor, to be cleared
+  putNote(f, 2, 3, 9);
+  f.down('q'); // otonal C: C E G A♯↑
+  f.wait();
+  f.up('q');
+  CHECK(f.row(0) == (V{C}));
+  CHECK(f.row(1) == (V{E}));
+  CHECK(f.row(2) == (V{G})); // the fourth note has no row
+  // A shorter chord leaves the rows it has no note for empty.
+  ChordFixture g;
+  g.widen(1);
+  g.execute("set-edit-step-4");
+  putNote(g, 3, 1, 5);
+  g.down('q');
+  g.wait();
+  g.up('q');
+  CHECK(g.row(0) == (V{C}));
+  CHECK(g.row(1) == (V{E}));
+  CHECK(g.row(2).empty() || g.row(2) == (V{-1}));
+  CHECK(g.row(3).empty() || g.row(3) == (V{-1, -1}) || g.row(3) == (V{-1}));
+}
+
+// The chord palette writes the same arpeggio, and cancelling gives back every row.
+TEST(the_chord_palette_with_a_cursor_of_several_rows_writes_an_arpeggio_and_cancel_restores) {
+  ChordFixture f;
+  f.widen(2);
+  f.execute("set-edit-step-3");
+  f.down('q');
+  f.wait();
+  f.up('q');
+  CHECK(f.row(0) == (V{C}));
+  CHECK(f.row(2) == (V{G}));
+  f.press(cellui::Key::Up); // back to the first row of the entry
+  f.press(cellui::Key::Up);
+  f.meta('/');
+  f.press(cellui::Key::Down);
+  CHECK(f.row(0).size() >= 1 && f.row(0)[0] != -1);
+  auto second = f.row(1);
+  CHECK(second.size() == 1);
+  f.ctrl('g');
+  CHECK(f.row(0) == (V{C}));
+  CHECK(f.row(1) == (V{E}));
+  CHECK(f.row(2) == (V{G}));
+}
