@@ -5163,9 +5163,11 @@ void PatternEditor::renderChordPalette() {
       plane.putstr(i, 1, Utf8::truncateToWidth(palette.given.empty() ? std::string("No note to build a chord on") : fmt::format("No chord of {} notes contains these notes", palette.size), cols - 2));
       continue;
     }
+    // Two columns in the display's proportional face: the chord's name, then its notes by name.
     auto & line = palette.lines[static_cast<size_t>(index)];
-    plane.putstr(i, 1, Utf8::truncateToWidth(line.name, cols - 3));
-    if (name_width + 4 < cols) plane.putstr(i, name_width + 3, Utf8::truncateToWidth(palette.spelled[static_cast<size_t>(index)], cols - name_width - 5));
+    const cellui::TextStyle column{cellui::TextFont::PROPORTIONAL, cellui::TextOverflow::ELLIPSIS, cellui::kPlainFace, cellui::TextAlign::LEFT};
+    plane.putText(i, 1, std::min(name_width, cols - 3), line.name, column);
+    if (name_width + 4 < cols) plane.putText(i, name_width + 3, cols - name_width - 5, palette.spelled[static_cast<size_t>(index)], column);
   }
   cellui::drawScrollbar(plane, 0, cols - 1, list_rows, count, list_rows, palette.window.shown(), styles.picker_bg_color, quiet, styles.window_accent_fg_color);
   // The size and the keys, on the surface the list is raised from.
