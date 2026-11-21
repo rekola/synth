@@ -365,6 +365,7 @@ private:
   int edit_step_size = 1;
   bool row_edited = false;
   int current_song_version = 0;
+  std::vector<int> current_taken_over_;
 
   // What render() last drew the cursor/selection highlight with - not
   // buffer-local state (unlike everything in EditingState below), just a
