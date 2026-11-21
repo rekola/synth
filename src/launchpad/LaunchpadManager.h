@@ -541,6 +541,7 @@ class LaunchpadManager {
     bool connected = false;
     Tuning tuning = Tuning::EDO12;
     int key = -1;
+    bool utonal = false; // the song's scale is utonal: the 53-EDO lattice anchors its tonic on another pad
     // note_value -> loudness (0..1) for the assigned track's currently
     // sounding notes, used to brighten pads above LAUNCHPAD_IDLE_BRIGHTNESS.
     std::unordered_map<int, float> active_note_loudness;

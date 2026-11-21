@@ -1,5 +1,6 @@
 #include "LaunchpadLayout.h"
 #include "../util/constants.h"
+#include "../model/Ratio.h"
 
 #include <algorithm>
 #include <cmath>
@@ -119,6 +120,47 @@ int
 noteForPad(const Basis & basis, int x, int y, int base_note) {
   if (basis.degenerate) return base_note + x + y * 8;
   return base_note + x * basis.whole_tone + y * basis.semitone;
+}
+
+namespace {
+using R = Ratio;
+// The otonal scale by step of its generation (extended-diamond.md); utonal is its mirror, 1/r.
+const vector<vector<R>> & otonalTiers() {
+  static const vector<vector<R>> tiers = {
+      {R{1, 1}},
+      {R{4, 3}, R{3, 2}},
+      {R{7, 6}, R{5, 4}, R{5, 3}, R{7, 4}},
+      {R{49, 48}, R{15, 14}, R{9, 8}, R{9, 7}, R{7, 5}, R{35, 24}, R{9, 5}, R{15, 8}},
+      {R{49, 40}, R{49, 30}, R{49, 25}},
+      {R{60, 49}, R{10, 7}, R{12, 7}}, // borrowed from utonal
+  };
+  return tiers;
+}
+} // namespace
+
+Lattice latticeFor(bool utonal) {
+  Lattice lattice;
+  if (utonal) {
+    lattice.origin_x = 3;
+    lattice.origin_y = 3;
+  }
+  return lattice;
+}
+
+int noteForPad(const Lattice & lattice, int x, int y, int base_note) {
+  return base_note + (x - lattice.origin_x) * lattice.x_step + (y - lattice.origin_y) * lattice.y_step;
+}
+
+int latticeTier(int pitch_class, bool utonal) {
+  auto pc = ((pitch_class % 53) + 53) % 53;
+  auto & tiers = otonalTiers();
+  for (size_t t = 0; t < tiers.size(); t++) {
+    for (auto ratio : tiers[t]) {
+      auto r = utonal ? ratio.mirror() : ratio;
+      if (((r.steps(53) % 53) + 53) % 53 == pc) return static_cast<int>(t) + 1;
+    }
+  }
+  return 0;
 }
 
 vector<PadClassification>

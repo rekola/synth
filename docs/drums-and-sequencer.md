@@ -25,13 +25,32 @@ Note mode (96) shows a playing surface that follows the track:
   the bottom row is kick, side stick, snare and clap, the second row starts
   at 40 (electric snare) and the top row ends at 51 (ride cymbal). The rest of
   the grid is dark.
-- **Pitched track**: an isomorphic keyboard, the same in every song: pad
-  positions map to pitches by fixed intervals of the song's tuning, with the
-  song's key at the anchor pad at the device's octave, and the pads are
-  colored by how consonant their interval to the tonic is (Pad colors, below).
-  The song's scale is not used here; it decides the step view's rows (below).
+- **Pitched track**: an isomorphic keyboard, with the song's key at the anchor
+  pad at the device's octave.
+  - **53-EDO** (the default) has a lattice for the extended diamond gamut: a step
+    right is 5 steps (about 16/15) and a row up 12 (7/6), so the fourth runs along
+    the diagonal and a chord keeps its shape wherever it is played. The 4 playing
+    rows (while a clip is open for editing) hold all 21 notes of otonal, the 3
+    borrowed ones included, and 8 rows hold the tonic and its octave. The tonic is
+    on the pad in column 4 of the bottom row; a utonal song has the same lattice
+    with the tonic at column 3 of row 3, and it also holds all 21 notes of utonal in the 4 rows. Every pad plays, those of no note
+    of the scale as the nearest 53-EDO step. The pads are colored by the step of the
+    scale's generation their note comes in (Pad colors, below).
+  - **Other tunings** keep the whole-tone/semitone keyboard: fixed intervals of the
+    song's tuning, the pads colored by how consonant their interval to the tonic is.
+    A layout of the extended diamond for them is on the roadmap (README).
+  The song's scale does not change the playing keyboard, except to anchor the tonic;
+  it decides the step view's rows (below).
 
 ## Pad colors
+
+**53-EDO.** A pad is colored by the step of the scale's generation its note comes
+in ([extended-diamond.md](extended-diamond.md), The steps): the tonic and its
+octave first and most prominent (yellow), then the fourth and the fifth (two close
+ambers), the rest of the 7-note core (blue), the 15-note step (violet), the
+18-note step (muted magenta), a borrowed note (muted cyan), and a pad that is no
+note of the scale grey. Prominence is the saturation, since the pad's lightness
+shows how loud its note sounds. The rest of this section is the other tunings.
 
 LED coloring originally followed the notational convention of Adriaan
 Fokker's 31-EDO organ (built by Bernard Pels, at Teylers Museum, Haarlem,
