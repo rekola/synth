@@ -5118,6 +5118,7 @@ void PatternEditor::renderChordPalette() {
   auto & palette = chord_palette_;
   if (!palette.open) {
     palette_box_.reset();
+    palette_list_plane_.reset();
     palette_plane_.reset();
     palette_drawn_ = false;
     return;
@@ -5160,29 +5161,49 @@ void PatternEditor::renderChordPalette() {
   palette.panel_rows = panel_rows;
   palette.list_rows = list_rows;
   palette.panel_cols = cols;
-  int first = palette.window.firstVisible(list_rows);
-  for (int i = 0; i < list_rows; i++) {
-    int index = first + i;
-    bool selected = index == palette.selected && count > 0;
+  // The list follows its scroll position with an animation where the display scrolls smoothly.
+  auto now = std::chrono::steady_clock::now();
+  double seconds = palette.last_tick == std::chrono::steady_clock::time_point() ? 0.0 : std::min(0.1, std::chrono::duration<double>(now - palette.last_tick).count());
+  palette.last_tick = now;
+  palette.window.setSmooth(getPlane().smoothScroll());
+  palette.window.tick(seconds);
+  palette.window.firstVisible(list_rows);
+  // The panel under the rows, which are a plane of their own over it.
+  set(styles.window_fg_color, styles.picker_bg_color);
+  for (int i = 0; i < list_rows; i++) plane.putstr(i, 0, blank);
+  if (count == 0) {
+    set(quiet, styles.picker_bg_color);
+    plane.putstr(0, 1, Utf8::truncateToWidth(palette.given.empty() ? std::string("No note to build a chord on") : fmt::format("No chord of {} notes contains these notes", palette.size), cols - 2));
+  }
+  if (!palette_list_plane_) {
+    palette_list_plane_ = getPlane().createChild();
+    palette_list_plane_->setElevation(palette_plane_->elevation());
+    palette_list_plane_->setCastsShadow(false);
+  }
+  auto & body = *palette_list_plane_;
+  body.move(palette.top, palette.left);
+  body.resize(list_rows, cols - 1);
+  body.setScrollOffset(palette.window.fraction(), 0);
+  body.erase();
+  body.moveToTop();
+  auto set_body = [&](const Color & fg, const Color & bg) {
+    body.setFgColor(fg);
+    body.setBgColor(bg);
+  };
+  int drawn = count == 0 ? 0 : list_rows + (palette.window.smooth() ? 1 : 0);
+  for (int i = 0; i < drawn && palette.window.firstShown() + i < count; i++) {
+    int index = palette.window.firstShown() + i;
+    bool selected = index == palette.selected;
     bool pressed = index == palette.window.pressed();
-    set(styles.window_fg_color, styles.picker_bg_color);
-    plane.putstr(i, 0, blank);
-    if (pressed || selected) {
-      // The last column is the scrollbar's.
-      if (pressed) set(styles.window_accent_fg_color, styles.row_pressed_bg_color);
-      else set(styles.highlight_fg_color, styles.highlight_bg_color);
-      plane.putstr(i, 0, blank.substr(0, blank.size() - 1));
-    }
-    if (count == 0) {
-      set(quiet, styles.picker_bg_color);
-      plane.putstr(i, 1, Utf8::truncateToWidth(palette.given.empty() ? std::string("No note to build a chord on") : fmt::format("No chord of {} notes contains these notes", palette.size), cols - 2));
-      continue;
-    }
+    if (pressed) set_body(styles.window_accent_fg_color, styles.row_pressed_bg_color);
+    else if (selected) set_body(styles.highlight_fg_color, styles.highlight_bg_color);
+    else set_body(styles.window_fg_color, styles.picker_bg_color);
+    body.putstr(i, 0, blank.substr(0, blank.size() - 1));
     // Two columns in the display's proportional face: the chord's name, then its notes by name.
     auto & line = palette.lines[static_cast<size_t>(index)];
     const cellui::TextStyle column{cellui::TextFont::PROPORTIONAL, cellui::TextOverflow::ELLIPSIS, cellui::kPlainFace, cellui::TextAlign::LEFT};
-    plane.putText(i, 1, std::min(name_width, cols - 3), line.name, column);
-    if (name_width + 4 < cols) plane.putText(i, name_width + 3, cols - name_width - 5, palette.spelled[static_cast<size_t>(index)], column);
+    body.putText(i, 1, std::min(name_width, cols - 3), line.name, column);
+    if (name_width + 4 < cols) body.putText(i, name_width + 3, cols - name_width - 5, palette.spelled[static_cast<size_t>(index)], column);
   }
   cellui::drawScrollbar(plane, 0, cols - 1, list_rows, count, list_rows, palette.window.shown(), styles.picker_bg_color, quiet, styles.window_accent_fg_color);
   // The size and the keys, on the surface the list is raised from.
