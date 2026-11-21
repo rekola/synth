@@ -2065,11 +2065,13 @@ bool PatternEditor::mouseDown(const cellui::MouseDown & e) {
   if (e.button != 1) return false;
   getController().getSong().breakTypingRun();
   if (inline_editor_.isOpen()) return true;
+  if (chordPaletteMouseDown(e)) return true;
   closeChordPalette(true);
   return handleMouse(e.row, e.col, false, false);
 }
 
 bool PatternEditor::mouseMove(const cellui::MouseMove & e) {
+  if (chordPaletteMouseMove(e)) return true;
   if (!(e.buttons & 1)) return false;
   if (inline_editor_.isOpen()) return true;
   return handleMouse(e.row, e.col, false, true);
@@ -2078,6 +2080,7 @@ bool PatternEditor::mouseMove(const cellui::MouseMove & e) {
 bool PatternEditor::mouseUp(const cellui::MouseUp & e) {
   if (e.button != 1) return false;
   if (inline_editor_.isOpen()) return true;
+  if (chordPaletteMouseUp(e)) return true;
   return handleMouse(e.row, e.col, true, false);
 }
 
@@ -2086,6 +2089,7 @@ bool PatternEditor::mouseUp(const cellui::MouseUp & e) {
 bool PatternEditor::wheel(const cellui::Wheel & e) {
   getController().getSong().breakTypingRun();
   if (inline_editor_.isOpen()) return true;
+  if (chordPaletteWheel(e)) return true;
   pointer_scroll_ = false;
   bool sideways = e.dx != 0;
   int direction = sideways ? (e.dx > 0 ? 1 : -1) : (e.dy > 0 ? -1 : 1);
@@ -5099,6 +5103,9 @@ bool PatternEditor::chordPaletteKey(const cellui::KeyDown & e) {
   } else if (e.key == Key::Up) {
     chord_palette_.on_checkbox = false;
     stepChordPalette(-1);
+  } else if (e.key == Key::PageDown || e.key == Key::PageUp) {
+    chord_palette_.on_checkbox = false;
+    pageChordPalette(e.key == Key::PageDown ? 1 : -1);
   } else if (e.key == Key::Enter) {
     if (!e.repeat) closeChordPalette(true);
   } else {
@@ -5145,17 +5152,25 @@ void PatternEditor::renderChordPalette() {
   int name_width = 0;
   for (auto & line : palette.lines) name_width = std::max(name_width, Utf8::displayWidth(line.name));
   // The selection stays in view when the list is longer than the panel.
+  // (the wheel can have scrolled it away from the selection, which stays where the keys left it.)
   if (palette.window.count() != count) palette.window.reset(count, palette.selected);
-  else palette.window.select(palette.selected);
+  else if (palette.window.selected() != palette.selected) palette.window.select(palette.selected);
+  palette.top = pos_y + rows - panel_rows;
+  palette.left = pos_x;
+  palette.panel_rows = panel_rows;
+  palette.list_rows = list_rows;
+  palette.panel_cols = cols;
   int first = palette.window.firstVisible(list_rows);
   for (int i = 0; i < list_rows; i++) {
     int index = first + i;
     bool selected = index == palette.selected && count > 0;
+    bool pressed = index == palette.window.pressed();
     set(styles.window_fg_color, styles.picker_bg_color);
     plane.putstr(i, 0, blank);
-    if (selected) {
+    if (pressed || selected) {
       // The last column is the scrollbar's.
-      set(styles.highlight_fg_color, styles.highlight_bg_color);
+      if (pressed) set(styles.window_accent_fg_color, styles.row_pressed_bg_color);
+      else set(styles.highlight_fg_color, styles.highlight_bg_color);
       plane.putstr(i, 0, blank.substr(0, blank.size() - 1));
     }
     if (count == 0) {
@@ -5191,6 +5206,77 @@ void PatternEditor::renderChordPalette() {
   palette_box_->moveToTop(); // over the palette's own row
   palette_box_->setFocused(palette.on_checkbox);
   palette_box_->render(styles, true);
+}
+
+void PatternEditor::pageChordPalette(int direction) {
+  auto & palette = chord_palette_;
+  int count = static_cast<int>(palette.lines.size());
+  if (!palette.open || count == 0) return;
+  int page = std::max(1, palette.list_rows - 1);
+  int selected = std::clamp(palette.selected + direction * page, 0, count - 1);
+  if (selected == palette.selected) return;
+  palette.selected = selected;
+  writePaletteChord();
+}
+
+bool PatternEditor::inChordPalette(int row, int col) const {
+  auto & palette = chord_palette_;
+  return palette.open && palette.panel_rows > 0 && row >= palette.top && row < palette.top + palette.panel_rows && col >= palette.left &&
+         col < palette.left + palette.panel_cols;
+}
+
+int PatternEditor::chordPaletteLineAt(int row, int col) const {
+  auto & palette = chord_palette_;
+  int line = row - palette.top;
+  if (!inChordPalette(row, col) || line < 0 || line >= palette.list_rows) return -1;
+  int index = palette.window.indexAt(line);
+  return index >= 0 && index < static_cast<int>(palette.lines.size()) ? index : -1;
+}
+
+// A line is chosen by the release of the left button over it after a press on a line, shown pressed and following the
+// pointer meanwhile; the rest of the panel is inert, and a press off the panel accepts the chord as it always has.
+bool PatternEditor::chordPaletteMouseDown(const cellui::MouseDown & e) {
+  auto & palette = chord_palette_;
+  if (!inChordPalette(e.row, e.col)) return false;
+  int index = chordPaletteLineAt(e.row, e.col);
+  palette.pressing = true;
+  palette.press_on_line = index >= 0;
+  palette.window.setPressed(index);
+  force_full_redraw_ = true;
+  return true;
+}
+
+bool PatternEditor::chordPaletteMouseMove(const cellui::MouseMove & e) {
+  auto & palette = chord_palette_;
+  if (!palette.open || !palette.pressing) return false;
+  if (palette.press_on_line) palette.window.setPressed(chordPaletteLineAt(e.row, e.col));
+  force_full_redraw_ = true;
+  return true;
+}
+
+bool PatternEditor::chordPaletteMouseUp(const cellui::MouseUp & e) {
+  auto & palette = chord_palette_;
+  if (!palette.open || !palette.pressing) return false;
+  int index = chordPaletteLineAt(e.row, e.col);
+  bool chosen = palette.press_on_line && index >= 0;
+  palette.pressing = false;
+  palette.window.setPressed(-1);
+  if (chosen) {
+    palette.selected = index;
+    writePaletteChord();
+    closeChordPalette(true);
+  }
+  force_full_redraw_ = true;
+  return true;
+}
+
+// Over the panel the wheel browses the chords without choosing: the selection stays where it is, out of view if need be.
+bool PatternEditor::chordPaletteWheel(const cellui::Wheel & e) {
+  auto & palette = chord_palette_;
+  if (!inChordPalette(e.row, e.col) || e.dy == 0) return false;
+  palette.window.scroll(e.dy > 0 ? -1 : 1, palette.list_rows);
+  force_full_redraw_ = true;
+  return true;
 }
 
 void PatternEditor::setBorrowedChords(bool enabled) {

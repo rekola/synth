@@ -523,7 +523,10 @@ private:
     std::vector<chords::Completion> lines;
     std::vector<std::string> spelled; // each line's notes by name
     int selected = 0;
-    cellui::ChoiceList window; // the scroll window over `lines`, following `selected`
+    cellui::ChoiceList window; // the scroll window over `lines`, following `selected` until the wheel scrolls it
+    // Where the panel is on the screen as last drawn, and the left button held down on a line (shown pressed).
+    int top = 0, left = 0, panel_rows = 0, list_rows = 0, panel_cols = 0;
+    bool pressing = false, press_on_line = false;
     bool on_checkbox = false; // the keyboard focus is on the "Borrowed chords" check box, not the list
   };
   ChordPalette chord_palette_;
@@ -536,6 +539,16 @@ private:
   void setBorrowedChords(bool enabled);
   // Moves the open palette's selection on (1) or back (-1); opens a closed one, `direction` lines from the chord in the pattern.
   void stepChordPalette(int direction);
+  // Moves the selection by a page of lines, stopping at the ends (the paging keys).
+  void pageChordPalette(int direction);
+  // The line shown under a screen cell of the open palette (-1 for none), and whether the cell is on the panel.
+  int chordPaletteLineAt(int row, int col) const;
+  bool inChordPalette(int row, int col) const;
+  // The mouse over the open palette; true when it took the event.
+  bool chordPaletteMouseDown(const cellui::MouseDown & e);
+  bool chordPaletteMouseMove(const cellui::MouseMove & e);
+  bool chordPaletteMouseUp(const cellui::MouseUp & e);
+  bool chordPaletteWheel(const cellui::Wheel & e);
   void fillChordPalette();
   void writePaletteChord();
   void resizeChordPalette(int delta);
