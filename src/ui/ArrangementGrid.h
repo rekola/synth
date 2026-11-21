@@ -205,6 +205,7 @@ class ArrangementGrid : public UIElement {
   // widget actually shows has changed - same dirty-check shape InfoLine's
   // own render() already uses.
   int current_song_version_ = -1;
+  std::vector<int> current_taken_over_;
   int current_playing_row_ = -1;
   int current_cursor_bar_ = -1, current_cursor_track_index_ = -1;
   double current_shown_col_ = -1;

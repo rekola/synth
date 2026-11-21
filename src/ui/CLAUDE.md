@@ -315,7 +315,9 @@ Controller-level and per-widget commands. Not migrated: `StatusLine`,
   instance shows `*` (sounding) or `.` (only note-offs/commands) for the
   background. No per-cell copy/paste: placing clip content is
   `copy-to-clip`'s job from `PatternEditor`. Enter moves the transport to the
-  cursor's bar. The scope row is optional (`toggle-scopes`).
+  cursor's bar. A track Live View has taken over shows disabled (dim name,
+  empty bars): the arrangement doesn't play on it. The scope row is optional
+  (`toggle-scopes`).
 - **Live View**: `ClipGrid` (per-track clip slots, Sends, Direction) with
   `OutlineView` as a narrow panel on its left (`toggle-outline`; a button
   bar overlaid on its bottom rows; details in a `?` popup) above
