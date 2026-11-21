@@ -97,6 +97,12 @@ paths:
   Both find the SOFA file through `SofaFileResolver.h` (project-local
   `data/` first, then `~/.local/share/sofa/default.sofa`, the same order as
   the SoundFont lookup) and fall back to cardioid if none resolves.
+- Every decoder ends in `Mixer::finishStereoOutput()`: a stereo-linked peak
+  limiter (`dsp/PeakLimiter.h`, ceiling -1 dBFS, no lookahead so no
+  latency, 25 ms hold, 150 ms release), then a clamp at full scale behind it.
+  Below the ceiling it is exact unity, so a song that never reaches it
+  renders sample for sample as without it. There is no DC filter: measured
+  offsets in the songs are under -45 dBFS.
 - `AmbisonicEncoding.h` is the one source for encode/decode math and
   `cubeVertexDirections()` (az ±45°/±135°, el ±35.264°), used by the legacy
   order-1 rig and the send bus's reverb taps alike — never a second copy of

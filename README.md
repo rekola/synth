@@ -200,7 +200,6 @@ The major things that are missing are the following:
 ### Minor Missing Features
 
 * DirAC heatmap marker overlay for every active spatial object, not just track positions — track azimuth/elevation markers, plus Granular Cloud grains and other shared-bus-effect taps (FDNReverb, MultiTapDelay)
-* DC Filter and Soft Clipping
 * 5.1 or 7.2 modes in addition to binaural headphone mode
 * Legato voicing mode
 * Custom drum kits without SoundFont: map individual percussion keys to arbitrary instruments instead of one whole SF2 kit preset.
