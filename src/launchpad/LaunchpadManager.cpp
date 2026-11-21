@@ -427,6 +427,29 @@ Color padTrackColor(int ordinal) {
     return hslToRgb(hsl);
   }
 
+  // A pad of the 53-EDO lattice by the step of the scale's generation its note comes in (LaunchpadLayout::latticeTier()):
+  // the tonic and its octave the most prominent, then the fourth and fifth, the core, and the later steps; a borrowed
+  // note its own muted hue and a pitch class of no note grey. Only hue and saturation survive padColor(), so
+  // prominence is saturation (green stays out of it, see consonanceColor()).
+  Rgb latticeColor(int tier, int pitch_class) {
+    switch (tier) {
+      case 1:
+        return hslToRgb({50.0f, 1.0f, 0.5f}); // yellow, as the tonic always was
+      case 2:
+        return hslToRgb({pitch_class <= 26 ? 12.0f : 24.0f, 0.85f, 0.5f}); // the fourth and the fifth, apart in hue
+      case 3:
+        return hslToRgb({260.0f, 0.9f, 0.5f}); // the core
+      case 4:
+        return hslToRgb({300.0f, 0.55f, 0.5f}); // the 15-note step
+      case 5:
+        return hslToRgb({335.0f, 0.4f, 0.5f}); // the 18-note step
+      case 6:
+        return hslToRgb({200.0f, 0.35f, 0.5f}); // borrowed
+      default:
+        return hslToRgb({0.0f, 0.0f, 0.5f});
+    }
+  }
+
   // The free-drumming layout's per-family base color - shared by the
   // ordinary percussion note-grid rendering and the drum picker, which
   // reuses the exact same layout as its own
@@ -1568,8 +1591,7 @@ LaunchpadManager::handleCommand(string_view name, int device_id, int fallback_tr
   return false;
 }
 
-int
-LaunchpadManager::resolveNote(const Song & song, int device_id, int track_id, int x, int y) const {
+int LaunchpadManager::resolveNote(const Song & song, int device_id, int track_id, int x, int y, bool step_view) const {
   auto track = song.getMasterTrack().getChildByInternalId(track_id);
   auto tuning = track && track->getType() == TrackType::PERCUSSION_CONTROL ? Tuning::PERCUSSION : song.getTuning();
 
@@ -1577,7 +1599,7 @@ LaunchpadManager::resolveNote(const Song & song, int device_id, int track_id, in
     return LaunchpadLayout::drumPadNoteForPad(x, y);
   }
   if (x < 0 || x > 7 || y < 0 || y > 7) return -1;
-  return resolveKeyboardNotes(song, device_id)[static_cast<size_t>(x + 8 * y)];
+  return resolveKeyboardNotes(song, device_id, step_view)[static_cast<size_t>(x + 8 * y)];
 }
 
 int
@@ -1600,13 +1622,14 @@ LaunchpadManager::neighbourScaleNote(const Song & song, int device_id, int note,
 }
 
 array<int, 64>
-LaunchpadManager::resolveKeyboardNotes(const Song & song, int device_id) const {
+LaunchpadManager::resolveKeyboardNotes(const Song & song, int device_id, bool step_view) const {
   array<int, 64> notes;
   notes.fill(-1);
   auto edo_steps = LaunchpadLayout::edoSteps(song.getTuning());
   if (edo_steps <= 0) return notes; // every non-percussion Tuning is currently pitched
 
   auto basis = LaunchpadLayout::computeBasis(edo_steps);
+  const bool lattice = song.getTuning() == Tuning::EDO53;
   auto key = song.getKey();
   // song.getKey() is a full note number with its own baked-in octave, so
   // only its pitch class is used; the octave register below picks the octave.
@@ -1616,10 +1639,19 @@ LaunchpadManager::resolveKeyboardNotes(const Song & song, int device_id) const {
   // lowest key, and one further octave on top of that keeps the Launchpad's
   // lowest pad comfortably audible.
   auto base_note = tonic + (octave(device_id) + 1) * edo_steps;
+  auto lattice_layout = LaunchpadLayout::latticeFor(song.getScale() == Scale::UTONAL);
   for (int y = 0; y < 8; y++) {
     for (int x = 0; x < 8; x++) {
-      notes[static_cast<size_t>(x + 8 * y)] = LaunchpadLayout::noteForPad(basis, x - GRID_ORIGIN_X, y - GRID_ORIGIN_Y, base_note);
+      notes[static_cast<size_t>(x + 8 * y)] = lattice ? LaunchpadLayout::noteForPad(lattice_layout, x, y, base_note)
+                                                      : LaunchpadLayout::noteForPad(basis, x - GRID_ORIGIN_X, y - GRID_ORIGIN_Y, base_note);
     }
+  }
+  if (step_view) {
+    // While a clip is open the playing rows are the scale in order: the degrees, tonic first, from the register
+    // base (getScaleDegreesWindow() has the tonic's pitch class in them already).
+    auto degrees = song.getScaleDegreesWindow(0, 8 * LaunchpadLayout::kPlayRows);
+    auto register_base = (octave(device_id) + 1) * edo_steps;
+    for (size_t i = 0; i < degrees.size(); i++) notes[i] = register_base + degrees[i];
   }
   return notes;
 }
@@ -1750,7 +1782,7 @@ void LaunchpadManager::handlePadEvent(const LaunchpadPadEvent & ev, Controller &
         return;
       }
       if (ev.getKind() == LaunchpadPadEvent::PRESS) {
-        auto selected = resolveNote(song, device_id, track_id, ev.getX(), ev.getY());
+        auto selected = resolveNote(song, device_id, track_id, ev.getX(), ev.getY(), assigned_track->getType() == TrackType::INSTRUMENT_CONTROL);
         if (selected >= 0) deviceState(device_id).selected_step_note = selected;
       }
     }
@@ -1782,7 +1814,13 @@ void LaunchpadManager::handlePadEvent(const LaunchpadPadEvent & ev, Controller &
   // assigned track (audible, but never recorded) instead.
   if (recording_reference_track_id >= 0) track_id = recording_reference_track_id;
 
-  auto note_value = resolveNote(song, device_id, track_id, ev.getX(), ev.getY());
+  // The step view's playing rows are the scale in order.
+  bool in_step_view = !controller.isAnyClipRecording() && controller.getFocusedClipTrackId() == track_id;
+  if (in_step_view) {
+    auto viewed = song.getMasterTrack().getChildByInternalId(track_id);
+    in_step_view = viewed && viewed->getType() == TrackType::INSTRUMENT_CONTROL;
+  }
+  auto note_value = resolveNote(song, device_id, track_id, ev.getX(), ev.getY(), in_step_view);
   if (note_value < 0) return; // unused percussion pad (row 7), or an unpitched/degenerate tuning
 
   // Every other currently-recording track that shares this one's own
@@ -2255,7 +2293,7 @@ int
 LaunchpadManager::stepEditNote(const Song & song, int device_id, int track_id) const {
   auto * state = findDeviceState(device_id);
   if (state && state->selected_step_note >= 0) return state->selected_step_note;
-  return resolveNote(song, device_id, track_id, 0, 0); // the first pad: the kick, or the tonic
+  return resolveNote(song, device_id, track_id, 0, 0, true); // the first pad: the kick, or the tonic
 }
 
 void LaunchpadManager::handleStepGridPadEvent(const LaunchpadPadEvent & ev, Controller & controller, int note, int track_id, bool pitched) {
@@ -2686,6 +2724,9 @@ LaunchpadManager::refreshLeds(int device_id, DeviceState & state) {
           if (note >= 0 && edo_steps > 0) {
             if (note == selected) {
               color = kSelectedColor;
+            } else if (state.tuning == Tuning::EDO53) {
+              auto steps = ((note - tonic) % 53 + 53) % 53;
+              color = padColor(latticeColor(LaunchpadLayout::latticeTier(steps, state.utonal), steps), state.active_note_loudness, note);
             } else if (basis.degenerate) {
               color = padColor({40, 40, 40}, state.active_note_loudness, note); // no meaningful scale structure
             } else {
@@ -3354,6 +3395,7 @@ LaunchpadManager::refresh(const Song & song, const vector<int> & track_ids, cons
     state.record_arm_led_on = note_capture_armed || controller.isThresholdArmed() || controller.isRecording() || controller.isAnyClipRecording();
     state.tuning = tuning;
     state.key = key_val;
+    state.utonal = song.getScale() == Scale::UTONAL;
     state.active_note_loudness = move(active_note_loudness);
     state.clip_colors = clip_colors;
     state.clip_highlight = clip_highlight;
@@ -3378,7 +3420,7 @@ LaunchpadManager::refresh(const Song & song, const vector<int> & track_ids, cons
     state.drum_edit_max_step_offset = drum_max_step_offset;
     state.step_view_bits = step_view_bits;
     state.step_view_length = step_view_length;
-    state.keyboard_notes = resolveKeyboardNotes(song, device_id);
+    state.keyboard_notes = resolveKeyboardNotes(song, device_id, state.show_step_grid && !is_percussion);
     state.drum_playhead_step = drum_playhead_step;
 
     refreshLeds(device_id, state);

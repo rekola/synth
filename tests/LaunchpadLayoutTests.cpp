@@ -415,3 +415,63 @@ TEST(send_dial_points_apart_for_every_fader_row) {
   }
   CHECK_NEAR(sendDbToFraction(0.0f), 1.0f, 1e-6);
 }
+
+// ---- The 53-EDO lattice ----
+
+TEST(lattice_tiers_count_the_notes_of_each_step_of_the_scale) {
+  for (bool utonal : {false, true}) {
+    map<int, int> count;
+    for (int pc = 0; pc < 53; pc++) count[latticeTier(pc, utonal)]++;
+    CHECK(count[1] == 1); // the tonic
+    CHECK(count[2] == 2); // the fourth and the fifth
+    CHECK(count[3] == 4); // the rest of the core
+    CHECK(count[4] == 8); // the 15-note step
+    CHECK(count[5] == 3); // the 18-note step
+    CHECK(count[6] == 3); // borrowed
+    CHECK(count[0] == 53 - 21);
+  }
+  // Otonal C: D♯ E A A♯↑ are the core; utonal C: E𝄫 E♭ A♭ B𝄫.
+  for (int pc : {12, 17, 39, 43}) CHECK(latticeTier(pc, false) == 3);
+  for (int pc : {10, 14, 36, 41}) CHECK(latticeTier(pc, true) == 3);
+  CHECK(latticeTier(22, false) == 2 && latticeTier(31, false) == 2);
+}
+
+TEST(lattice_puts_the_tonic_on_its_pad_and_chords_keep_their_shape) {
+  for (bool utonal : {false, true}) {
+    auto lattice = latticeFor(utonal);
+    CHECK(noteForPad(lattice, lattice.origin_x, lattice.origin_y, 1000) == 1000);
+    // A step right is 5, a row up 12: the harmonic seventh C E G A♯↑ (17, 31, 43 steps) has one shape
+    // wherever its root is.
+    for (int x = 0; x < 6; x++) {
+      for (int y = 0; y < 4; y++) {
+        CHECK(noteForPad(lattice, x + 1, y, 0) - noteForPad(lattice, x, y, 0) == 5);
+        CHECK(noteForPad(lattice, x, y + 1, 0) - noteForPad(lattice, x, y, 0) == 12);
+      }
+    }
+  }
+}
+
+// The 4 playing rows hold every note of the scale (18 and the 3 borrowed), and 8 rows hold the tonic twice, an octave
+// apart.
+TEST(lattice_holds_every_note_of_the_scale_in_the_playing_rows) {
+  for (bool utonal : {false, true}) {
+    auto lattice = latticeFor(utonal);
+    set<int> low, all;
+    set<int> tonics;
+    for (int y = 0; y < 8; y++) {
+      for (int x = 0; x < 8; x++) {
+        auto note = noteForPad(lattice, x, y, 0);
+        auto pc = ((note % 53) + 53) % 53;
+        if (latticeTier(pc, utonal) > 0) {
+          all.insert(pc);
+          if (y < 4) low.insert(pc);
+        }
+        if (pc == 0) tonics.insert(note);
+      }
+    }
+    CHECK(low.size() == 21u);
+    CHECK(all.size() == 21u);
+    CHECK(tonics.size() == 2u);
+    CHECK(*tonics.rbegin() - *tonics.begin() == 53);
+  }
+}

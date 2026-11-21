@@ -83,6 +83,24 @@ namespace LaunchpadLayout {
     int enharmonic_depth = 0;
   };
 
+  // The 53-EDO layout of the extended diamond gamut: a lattice with the small step x = 5 (about 16/15) and
+  // y = 12 (7/6, a septimal minor third), the fourth running along the diagonal. The 4 playing rows (a clip
+  // open) hold all 21 notes of the scale (18 and the 3 borrowed), and in 8 rows the tonic and its octave
+  // both lie on a pad. Utonal has the same lattice with its tonic on another pad. Other tunings keep the
+  // layout of computeBasis().
+  struct Lattice {
+    int x_step = 5;
+    int y_step = 12;
+    int origin_x = 4; // the pad of the tonic (base_note)
+    int origin_y = 0;
+  };
+  Lattice latticeFor(bool utonal);
+  int noteForPad(const Lattice & lattice, int x, int y, int base_note);
+  // How early the pitch class (steps above the tonic) comes in the scale's generation, which is what colours its
+  // pad: 1 the tonic (and its octave), 2 the fourth and fifth, 3 the rest of the 7-note core, 4 the 15-note
+  // step, 5 the 18-note step, 6 a borrowed note; 0 a pitch class of no note of the scale.
+  int latticeTier(int pitch_class, bool utonal);
+
   // Computes every pitch class's consonance classification for an N-step
   // EDO, by recursively splitting the octave the way classical interval
   // theory does: 2/1 = 4/3 * 3/2 (the octave's simplest factor pair is the
