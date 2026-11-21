@@ -65,7 +65,7 @@ class PatternEditor : public UIElement {
   bool wantsBareEscape() const override { return chord_palette_.open && keymapProfile() == cellui::KeymapProfile::DESKTOP; }
   // The focus level is still easing: the loop keeps drawing frames.
   bool isAnimating() const {
-    return fades_.active() || focus_fade_drawn_ || rowsShifted() || flash_decaying_ || chord_entry_.pending || palette_drawn_ != chord_palette_.open || audition_.active || !arpeggio_.values.empty();
+    return fades_.active() || focus_fade_drawn_ || rowsShifted() || flash_decaying_ || chord_entry_.pending || palette_drawn_ != chord_palette_.open || (chord_palette_.open && chord_palette_.window.animating()) || audition_.active || !arpeggio_.values.empty();
   }
 
   // The cursor covers this many note columns of its row, from its own
@@ -527,6 +527,7 @@ private:
     // Where the panel is on the screen as last drawn, and the left button held down on a line (shown pressed).
     int top = 0, left = 0, panel_rows = 0, list_rows = 0, panel_cols = 0;
     bool pressing = false, press_on_line = false;
+    std::chrono::steady_clock::time_point last_tick; // the list eases where the display scrolls smoothly
     bool on_checkbox = false; // the keyboard focus is on the "Borrowed chords" check box, not the list
   };
   ChordPalette chord_palette_;
@@ -534,6 +535,7 @@ private:
   int palette_size_ = 4; // the size last used with a cursor of one column
   bool palette_drawn_ = false;
   std::unique_ptr<cellui::Plane> palette_plane_;
+  std::unique_ptr<cellui::Plane> palette_list_plane_; // the chords' rows over the panel's, so the display can shift them
   std::unique_ptr<cellui::Checkbox> palette_box_; // on palette_plane_
   // Sets the song's borrowed-chords setting and rebuilds the open palette's candidates at once.
   void setBorrowedChords(bool enabled);
