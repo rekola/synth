@@ -196,6 +196,7 @@ The major things that are missing are the following:
 * Lighting control (DMX/ArtNet)
 * Continuous MIDI recording with retroactive capture
 * Collaborative Editing
+* A Launchpad layout of the extended diamond gamut for tunings other than 53-EDO (12, 19 and 31-EDO keep the whole-tone/semitone keyboard)
 
 ### Minor Missing Features
 

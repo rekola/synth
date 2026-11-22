@@ -135,9 +135,16 @@ entry. Defaults to `LIVE`.
   `docs/drums-and-sequencer.md`); there is no per-track drum list, the rack is
   the one kit. A pitched track gets the isomorphic keyboard
   (`LaunchpadLayout::noteForPad()`): the song's key at the anchor pad at this
-  device's octave, pads coloured by consonance class from the tonic. The
-  song's scale does not change the playing keyboard; it picks the degrees the
-  step view steps through.
+  device's octave. In 53-EDO the keyboard is the extended diamond lattice
+  (`LaunchpadLayout::Lattice`: x = 5 steps, y = 12, tonic at pad (4,0), or (3,3) for a
+  utonal song; the 4 playing rows hold all 21 notes of the scale, 8 hold the tonic
+  and its octave) and the pads are coloured by the step of the scale's generation
+  their note comes in (`latticeTier()`, `latticeColor()`); any other tuning keeps the
+  whole-tone/semitone keyboard coloured by consonance class from the tonic. The
+  song's scale does not change the playing keyboard except for that anchor. In
+  the step view (below) the playing rows are the song's scale degrees in order,
+  tonic first, left to right and then bottom to top (`resolveKeyboardNotes()` with
+  `step_view`), and the scale picks the degrees 91 and 92 step through.
 - With a clip open for editing (`Controller::getFocusedClipTrackId()`, and no
   Live View take recording) the grid splits Push-style
   (`DeviceState::show_step_grid`): rows 0-3 stay the playing surface, rows 4-7

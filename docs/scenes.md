@@ -54,7 +54,8 @@ time_signatures.md.
 
 A scene launches from the Master column slot (Enter or click), the
 `launch-scene` command, or a Launchpad scene button. The tracks' clips are
-queued for the next bar as always. Then:
+queued for the next bar as always (or the next multiple of the song's launch
+quantization, if it has one). Then:
 
 - **Tempo.** If the scene has one, it becomes the **song tempo**, the same as
   using the tempo commands: it is stored in the song and saved with it.

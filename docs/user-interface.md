@@ -58,7 +58,9 @@ the terminal keymap only, as Capture MIDI has it on the desktop one.
 
 Ctrl+X is cut there, so the `C-x` prefix sequences are terminal-only; the buffer
 commands (`next-buffer`, `kill-buffer`, ...) have no desktop shortcut yet and are
-in the menus and the command palette. What the terminal can't do is listed
+in the menus and the command palette. As in Emacs, the status line shows `C-x-`
+while a prefix waits for its key, and a sequence bound to nothing says so
+(`C-x C-z is undefined`) instead of doing anything else. What the terminal can't do is listed
 under [Terminal](#terminal) at the end.
 
 ## Command palette
@@ -236,7 +238,9 @@ Each of them shows the new edit step on the status line.
   colour over its columns on a terminal and the border round them in a
   window, reaches down over all its rows; the cell being edited is marked in
   the first row only. Nothing is entered or played in the rows below the
-  first: the next entry goes in the row just below the last of them.
+  first (except a chord, which fills them, and Delete, copy and the commands
+  that act on a region): the next entry goes in the row just below the last of
+  them.
 - The height is at least 1 and at most one bar at the cursor (16 rows in 4/4).
   There is no edit step of 0 any more: `set-edit-step-0` and Ctrl-0 are gone, and
   the cursor always moves on after an entry. Where the bar is shorter than the
@@ -250,6 +254,17 @@ Each of them shows the new edit step on the status line.
   velocity, delay and fx), in a note's fx column the fx of those notes, in the
   effect column the commands of those rows. Delete leaves the cursor where
   it is; Backspace then moves it up by its height.
+- **Copy** with no selection copies everything under the cursor, all its rows
+  and columns (a selection is copied as it is, whatever the cursor's height).
+- **A chord** entered, or chosen in the chord palette, with a cursor of more
+  than one row is written as an arpeggio inside the cursor: each note in its
+  own column, as with one row, and the first note in the first row, the second
+  in the second row, and so on. So the cursor's height only spreads the chord
+  over time. A chord of more notes than the cursor has rows puts the notes
+  beyond the last row in it; one with fewer leaves the remaining rows empty.
+  Every other cell under the cursor is emptied, as the columns a short chord
+  does not use are with a cursor of one row. Cancelling the palette gives back
+  every row.
 - While the cursor is a playhead (the transport running in Arrangement view,
   or a playing clip in Live View) only its first row is shown.
 
@@ -302,14 +317,36 @@ chord, six a ninth chord. The first candidate is, in this order:
    the scale has 4:5:6 from it, and a downward one if it has 1/4:1/5:1/6; where
    it names both the longer one comes first, and for equal ones the kind the
    scale is named for (upward in otonal and the diamond, downward in utonal).
-2. Otherwise the first chord of the class in the note's list, that is a chord
-   the note belongs to without naming it, read from the note in the chord's
+2. Otherwise another chord the note **owns** that fills the width: a four-note
+   chord at four and five columns, a five-note chord at six. A note owns a
+   chord if it is the root of an upward chord or the top note of a downward
+   one. These are the 7sus2 (below), the 7♯9, their subharmonic forms and the
+   larger chords built on them (the 7♯9 with fifth); a 7sus2 comes before the
+   7♯9 chords. A major seventh is owned by its root only and is not one of
+   them. At three columns only the 7sus2 is looked for. At five columns a
+   four-note chord has its first note again an octave on, as the seventh chords
+   do.
+3. Otherwise the first chord of the class in the note's list, that is a chord
+   the note belongs to without owning it, read from the note in the chord's
    direction.
-3. Otherwise the class below: at six columns a seventh chord, the sixth column
+4. Otherwise the class below: at six columns a seventh chord, the sixth column
    empty.
 
-So every key gives a seventh chord at four and five columns; at three a note's
-own triad comes first. The other chords of the list follow in the palette. A
+Only the first candidate is chosen this way; the rest of the list keeps its
+order, and a note whose run reaches the class has the run first and its owned
+chords where the list has them. So every key gives a seventh chord at four and
+five columns; at three a note's own triad comes first (a 7sus2 when it has no
+triad run).
+
+**The 7sus2** is a seventh chord with its ninth in place of its third: 4:6:7:9
+upward and 1/4:1/6:1/7:1/9 downward. A note owns it if the scale has the 6, the
+7 and the 9 above it (or the 1/6, 1/7 and 1/9 below it) and lacks the 5 (or the
+1/5); a note with a run does not get it first. Its ninth is a ninth above the
+root, an octave higher than the other chords' ninths. At three columns it is
+4:6:7 ("A seventh, no third"), at four 4:6:7:9 ("A 7sus2", "G subharmonic
+7sus2"), at five 4:6:7:8:9 with the octave in its place by pitch (between the
+7 and the 9) and at six the same with the sixth column empty. A subharmonic
+7♯9 (1/12:1/14:1/15:1/21) is the 7♯9's subharmonic form. The other chords of the list follow in the palette. A
 downward chord hangs from the note an octave above the played one (a chord's
 pitch follows its lowest note, so one hung from the played note itself would
 sound an octave low); that is its first column. The minor triad is upward
@@ -410,9 +447,9 @@ window in Japanese text input: each move writes the chord it lands on.
   list. Tab moves the keyboard focus between the list and the check box (Up and Down
   move it back to the list); on the check box Space or Enter toggles it, and so does a
   click. Toggling rebuilds the list at once, keeps the palette open and writes the
-  first chord of the new list. The setting is the song's, not the editor's: off by
-  default, saved in the song file as `<song borrowedChords="true">` (a file without it
-  loads with it off, and an off setting is not written), restored on loading, and a
+  first chord of the new list. The setting is the song's, not the editor's: on by
+  default, saved in the song file as `<song borrowedChords="false">` when it is off
+  (a file without it loads with it on, and an on setting is not written), restored on loading, and a
   change is an edit that marks the song modified and can be undone. There is no
   command or key binding for it.
   - Off, chord entry writes only notes of the scale. On, the notes of the otonal or

@@ -189,11 +189,21 @@ class Song : public SongObject {
     return running.isActive() ? running.signature : getTimeSignature();
   }
 
+  // How long a queued launch, stop or return to the arrangement waits, in
+  // rows counted from the origin of the bars in force: 0 = the next bar,
+  // else the next multiple of this many rows, whatever the time signature.
+  // Callers editing it do it inside a Song::Edit.
+  static constexpr int kMaxLaunchQuantization = 256;
+  int getLaunchQuantization() const { return read(songschema::kLaunchQuantization); }
+  void setLaunchQuantization(int rows);
+
   // The bars in force at `row`, as the UI thread knows them.
   BarGrid getBarsAt(int row) const { return barsAt(getArrangementBars(), getRunningBars(), row); }
   int barStartAtOrBefore(int row) const { return getBarsAt(row).barStart(row); }
   int rowInBar(int row) const { return getBarsAt(row).rowInBar(row); }
   bool isBarStart(int row) const { return rowInBar(row) == 0; }
+  // Whether a queued launch applies on `row` (getLaunchQuantization()).
+  bool isLaunchRow(int row) const { return getBarsAt(row).isLaunchRow(row, getLaunchQuantization()); }
   int barRowsAt(int row) const { return getBarsAt(row).barRows(); }
   int beatRowsAt(int row) const { return getBarsAt(row).beatRows(); }
   int nextBarStart(int row) const { return getBarsAt(row).nextBarStart(row); }
@@ -204,7 +214,7 @@ class Song : public SongObject {
   bool getRecordQuantize() const { return read(songschema::kRecordQuantize); }
   void setRecordQuantize(bool enabled) { write("set record quantize", songschema::kRecordQuantize, enabled); }
   // Whether chord entry also offers the chords that borrow notes from the other of otonal and
-  // utonal (division.h). Off by default; an undoable edit of the song.
+  // utonal (division.h). On by default; an undoable edit of the song.
   bool getBorrowedChords() const { return read(songschema::kBorrowedChords); }
   void setBorrowedChords(bool enabled) { write("set borrowed chords", songschema::kBorrowedChords, enabled); }
   // `absolute_row` as a musical position, "bar.beat.sixteenth", each

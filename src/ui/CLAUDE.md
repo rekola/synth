@@ -69,12 +69,18 @@ follows GUI conventions, not Emacs mark-and-kill, so these stay in the
 widgets' own registries (`PatternEditor`, `ClipGrid`) for good.
 
 Dispatch: cellui's `KeyStroke.h`/`Keymap.h`/`CommandRegistry.h` map key stroke →
-command name → callable; widgets fill `keymap_`/`commands_` in their
-constructor and call `dispatchCommand()` early in their key handler, anything
-unbound falling through to manual handling. `Controller::sendCommand()` (what
-the palette calls) falls back to `UI::executeCommand()` — the active element's
-registry, then UI's — for names it doesn't know, so M-x reaches both
-Controller-level and per-widget commands. Not migrated: `cellui::StatusLine`,
+command name → callable. The app-wide bindings are the `cellui::Application`'s
+keymap (`app_.keymap()`, filled in `InteractiveUI::initializeWidgets()`), with
+`KeymapOrder::PROGRAM`: `offerKeyLayers()` offers a key to it (`offerKey()`)
+after the octave editor and only while no prompt or inline editor is reading,
+ahead of the focused widget; a bound name runs `InteractiveUI`'s own registry
+(`CommandSource::run_binding`), and the application says "C-x-" and "C-x C-z is
+undefined" on the status line. Widgets fill their own `keymap_`/`commands_` in
+their constructor and call `dispatchCommand()` early in their key handler,
+anything unbound falling through to manual handling. `Controller::sendCommand()`
+(what the palette calls) falls back to `UI::executeCommand()` — the active
+element's registry, then UI's — for names it doesn't know, so M-x reaches both
+Controller-level and per-widget commands. Not migrated: `StatusLine`,
 `OutlineView`. Every command needs a line in `ui/CommandDescriptions.cpp`
 (a test fails otherwise).
 
@@ -103,13 +109,15 @@ Controller-level and per-widget commands. Not migrated: `cellui::StatusLine`,
   capture handlers on the root take every key, click and wheel event ahead of
   `InteractiveUI`'s, and `takeEscape` hands it a bare Escape at once.
   `InteractiveUI` gives the application its commands as an
-  `Application::CommandSource`: the names of `commandCompletions("")`,
+  `Application::CommandSource`: the names of `Controller::commandCompletions("")`
+  (the Controller's own commands and every registry `InteractiveUI` reaches,
+  less the Buffers menu's `switch-to-buffer:<name>` entries),
   `commandDescription()`, `bindingFor()` (the focused widget's binding first,
   spelled by `KeyStroke::describe()`) and `Controller::sendCommand()`, which
   runs the choice after the palette has closed; the application's `message`
   (an unknown name) goes to the status line. Tab completes Emacs-style to the
   longest shared prefix.
-- Key bindings are written as a person reads them (`keymap_.bind(
+- Key bindings are written as a person reads them (`app_.keymap().bind(
   cellui::KeymapProfile::TERMINAL, "C-x C-s", "save-buffer")`,
   `"Ctrl+Shift+S"`; `cellui::KeyStroke::parse()`), a prefix and a key in one
   string. `KeyStroke::pack()` stays only for what that cannot spell: a raw
@@ -204,7 +212,11 @@ Controller-level and per-widget commands. Not migrated: `cellui::StatusLine`,
   band in `updateCursorBands()` is that tall, `Band::border_skip_rows` keeping
   the field's gap in the border to the first row; one row while the cursor
   is a playhead) - except Delete and Backspace, which empty the whole
-  rectangle (`cursorRows()` cuts it off at the pattern's end).
+  rectangle (`cursorRows()` cuts it off at the pattern's end). With no mark the
+  region of `getEffectiveSelectionBounds()` is that rectangle (copy, kill,
+  transpose), and a chord is written by `writeChordCells()`: side by side with
+  one row, with more an arpeggio (note i in column i and row i, the last row taking
+  the rest), the rest of the rectangle emptied (`chordAt()` reads it back the same way for the palette).
 - In a scale with a gamut layout (`keyboardGivesRatios()`: otonal, utonal and
   diamond) a note key gives a ratio, not a fixed note (`keyToNote()`, `playback/KeyboardNotes.h`):
   the song's tonic in the keyboard's octave plus the ratio's steps, written with
@@ -307,7 +319,9 @@ Controller-level and per-widget commands. Not migrated: `cellui::StatusLine`,
   instance shows `*` (sounding) or `.` (only note-offs/commands) for the
   background. No per-cell copy/paste: placing clip content is
   `copy-to-clip`'s job from `PatternEditor`. Enter moves the transport to the
-  cursor's bar. The scope row is optional (`toggle-scopes`).
+  cursor's bar. A track Live View has taken over shows disabled (dim name,
+  empty bars): the arrangement doesn't play on it, and the pattern editor fades its notes there with no flash. The scope row is optional
+  (`toggle-scopes`).
 - **Live View**: `ClipGrid` (per-track clip slots, Sends, Direction) with
   `OutlineView` as a narrow panel on its left (`toggle-outline`; a button
   bar overlaid on its bottom rows; details in a `?` popup) above

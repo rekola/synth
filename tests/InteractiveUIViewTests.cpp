@@ -1145,6 +1145,26 @@ TEST(terminal_ui_command_palette_filters_and_runs_a_command) {
   CHECK(f.terminal.info().focus == "pattern-editor"); // Live View -> Arrangement view and the editor
 }
 
+// The Controller's own commands are in the palette too; a buffer's menu entry is not.
+TEST(terminal_ui_command_palette_lists_and_runs_the_controllers_commands) {
+  UIFixture f;
+  CHECK(!f.controller->isMetronomeOn());
+  f.meta('x');
+  f.type("toggle-metronome");
+  CHECK(f.text().find("Turn the metronome click on or off") != std::string::npos);
+  f.press(cellui::Key::Enter);
+  CHECK(f.terminal.info().focus != "command-palette");
+  CHECK(f.controller->isMetronomeOn());
+  f.meta('x');
+  f.type("switch-to-buffer");
+  CHECK(f.text().find("switch-to-buffer:") == std::string::npos);
+  f.press(cellui::Key::Escape);
+  f.meta('x');
+  f.type("set-song-key");
+  f.press(cellui::Key::Enter);
+  CHECK(f.text().find("set-song-key: not implemented yet") != std::string::npos);
+}
+
 TEST(terminal_ui_command_palette_shows_the_desktop_binding_on_a_desktop_display) {
   cellui::DisplayInfo desktop_display;
   desktop_display.keymap_profile = cellui::KeymapProfile::DESKTOP;

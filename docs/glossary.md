@@ -34,7 +34,7 @@ sequence* (several shortcuts in a row, such as `C-x C-s`).
 A seventh chord that takes notes from both the otonal and the utonal scale; each
 scale may borrow three of the six (extended-diamond.md, Borrowed chords), and the
 notes of such a chord that the scale lacks are its borrowed notes. Chord entry
-offers them only with the song's "borrowed chords" setting on (off by default, a
+offers them while the song's "borrowed chords" setting is on (on by default, a
 check box in the chord palette, saved in the song); the scale itself does not
 change and a borrowed note has no key of its own.
 
@@ -175,6 +175,14 @@ column), stands for a stretch of notes that are missing from the source, from it
 until the next cell in the column. It has no value, velocity or delay, makes no sound
 and ends the previous note in its column, as an OFF does. A *lost note* is the smaller
 case: a note was there, but its pitch is gone.
+
+**Launch quantization**
+How long a queued launch, stop or return to the arrangement waits, as a
+number of rows (`launchQuantization` on `<song>`, `set-launch-quantization`).
+0, the default, is the next bar of the running time signature; otherwise the
+change applies on the next multiple of that many rows counted from the origin
+of the bars in force, so 24 gives 24-row sections in any signature. Song-wide;
+there is no per-clip value yet.
 
 **Lift**
 An OFF's velocity: how fast the key is let go. It scales the release time of

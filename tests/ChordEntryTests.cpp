@@ -35,6 +35,8 @@ struct ChordFixture : UIFixture {
     }
     CHECK(terminal.info().focus == "pattern-editor");
     controller->getSong().setScale(scale);
+    // New songs offer the borrowed chords; the tests of the rest of chord entry are of the scales' own.
+    controller->getSong().setBorrowedChords(false);
     ui->step();
     track_id = controller->getSong().getCurrentTrackId();
   }
@@ -151,7 +153,8 @@ TEST(chord_entry_at_three_columns_names_the_triad) {
   CHECK(f.shows("C major"));
   f.down('y');
   f.up('y');
-  CHECK(f.row(1) == (V{A, 53 + C, 53 + Ds}));
+  // A has no run: the 7sus2 it owns, cut to three notes (4:6:7).
+  CHECK(f.row(1) == (V{A, 53 + E, 53 + 29}));
 }
 
 TEST(chord_entry_completes_several_keys_from_the_chords_that_contain_them) {
@@ -305,7 +308,8 @@ TEST(chord_palette_steps_through_the_chords_of_the_entry_just_made) {
   f.meta('/');
   CHECK(f.shows("Chord: 3 notes"));
   CHECK(f.row(0) == (V{C, E, G}));
-  // The list is C's table, cut to three notes: narrow major, the subharmonic seventh, F major seventh, 7♯9.
+  // The list is C's table, cut to three notes: narrow major, the subharmonic seventh, F major seventh, 7♯9,
+  // then the newer kinds (7sus2 without its 9, subharmonic 7sus2, the narrow major G hangs from).
   f.press(cellui::Key::Down);
   CHECK(f.row(0) == (V{C, Ds, F}));
   CHECK(f.shows("C narrow major"));
@@ -318,14 +322,21 @@ TEST(chord_palette_steps_through_the_chords_of_the_entry_just_made) {
   CHECK(f.row(0) == (V{C, E, F}));
   f.press(cellui::Key::Down);
   CHECK(f.row(0) == (V{C, Ds, E}));
+  f.press(cellui::Key::Down);
+  CHECK(f.row(0) == (V{C, G, Asu}));
+  CHECK(f.shows("C seventh, no third"));
+  f.press(cellui::Key::Down);
+  CHECK(f.row(0) == (V{53 + C, G, 19}));
+  f.press(cellui::Key::Down);
+  CHECK(f.row(0) == (V{53 + C, Asu, G}));
   // Round to the first, with no chord twice.
   f.press(cellui::Key::Down);
   CHECK(f.row(0) == (V{C, E, G}));
   f.press(cellui::Key::Up);
-  CHECK(f.row(0) == (V{C, Ds, E}));
+  CHECK(f.row(0) == (V{53 + C, Asu, G}));
   f.press(cellui::Key::Enter);
   CHECK(!f.shows("Chord: 3 notes"));
-  CHECK(f.row(0) == (V{C, Ds, E}));
+  CHECK(f.row(0) == (V{53 + C, Asu, G}));
   // The whole session is one undo step, the entry another.
   f.execute("undo");
   CHECK(f.row(0) == (V{C, E, G}));
@@ -348,6 +359,8 @@ TEST(chord_palette_completes_notes_played_with_a_cursor_of_one_column) {
   CHECK(f.shows("C D♯ F A") && f.shows("C D♯ E A♯↑"));
   f.press(cellui::Key::Down);
   CHECK(f.row(0) == (V{C, Ds, E, Asu}));
+  f.press(cellui::Key::Down);
+  CHECK(f.row(0) == (V{C, Ds, F, G})); // F 7sus2 read from C, a note of the newer kinds
   f.press(cellui::Key::Down);
   // The subharmonic seventh is found from the highest played note, D♯, and hangs from it.
   CHECK(f.row(0) == (V{Ds, C, Asu - 53, Fsu - 53}));
@@ -387,8 +400,9 @@ TEST(chord_palette_writes_a_short_chord_and_empties_the_rest) {
   f.widen(3);
   f.down('y');
   f.up('y');
-  CHECK(f.row(0) == (V{A, 53 + C, 53 + Ds, 53 + F}));
+  CHECK(f.row(0) == (V{A, 53 + E, 53 + 29, 53 + 48})); // A 7sus2
   f.meta('/');
+  f.press(cellui::Key::Down);
   f.press(cellui::Key::Down);
   CHECK(f.shows("A minor"));
   CHECK(f.row(0) == (V{A, 53 + C, 53 + E})); // the minor triad rises from its lowest note
@@ -411,7 +425,7 @@ TEST(chord_palette_opens_on_a_chord_entered_earlier) {
   f.meta('/');
   CHECK(f.row(0) == (V{C, E, G}));
   f.press(cellui::Key::Up);
-  CHECK(f.row(0) == (V{C, Ds, E}));
+  CHECK(f.row(0) == (V{53 + C, Asu, G}));
   f.press(cellui::Key::Down);
   f.press(cellui::Key::Down);
   CHECK(f.row(0) == (V{C, Ds, F}));
@@ -465,11 +479,11 @@ TEST(chord_palette_is_accepted_by_the_next_note) {
   f.up('q');
   f.meta('/');
   f.press(cellui::Key::Up);
-  CHECK(f.row(0) == (V{C, Ds, E}));
+  CHECK(f.row(0) == (V{53 + C, Asu, G}));
   f.down('r');
   f.up('r');
   CHECK(!f.shows("Chord: 3 notes"));
-  CHECK(f.row(0) == (V{C, Ds, E}));
+  CHECK(f.row(0) == (V{53 + C, Asu, G}));
   CHECK(f.row(1) == (V{F, A, 53 + C}));
   f.meta('/');
   CHECK(f.shows("Chord: 3 notes"));
@@ -615,7 +629,7 @@ TEST(chord_entry_at_five_columns_writes_five_note_chords) {
     CHECK(f.row(0) == (V{C, E, G, Asu, 53 + C})); // the run 4:5:6:7:8 from C
   }
   {
-    // F♯↑ has no run: a seventh chord that contains it, with its first note repeated an octave on.
+    // F♯↑ has no run: the 7♯9 it owns, with its first note repeated an octave on.
     ChordFixture f;
     f.widen(4);
     f.down('5');
@@ -623,22 +637,20 @@ TEST(chord_entry_at_five_columns_writes_five_note_chords) {
     f.up('5');
     auto row = f.row(0);
     CHECK(row.size() == 5);
-    CHECK(row[4] == row[0] - 53); // a subharmonic seventh falls, so the repeated note is an octave lower
-    CHECK(f.shows("A♯↑ subharmonic seventh / F♯↑"));
+    CHECK(row == (V{26, 38, 43, 69, 79}));
+    CHECK(f.shows("F♯↑ 7♯9"));
     CHECK(!f.shows("with octave"));
   }
   {
-    // D𝄫 has no five-note chord: its seventh chord with the first note an octave on.
+    // D𝄫 has no five-note chord: the subharmonic 7♯9 it owns, with the first note an octave lower.
     ChordFixture f;
     f.widen(4);
     f.down('1');
     f.wait();
     f.up('1');
     auto row = f.row(0);
-    CHECK(row.size() >= 4);
-    CHECK(row[0] == 2);
-    for (std::size_t i = 1; i < 4; i++) CHECK(row[i] > 2);
-    CHECK(row.size() == 5 && row[4] == 2 + 53);
+    CHECK(row == (V{55, 43, 38, 12, 2}));
+    CHECK(f.shows("D𝄫 subharmonic 7♯9"));
   }
   {
     // C and B together.
@@ -1046,6 +1058,64 @@ TEST(a_chord_is_a_run_of_ratios_from_the_played_note) {
   CHECK(row(Scale::OTONAL, 2, 'e') == (V{70, 53, 39})); // at three columns the run E C A
 }
 
+// The paging keys move the selection a page of lines and stop at the ends; the wheel over the palette browses it
+// without choosing (and does not scroll the pattern behind), and a line is chosen by the release over the line it
+// was pressed on.
+namespace {
+// The screen row of the palette's list line `k`, found from its title line.
+int chordPaletteLine(ChordFixture & f, int k) {
+  auto lines = f.lines();
+  for (std::size_t i = 0; i < lines.size(); i++)
+    if (lines[i].find("Chord: 3 notes") != std::string::npos) return static_cast<int>(i) - 8 + k;  // eight lines for the three notes
+  return -1;
+}
+}  // namespace
+
+TEST(chord_palette_pages_with_the_paging_keys_and_stops_at_the_ends) {
+  ChordFixture f;
+  f.widen(2);
+  f.down('q');
+  f.up('q');
+  f.meta('/');
+  CHECK(f.row(0) == (V{C, E, G}));
+  f.press(cellui::Key::PageDown);
+  CHECK(f.row(0) == (V{53 + C, Asu, G}));  // the last of the eight chords, not round to the first
+  f.press(cellui::Key::PageDown);
+  CHECK(f.row(0) == (V{53 + C, Asu, G}));
+  f.press(cellui::Key::PageUp);
+  CHECK(f.row(0) == (V{C, E, G}));
+}
+
+TEST(chord_palette_wheel_browses_without_choosing_and_a_line_is_chosen_on_release) {
+  ChordFixture f;
+  f.widen(2);
+  f.down('q');
+  f.up('q');
+  f.meta('/');
+  int first = chordPaletteLine(f, 0);
+  CHECK(first > 0);
+  // The wheel over the palette changes nothing: the same chord, the palette open.
+  f.wheel(first + 2, 10);
+  f.wheel(first + 2, 10, false);
+  CHECK(f.shows("Chord: 3 notes"));
+  CHECK(f.row(0) == (V{C, E, G}));
+  // Pressed on one line and let go off the list: nothing is chosen.
+  f.terminal.pushMouse(first + 3, 10, cellui::Key::Button1, 0, cellui::Input::Kind::PRESS);
+  f.ui->step();
+  CHECK(f.shows("Chord: 3 notes"));
+  f.terminal.pushMouse(first + 8, 10, cellui::Key::Button1, 0, cellui::Input::Kind::RELEASE);  // the title line
+  f.ui->step();
+  CHECK(f.shows("Chord: 3 notes"));
+  CHECK(f.row(0) == (V{C, E, G}));
+  // Pressed and released on the second line: that chord is written and the palette accepts it.
+  f.terminal.pushMouse(first + 1, 10, cellui::Key::Button1, 0, cellui::Input::Kind::PRESS);
+  f.ui->step();
+  f.terminal.pushMouse(first + 1, 10, cellui::Key::Button1, 0, cellui::Input::Kind::RELEASE);
+  f.ui->step();
+  CHECK(!f.shows("Chord: 3 notes"));
+  CHECK(f.row(0) == (V{C, Ds, F}));
+}
+
 // The setting "borrowed chords" is switched in the chord palette: Tab moves the focus to its check box and
 // Space toggles it, and the candidates change at once.
 TEST(borrowed_chords_are_switched_in_the_chord_palette) {
@@ -1125,6 +1195,127 @@ TEST(borrowed_chords_in_chord_entry) {
     CHECK(f.row(0) == (V{E, G, Asu, 53 + C}));
     CHECK(!f.shows("(borrowed)"));
   }
+}
+
+// A new song starts with the borrowed chords on, and the check box shows it.
+TEST(a_new_song_offers_the_borrowed_chords) {
+  ChordFixture f;
+  f.controller->getSong().setBorrowedChords(true); // what a new song has (the fixture's own songs start the tests with it off)
+  f.down('e');
+  f.up('e');
+  f.meta('/');
+  CHECK(f.shows("☑ Borrowed chords"));
+  UIFixture plain("", UI::View::ARRANGEMENT, {}, {});
+  CHECK(plain.controller->getSong().getBorrowedChords());
+}
+
+namespace {
+// A note at C-4 plus `step`, written straight into a row of the first track.
+void putNote(ChordFixture & f, int row, int column, int step) {
+  auto & song = f.controller->getSong();
+  Song::Edit edit(song, "note");
+  auto target = resolveEditTarget(song, f.track_id, row);
+  target.pattern->setNote(target.effective_row, column, Note(kC + step, 0x40, 0));
+  f.controller->ensureNoteColumns(f.track_id, column + 1);
+}
+} // namespace
+
+// A cursor of several rows copies them all, unless there is a selection.
+TEST(a_cursor_of_several_rows_copies_all_its_rows) {
+  ChordFixture f;
+  f.execute("set-edit-step-3");
+  putNote(f, 0, 0, 0);
+  putNote(f, 1, 0, 17);
+  putNote(f, 2, 0, 31);
+  putNote(f, 3, 0, 43); // below the cursor: not copied
+  f.ui->step();
+  f.execute("kill-ring-save");
+  for (int i = 0; i < 6; i++) f.press(cellui::Key::Down);
+  f.execute("yank");
+  CHECK(f.row(6) == (V{C}));
+  CHECK(f.row(7) == (V{E}));
+  CHECK(f.row(8) == (V{G}));
+  CHECK(f.row(9).empty() || f.row(9) == (V{-1}));
+}
+
+// With a selection, the selection is copied, whatever the cursor's height.
+TEST(a_selection_is_copied_as_it_is_whatever_the_cursors_height) {
+  ChordFixture f;
+  f.execute("set-edit-step-3");
+  putNote(f, 0, 0, 0);
+  putNote(f, 1, 0, 17);
+  putNote(f, 2, 0, 31);
+  f.ui->step();
+  f.execute("set-mark");
+  f.press(cellui::Key::Down);
+  f.execute("kill-ring-save");
+  for (int i = 0; i < 5; i++) f.press(cellui::Key::Down); // from row 1 to row 6
+  f.execute("yank");
+  CHECK(!f.row(7).empty() && f.row(7)[0] != -1);
+  CHECK(f.row(8).empty() || f.row(8)[0] == -1);
+}
+
+namespace {
+// A row without its empty columns at the right.
+std::vector<int> trimmedRow(ChordFixture & f, int row) {
+  auto v = f.row(row);
+  while (!v.empty() && v.back() == -1) v.pop_back();
+  return v;
+}
+} // namespace
+
+// A chord entered with a cursor of several rows is an arpeggio inside the cursor: each note in its own column, as
+// with one row, and note i in row i (the last row takes the notes beyond it). Every other cell the cursor holds is emptied.
+TEST(a_chord_with_a_cursor_of_several_rows_is_an_arpeggio_inside_the_cursor) {
+  ChordFixture f;
+  f.widen(3); // four columns wide
+  f.execute("set-edit-step-3");
+  putNote(f, 1, 2, 5); // in the cursor, to be cleared
+  putNote(f, 2, 0, 9);
+  f.down('q'); // otonal C: C E G A♯↑
+  f.wait();
+  f.up('q');
+  CHECK(trimmedRow(f, 0) == (V{C}));
+  CHECK(trimmedRow(f, 1) == (V{-1, E}));
+  CHECK(trimmedRow(f, 2) == (V{-1, -1, G, Asu})); // the fourth note shares the last row
+  // With more rows than notes, the rows after the chord are empty.
+  ChordFixture g;
+  g.widen(3);
+  g.execute("set-edit-step-6");
+  putNote(g, 5, 1, 5);
+  g.down('q');
+  g.wait();
+  g.up('q');
+  CHECK(trimmedRow(g, 0) == (V{C}));
+  CHECK(trimmedRow(g, 1) == (V{-1, E}));
+  CHECK(trimmedRow(g, 2) == (V{-1, -1, G}));
+  CHECK(trimmedRow(g, 3) == (V{-1, -1, -1, Asu}));
+  CHECK(trimmedRow(g, 4).empty());
+  CHECK(trimmedRow(g, 5).empty());
+}
+
+// The chord palette writes the same arpeggio, and cancelling gives back every row.
+TEST(the_chord_palette_with_a_cursor_of_several_rows_writes_an_arpeggio_and_cancel_restores) {
+  ChordFixture f;
+  f.widen(2);
+  f.execute("set-edit-step-3");
+  f.down('q');
+  f.wait();
+  f.up('q');
+  CHECK(trimmedRow(f, 0) == (V{C}));
+  CHECK(trimmedRow(f, 1) == (V{-1, E}));
+  CHECK(trimmedRow(f, 2) == (V{-1, -1, G}));
+  for (int i = 0; i < 3; i++) f.press(cellui::Key::Up); // back to the first row of the entry
+  f.meta('/');
+  CHECK(f.shows("Chord: 3 notes"));
+  f.press(cellui::Key::Down); // the next chord, C narrow major
+  CHECK(trimmedRow(f, 0) == (V{C}));
+  CHECK(trimmedRow(f, 1) == (V{-1, Ds}));
+  CHECK(trimmedRow(f, 2) == (V{-1, -1, F}));
+  f.ctrl('g');
+  CHECK(trimmedRow(f, 0) == (V{C}));
+  CHECK(trimmedRow(f, 1) == (V{-1, E}));
+  CHECK(trimmedRow(f, 2) == (V{-1, -1, G}));
 }
 
 // A click on the check box toggles it, and the palette stays open.

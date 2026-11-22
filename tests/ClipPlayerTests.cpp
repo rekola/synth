@@ -245,6 +245,28 @@ TEST(clip_player_back_to_arrangement_hands_the_bars_back_to_the_song) {
   CHECK(!f.song().getRunningBars().isActive());
 }
 
+// A launch never toggles: launching the clip that is playing restarts it on
+// the next bar and never stops it.
+TEST(clip_player_launching_the_playing_clip_again_restarts_it_on_the_bar) {
+  LiveFixture f;
+  auto track = f.addTrack(1, 12); // three bars long
+  f.player().triggerClip(track, 0);
+  f.playRows(7); // rows 0-6, the second bar under way
+  CHECK(f.player().isLaunched(track));
+  CHECK(f.player().playheads().at(track).row >= 4);
+
+  f.player().triggerClip(track, 0);
+  f.playRows(1); // row 7, still before the bar
+  CHECK(f.player().isLaunched(track));
+  CHECK(f.player().playheads().at(track).row >= 4);
+
+  f.playRows(1); // row 8, the bar: the clip starts again
+  CHECK(f.player().isLaunched(track));
+  CHECK(f.player().clipHighlight(track, 0) == ClipHighlight::PLAYING);
+  CHECK(f.player().playheads().at(track).row < 4);
+  CHECK(f.plays(track, 60));
+}
+
 // The transport toggle only pauses: a launched clip stays launched,
 // shown paused, and resumes on the row it paused at.
 TEST(clip_player_pause_keeps_a_launched_clip_and_resumes_it_where_it_was) {

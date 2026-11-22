@@ -16,6 +16,7 @@
 #include "ChordGrouper.h"
 #include "ScenePatternSource.h"
 #include <cellui/Checkbox.h>
+#include <cellui/ChoiceList.h>
 #include <cellui/InlineEditor.h>
 #include "LevelMeter.h"
 #include "../model/Chords.h"
@@ -64,7 +65,7 @@ class PatternEditor : public UIElement {
   bool wantsBareEscape() const override { return chord_palette_.open && keymapProfile() == cellui::KeymapProfile::DESKTOP; }
   // The focus level is still easing: the loop keeps drawing frames.
   bool isAnimating() const {
-    return fades_.active() || focus_fade_drawn_ || rowsShifted() || flash_decaying_ || chord_entry_.pending || palette_drawn_ != chord_palette_.open || audition_.active || !arpeggio_.values.empty();
+    return fades_.active() || focus_fade_drawn_ || rowsShifted() || flash_decaying_ || chord_entry_.pending || palette_drawn_ != chord_palette_.open || (chord_palette_.open && chord_palette_.window.animating()) || audition_.active || !arpeggio_.values.empty();
   }
 
   // The cursor covers this many note columns of its row, from its own
@@ -364,6 +365,7 @@ private:
   int edit_step_size = 1;
   bool row_edited = false;
   int current_song_version = 0;
+  std::vector<int> current_taken_over_;
 
   // What render() last drew the cursor/selection highlight with - not
   // buffer-local state (unlike everything in EditingState below), just a
@@ -518,9 +520,15 @@ private:
     int size = 4;
     int span = 0; // note columns the session rewrites, from `column`
     std::vector<Note> original;
+    std::vector<Note> original_below; // the cursor's other rows, kPaletteColumns each, for a cursor of more rows
     std::vector<chords::Completion> lines;
     std::vector<std::string> spelled; // each line's notes by name
     int selected = 0;
+    cellui::ChoiceList window; // the scroll window over `lines`, following `selected` until the wheel scrolls it
+    // Where the panel is on the screen as last drawn, and the left button held down on a line (shown pressed).
+    int top = 0, left = 0, panel_rows = 0, list_rows = 0, panel_cols = 0;
+    bool pressing = false, press_on_line = false;
+    std::chrono::steady_clock::time_point last_tick; // the list eases where the display scrolls smoothly
     bool on_checkbox = false; // the keyboard focus is on the "Borrowed chords" check box, not the list
   };
   ChordPalette chord_palette_;
@@ -528,11 +536,22 @@ private:
   int palette_size_ = 4; // the size last used with a cursor of one column
   bool palette_drawn_ = false;
   std::unique_ptr<cellui::Plane> palette_plane_;
+  std::unique_ptr<cellui::Plane> palette_list_plane_; // the chords' rows over the panel's, so the display can shift them
   std::unique_ptr<cellui::Checkbox> palette_box_; // on palette_plane_
   // Sets the song's borrowed-chords setting and rebuilds the open palette's candidates at once.
   void setBorrowedChords(bool enabled);
   // Moves the open palette's selection on (1) or back (-1); opens a closed one, `direction` lines from the chord in the pattern.
   void stepChordPalette(int direction);
+  // Moves the selection by a page of lines, stopping at the ends (the paging keys).
+  void pageChordPalette(int direction);
+  // The line shown under a screen cell of the open palette (-1 for none), and whether the cell is on the panel.
+  int chordPaletteLineAt(int row, int col) const;
+  bool inChordPalette(int row, int col) const;
+  // The mouse over the open palette; true when it took the event.
+  bool chordPaletteMouseDown(const cellui::MouseDown & e);
+  bool chordPaletteMouseMove(const cellui::MouseMove & e);
+  bool chordPaletteMouseUp(const cellui::MouseUp & e);
+  bool chordPaletteWheel(const cellui::Wheel & e);
   void fillChordPalette();
   void writePaletteChord();
   void resizeChordPalette(int delta);
@@ -542,6 +561,11 @@ private:
   // The pitched notes side by side from a note column, at most kPaletteColumns.
   // The notes of the chord at the cursor; with `ratios`, the gamut note each one stands for (by its correction).
   std::vector<int> chordAt(int track_id, RowAddress row, int column, std::map<int, std::size_t> * ratios = nullptr);
+  // Writes a chord's notes (in column order) from `column`, each in its own column: on the cursor's first row, or
+  // with a cursor of more rows as an arpeggio, note i in row i (the last row takes the notes beyond it).
+  // Everything else under the cursor (`columns` columns, at least its width, in every row it covers) is
+  // emptied. In an open Song::Edit.
+  void writeChordCells(int track_id, RowAddress row, int column, int columns, const std::vector<Note> & notes);
 
   // Rows the cursor still owes the notes entered while keys were held: a
   // chord's keys all land on one row, and the cursor steps once the last

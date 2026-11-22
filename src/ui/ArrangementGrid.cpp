@@ -650,6 +650,10 @@ ArrangementGrid::render(const StyleProvider & styles, bool refresh, bool focused
   // that moves through the bars, not a bar's tint that steps.
   bool smooth_playhead = viewport_.cols.smooth() && playback_info.isPlaying();
   auto new_version = song.getMajorVersion();
+  // Tracks Live View has taken over: the arrangement doesn't play on them, so they show disabled.
+  std::vector<int> taken_over;
+  for (auto id : track_ids)
+    if (getController().getClipPlayer().isTakenOver(id)) taken_over.push_back(id);
   {
     // The view follows where it was scrolled to.
     auto now = std::chrono::steady_clock::now();
@@ -661,11 +665,12 @@ ArrangementGrid::render(const StyleProvider & styles, bool refresh, bool focused
       cursor_bar_ == current_cursor_bar_ &&
       cursor_track_index_ == current_cursor_track_index_ &&
       viewport_.cols.shown() == current_shown_col_ && viewport_.rows.offset() == current_scroll_row_ &&
-      focused == current_focused_ && !focus_fading && selected_track_id == current_selected_track_id_ &&
+      focused == current_focused_ && !focus_fading && taken_over == current_taken_over_ && selected_track_id == current_selected_track_id_ &&
       shown_ == current_shown_ && drag_version_ == current_drag_version_) {
     return false;
   }
   current_song_version_ = new_version;
+  current_taken_over_ = taken_over;
   current_playing_row_ = playing_row;
   current_phase_ = phase;
   current_smooth_playhead_ = smooth_playhead;
@@ -808,7 +813,12 @@ ArrangementGrid::render(const StyleProvider & styles, bool refresh, bool focused
     setFgColor(color);
     setBgColor(name_bg);
     putstr(y, 0, "▌");
-    setFgColor(lifted ? styles.window_border_color : styles.window_fg_color);
+    bool disabled = std::find(taken_over.begin(), taken_over.end(), track_id) != taken_over.end();
+    if (disabled) {
+      setFgColor(styles.window_border_color);
+      putstr(y, 0, "▌");
+    }
+    setFgColor(lifted || disabled ? styles.window_border_color : styles.window_fg_color);
     putstr(y, 1, cellui::utf8::padToWidth(cellui::utf8::truncateToWidth(labels[track_id], kNameWidth - 2), kNameWidth - 1));
     if (drop_here) {
       setFgColor(styles.window_fg_color);
@@ -846,7 +856,7 @@ ArrangementGrid::render(const StyleProvider & styles, bool refresh, bool focused
       // inside this one bar's own row span would otherwise never touch any
       // bar's plain per-row sample at all (see resolveInstanceForBar()'s
       // own comment).
-      auto active = resolveInstanceForBar(song, track_id, raw_row, rows_per_bar);
+      auto active = disabled ? ActiveInstance{Arrangement::kNoInstance, 0} : resolveInstanceForBar(song, track_id, raw_row, rows_per_bar);
       // The block in the air leaves its bars empty (a copy leaves them).
       if (drag_source_ && !drag_copy_ && drag_source_->contains(track_index, bar)) active = ActiveInstance{Arrangement::kNoInstance, 0};
       if (active.clip_index >= 0) {
@@ -867,7 +877,7 @@ ArrangementGrid::render(const StyleProvider & styles, bool refresh, bool focused
           // no width-ambiguity risk of its own.
           glyph = "×";
         }
-      } else {
+      } else if (!disabled) {
         bool has_sounding_note = false;
         if (barHasBackgroundContent(arrangement, track_id, raw_row, rows_per_bar, has_sounding_note)) {
           // Plain ASCII, not a circle glyph (U+25CF/U+25CB) - those fall in

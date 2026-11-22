@@ -32,6 +32,7 @@ struct SongScalars {
   float standard_pitch = kNominalStandardPitchHz;
   TimeSignature time_signature{4, 4};
   RunningBars running_bars;
+  int launch_quantization = 0;
   Tuning tuning = Tuning::EDO31;
   float ear_height = constants::DEFAULT_EAR_HEIGHT;
   bool floor_reflection_enabled = constants::DEFAULT_FLOOR_REFLECTION_ENABLED;
@@ -42,7 +43,7 @@ struct SongScalars {
 
   bool operator==(const SongScalars & o) const {
     return tempo == o.tempo && swing == o.swing && standard_pitch == o.standard_pitch && time_signature == o.time_signature && running_bars.signature == o.running_bars.signature &&
-           running_bars.origin == o.running_bars.origin && tuning == o.tuning && ear_height == o.ear_height && floor_reflection_enabled == o.floor_reflection_enabled &&
+           running_bars.origin == o.running_bars.origin && launch_quantization == o.launch_quantization && tuning == o.tuning && ear_height == o.ear_height && floor_reflection_enabled == o.floor_reflection_enabled &&
            floor_reflection_strength == o.floor_reflection_strength && ground_absorption == o.ground_absorption &&
            scale_corrections == o.scale_corrections;
   }

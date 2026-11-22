@@ -71,6 +71,7 @@ contentDigest(const SongScalars & scalars, const Arrangement & arrangement, cons
   s = combine(s, static_cast<uint64_t>(scalars.time_signature.numerator * 100 + scalars.time_signature.denominator));
   s = combine(s, static_cast<uint64_t>(scalars.running_bars.signature.numerator * 100 + scalars.running_bars.signature.denominator));
   s = combine(s, static_cast<uint64_t>(scalars.running_bars.origin));
+  s = combine(s, static_cast<uint64_t>(scalars.launch_quantization));
   s = combine(s, static_cast<uint64_t>(scalars.tuning));
   s = combine(s, std::hash<float>()(scalars.ear_height));
   s = combine(s, static_cast<uint64_t>(scalars.floor_reflection_enabled));
