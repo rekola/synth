@@ -1473,16 +1473,7 @@ InteractiveUI::renderComponents(bool refresh) {
   }
   {
     // Always shown: "n/a" until the backend has a figure.
-    auto link = backend_.linkStatus();
-    std::string text = "Link: ";
-    if (link.available || link.pinned) {
-      text += cellui::linkClassLabel(link.cls);
-      if (!link.description.empty()) text += ", " + link.description;
-      if (link.pinned) text += " (pinned)";
-    } else {
-      text += "n/a";
-    }
-    info_line_->setLinkText(std::move(text));
+    info_line_->setLinkText(cellui::linkStatusText(backend_.linkStatus()));
   }
   if (info_line_->render(styles_, refresh)) { render = true; statCount("render:info_line_"); }
   {
