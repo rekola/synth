@@ -1591,7 +1591,16 @@ void ClipGrid::putDialGroupRow(const StyleProvider & styles, int y, int x, int o
   // The caption stands in the free corner above B.
   if (offset == kSendsTop) {
     body_plane.setFgColor(styles.window_accent_fg_color);
-    body_plane.putstr(y, x + kDialX + kDialStride, "Sends");
+    // Proportional, in three boxes so the "n" stands in the middle cell of B's slot whatever the letters' widths.
+    auto caption = [&](int col, int cols, const char * text, cellui::TextAlign align) {
+      cellui::TextStyle style{cellui::TextFont::PROPORTIONAL, cellui::TextOverflow::CLIP};
+      style.align = align;
+      body_plane.putText(y, col, cols, text, style);
+    };
+    const int box = x + kDialX + kDialStride;
+    caption(box, 2, "Se", cellui::TextAlign::RIGHT);
+    caption(box + 2, 1, "n", cellui::TextAlign::CENTER);
+    caption(box + 3, 2, "ds", cellui::TextAlign::LEFT);
   }
 }
 
