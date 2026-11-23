@@ -11,7 +11,7 @@
 #include <vector>
 
 // The scope row's raw per-channel volume meter: one sparkline, a bar for each channel
-// with its own smoothing and peak marker, and a legend along the bottom row.
+// with its own smoothing and peak marker, and the legend written over the bars on the bottom row.
 // The channels' levels are audio; how a sparkline is drawn is the display's.
 class ChannelMeter : public cellui::Widget {
  public:
