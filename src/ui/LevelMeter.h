@@ -48,17 +48,21 @@ class Ballistics {
   static constexpr float kReleaseDbPerSecond = 40.0f;
   static constexpr float kSilenceDb = -100.0f;
 
+  Ballistics() = default;
+  explicit Ballistics(float release_db_per_second) : release_db_per_second_(release_db_per_second) {}
+
   // Returns the level to display as a linear RMS.
   float update(float rms, float dt_seconds) {
     rms = std::max(rms, 0.0f); // "no reading yet" is silence
     float weight = dt_seconds > 0.0f ? 1.0f - std::exp(-dt_seconds / kIntegrationSeconds) : 0.0f;
     power_ += (rms * rms - power_) * weight;
     float target_db = power_ > 1e-10f ? 10.0f * std::log10(power_) : kSilenceDb;
-    shown_db_ = target_db >= shown_db_ ? target_db : std::max(target_db, shown_db_ - kReleaseDbPerSecond * dt_seconds);
+    shown_db_ = target_db >= shown_db_ ? target_db : std::max(target_db, shown_db_ - release_db_per_second_ * dt_seconds);
     return shown_db_ <= kSilenceDb ? 0.0f : std::pow(10.0f, shown_db_ / 20.0f);
   }
 
  private:
+  float release_db_per_second_ = kReleaseDbPerSecond;
   float power_ = 0.0f;
   float shown_db_ = kSilenceDb;
 };

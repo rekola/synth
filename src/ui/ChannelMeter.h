@@ -17,6 +17,8 @@ class ChannelMeter : public cellui::Widget {
  public:
   // The channels there is room for: order-3 ambisonic plus AuxA/AuxB.
   static constexpr size_t kMaxChannels = 18;
+  // The bars fall faster than the other meters', to follow the scope row's quick spectrum.
+  static constexpr float kReleaseDbPerSecond = 70.0f;
 
   ChannelMeter(cellui::Plane & parent, const cellui::Charts & charts) : Widget(parent), charts_(charts) {}
 
@@ -42,7 +44,7 @@ class ChannelMeter : public cellui::Widget {
 
  private:
   struct Channel {
-    level_meter::Ballistics ballistics;
+    level_meter::Ballistics ballistics{kReleaseDbPerSecond};
     level_meter::PeakHold peak_hold;
     cellui::SparklineReading reading;
   };
