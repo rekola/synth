@@ -17,7 +17,7 @@ void ChannelMeter::feed(const std::vector<float> & rms) {
   for (size_t i = 0; i < kMaxChannels; i++) {
     auto & channel = channels_[i];
     float level = i < rms.size() ? rms[i] : 0.0f;
-        channel.reading.fraction = level_meter::fraction(channel.ballistics.update(level, dt));
+    channel.reading.fraction = level_meter::fraction(channel.ballistics.update(level, dt));
     channel.reading.peak = channel.peak_hold.update(channel.reading.fraction, dt);
   }
 }
@@ -29,18 +29,12 @@ void ChannelMeter::show(const std::string & label) {
   setBgColor(styles.window_bg_color);
   fill();
 
-  // The bars take every row but the legend's, the last.
-  int top = 0;
-  int bar_rows = label.empty() ? rows : rows - 1;
-  cellui::SparklineLook look{styles.window_bg_color, std::nullopt};
+  // The bars take every row; the legend is the chart's own, over the bottom one.
+  cellui::SparklineLook look{styles.window_bg_color, std::nullopt, label};
   // One sparkline, two bars to a cell, as many as fit.
   std::vector<cellui::SparklineReading> readings;
   for (size_t i = 0; i < std::min(kMaxChannels, static_cast<size_t>(2 * cols)); i++) readings.push_back(channels_[i].reading);
-  if (bar_rows > 0) charts_.drawSparkline(getPlane(), top, 0, bar_rows, readings, look, top, top + bar_rows, 1);
-  if (!label.empty()) {
-    setFgColor(styles.window_fg_color);
-    putstr(rows - 1, 0, label);
-  }
+  charts_.drawSparkline(getPlane(), 0, 0, rows, readings, look, 0, rows, 1);
 }
 
 bool ChannelMeter::atRest() const {

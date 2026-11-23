@@ -431,7 +431,8 @@ Controller-level and per-widget commands. Not migrated: `StatusLine`,
   makes the moved track the current one, which the grids' cursors follow.
   `ClipCard.h` is how a clip looks on a grid wherever one shows (slot, block,
   ghost): a card lifted off the grid so the display lights and shadows it.
-- **Scopes**: the spectrum is a `cellui::LineChart` fed by
+- **Scopes**: the channel meter's legend (`ChannelMeter`) is the sparkline's own label (`SparklineLook::label`), written over the bars on the bottom row and not a row of its own; the cell version draws the bars in octants or sextants, like the heatmap.
+  The spectrum is a `cellui::LineChart` fed by
   `spectrum_curve::values()` (`ui/SpectrumCurve.h`: dBFS bins on a log axis,
   80 dB range); it, the DirAC heatmap and the level meter sit side by side in Arrangement view's top band
   and in Live View's left column under the outline (only while the outline
