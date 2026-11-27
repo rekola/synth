@@ -530,7 +530,7 @@ InteractiveUI::initialize(std::shared_ptr<Controller> & controller) {
     menu_->applyStyles(styles_);
   }
 
-  chart_ = charts_.lineChart(getPlane());
+  chart_ = std::make_shared<cellui::LineChart>(getPlane(), charts_);
   volume_meter_ = std::make_shared<ChannelMeter>(getPlane(), charts_);
   heatmap_ = charts_.heatmap(getPlane(), DiracAnalyzer::kAzimuthBins, DiracAnalyzer::kElevationBins);
 
@@ -1880,7 +1880,7 @@ bool InteractiveUI::drawPendingScopes() {
   }
   if (fft_pending_) {
     fft_pending_ = false;
-    if (chart_->setValues(spectrum_curve::values(pending_fft_, pending_fft_hz_, chart_->suggestedPoints()))) {
+    if (chart_->setValues(spectrum_curve::values(pending_fft_, pending_fft_hz_, std::max<size_t>(static_cast<size_t>(2 * std::max(chart_->getDim().second, 0)), 8)))) {
       drawn = true;
       statCount("scope:spectrum");
     }
