@@ -77,7 +77,7 @@ TEST(dark_theme_keeps_the_other_colours_too) {
   CHECK(same(s.button_fg_color, "#ffffff"));
   CHECK(same(s.button_bg_color, "#c04080"));
   CHECK(same(s.button_pressed_bg_color, "#7a2850"));
-  CHECK(same(s.row_pressed_bg_color, "#5c7c8c"));
+  CHECK(same(s.row_pressed_bg_color, "#486270"));
   CHECK(same(s.master_track_color, "#533918"));
   CHECK(same(s.menu_bg_color, "#7f347f"));
   CHECK(same(s.menu_section_bg_color, "#000000"));
