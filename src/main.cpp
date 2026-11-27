@@ -371,6 +371,7 @@ int main(int argc, char *argv[]) {
   // The display is cellui's to open: the window or the terminal, as --ui asks, and `auto` picks.
   cellui::ApplicationOptions app_options;
   app_options.ui = ui_kind;
+  app_options.title = "synth";
   app_options.dither = dither;
   app_options.styles = std::make_unique<StyleProvider>();
   std::string ui_error;
