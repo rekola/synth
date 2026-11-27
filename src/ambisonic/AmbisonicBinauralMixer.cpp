@@ -265,11 +265,10 @@ AmbisonicBinauralMixer::encode() {
   for (int i = 0; i < frames; i++) {
     float l = left_acc_[static_cast<size_t>(i)] * gain_trim_;
     float r = right_acc_[static_cast<size_t>(i)] * gain_trim_;
-    if (l > 1.0f) l = 1.0f; else if (l < -1.0f) l = -1.0f;
-    if (r > 1.0f) r = 1.0f; else if (r < -1.0f) r = -1.0f;
     out_left[i] = l;
     out_right[i] = r;
   }
+  finishStereoOutput(out_left, out_right, frames, false);
 
   for (size_t i = 0; i < tail_len; i++) {
     left_tail_[i] = left_acc_[static_cast<size_t>(frames) + i];
