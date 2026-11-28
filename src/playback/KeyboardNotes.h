@@ -154,10 +154,18 @@ inline const std::string_view keyToMidiNote(int key, Tuning tuning, Scale scale)
         return otonal ? "A♯↑" : "B𝄫";
       case '8':
         return otonal ? "B♭" : "B♭↓";
-      case 'k':
+      case '9':
+        return "D𝄫'";
+      case '0':
+        return otonal ? "D'" : "D↓'";
+      case '+':
+        return otonal ? "D𝄪'" : "";
+      case 'j':
         return "B";
-      case 'l':
+      case 'k':
         return "B♯";
+      case 'l':
+        return "D♭↓'";
       case 'i':
         return "C'";
       case 'o':
